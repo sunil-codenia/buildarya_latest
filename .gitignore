@@ -1,7 +1,8 @@
 node_modules/
 vendor/
+!public/vendor/
+!public/vendor/**
 storage/
 .env
 *.json
 *.zip
-
