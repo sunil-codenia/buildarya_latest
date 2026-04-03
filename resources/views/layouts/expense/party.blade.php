@@ -64,45 +64,75 @@ $dataarray = json_decode($data, true);
                 <h2><strong>Expense Party</strong> List&nbsp;<i class="zmdi zmdi-info info-hover"></i>
                     <div class="info-content" >Expenses parties will be listed here.</h2>
                 <ul class="header-dropdown">
+                   <li id="bulkActions" style="display: none;">
+                            @if (checkmodulepermission(2, 'can_edit') == 1)
+                                <button class="btn btn-warning btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                    title="Bulk Edit" type="button" onclick="submitBulkEdit()">
+                                    <i class="zmdi zmdi-edit" style="color: white;"></i>
+                                </button>
+                                <button class="btn btn-success btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                    title="Bulk Activate" type="button" onclick="submitBulkStatus('Active')">
+                                    <i class="zmdi zmdi-check" style="color: white;"></i>
+                                </button>
+                                <button class="btn btn-danger btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                    title="Bulk Deactivate" type="button" onclick="submitBulkStatus('Deactive')">
+                                    <i class="zmdi zmdi-close" style="color: white;"></i>
+                                </button>
+                            @endif
+                   </li>
                    <li>
-                  
                             @if(checkmodulepermission(2,'can_add') == 1)
                                 <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10" data-toggle="modal" data-target="#newexpensepartymodal"  type="button">
                                     <i class="zmdi zmdi-plus" style="color: white;" ></i>
                                 </button>
                             @endif
-              
                    </li>
                 </ul>
             </div>
 
             <div class="body">
             @if(checkmodulepermission(2,'can_view') == 1)
-                <div class="table-responsive">
-                    <table id="dataTable" class="table table-hover">
-                        <thead>
-                            <tr>      
-                                <th>#</th>                                 
-                                <th >Name</th>
-                               
-                                <th><strong>Address</th>                                        
-                                <th >Pan No</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @php
-                            $i=1;
-                            @endphp
-                            @foreach($dataarray as $dd)
+                <form action="{{ url('/bulk_edit_party') }}" method="POST" id="bulkEditForm">
+                    @csrf
+                    <input type="hidden" name="type" value="party">
+                    <input type="hidden" name="status" id="bulkStatusField" value="">
+                    <div class="table-responsive">
+                        <table id="dataTable" class="table table-hover">
+                            <thead>
+                                <tr>      
+                                    <th style="width: 20px;">
+                                        <div class="checkbox">
+                                            <input id="select_all" type="checkbox">
+                                            <label for="select_all">&nbsp;</label>
+                                        </div>
+                                    </th>
+                                    <th style="width: 50px;">#</th>                                 
+                                    <th >Name</th>
+                                   
+                                    <th><strong>Address</th>                                        
+                                    <th >Pan No</th>
+                                    <th style="width: 100px;">Status</th>
+                                    <th style="width: 100px;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
                             @php
-                            $ddid = $dd['id'];
-                            @endphp
-                          <tr>
-                            <td>
-                                {{$i++}}
-                            </td>
+                                $i=1;
+                                @endphp
+                                @foreach($dataarray as $dd)
+                                @php
+                                $ddid = $dd['id'];
+                                @endphp
+                              <tr>
+                                <td style="padding-left: 10px;">
+                                    <div class="checkbox">
+                                        <input id="check_{{ $ddid }}" name="check_list[]" class="item_checkbox" type="checkbox" value="{{ $ddid }}">
+                                        <label for="check_{{ $ddid }}">&nbsp;</label>
+                                    </div>
+                                </td>
+                                <td>
+                                    {{$i++}}
+                                </td>
                                         <td>
                                             <a class="single-user-name" href="#">{{$dd['name']}}</a>
                                         </td>
@@ -147,6 +177,7 @@ $dataarray = json_decode($data, true);
                         </tbody>
                     </table>
                 </div>
+                </form>
                 
                 @else
                 <div class="alert alert-danger">You Don't Have Permission To View</div>
@@ -291,6 +322,40 @@ $dataarray = json_decode($data, true);
                 window.location.href = url;
             }
         });
+        }
+
+        $("#select_all").click(function() {
+            $('.item_checkbox').prop('checked', this.checked);
+            toggleBulkActions();
+        });
+
+        $(document).on('change', '.item_checkbox', function() {
+            toggleBulkActions();
+            if ($('.item_checkbox:checked').length == $('.item_checkbox').length) {
+                $('#select_all').prop('checked', true);
+            } else {
+                $('#select_all').prop('checked', false);
+            }
+        });
+
+        function toggleBulkActions() {
+            var checkedCount = $(".item_checkbox:checked").length;
+            if (checkedCount > 0) {
+                $("#bulkActions").show();
+            } else {
+                $("#bulkActions").hide();
+            }
+        }
+
+        function submitBulkEdit() {
+            $("#bulkEditForm").attr('action', "{{ url('/bulk_edit_party') }}");
+            $("#bulkEditForm").submit();
+        }
+
+        function submitBulkStatus(status) {
+            $("#bulkStatusField").val(status);
+            $("#bulkEditForm").attr('action', "{{ url('/update_bulk_party_status') }}");
+            $("#bulkEditForm").submit();
         }
 </script>
 

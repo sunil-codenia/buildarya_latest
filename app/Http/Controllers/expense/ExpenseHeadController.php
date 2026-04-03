@@ -89,4 +89,39 @@ class ExpenseHeadController extends Controller
                 ->with('success', 'Expense Head Deleted Successfully!');
         }
     }
+
+    public function bulk_edit_head(Request $request)
+    {
+        $ids = $request->input('check_list');
+        if (empty($ids)) {
+            return redirect('/expense_head')->with('error', 'Please select at least one head to edit!');
+        }
+
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $data = DB::connection($user_db_conn_name)->table('expense_head')->whereIn('id', $ids)->get();
+
+        return view('layouts.expense.bulk_edit_head')->with('data', json_encode($data));
+    }
+
+    public function update_bulk_head(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('id');
+        $names = $request->input('name');
+
+        try {
+            DB::connection($user_db_conn_name)->beginTransaction();
+            foreach ($ids as $key => $id) {
+                DB::connection($user_db_conn_name)->table('expense_head')
+                    ->where('id', $id)
+                    ->update(['name' => $names[$key]]);
+                addActivity($id, 'expense_head', "Expense Head Updated via Bulk Edit", 2);
+            }
+            DB::connection($user_db_conn_name)->commit();
+            return redirect('/expense_head')->with('success', 'Expense Heads Updated Successfully!');
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            return redirect('/expense_head')->with('error', 'Error while updating bulk heads!');
+        }
+    }
 }

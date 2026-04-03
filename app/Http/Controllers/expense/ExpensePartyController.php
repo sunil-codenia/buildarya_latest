@@ -130,5 +130,77 @@ class ExpensePartyController extends Controller
         }
     }
 
-   
+    public function bulk_edit_party(Request $request)
+    {
+        $ids = $request->input('check_list');
+        if (empty($ids)) {
+            return redirect('/expense_party')->with('error', 'Please select at least one party to edit!');
+        }
+
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $data = DB::connection($user_db_conn_name)->table('expense_party')->whereIn('id', $ids)->get();
+
+        return view('layouts.expense.bulk_edit_party')->with('data', json_encode($data));
+    }
+
+    public function update_bulk_party(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('id');
+        $names = $request->input('name');
+        $addresses = $request->input('address');
+        $pan_nos = $request->input('pan_no');
+
+        try {
+            DB::connection($user_db_conn_name)->beginTransaction();
+            foreach ($ids as $key => $id) {
+                DB::connection($user_db_conn_name)->table('expense_party')
+                    ->where('id', $id)
+                    ->update([
+                        'name' => $names[$key],
+                        'address' => $addresses[$key],
+                        'pan_no' => $pan_nos[$key]
+                    ]);
+                addActivity($id, 'expense_party', "Expense Party Updated via Bulk Edit", 2);
+            }
+            DB::connection($user_db_conn_name)->commit();
+            return redirect('/expense_party')->with('success', 'Expense Parties Updated Successfully!');
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            return redirect('/expense_party')->with('error', 'Error while updating bulk parties!');
+        }
+    }
+
+    public function update_bulk_party_status(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('check_list');
+        $status = $request->input('status');
+
+        if (empty($ids)) {
+            return redirect('/expense_party')->with('error', 'Please select at least one party!');
+        }
+
+        try {
+            DB::connection($user_db_conn_name)->beginTransaction();
+            foreach ($ids as $id) {
+                $party = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $id)->first();
+                DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $id)->update(['status' => $status]);
+                addActivity($id, 'expense_party', "Expense Party Status Changed To " . $status . " via Bulk Action", 2);
+
+                if ($status == 'Active' && $party->status == 'Pending') {
+                    DB::connection($user_db_conn_name)->table('contact_profile')->insert([
+                        'comp_name' => $party->name,
+                        'contact_name' => $party->name,
+                        'category' => 'Expense Party'
+                    ]);
+                }
+            }
+            DB::connection($user_db_conn_name)->commit();
+            return redirect('/expense_party')->with('success', 'Selected Parties ' . $status . 'd Successfully!');
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            return redirect('/expense_party')->with('error', 'Error while updating bulk status!');
+        }
+    }
 }

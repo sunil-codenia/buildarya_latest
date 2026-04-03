@@ -53,9 +53,17 @@
             <div class="card project_list">
                 <div class="header">
                     <h2><strong>Expense Head</strong> List&nbsp;<i class="zmdi zmdi-info info-hover"></i>
-                        <div class="info-content">Head will be listed here.
+                        <div class="info-content">Head will be listed here.</div>
                     </h2>
                     <ul class="header-dropdown">
+                        <li id="bulkActions" style="display: none;">
+                            @if (checkmodulepermission(2, 'can_edit') == 1)
+                                <button class="btn btn-warning btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                    title="Bulk Edit" type="button" onclick="submitBulkEdit()">
+                                    <i class="zmdi zmdi-edit" style="color: white;"></i>
+                                </button>
+                            @endif
+                        </li>
                         <li>
                             @if (checkmodulepermission(2, 'can_add') == 1)
                                 <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10"
@@ -69,28 +77,43 @@
 
                 <div class="body">
                     @if (checkmodulepermission(2, 'can_view') == 1)
-                        <div class="table-responsive">
-                            <table id="dataTable" class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Name</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-
-                                {{-- <a class="btn btn-success" href="{{ url('/sendNotification') }}"> Send Notification </a> --}}
-                                <tbody>
-                                    @php
-                                        $i = 1;
-                                    @endphp
-                                    @foreach ($dataarray as $dd)
-                                        @php
-                                            $ddid = $dd['id'];
-                                        @endphp
-
+                        <form action="{{ url('/bulk_edit_head') }}" method="POST" id="bulkEditForm">
+                            @csrf
+                            <input type="hidden" name="type" value="head">
+                            <div class="table-responsive">
+                                <table id="dataTable" class="table table-hover">
+                                    <thead>
                                         <tr>
-                                            <td>{{ $i++ }}</td>
+                                            <th style="width: 20px;">
+                                                <div class="checkbox">
+                                                    <input id="select_all" type="checkbox">
+                                                    <label for="select_all">&nbsp;</label>
+                                                </div>
+                                            </th>
+                                            <th style="width: 50px;">#</th>
+                                            <th>Name</th>
+                                            <th style="width: 100px;">Action</th>
+                                        </tr>
+                                    </thead>
+
+                                    {{-- <a class="btn btn-success" href="{{ url('/sendNotification') }}"> Send Notification </a> --}}
+                                    <tbody>
+                                        @php
+                                            $i = 1;
+                                        @endphp
+                                        @foreach ($dataarray as $dd)
+                                            @php
+                                                $ddid = $dd['id'];
+                                            @endphp
+
+                                            <tr>
+                                                <td style="padding-left: 10px;">
+                                                    <div class="checkbox">
+                                                        <input id="check_{{ $ddid }}" name="check_list[]" class="item_checkbox" type="checkbox" value="{{ $ddid }}">
+                                                        <label for="check_{{ $ddid }}">&nbsp;</label>
+                                                    </div>
+                                                </td>
+                                                <td>{{ $i++ }}</td>
                                             <td>
                                                 <a class="single-user-name" href="#">{{ $dd['name'] }}</a>
                                             </td>
@@ -110,9 +133,10 @@
                                         </tr>
                                     @endforeach
 
-                                </tbody>
-                            </table>
-                        </div>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </form>
                     @endif
                 </div>
             </div>
@@ -207,6 +231,33 @@
                     window.location.href = url;
                 }
             });
+        }
+
+        $("#select_all").click(function() {
+            $('.item_checkbox').prop('checked', this.checked);
+            toggleBulkActions();
+        });
+
+        $(document).on('change', '.item_checkbox', function() {
+            toggleBulkActions();
+            if ($('.item_checkbox:checked').length == $('.item_checkbox').length) {
+                $('#select_all').prop('checked', true);
+            } else {
+                $('#select_all').prop('checked', false);
+            }
+        });
+
+        function toggleBulkActions() {
+            var checkedCount = $(".item_checkbox:checked").length;
+            if (checkedCount > 0) {
+                $("#bulkActions").show();
+            } else {
+                $("#bulkActions").hide();
+            }
+        }
+
+        function submitBulkEdit() {
+            $("#bulkEditForm").submit();
         }
     </script>
 @endsection

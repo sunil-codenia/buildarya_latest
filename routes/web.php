@@ -78,6 +78,8 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/delete_expense_head', [ExpenseHeadController::class, 'delete_expense_head']);
     Route::post('/updateexpensehead', [ExpenseHeadController::class, 'updateexpensehead']);
     Route::post('/expense_head_report', [ExpenseHeadController::class, 'pdf_csv']);
+    Route::post('/bulk_edit_head', [ExpenseHeadController::class, 'bulk_edit_head']);
+    Route::post('/update_bulk_head', [ExpenseHeadController::class, 'update_bulk_head']);
 
     Route::get('/expense_party', [ExpensePartyController::class, 'expense_party']);
     Route::post('/addexpenseparty', [ExpensePartyController::class, 'addexpenseparty']);
@@ -85,6 +87,9 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/delete_expense_party', [ExpensePartyController::class, 'delete_expense_party']);
     Route::post('/updateexpenseparty', [ExpensePartyController::class, 'updateexpenseparty']);
     Route::get('/update_expense_party_status', [ExpensePartyController::class, 'update_expense_party_status']);
+    Route::post('/bulk_edit_party', [ExpensePartyController::class, 'bulk_edit_party']);
+    Route::post('/update_bulk_party', [ExpensePartyController::class, 'update_bulk_party']);
+    Route::post('/update_bulk_party_status', [ExpensePartyController::class, 'update_bulk_party_status']);
     Route::get('/generateBackup', [BackupController::class, 'generateBackup']);
 
     
@@ -102,6 +107,9 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/pending_expense/bulk_edit_expense', [ExpenseController::class, 'bulk_edit_expense']);
     Route::post('/pending_expense/update_bulk', [ExpenseController::class, 'updateBulkExpenses']);
     Route::get('/verified_expense', [ExpenseController::class, 'verified_expense']);
+    Route::post('/bulk_approve_verified', [ExpenseController::class, 'bulk_approve_verified']);
+    Route::post('/bulk_reject_verified', [ExpenseController::class, 'bulk_reject_verified']);
+    Route::get('/verified_expense/export/{type}', [ExpenseController::class, 'verified_expense_export']);
     Route::get('/reject_expense_by_id', [ExpenseController::class, 'reject_expense_by_id']);
     Route::get('/approve_expense_by_id', [ExpenseController::class, 'approve_expense_by_id']);
     Route::post('/expense_report', [ExpenseController::class, 'expenses_download']);

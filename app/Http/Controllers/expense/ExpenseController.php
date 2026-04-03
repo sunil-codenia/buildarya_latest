@@ -34,7 +34,7 @@ class ExpenseController extends Controller
             $filters[] = ['expenses.site_id', '=', $site_id];
         }
 
-        $data = DB::connection($user_db_conn_name)->table('expenses')
+        $query = DB::connection($user_db_conn_name)->table('expenses')
             ->leftJoin('expense_party', function ($join) {
                 $join->on('expense_party.id', '=', 'expenses.party_id')
                     ->where('expenses.party_type', '=', 'expense');
@@ -47,16 +47,31 @@ class ExpenseController extends Controller
             ->leftJoin('sites', 'sites.id', '=', 'expenses.site_id')
             ->leftJoin('users', 'users.id', '=', 'expenses.user_id')
             ->select(
-                'expenses.*', 
-                'sites.name as site', 
-                'users.name as user', 
+                'expenses.*',
+                'sites.name as site',
+                'users.name as user',
                 'expense_head.name as head',
                 DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END as party_name')
             )
             ->where($filters)
-            ->whereBetween('expenses.create_datetime', [$min_date, $max_date])
-            ->orderBy('expenses.create_datetime', 'desc')
-            ->paginate(10);
+            ->whereBetween('expenses.create_datetime', [$min_date, $max_date]);
+
+        if ($request->get('search')) {
+            $search = $request->get('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('expenses.particular', 'like', "%$search%")
+                    ->orWhere('expenses.amount', 'like', "%$search%")
+                    ->orWhere('sites.name', 'like', "%$search%")
+                    ->orWhere('users.name', 'like', "%$search%")
+                    ->orWhere('expense_head.name', 'like', "%$search%")
+                    ->orWhere('expense_party.name', 'like', "%$search%")
+                    ->orWhere('bills_party.name', 'like', "%$search%");
+            });
+        }
+
+        $data = $query->orderBy('expenses.create_datetime', 'desc')
+            ->paginate(10)
+            ->withQueryString();
 
         // Pre-fetch mappings to avoid N+1 queries in the view
         $asset_expense_heads = DB::connection($user_db_conn_name)->table('assets_expense_head')->pluck('head_id')->toArray();
@@ -65,6 +80,119 @@ class ExpenseController extends Controller
         $machinery_heads = DB::connection($user_db_conn_name)->table('machinery_head')->pluck('name', 'id')->toArray();
 
         return view('layouts.expense.verified', compact('data', 'asset_expense_heads', 'machinery_expense_heads', 'asset_heads', 'machinery_heads'));
+    }
+
+    public function verified_expense_export(Request $request, $type)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $role_id = $request->session()->get('role');
+        $site_id = $request->session()->get('site_id');
+
+        $role_details = getRoleDetailsById($role_id);
+        $view_duration = $role_details->view_duration;
+        $visiblity_at_site = $role_details->visiblity_at_site;
+
+        $dates = getdurationdates($view_duration);
+        $min_date = $dates['min'];
+        $max_date = $dates['max'];
+
+        $filters = [['expenses.status', '!=', 'Pending']];
+        if ($visiblity_at_site == 'current') {
+            $filters[] = ['expenses.site_id', '=', $site_id];
+        }
+
+        $query = DB::connection($user_db_conn_name)->table('expenses')
+            ->leftJoin('expense_party', function ($join) {
+                $join->on('expense_party.id', '=', 'expenses.party_id')
+                    ->where('expenses.party_type', '=', 'expense');
+            })
+            ->leftJoin('bills_party', function ($join) {
+                $join->on('bills_party.id', '=', 'expenses.party_id')
+                    ->where('expenses.party_type', '=', 'bill');
+            })
+            ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
+            ->leftJoin('sites', 'sites.id', '=', 'expenses.site_id')
+            ->leftJoin('users', 'users.id', '=', 'expenses.user_id')
+            ->select(
+                'expenses.*',
+                'sites.name as site',
+                'users.name as user',
+                'expense_head.name as head',
+                DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END as party_name')
+            )
+            ->where($filters)
+            ->whereBetween('expenses.create_datetime', [$min_date, $max_date]);
+
+        if ($request->get('search')) {
+            $search = $request->get('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('expenses.particular', 'like', "%$search%")
+                    ->orWhere('expenses.amount', 'like', "%$search%")
+                    ->orWhere('sites.name', 'like', "%$search%")
+                    ->orWhere('users.name', 'like', "%$search%")
+                    ->orWhere('expense_head.name', 'like', "%$search%")
+                    ->orWhere('expense_party.name', 'like', "%$search%")
+                    ->orWhere('bills_party.name', 'like', "%$search%");
+            });
+        }
+
+        $expenses = $query->orderBy('expenses.create_datetime', 'desc')->get();
+        $file_name = "Verified Expenses (" . date('d-m-Y') . ")";
+
+        if ($type == 'pdf') {
+            $pdf = Pdf::loadView('layouts.expense.exports.verified_export', compact('expenses'))->setPaper('a4', 'landscape');
+            return $pdf->download($file_name . ".pdf");
+        }
+
+        return Excel::download(new \App\Exports\VerifiedExpenseExport($expenses), $file_name . "." . $type);
+    }
+
+    public function bulk_approve_verified(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('check_list');
+
+        if (empty($ids)) {
+            return redirect('/verified_expense')->with('error', 'Please select at least one expense!');
+        }
+
+        try {
+            DB::connection($user_db_conn_name)->table('expenses')
+                ->whereIn('id', $ids)
+                ->update(['status' => 'Approved']);
+            
+            foreach ($ids as $id) {
+                addActivity($id, 'expenses', "Expense Approved via Bulk Action", 2);
+            }
+
+            return redirect('/verified_expense')->with('success', 'Selected Expenses Approved Successfully!');
+        } catch (\Exception $e) {
+            return redirect('/verified_expense')->with('error', 'Error while approving bulk expenses!');
+        }
+    }
+
+    public function bulk_reject_verified(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('check_list');
+
+        if (empty($ids)) {
+            return redirect('/verified_expense')->with('error', 'Please select at least one expense!');
+        }
+
+        try {
+            DB::connection($user_db_conn_name)->table('expenses')
+                ->whereIn('id', $ids)
+                ->update(['status' => 'Rejected']);
+            
+            foreach ($ids as $id) {
+                addActivity($id, 'expenses', "Expense Rejected via Bulk Action", 2);
+            }
+
+            return redirect('/verified_expense')->with('success', 'Selected Expenses Rejected Successfully!');
+        } catch (\Exception $e) {
+            return redirect('/verified_expense')->with('error', 'Error while rejecting bulk expenses!');
+        }
     }
 
 
