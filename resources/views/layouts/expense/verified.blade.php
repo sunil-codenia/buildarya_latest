@@ -14,7 +14,17 @@
                 <div class="body">
                     @if (checkmodulepermission(2, 'can_view') == 1)
                         <div class="table-responsive">
-                            <table id="dataTable" class="table table-hover">
+                            <style>
+    .pagination {
+        justify-content: center;
+        margin-top: 20px;
+    }
+    /* Hide some potential DataTable remnants just in case */
+    .dataTables_wrapper .row:first-child, .dataTables_wrapper .row:last-child {
+        display: none !important;
+    }
+</style>
+<table id="verifiedExpenseTableCustom" class="table table-hover table-bordered">
                                 <thead>
                                     <tr>
                                         <th>#</th>
@@ -38,22 +48,17 @@
 
                                     @php
 
-                                        $dataarray = json_decode($data, true);
-
-                                        $i = 1;
+                                        $i = ($data->currentPage() - 1) * $data->perPage() + 1;
                                     @endphp
-                                    @foreach ($dataarray as $dd)
+                                    @foreach ($data as $dd)
                                         @php
+                                            $dd = (array)$dd;
                                             $ddid = $dd['id'];
                                         @endphp
                                         <tr>
                                             <td>{{ $i++ }}</td>
                                             <td>
-                                                @if ($dd['party_type'] == 'bill')
-                                                    {{ getBillPartyInfo($dd['party_id'])->name }}
-                                                @elseif($dd['party_type'] == 'expense')
-                                                    {{ getExpensePartyInfo($dd['party_id'])->name }}
-                                                @endif
+                                                {{ $dd['party_name'] }}
                                             </td>
                                             <td>
                                                 {{ $dd['head'] }}
@@ -102,10 +107,10 @@
                                                             style="all:unset"><i class="zmdi zmdi-block"></i> </button>
                                                     @endif
                                                 @else
-                                                    @if (is_asset_head($dd['head_id']))
+                                                    @if (in_array($dd['head_id'], $asset_expense_heads))
                                                         @if (!empty($dd['asset_head']))
                                                             Asset Category -
-                                                            {{ getAssetHeadsById($dd['asset_head'])->name }}<br>
+                                                            {{ $asset_heads[$dd['asset_head']] ?? 'N/A' }}<br>
                                                         @endif
                                                         @if (checkmodulepermission(2, 'can_certify') == 1)
                                                             <button type="button"
@@ -113,10 +118,10 @@
                                                                 style="all:unset"><i class="zmdi  zmdi-wrench"></i>
                                                             </button>
                                                         @endif
-                                                    @elseif(is_machinery_head($dd['head_id']))
+                                                    @elseif(in_array($dd['head_id'], $machinery_expense_heads))
                                                         @if (!empty($dd['machinery_head']))
                                                             Machinery Category -
-                                                            {{ getMachineryHeadsById($dd['machinery_head'])->name }}<br>
+                                                            {{ $machinery_heads[$dd['machinery_head']] ?? 'N/A' }}<br>
                                                         @endif
                                                         @if (checkmodulepermission(2, 'can_certify') == 1)
                                                             <button type="button"
@@ -147,9 +152,12 @@
 
                                 </tbody>
 
-                            </table>
-                        </div>
-                    @else
+                    </table>
+                </div>
+                <div class="card-footer text-center">
+                    {{ $data->links('pagination::bootstrap-4') }}
+                </div>
+            @else
                         <div class="alert alert-danger">You Don't Have Permission To View</div>
                     @endif
                 </div>

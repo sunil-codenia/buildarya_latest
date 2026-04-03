@@ -957,28 +957,32 @@ function sendAlertNotification($user_id, $msg, $title)
 
     $fcm_code =  DB::connection($user_db_conn_name)->table('users')->where('id', '=', $user_id)->get()[0]->fcm_id;
 
-    $access_token = sendPushNotification();
-    $response = Http::withHeaders([
+    try {
+        $access_token = sendPushNotification();
+        $response = Http::withHeaders([
 
-        'Content-type' => 'application/json',
-        'Authorization' => 'Bearer ' . $access_token
-    ])->post('https://fcm.googleapis.com/v1/projects/constructionmunshi/messages:send', [
-        'message' => [
-            'token' => $fcm_code,
-            'notification' => [
-                'title' => $title,
-                'body' => $msg
+            'Content-type' => 'application/json',
+            'Authorization' => 'Bearer ' . $access_token
+        ])->post('https://fcm.googleapis.com/v1/projects/constructionmunshi/messages:send', [
+            'message' => [
+                'token' => $fcm_code,
+                'notification' => [
+                    'title' => $title,
+                    'body' => $msg
 
-            ],
-            'apns' => [
-                'payload' => [
-                    'aps' => [
-                        'sound' => 'alert.mp3'
-                    ],
                 ],
+                'apns' => [
+                    'payload' => [
+                        'aps' => [
+                            'sound' => 'alert.mp3'
+                        ],
+                    ],
+                ]
             ]
-        ]
-    ]);
+        ]);
+    } catch (\Exception $e) {
+        // Log or ignore notification failure to prevent crashing main process
+    }
 }
 
 
@@ -986,7 +990,7 @@ function sendAlertNotification($user_id, $msg, $title)
 function sendPushNotification()
 {
 
-    $credentialsFilePath = "constructionmunshi-firebase-adminsdk-9ibpz-ec7993929c.json";
+    $credentialsFilePath = base_path("constructionmunshi-firebase-adminsdk-9ibpz-ec7993929c.json");
     $client = new \Google_Client();
     $client->setAuthConfig($credentialsFilePath);
     $client->addScope('https://www.googleapis.com/auth/firebase.messaging');

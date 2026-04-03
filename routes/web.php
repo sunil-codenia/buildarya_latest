@@ -99,6 +99,8 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/addnewExpenses', [ExpenseController::class, 'addnewExpenses']);
     Route::post('/updateExpenses', [ExpenseController::class, 'updateExpenses']);
     Route::post('/updateEditExpenses', [ExpenseController::class, 'updateEditExpenses']);
+    Route::post('/pending_expense/bulk_edit_expense', [ExpenseController::class, 'bulk_edit_expense']);
+    Route::post('/pending_expense/update_bulk', [ExpenseController::class, 'updateBulkExpenses']);
     Route::get('/verified_expense', [ExpenseController::class, 'verified_expense']);
     Route::get('/reject_expense_by_id', [ExpenseController::class, 'reject_expense_by_id']);
     Route::get('/approve_expense_by_id', [ExpenseController::class, 'approve_expense_by_id']);

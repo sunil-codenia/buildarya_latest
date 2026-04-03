@@ -17,31 +17,54 @@ class ExpenseController extends Controller
     //
     public function verified_expense(Request $request)
     {
-        $data = array();
-
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
 
         $role_details = getRoleDetailsById($role_id);
-
         $view_duration = $role_details->view_duration;
         $visiblity_at_site = $role_details->visiblity_at_site;
 
         $dates = getdurationdates($view_duration);
         $min_date = $dates['min'];
         $max_date = $dates['max'];
+
+        $filters = [['expenses.status', '!=', 'Pending']];
         if ($visiblity_at_site == 'current') {
-            $filters = [['expenses.status', '!=', 'Pending'], ['expenses.site_id', '=', $site_id]];
-        } else {
-            $filters = [['expenses.status', '!=', 'Pending']];
+            $filters[] = ['expenses.site_id', '=', $site_id];
         }
-        $data = DB::connection($user_db_conn_name)->table('expenses')->leftjoin('expense_party', 'expense_party.id', '=', 'expenses.party_id')->leftjoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')->leftjoin('sites', 'sites.id', '=', 'expenses.site_id')->leftjoin('users', 'users.id', '=', 'expenses.user_id')->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_party.name as party', 'expense_head.name as head')->where($filters)->whereBetween('expenses.create_datetime', [$min_date, $max_date])->orderBy('expenses.create_datetime', 'desc')->get();
-          
-        return  view('layouts.expense.verified')->with('data', json_encode($data));
 
+        $data = DB::connection($user_db_conn_name)->table('expenses')
+            ->leftJoin('expense_party', function ($join) {
+                $join->on('expense_party.id', '=', 'expenses.party_id')
+                    ->where('expenses.party_type', '=', 'expense');
+            })
+            ->leftJoin('bills_party', function ($join) {
+                $join->on('bills_party.id', '=', 'expenses.party_id')
+                    ->where('expenses.party_type', '=', 'bill');
+            })
+            ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
+            ->leftJoin('sites', 'sites.id', '=', 'expenses.site_id')
+            ->leftJoin('users', 'users.id', '=', 'expenses.user_id')
+            ->select(
+                'expenses.*', 
+                'sites.name as site', 
+                'users.name as user', 
+                'expense_head.name as head',
+                DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END as party_name')
+            )
+            ->where($filters)
+            ->whereBetween('expenses.create_datetime', [$min_date, $max_date])
+            ->orderBy('expenses.create_datetime', 'desc')
+            ->paginate(10);
 
+        // Pre-fetch mappings to avoid N+1 queries in the view
+        $asset_expense_heads = DB::connection($user_db_conn_name)->table('assets_expense_head')->pluck('head_id')->toArray();
+        $machinery_expense_heads = DB::connection($user_db_conn_name)->table('machinery_expense_head')->pluck('head_id')->toArray();
+        $asset_heads = DB::connection($user_db_conn_name)->table('asset_head')->pluck('name', 'id')->toArray();
+        $machinery_heads = DB::connection($user_db_conn_name)->table('machinery_head')->pluck('name', 'id')->toArray();
+
+        return view('layouts.expense.verified', compact('data', 'asset_expense_heads', 'machinery_expense_heads', 'asset_heads', 'machinery_heads'));
     }
 
 
@@ -177,6 +200,97 @@ class ExpenseController extends Controller
         }
 
         return  view('layouts.expense.edit')->with('data', json_encode($data));
+    }
+    public function bulk_edit_expense(Request $request)
+    {
+        $ids = $request->input('check_list');
+        if (empty($ids)) {
+            return redirect('/pending_expense')->with('error', 'Please select at least one expense to edit!');
+        }
+
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $data = array();
+        $data['expenses'] = DB::connection($user_db_conn_name)->table('expenses')->whereIn('id', $ids)->get();
+        $data['expense_head'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
+        $data['expense_party'] = DB::connection($user_db_conn_name)->table('expense_party')->where('status', '=', 'Active')->get();
+        $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Active')->get();
+        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+
+        return view('layouts.expense.bulk_edit')->with('data', json_encode($data));
+    }
+
+    public function updateBulkExpenses(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $user_id = session()->get('uid');
+        $role_id = session()->get('role');
+        $status = getInitialEntryStatusByRole($role_id);
+
+        $ids = $request->input('id');
+        $site_ids = $request->input('site_id');
+        $party_ids = $request->input('party_id');
+        $head_ids = $request->input('head_id');
+        $particulars = $request->input('particular');
+        $amounts = $request->input('amount');
+        $remarks = $request->input('remark');
+        $dates = $request->input('date');
+
+        try {
+            foreach ($ids as $key => $id) {
+                $head_id = $head_ids[$key];
+                $current_status = $status;
+                if (is_machinery_head($head_id) || is_asset_head($head_id)) {
+                    $current_status = 'Pending';
+                }
+
+                $party = explode("||", $party_ids[$key]);
+
+                $expense = DB::connection($user_db_conn_name)->table('expenses')->where('id', $id)->first();
+                $imagePath = $expense->image;
+
+                $imageKey = 'image_' . $key;
+                if ($request->hasFile($imageKey)) {
+                    if (File::exists($expense->image) && $expense->image != 'images/expense.png') {
+                        File::delete($expense->image);
+                    }
+                    $file = $request->file($imageKey);
+                    $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                    $file->move(public_path('images/app_images/' . $user_db_conn_name . '/expense'), $imageName);
+                    $imagePath = "images/app_images/" . $user_db_conn_name . "/expense/" . $imageName;
+                }
+
+                $updateData = [
+                    'site_id' => $site_ids[$key],
+                    'user_id' => $user_id,
+                    'party_id' => $party[0],
+                    'party_type' => $party[1],
+                    'head_id' => $head_id,
+                    'particular' => $particulars[$key],
+                    'amount' => $amounts[$key],
+                    'remark' => $remarks[$key],
+                    'image' => $imagePath,
+                    'status' => $current_status,
+                    'date' => $dates[$key],
+                ];
+
+                DB::connection($user_db_conn_name)->table('expenses')->where('id', $id)->update($updateData);
+                addActivity($id, 'expenses', "Expense Data Updated via Bulk Edit", 2);
+
+                if ($current_status == 'Approved') {
+                    if ($party[1] == 'bill') {
+                        $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $party[0])->get()[0];
+                    } else {
+                        $party_status = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $party[0])->get()[0];
+                    }
+                    if ($party_status->status == 'Active') {
+                        $this->approve_expense($id, $user_db_conn_name);
+                    }
+                }
+            }
+            return redirect('/pending_expense')->with('success', 'Expenses Updated successfully!');
+        } catch (\Exception $e) {
+            return redirect('/pending_expense')->with('error', 'Error While Updating Expenses: ' . $e->getMessage());
+        }
     }
 
     public function addnewExpenses(Request $request)

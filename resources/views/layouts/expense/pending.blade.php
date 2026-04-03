@@ -25,11 +25,16 @@
                                         <button type="submit" name="reject_expense" value="reject_expense"
                                             class="btn btn-danger btn-simple btn-round waves-effect"><a>Reject</a></button>
                                     @endif
+                                    @if (checkmodulepermission(2, 'can_edit') == 1)
+                                        <button type="submit" formaction="{{ url('/pending_expense/bulk_edit_expense') }}"
+                                            class="btn btn-warning btn-simple btn-round waves-effect"><a>Edit</a></button>
+                                    @endif
                                 </div>
                                 <table id="dataTable" class="table table-hover">
 
                                     <thead>
                                         <tr>
+                                            <th><input type="checkbox" id="select_all"></th>
                                             <th>#</th>
                                             <th>Party</th>
                                             <th>Head</th>
@@ -59,9 +64,8 @@
                                                 $ddid = $dd['id'];
                                             @endphp
                                             <tr>
-                                                <td>{{ $i++ }}
-
-                                                </td>
+                                                <td><input type="checkbox" name="check_list[]" class="check_item" value="{{ $dd['id'] }}" onclick="event.stopPropagation()"></td>
+                                                <td>{{ $i++ }}</td>
                                                 <td>
                                                    {{getExpensePartyNameByPartyType($dd['party_id'],$dd['party_type'])}}
                                                 </td>
@@ -108,8 +112,7 @@
                                                             @if (!empty($dd['asset_head']))
                                                                 Asset Category -
                                                                 {{ getAssetHeadsById($dd['asset_head'])->name }}<br>
-                                                                <input type="checkbox" name="check_list[]"
-                                                                    value="{{ $dd['id'] }}">
+                                                                 {{-- Checkbox removed --}}
                                                             @endif
 
                                                             @if (checkmodulepermission(2, 'can_certify') == 1)
@@ -122,8 +125,7 @@
                                                             @if (is_machinery_head($dd['head_id']) && !empty($dd['machinery_head']))
                                                                 Machinery Category -
                                                                 {{ getMachineryHeadsById($dd['machinery_head'])->name }}<br>
-                                                                <input type="checkbox" name="check_list[]"
-                                                                    value="{{ $dd['id'] }}">
+                                                                 {{-- Checkbox removed --}}
                                                             @endif
                                                             @if (checkmodulepermission(2, 'can_certify') == 1)
                                                                 <button type="button"
@@ -134,8 +136,7 @@
                                                             @endif
                                                         @endif
                                                     @else
-                                                        <input type="checkbox" name="check_list[]"
-                                                            value="{{ $dd['id'] }}">
+                                                     {{-- Checkbox removed --}}
                                                     @endif
                                                     &nbsp;
                                                     <?php
@@ -257,6 +258,18 @@
 @endsection
 @section('scripts')
     <script>
+        $('#select_all').on('click', function() {
+            if (this.checked) {
+                $('.check_item').each(function() {
+                    this.checked = true;
+                });
+            } else {
+                $('.check_item').each(function() {
+                    this.checked = false;
+                });
+            }
+        });
+
         function editexpense(id) {
             Swal.fire({
                 title: 'Are you sure?',
