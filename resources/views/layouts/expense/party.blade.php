@@ -4,7 +4,7 @@
 @php
 $edit=false;
 $dataarray = json_decode($data, true);
-                            if(isset(json_decode($data, true)['edit_data'])){
+                            if(isset($dataarray['edit_data']) && count($dataarray['edit_data']) > 0){
                             $editdata = $dataarray['edit_data'][0];
                             $edit=true;
                             $dataarray = $dataarray['data'];
@@ -237,7 +237,7 @@ $dataarray = json_decode($data, true);
             },
         }).then((result) => {
             if (result.isConfirmed) {
-                var url = "{{url('/delete_expense_party/?id=')}}" + id;
+                var url = "{{url('/delete_expense_party?id=')}}" + id;
                 window.location.href = url;
             }
         });
@@ -262,7 +262,7 @@ $dataarray = json_decode($data, true);
             },
         }).then((result) => {
             if (result.isConfirmed) {
-                var url = "{{url('/update_expense_party_status/?id=')}}" + id + "&status="+status;
+                var url = "{{url('/update_expense_party_status?id=')}}" + id + "&status="+status;
                 window.location.href = url;
             }
         });
@@ -287,7 +287,7 @@ $dataarray = json_decode($data, true);
             },
         }).then((result) => {
             if (result.isConfirmed) {
-                var url = "{{url('/edit_expense_party/?id=')}}" + id;
+                var url = "{{url('/edit_expense_party?id=')}}" + id;
                 window.location.href = url;
             }
         });

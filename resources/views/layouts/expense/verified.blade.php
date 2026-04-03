@@ -185,7 +185,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/reject_expense_by_id/?id=') }}" + id;
+                    var url = "{{ url('/reject_expense_by_id?id=') }}" + id;
                     window.location.href = url;
                 }
             });
@@ -211,7 +211,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/approve_expense_by_id/?id=') }}" + id;
+                    var url = "{{ url('/approve_expense_by_id?id=') }}" + id;
                     window.location.href = url;
                 }
             });
@@ -237,7 +237,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/edit_expense/?id=') }}" + id;
+                    var url = "{{ url('/edit_expense?id=') }}" + id;
                     window.location.href = url;
                 }
             });
