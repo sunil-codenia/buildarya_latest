@@ -11,26 +11,24 @@
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="stylesheet" href="{{ asset('/plugins/bootstrap/css/bootstrap.min.css') }}"/>
-<link rel="stylesheet" href="{{ asset('/plugins/jvectormap/jquery-jvectormap-2.0.3.min.css') }}"/>
-<link rel="stylesheet" href="{{ asset('/plugins/morrisjs/morris.min.css') }}" />
-<link rel="stylesheet" href="{{ asset('/css/main.css') }}"/>
-<link rel="stylesheet" href="{{ asset('/css/color_skins.css') }}"/>
-<link rel="stylesheet" href="{{ asset('/css/select2.css') }}"/>
-<link rel="stylesheet" href="{{ asset('/css/owl.carousel.min.css') }}"/>
-<link rel="stylesheet" href="{{ asset('/css/owl.theme.green.min.css') }}"/>
+<link rel="stylesheet" href="/plugins/bootstrap/css/bootstrap.min.css"/>
+<link rel="stylesheet" href="/plugins/jvectormap/jquery-jvectormap-2.0.3.min.css"/>
+<link rel="stylesheet" href="/plugins/morrisjs/morris.min.css" />
+<link rel="stylesheet" href="/css/main.css"/>
+<link rel="stylesheet" href="/css/color_skins.css"/>
+<link rel="stylesheet" href="/css/select2.css"/>
+<link rel="stylesheet" href="/css/owl.carousel.min.css"/>
+<link rel="stylesheet" href="/css/owl.theme.green.min.css"/>
 
-<link rel="stylesheet" href="{{ asset('/plugins/bootstrap-colorpicker/css/bootstrap-colorpicker.css') }}" />
-<link rel="stylesheet" href="{{ asset('/plugins/multi-select/css/multi-select.css') }}">
-<link rel="stylesheet" href="{{ asset('/plugins/jquery-spinner/css/bootstrap-spinner.css') }}">
-<link rel="stylesheet" href="{{ asset('/plugins/bootstrap-tagsinput/bootstrap-tagsinput.css') }}">
-<link rel="stylesheet" href="{{ asset('/plugins/bootstrap-select/css/bootstrap-select.css') }}" />
-<link rel="stylesheet" href="{{ asset('/plugins/nouislider/nouislider.min.css') }}" />
-<link rel="stylesheet" href="{{ asset('/plugins/DataTables/datatables.min.css') }}" />
+<link rel="stylesheet" href="/plugins/bootstrap-colorpicker/css/bootstrap-colorpicker.css" />
+<link rel="stylesheet" href="/plugins/multi-select/css/multi-select.css">
+<link rel="stylesheet" href="/plugins/jquery-spinner/css/bootstrap-spinner.css">
+<link rel="stylesheet" href="/plugins/bootstrap-tagsinput/bootstrap-tagsinput.css">
+<link rel="stylesheet" href="/plugins/bootstrap-select/css/bootstrap-select.css" />
+<link rel="stylesheet" href="/plugins/nouislider/nouislider.min.css" />
+<link rel="stylesheet" href="/plugins/DataTables/datatables.min.css" />
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/limonte-sweetalert2/6.6.9/sweetalert2.min.css">
-
-<link rel="stylesheet" href="{{ asset('/css/custom.css') }}"/>
+<link rel="stylesheet" href="/css/custom.css"/>
 
 </head>   <!-- include header -->
 

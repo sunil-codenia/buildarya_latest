@@ -2,9 +2,8 @@
 
 
 <script src="{{ asset('/js/pages/index.js') }}"></script>
-<script src="{{ asset('/plugins/DataTables/datatables.min.js') }}"></script> <!-- Bootstrap Colorpicker Js -->
-
-<script src="{{ asset('/js/select2.js') }}"></script>
+<script src="/plugins/DataTables/datatables.min.js"></script>
+<script src="/js/select2.js"></script>
 <script>
     $(document).ready(function() {
         $('.select2').select2({
@@ -235,13 +234,13 @@
 
 </script>
 
-<script src="{{ asset('/plugins/bootstrap-colorpicker/js/bootstrap-colorpicker.js') }}"></script> <!-- Bootstrap Colorpicker Js -->
-<script src="{{ asset('/vendor/sweetalert/sweetalert.all.js') }}"></script> <!-- Sweetalert Js -->
-<script src="{{ asset('/plugins/multi-select/js/jquery.multi-select.js') }}"></script> <!-- Multi Select Plugin Js -->
-<script src="{{ asset('/plugins/jquery-spinner/js/jquery.spinner.js') }}"></script> <!-- Jquery Spinner Plugin Js -->
-<script src="{{ asset('/plugins/bootstrap-tagsinput/bootstrap-tagsinput.js') }}"></script> <!-- Bootstrap Tags Input Plugin Js -->
-<script src="{{ asset('/plugins/nouislider/nouislider.js') }}"></script> <!-- noUISlider Plugin Js -->
-<script src="{{ asset('/plugins/jquery-inputmask/jquery.inputmask.bundle.js') }}"></script> <!-- Input Mask Plugin Js -->
-<script src="{{ asset('/js/pages/forms/advanced-form-elements.js') }}"></script>
+<script src="/plugins/bootstrap-colorpicker/js/bootstrap-colorpicker.js"></script>
+<script src="/vendor/sweetalert/sweetalert.all.js"></script>
+<script src="/plugins/multi-select/js/jquery.multi-select.js"></script>
+<script src="/plugins/jquery-spinner/js/jquery.spinner.js"></script>
+<script src="/plugins/bootstrap-tagsinput/bootstrap-tagsinput.js"></script>
+<script src="/plugins/nouislider/nouislider.js"></script>
+<script src="/plugins/jquery-inputmask/jquery.inputmask.bundle.js"></script>
+<script src="/js/pages/forms/advanced-form-elements.js"></script>
 
 <script src="{{ asset('/js/owl.carousel.min.js') }}"></script> <!-- owl crousel  Js -->
