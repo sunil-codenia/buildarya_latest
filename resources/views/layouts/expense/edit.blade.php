@@ -11,11 +11,11 @@ $heads = $data['expense_head'];
 $site_id = session()->get("site_id");
 $role_details = getRoleDetailsById(session()->get('role'));
 $entry_at_site = $role_details->entry_at_site;
-$add_duration = $role_details->add_duration;
+$add_duration = session()->get('add_duration');
 $duration = getdurationdates($add_duration);
-$today = $duration['today'];
-$min_date = $duration['min'];
-$max_date = $duration['max'];
+$today = substr($duration['today'], 0, 10);
+$min_date = substr($duration['min'], 0, 10);
+$max_date = substr($duration['max'], 0, 10);
 
 @endphp
 <div class="row clearfix">

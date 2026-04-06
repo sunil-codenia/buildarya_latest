@@ -8,9 +8,9 @@
         $entry_at_site = $role_details->entry_at_site;
         $add_duration = $role_details->add_duration;
         $duration = getdurationdates($add_duration);
-        $today = $duration['today'];
-        $min_date = $duration['min'];
-        $max_date = $duration['max'];
+        $today = substr($duration['today'], 0, 10);
+        $min_date = substr($duration['min'], 0, 10);
+        $max_date = substr($duration['max'], 0, 10);
 
     @endphp
     @if (checkmodulepermission(8, 'can_report') == 1)

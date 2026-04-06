@@ -9,19 +9,140 @@ use Symfony\Component\Console\Input\Input;
 
 class UserController extends Controller
 {
- public function users(Request $request)
+    public function users(Request $request)
     {
-        $users_list = array();
-        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        return view('layouts.users.users');
+    }
 
-        $users = DB::connection($user_db_conn_name)->table('users')->leftJoin('sites', 'users.site_id', '=', 'sites.id')->select('users.*', 'sites.name AS site')->get();
-        for ($i = 0; $i < sizeof($users); $i++) {
-            $other_users  = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image')->where('site_id', $users[$i]->site_id)->where('id', '!=', $users[$i]->id)->get();
-            $users_list[$i]['data'] = $users[$i];
-            $users_list[$i]['list'] = $other_users;
+    public function get_users_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        $query = DB::connection($user_db_conn_name)->table('users')
+            ->leftJoin('sites', 'users.site_id', '=', 'sites.id')
+            ->select('users.*', 'sites.name AS site');
+
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('users.name', 'LIKE', "%{$search}%")
+                    ->orWhere('users.username', 'LIKE', "%{$search}%")
+                    ->orWhere('users.contact_no', 'LIKE', "%{$search}%")
+                    ->orWhere('sites.name', 'LIKE', "%{$search}%");
+            });
         }
-        $data['data'] = $users_list;
-        return  view('layouts.users.users')->with('data', json_encode($data));
+
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'asc');
+
+        $columns = [
+            1 => 'users.name',
+            5 => 'users.status',
+            6 => 'users.username',
+            10 => 'users.create_datetime'
+        ];
+
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('users.id', 'desc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $users = $query->get();
+
+        // Efficiently fetch "Other Site Members" avatars
+        $site_ids = $users->pluck('site_id')->unique()->filter()->toArray();
+        $all_possible_members = [];
+        if (!empty($site_ids)) {
+            $all_possible_members = DB::connection($user_db_conn_name)->table('users')
+                ->whereIn('site_id', $site_ids)
+                ->select('name', 'id', 'image', 'site_id')
+                ->get()
+                ->groupBy('site_id');
+        }
+
+        $formattedData = [];
+        $i = $start + 1;
+        $current_role = session()->get('role');
+
+        foreach ($users as $user) {
+            $ddid = $user->id;
+            
+            $image = '<img class="rounded avatar" style="max-height: 40px;" src="'.asset($user->image).'" alt="im">';
+            
+            $role_name = getRoleDetailsById($user->role_id)->name;
+            $nameInfo = '<a class="single-user-name" href="#">'.htmlspecialchars($user->name).'</a><br><small>'.htmlspecialchars($role_name).'</small>';
+            
+            $siteInfo = '<strong>'.htmlspecialchars($user->site).'</strong>';
+
+            // Other Site Members Avatars
+            $other_members_html = '<ul class="list-unstyled team-info margin-0">';
+            if (isset($all_possible_members[$user->site_id])) {
+                foreach ($all_possible_members[$user->site_id] as $member) {
+                    if ($member->id != $user->id) {
+                        $other_members_html .= '<li><a title="'.htmlspecialchars($member->name).'"><img src="'.asset($member->image).'" style="max-height: 40px;" alt="'.htmlspecialchars($member->name).'"></a></li>';
+                    }
+                }
+            }
+            $other_members_html .= '</ul>';
+
+            $statusClass = ($user->status == 'Active') ? 'badge-success' : 'badge-danger';
+            $statusHtml = '';
+            if (checkmodulepermission(1, 'can_certify') == 1) {
+                $newStatus = ($user->status == 'Active') ? 'Deactive' : 'Active';
+                $statusHtml = '<span onclick="updateuserstatus(\''.$ddid.'\',\''.$newStatus.'\')" class="badge '.$statusClass.'">'.$user->status.'</span>';
+            } else {
+                $statusHtml = '<span class="badge '.$statusClass.'">'.$user->status.'</span>';
+            }
+
+            $actionHtml = '';
+            if (checkmodulepermission(1, 'can_edit') == 1) {
+                $actionHtml .= '<button title="Assign Permission" onclick="assignPerm('.$ddid.')" style="all:unset"><img src="'.asset('/images/permission.png').'" style="width:20px" /></button>&nbsp;';
+                $actionHtml .= '<button title="Edit" onclick="editdata('.$ddid.')" style="all:unset;"><i class="zmdi zmdi-edit"></i></button>&nbsp;';
+            }
+            if (isUserDeletable($ddid) && checkmodulepermission(1, 'can_delete') == 1) {
+                $actionHtml .= '<button title="delete" onclick="deleteUser('.$ddid.')" style="all:unset"><i class="zmdi zmdi-delete"></i></button>';
+            }
+
+            $rowData = [
+                $i++,
+                $image,
+                $nameInfo,
+                $siteInfo,
+                $other_members_html,
+                $statusHtml,
+                $user->username,
+                $user->contact_no,
+                $user->pan_no
+            ];
+
+            if ($current_role == 1) {
+                $rowData[] = $user->pass;
+            }
+            
+            $rowData[] = $user->create_datetime;
+            $rowData[] = $actionHtml;
+
+            $formattedData[] = $rowData;
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
     }
     public function user_report(Request $request)
     {
@@ -92,6 +213,8 @@ class UserController extends Controller
             'image' => $image,
             'contact_no' => $contact_no,
             'mobile_only'=>$mobile_only,
+            'view_duration' => $request->view_duration,
+            'add_duration' => $request->add_duration,
         ];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {
@@ -177,6 +300,8 @@ class UserController extends Controller
                 ->with('success', 'User Deactivated!');
         }
     }
+
+
     public function edit_users(Request $request)
     {
         $id = $request->get('id');
@@ -185,8 +310,14 @@ class UserController extends Controller
 
         $users_list = array();
         $users = DB::connection($user_db_conn_name)->table('users')->leftJoin('sites', 'users.site_id', '=', 'sites.id')->select('users.*', 'sites.name AS site')->get();
+        $all_users = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image', 'site_id')->get();
         for ($i = 0; $i < sizeof($users); $i++) {
-            $other_users  = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image')->where('site_id', $users[$i]->site_id)->where('id', '!=', $users[$i]->id)->get();
+            $other_users = [];
+            foreach ($all_users as $au) {
+                if ($au->site_id == $users[$i]->site_id && $au->id != $users[$i]->id) {
+                    $other_users[] = $au;
+                }
+            }
             $users_list[$i]['data'] = $users[$i];
             $users_list[$i]['list'] = $other_users;
         }
@@ -247,7 +378,9 @@ class UserController extends Controller
             'pan_no' => $pan_no,
             'image' => $image,
             'contact_no' => $contact_no,
-            'mobile_only'=>$mobile_only
+            'mobile_only'=>$mobile_only,
+            'view_duration' => $request->view_duration,
+            'add_duration' => $request->add_duration,
         ]);
         addActivity($id,'users',"User Data Updated",1);
         return redirect('/users')->with('success', 'User Updated successfully!');

@@ -35,9 +35,12 @@ class UserController extends Controller
                         $roledata = getAppRoleDetailsById($userdata->role_id, $compdata->db_conn_name);
                         $sitedata = getAppSiteDetailsById($site_id, $compdata->db_conn_name);
 
+                        $roledata = DB::connection($compdata->db_conn_name)->table('roles')->where('id', '=', $userdata->role_id)->first();
+                        $view_duration = $userdata->view_duration ?? $roledata->view_duration;
+                        $add_duration = $userdata->add_duration ?? $roledata->add_duration;
+
                         $rolename = $roledata->name;
                         $entry_at_site = $roledata->entry_at_site;
-                        $add_duration = $roledata->add_duration;
 
                         $data = [
                             "response" => "OK",
@@ -61,8 +64,10 @@ class UserController extends Controller
                             "site_name" => $sitedata->name,
                             "role_name" => $rolename,
                             "comp_db_conn_name" => $compdata->db_conn_name,
-                            'entry_at_site' => $entry_at_site,
-                            'add_duration' => $add_duration
+                            'role_id' => $userdata->role_id,
+                            'view_duration' => $view_duration,
+                            'add_duration' => $add_duration,
+                            'entry_at_site' => $entry_at_site
                         ];
 
                         // } else {
@@ -119,8 +124,8 @@ class UserController extends Controller
         $role_details = getAppRoleDetailsById($role_id, $conn);
         $rolename = $role_details->name;
         $entry_at_site = $role_details->entry_at_site;
-        $add_duration = $role_details->add_duration;
-        $view_duration = $role_details->view_duration;
+        $add_duration = $userdata->add_duration ?? $role_details->add_duration;
+        $view_duration = $userdata->view_duration ?? $role_details->view_duration;
         $visiblity_at_site = $role_details->visiblity_at_site;
         $dates = getdurationdates($view_duration);
         $min_date = $dates['min'];

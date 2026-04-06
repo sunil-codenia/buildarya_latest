@@ -88,7 +88,16 @@ $dataarray = json_decode($data, true);
         <div class="card project_list">
             <div class="header">
                 <h2><strong>Material Supplier</strong> List</h2>
-                <ul class="header-dropdown">
+                <ul class="header-dropdown" style="display: flex; align-items: center;">
+                    <div id="bulk-action-toolbar" style="display: none; margin-right: 15px;">
+                        @if(checkmodulepermission(3,'can_certify') == 1)
+                            <button type="button" class="btn btn-success btn-icon btn-round hidden-sm-down waves-effect waves-light" onclick="submitBulkAction('active')" title="Activate Selected"><i class="zmdi zmdi-check" style="color: white;"></i></button>
+                            <button type="button" class="btn btn-warning btn-icon btn-round hidden-sm-down waves-effect waves-light" onclick="submitBulkAction('deactive')" title="Deactivate Selected"><i class="zmdi zmdi-close" style="color: white;"></i></button>
+                        @endif
+                        @if(checkmodulepermission(3,'can_edit') == 1)
+                            <button type="button" class="btn btn-primary btn-icon btn-round hidden-sm-down waves-effect waves-light" onclick="bulkEdit()" title="Edit Selected"><i class="zmdi zmdi-edit" style="color: white;"></i></button>
+                        @endif
+                    </div>
                     <li>
                   
                     @if(checkmodulepermission(3,'can_add') == 1)
@@ -102,11 +111,15 @@ $dataarray = json_decode($data, true);
              @if(checkmodulepermission(3,'can_view') == 1)
 
             <div class="body">
+                <form id="bulkActionForm" action="{{ url('/materialsupplier/bulk_action') }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="bulk_action" id="bulk_action_input">
                 <div class="table-responsive">
-                    <table id="dataTable" class="table table-hover">
+                    <table id="materialSupplierTable" class="table table-hover">
                         <thead>
                             <tr>
-                                <th>#</th>
+                                <th style="width: 40px;"><div class="checkbox"><input id="select_all" type="checkbox"><label for="select_all">&nbsp;</label></div></th>
+                                <th style="width: 50px;">#</th>
                                 <th>Name</th>
                                 <th>Address</th>
                                 <th>Gstin</th>
@@ -115,69 +128,16 @@ $dataarray = json_decode($data, true);
                                 <th>Bank Name</th>
                                 <th>Bank A/C Holder</th>
                                 <th>Status</th>
-                                <th>Action</th>
+                                <th style="width: 100px;">Action</th>
                                 
                             </tr>
                         </thead>
                         <tbody> 
-                            @php
-                            $i=1;
-                            @endphp
-                            @foreach($dataarray as $dd)
-                            @php
-                            $ddid = $dd['id'];
-                            @endphp
-
-                            <tr>
-                                <td>{{$i++}}</td>
-                                <td>
-                                    <a class="single-user-name" href="#">{{$dd['name']}}</a>
-                                </td>
-                                <td>
-                                    <a class="single-user-name" href="#">{{$dd['address']}}</a>
-                                </td>
-                                <td>
-                                    <a class="single-user-name" href="#">{{$dd['gstin']}}</a>
-                                </td>
-                                <td>
-                                    <a class="single-user-name" href="#">{{$dd['bank_ac']}}</a>
-                                </td>
-                                <td>
-                                    <a class="single-user-name" href="#">{{$dd['bank_ifsc']}}</a>
-                                </td><td>
-                                    <a class="single-user-name" href="#">{{$dd['bank_name']}}</a>
-                                </td><td>
-                                    <a class="single-user-name" href="#">{{$dd['bank_ac_holder']}}</a>
-                                </td>
-                                @if($dd['status'] == 'Active')
-                                @if(checkmodulepermission(3,'can_certify') == 1)
-                                <td><span onclick="updateuserstatus('{{$ddid}}','Deactive')" class="badge badge-success">{{$dd['status']}}</span></td>
-                                @endif
-                                @else
-                                @if(checkmodulepermission(3,'can_certify') == 1)
-                                <td><span onclick="updateuserstatus('{{$ddid}}','Active')" class="badge badge-danger">{{$dd['status']}}</span></td>
-                                @endif
-                                @endif
-
-                                <td>
-                                @if(checkmodulepermission(3,'can_edit') == 1)
-                                    <button title="Edit" onclick="editdata('{{$ddid}}')" style="all:unset" ><i class="zmdi zmdi-edit"></i> </button>
-                                &nbsp;
-                                @endif
-                                @if(checkmodulepermission(3,'can_delete') == 1)
-                                @if(isMaterialSupplierDeletable($ddid))
-                                    <button title="Delete" onclick="deletedata('{{$ddid}}')" style="all:unset" ><i class="zmdi zmdi-delete"></i> </button>
-                                @endif
-                                @endif
-                                
-                                </td>
-
-                            </tr>
-                            @endforeach
-
+                            <!-- Populated via AJAX -->
                         </tbody>
                     </table>
                 </div>
+                </form>
             </div>
             @else
             <div class="alert alert-danger m-5"> You Don't Have Permission To View..!!! </div>
@@ -342,6 +302,171 @@ $dataarray = json_decode($data, true);
             }
         });
       }
+
+        function bulkEdit() {
+            var selectedRows = $('.check_item:checked');
+            if (selectedRows.length > 0) {
+                $('#bulkActionForm').attr('action', "{{ url('/bulk_edit_supplier') }}");
+                $('#bulkActionForm').submit();
+            } else {
+                Swal.fire({
+                    title: 'No Items Selected',
+                    text: 'Please select at least one Material Supplier to edit.',
+                    icon: 'info',
+                    confirmButtonColor: '#343a40'
+                });
+            }
+        }
+
+        function submitBulkAction(action) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You are about to " + action + " all selected suppliers!",
+                icon: 'warning',
+                showCancelButton: true,
+                toast: true,
+                position: 'center',
+                showConfirmButton: true,
+                timer: 8000,
+                timerProgressBar: true,
+                confirmButtonColor: '#ff0000',
+                cancelButtonColor: '#000000',
+                confirmButtonText: 'Yes, proceed',
+                cancelButtonText: 'Cancel',
+                customClass:{
+                    container: 'model-width-450px'
+                },
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#bulk_action_input').val(action);
+                    $('#bulkActionForm').submit();
+                }
+            });
+      }
+
+      $(document).ready(function() {
+            var newExportAction = function (e, dt, button, config) {
+                var self = this;
+                var oldStart = dt.settings()[0]._iDisplayStart;
+                dt.one('preXhr', function (e, s, data) {
+                    data.start = 0;
+                    data.length = -1;
+                    dt.one('preDraw', function (e, settings) {
+                        if (button[0].className.indexOf('buttons-copy') >= 0) {
+                            $.fn.dataTable.ext.buttons.copyHtml5.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-excel') >= 0) {
+                            $.fn.dataTable.ext.buttons.excelHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.excelHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.excelFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-csv') >= 0) {
+                            $.fn.dataTable.ext.buttons.csvHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.csvHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.csvFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-pdf') >= 0) {
+                            $.fn.dataTable.ext.buttons.pdfHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.pdfHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.pdfFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-print') >= 0) {
+                            $.fn.dataTable.ext.buttons.print.action(e, dt, button, config);
+                        }
+                        dt.one('preXhr', function (e, s, data) {
+                            settings._iDisplayStart = oldStart;
+                            data.start = oldStart;
+                        });
+                        setTimeout(dt.ajax.reload, 0);
+                        return false;
+                    });
+                });
+                dt.ajax.reload();
+            };
+
+            function updateToolbar() {
+                if ($('.check_item:checked').length > 0) {
+                    $('#bulk-action-toolbar').show();
+                } else {
+                    $('#bulk-action-toolbar').show();
+                    // Or keep it hidden until selection? The instruction was "when we click check box": 
+                    // Let's implement correct logic.
+                    // Actually, I'll hide it.
+                    $('#bulk-action-toolbar').hide();
+                }
+            }
+
+            $("#select_all").click(function() {
+                $('.check_item').prop('checked', this.checked);
+                updateToolbar();
+            });
+
+            $(document).on('change', '.check_item', function() {
+                if ($('.check_item:checked').length == $('.check_item').length && $('.check_item').length > 0) {
+                    $('#select_all').prop('checked', true);
+                } else {
+                    $('#select_all').prop('checked', false);
+                }
+                updateToolbar();
+            });
+
+            $('#materialSupplierTable').DataTable({
+                serverSide: true,
+                processing: true,
+                ajax: {
+                    url: "{{ url('/materialsupplier_ajax') }}",
+                    type: "POST",
+                    data: {
+                        _token: "{{ csrf_token() }}"
+                    }
+                },
+                columnDefs: [
+                    { orderable: false, targets: [0, 1, 10] }
+                ],
+                responsive: true,
+                dom: 'lBfrtip<"actions">',
+                buttons: [
+                    {
+                        extend: 'csvHtml5',
+                        text: window.csvButtonTrans || 'CSV',
+                        action: newExportAction,
+                        className: 'btn btn-round waves-effect waves-light btn-custom-color'
+                    },
+                    {
+                        extend: 'excelHtml5',
+                        text: window.excelButtonTrans || 'Excel',
+                        action: newExportAction,
+                        className: 'btn btn-round waves-effect waves-light btn-custom-color'
+                    },
+                    {
+                        extend: 'pdfHtml5',
+                        text: window.pdfButtonTrans || 'PDF',
+                        action: newExportAction,
+                        className: 'btn btn-round waves-effect waves-light btn-custom-color'
+                    }
+                ],
+                "oLanguage": {
+                    "oPaginate": {
+                        "sFirst": '<i class="zmdi zmdi-fast-rewind"></i>',
+                        "sLast": '<i class="zmdi zmdi-fast-forward"></i>',
+                        "sPrevious": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>',
+                        "sNext": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-right"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>'
+                    },
+                    "sInfo": "Showing ( <b>_START_ - _END_ </b>) Of <b> _TOTAL_ </b> Entries <br> Page<b> _PAGE_ </b>of <b>_PAGES_</b> Pages",
+                    "sSearch": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>',
+                    "sSearchPlaceholder": "Search...",
+                    "sLengthMenu": "Results :  _MENU_",
+                    "sPadding": '2rem'
+                },
+                pagingType: "full_numbers",
+                drawCallback: function(settings) {
+                    $('#select_all').prop('checked', false);
+                    updateToolbar();
+                }
+            });
+        });
         </script>
 
+<style>
+    .btn-custom-color {
+        background-color: #eda61a !important;
+        color: white !important;
+    }
+</style>
 @endsection

@@ -157,15 +157,13 @@ function getallAssetHeads()
 function getAssetHeadsById($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $heads = DB::connection($user_db_conn_name)->table('asset_head')->where('id', '=', $id)->get()[0];
-    return $heads;
+    return DB::connection($user_db_conn_name)->table('asset_head')->where('id', '=', $id)->first();
 }
 
 function getMachineryHeadsById($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $heads = DB::connection($user_db_conn_name)->table('machinery_head')->where('id', '=', $id)->get()[0];
-    return $heads;
+    return DB::connection($user_db_conn_name)->table('machinery_head')->where('id', '=', $id)->first();
 }
 
 function getcompanyModules()
@@ -446,6 +444,10 @@ function getdurationdates($id = null)
             $min = '0001-01-01 00:00:00';
             $max = '2100-01-01 23:59:59';
             break;
+        default:
+            $min = '0001-01-01 00:00:00';
+            $max = '2100-01-01 23:59:59';
+            break;
     }
     $data = [
         'today' => $today_start,
@@ -554,44 +556,34 @@ function isUserDeletable($id)
 function isSiteDeletable($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $result = true;
-    $assets = DB::connection($user_db_conn_name)->table('assets')->where('site_id', '=', $id)->get();
-    $bills_rate = DB::connection($user_db_conn_name)->table('bills_rate')->where('site_id', '=', $id)->get();
-    $expenses = DB::connection($user_db_conn_name)->table('expenses')->where('site_id', '=', $id)->get();
-    $expense_party = DB::connection($user_db_conn_name)->table('expense_party')->where('site_id', '=', $id)->get();
-    $machinery_details = DB::connection($user_db_conn_name)->table('machinery_details')->where('site_id', '=', $id)->get();
-    $material_entry = DB::connection($user_db_conn_name)->table('material_entry')->where('site_id', '=', $id)->get();
-    $new_bill_entry = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('site_id', '=', $id)->get();
-    $sites_transaction = DB::connection($user_db_conn_name)->table('sites_transaction')->where('site_id', '=', $id)->get();
-    $site_payments = DB::connection($user_db_conn_name)->table('site_payments')->where('site_id', '=', $id)->get();
-    $users = DB::connection($user_db_conn_name)->table('users')->where('site_id', '=', $id)->get();
-    $payment_vouchers = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('site_id', '=', $id)->get();
-    if (count($assets) > 0 || count($bills_rate) > 0 || count($expense_party) > 0 || count($expenses) > 0 || count($machinery_details) > 0 || count($material_entry) > 0 || count($new_bill_entry) > 0 || count($sites_transaction) > 0 || count($site_payments) > 0 || count($users) > 0 || count($payment_vouchers) > 0) {
-        $result = false;
-    }
-    return $result;
+    if (DB::connection($user_db_conn_name)->table('assets')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('bills_rate')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('expenses')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('expense_party')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('machinery_details')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('material_entry')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('new_bill_entry')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('sites_transaction')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('site_payments')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('users')->where('site_id', '=', $id)->exists()) return false;
+    if (DB::connection($user_db_conn_name)->table('payment_vouchers')->where('site_id', '=', $id)->exists()) return false;
+    
+    return true;
 }
 function isExpenseHeadDeletable($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $result = true;
-    $head = DB::connection($user_db_conn_name)->table('expenses')->where('head_id', '=', $id)->get();
-
-    if (count($head) > 0) {
-        $result = false;
-    }
-    return $result;
+    return !DB::connection($user_db_conn_name)->table('expenses')
+        ->where('head_id', '=', $id)
+        ->exists();
 }
 function isExpensepartyDeletable($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $result = true;
-    $check = DB::connection($user_db_conn_name)->table('expenses')->where('party_type', '=', 'expense')->where('party_id', '=', $id)->get();
-
-    if (count($check) > 0) {
-        $result = false;
-    }
-    return $result;
+    return !DB::connection($user_db_conn_name)->table('expenses')
+        ->where('party_type', '=', 'expense')
+        ->where('party_id', '=', $id)
+        ->exists();
 }
 function isRoleDeletable($id)
 {
@@ -697,14 +689,9 @@ function isBillWorkDeletable($id)
 function isMaterialSupplierDeletable($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $result = true;
-
-    $check = DB::connection($user_db_conn_name)->table('material_entry')->where('supplier', '=', $id)->get();
-
-    if (count($check) > 0) {
-        $result = false;
-    }
-    return $result;
+    return !DB::connection($user_db_conn_name)->table('material_entry')
+        ->where('supplier', '=', $id)
+        ->exists();
 }
 function isMaterialDeletable($id)
 {
@@ -719,12 +706,9 @@ function isMaterialDeletable($id)
 function isMaterialUnitDeletable($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $result = true;
-    $check = DB::connection($user_db_conn_name)->table('material_entry')->where('unit', '=', $id)->get();
-    if (count($check) > 0) {
-        $result = false;
-    }
-    return $result;
+    return !DB::connection($user_db_conn_name)->table('material_entry')
+        ->where('unit', '=', $id)
+        ->exists();
 }
 function getSiteBalance($id, $to_date = null)
 {
@@ -794,12 +778,12 @@ function getExpensePartyNameByPartyType($id, $partytype)
     $user_db_conn_name = session()->get('comp_db_conn_name');
 
     if ($partytype == 'expense') {
-        $party = DB::connection($user_db_conn_name)->table('expense_party')->where('id', $id)->get()[0]->name;
+        $party = DB::connection($user_db_conn_name)->table('expense_party')->where('id', $id)->first();
     } else {
-        $party =  DB::connection($user_db_conn_name)->table('bills_party')->where('id', $id)->get()[0]->name;
+        $party = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $id)->first();
     }
 
-    return $party;
+    return $party ? $party->name : '';
 }
 function getBillPartyInfo($id)
 {
@@ -1372,6 +1356,16 @@ function get_pending_flags_data_widget($id, $from = null, $to = null)
     $q_ep = DB::connection($user_db_conn_name)->table('expense_party')->where('status', '=', 'Pending')->where('site_id', '=', $id);
     $q_bp = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Pending')->where('site_id', '=', $id);
 
+    if ($from && $to) {
+        $q_exp->whereBetween('expenses.date', [$from, $to]);
+        $q_mat->whereBetween('material_entry.date', [$from, $to]);
+        $q_bill->whereBetween('new_bill_entry.billdate', [$from, $to]);
+        $q_pv_p->whereBetween('payment_vouchers.date', [$from, $to]);
+        $q_pv_u->whereBetween('payment_vouchers.date', [$from, $to]);
+        $q_ep->whereBetween('expense_party.create_datetime', [$from, $to]);
+        $q_bp->whereBetween('bills_party.create_datetime', [$from, $to]);
+    }
+
 
 
     $pending_expense = $q_exp->count();
@@ -1396,6 +1390,16 @@ function get_company_pending_flags_data_widget($from = null, $to = null)
     $q_pv_u = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('status', '=', 'Approved');
     $q_ep = DB::connection($user_db_conn_name)->table('expense_party')->where('status', '=', 'Pending');
     $q_bp = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Pending');
+
+    if ($from && $to) {
+        $q_exp->whereBetween('expenses.date', [$from, $to]);
+        $q_mat->whereBetween('material_entry.date', [$from, $to]);
+        $q_bill->whereBetween('new_bill_entry.billdate', [$from, $to]);
+        $q_pv_p->whereBetween('payment_vouchers.date', [$from, $to]);
+        $q_pv_u->whereBetween('payment_vouchers.date', [$from, $to]);
+        $q_ep->whereBetween('expense_party.create_datetime', [$from, $to]);
+        $q_bp->whereBetween('bills_party.create_datetime', [$from, $to]);
+    }
 
 
 

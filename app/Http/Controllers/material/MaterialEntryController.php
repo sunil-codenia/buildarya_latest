@@ -12,37 +12,20 @@ class MaterialEntryController extends Controller
     //
     public function verified_material(Request $request)
     {
-        $data = array();
-
-        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $role_id = $request->session()->get('role');
-        $site_id = $request->session()->get('site_id');
-        $role_details = getRoleDetailsById($role_id);
-        $view_duration = $role_details->view_duration;
-        $visiblity_at_site = $role_details->visiblity_at_site;
-        $dates = getdurationdates($view_duration);
-        $min_date = $dates['min'];
-        $max_date = $dates['max'];
-        if ($visiblity_at_site == 'current') {
-            $filters = [['material_entry.status', '!=', 'Pending'], ['material_entry.site_id', '=', $site_id]];
-        } else {
-            $filters = [['material_entry.status', '!=', 'Pending']];
-        }
-        $data = DB::connection($user_db_conn_name)->table('material_entry')->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')->leftjoin('units', 'units.id', '=', 'material_entry.unit')->leftjoin('users', 'users.id', '=', 'material_entry.user_id')->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')->where($filters)->whereBetween('material_entry.date', [$min_date, $max_date])->orderBy('material_entry.id', 'DESC')->get();
-        return  view('layouts.material.verified')->with('data', json_encode($data));
+        return view('layouts.material.verified');
     }
-    public function pending_material(Request $request)
+
+    public function get_verified_material_ajax(Request $request)
     {
-        $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
         $role_details = getRoleDetailsById($role_id);
-        $view_duration = $role_details->view_duration;
+        $view_duration = $request->session()->get('view_duration');
         $visiblity_at_site = $role_details->visiblity_at_site;
 
-        $from_date = $request->get('from_date');
-        $to_date = $request->get('to_date');
+        $from_date = $request->input('from_date');
+        $to_date = $request->input('to_date');
         if ($from_date && $to_date) {
             $min_date = date('Y-m-d', strtotime($from_date));
             $max_date = date('Y-m-d', strtotime($to_date));
@@ -52,19 +35,293 @@ class MaterialEntryController extends Controller
             $max_date = date('Y-m-d', strtotime($dates['max']));
         }
 
-        $req_site_id = $request->get('site_id');
+        $query = DB::connection($user_db_conn_name)->table('material_entry')
+            ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+            ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+            ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+            ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+            ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+            ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+            ->where('material_entry.status', '!=', 'Pending');
+
         if ($visiblity_at_site == 'current') {
-            $filters = [['material_entry.status', '=', 'Pending'], ['material_entry.site_id', '=', $site_id]];
+            $query->where('material_entry.site_id', '=', $site_id);
+        }
+
+        $query->whereBetween('material_entry.date', [$min_date, $max_date]);
+
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('material_supplier.name', 'LIKE', "%{$search}%")
+                    ->orWhere('materials.name', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.bill_no', 'LIKE', "%{$search}%")
+                    ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                    ->orWhere('users.name', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.remark', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'desc');
+
+        $columns = [
+            2 => 'material_supplier.name',
+            3 => 'materials.name',
+            5 => 'qty',
+            15 => 'date'
+        ];
+
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('material_entry.id', 'desc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+        $formattedData = [];
+        $i = $start + 1;
+
+        $can_certify = checkmodulepermission(3, 'can_certify') == 1;
+        $can_edit = checkmodulepermission(3, 'can_edit') == 1;
+
+        foreach ($data as $row) {
+            $ddid = $row->id;
+            
+            $checkbox = '';
+            if ($row->status == 'Approved') {
+                $checkbox = '<div class="checkbox"><input id="check_'.$ddid.'" name="check_list[]" class="check_item" type="checkbox" value="'.$ddid.'"><label for="check_'.$ddid.'">&nbsp;</label></div>';
+            }
+
+            $supplier = $row->supplier;
+            $material = $row->material;
+            $unit = $row->unit;
+            $qty = $row->qty;
+            $rate = $row->rate;
+            $amount = $row->amount;
+            $vehical = $row->vehical;
+            $status = $row->status;
+            $remark = $row->remark;
+            $site = $row->site;
+            $user = $row->user;
+            $location = $row->location;
+            $bill_no = $row->bill_no;
+            $date = $row->date;
+
+            $imageHtml = '<div class="d-flex">';
+            if ($row->image) {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image).'" onclick="enlargeImage(\''.asset($row->image).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if ($row->image2) {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image2).'" onclick="enlargeImage(\''.asset($row->image2).'\')" height="50px" width="50px" />';
+            }
+            $imageHtml .= '</div>';
+
+            $actionHtml = '';
+            if ($row->status == 'Approved') {
+                if ($can_certify) {
+                    $actionHtml .= '<button title="Reject" type="button" onclick="rejectmaterial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-block"></i></button>';
+                }
+            } else {
+                if ($can_certify) {
+                    $actionHtml .= '<button title="Approve" type="button" onclick="approvematerial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-check-circle"></i></button>&nbsp;';
+                }
+                if ($bill_no) {
+                    $actionHtml .= '<a href="'.url('/material_pdf/?id='.$ddid).'" target="_blank" style="all:unset"><i class="zmdi zmdi-collection-pdf"></i></a>&nbsp;';
+                }
+                if ($can_edit) {
+                    $actionHtml .= '<button title="Edit" type="button" onclick="editmaterial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>';
+                }
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $supplier,
+                $material,
+                $unit,
+                $qty,
+                $rate,
+                $amount,
+                $vehical,
+                $status,
+                $remark,
+                $site,
+                $user,
+                $location,
+                $bill_no,
+                $date,
+                $imageHtml,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
+    }
+    public function pending_material(Request $request)
+    {
+        return view('layouts.material.pending');
+    }
+
+    public function get_pending_material_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $role_id = $request->session()->get('role');
+        $site_id = $request->session()->get('site_id');
+        $role_details = getRoleDetailsById($role_id);
+        $view_duration = $request->session()->get('view_duration');
+        $visiblity_at_site = $role_details->visiblity_at_site;
+
+        $from_date = $request->input('from_date');
+        $to_date = $request->input('to_date');
+        if ($from_date && $to_date) {
+            $min_date = date('Y-m-d', strtotime($from_date));
+            $max_date = date('Y-m-d', strtotime($to_date));
+        } else {
+            $dates = getdurationdates($view_duration);
+            $min_date = date('Y-m-d', strtotime($dates['min']));
+            $max_date = date('Y-m-d', strtotime($dates['max']));
+        }
+
+        $req_site_id = $request->input('site_id');
+        
+        $query = DB::connection($user_db_conn_name)->table('material_entry')
+            ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+            ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+            ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+            ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+            ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+            ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+            ->where('material_entry.status', '=', 'Pending');
+
+        if ($visiblity_at_site == 'current') {
+            $query->where('material_entry.site_id', '=', $site_id);
         } else {
             if ($req_site_id && $req_site_id != 'all') {
-                $filters = [['material_entry.status', '=', 'Pending'], ['material_entry.site_id', '=', $req_site_id]];
-            } else {
-                $filters = [['material_entry.status', '=', 'Pending']];
+                $query->where('material_entry.site_id', '=', $req_site_id);
             }
         }
 
-        $data = DB::connection($user_db_conn_name)->table('material_entry')->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')->leftjoin('units', 'units.id', '=', 'material_entry.unit')->leftjoin('users', 'users.id', '=', 'material_entry.user_id')->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')->where($filters)->whereBetween('material_entry.date', [$min_date, $max_date])->orderBy('material_entry.id', 'DESC')->get();
-        return  view('layouts.material.pending')->with('data', json_encode($data));
+        $query->whereBetween('material_entry.date', [$min_date, $max_date]);
+
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('material_supplier.name', 'LIKE', "%{$search}%")
+                    ->orWhere('materials.name', 'LIKE', "%{$search}%")
+                    ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                    ->orWhere('users.name', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.vehical', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.remark', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'desc');
+        
+        $columns = [
+            1 => 'material_supplier.name',
+            2 => 'materials.name',
+            3 => 'units.name',
+            4 => 'qty',
+            11 => 'date'
+        ];
+        
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('material_entry.id', 'desc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+        $formattedData = [];
+        $i = $start + 1;
+        
+        $can_certify = checkmodulepermission(3, 'can_certify') == 1;
+        $can_edit = checkmodulepermission(3, 'can_edit') == 1;
+
+        foreach ($data as $row) {
+            $ddid = $row->id;
+            
+            $checkbox = '';
+            if ($can_certify) {
+                $checkbox = '<div class="checkbox"><input id="check_'.$ddid.'" name="check_list[]" class="check_item" type="checkbox" value="'.$ddid.'"><label for="check_'.$ddid.'">&nbsp;</label></div>';
+            }
+
+            $supplier = $row->supplier;
+            $material = $row->material;
+            $unit = $row->unit;
+            $qty = $row->qty;
+            $vehical = $row->vehical;
+            $status = $row->status;
+            $remark = $row->remark;
+            $site = $row->site;
+            $user = $row->user;
+            $location = $row->location;
+            $date = $row->date;
+            
+            $imageHtml = '<img class="lazy" src="'.asset($row->image).'" onclick="enlargeImage(\''.asset($row->image).'\')" height="50px" width="50px" />';
+            if ($row->image2) {
+                $imageHtml .= ' <img class="lazy" src="'.asset($row->image2).'" onclick="enlargeImage(\''.asset($row->image2).'\')" height="50px" width="50px" />';
+            }
+
+            $actionHtml = '';
+            if ($can_edit) {
+                $actionHtml .= '<button title="Edit" type="button" onclick="editmaterial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>';
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $supplier,
+                $material,
+                $unit,
+                $qty,
+                $vehical,
+                $status,
+                $remark,
+                $site,
+                $user,
+                $location,
+                $date,
+                $imageHtml,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
     }
     public function new_material(Request $request)
     {
@@ -197,7 +454,7 @@ class MaterialEntryController extends Controller
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
         $entry_at_site = $role_details->entry_at_site;
-        $add_duration = $role_details->add_duration;
+        $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
         if ($entry_at_site == "current" && $site_id != $data['materialentry']->site_id) {
@@ -264,13 +521,13 @@ if(count($check_entry_approved) == 1){
         $ids = $request->input('check_list');
         $user_db_conn_name = session()->get('comp_db_conn_name');
         if ($ids != null) {
-            if ($request->input('approve_material') !== null) {
+            if ($request->input('approve_material')) {
                 foreach ($ids as $id) {
                     $this->approve_material_entry($id, $user_db_conn_name);
                 }
                 return redirect('/pending_material')
                     ->with('success', 'Material Approved successfully!');
-            } else if ($request->input('reject_material') !== null) {
+            } else if ($request->input('reject_material')) {
                 foreach ($ids as $id) {
                     $this->reject_material_entry($id, $user_db_conn_name);
                 }
@@ -325,5 +582,61 @@ if(count($check_entry_approved) == 1){
 
         return redirect('/verified_material')
             ->with('success', 'Material Bills Updated successfully!');
+    }
+
+    public function bulk_edit_pending_material(Request $request)
+    {
+        $ids = $request->input('check_list');
+        $user_db_conn_name = session()->get('comp_db_conn_name');
+        if ($ids != null) {
+            $data['material_entries'] = DB::connection($user_db_conn_name)->table('material_entry')
+                ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+                ->select('material_entry.*', 'materials.name as material', 'units.name as unit_name', 'sites.name as site', 'material_supplier.name as supplier')
+                ->whereIn('material_entry.id', $ids)
+                ->get();
+
+            return view('layouts.material.bulk_edit_pending')->with('data', json_encode($data));
+        } else {
+            return redirect('/pending_material')
+                ->with('error', 'Please Choose Atleast One Material Entry!');
+        }
+    }
+
+    public function update_bulk_pending_material(Request $request)
+    {
+        $ids = $request->input('ids');
+        $qtys = $request->input('qtys');
+        $vehicals = $request->input('vehicals');
+        $remarks = $request->input('remarks');
+        $dates = $request->input('dates');
+        $user_db_conn_name = session()->get('comp_db_conn_name');
+
+        if ($ids != null) {
+            DB::connection($user_db_conn_name)->beginTransaction();
+            try {
+                foreach ($ids as $key => $id) {
+                    DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->update([
+                        'qty' => $qtys[$key],
+                        'vehical' => $vehicals[$key],
+                        'remark' => $remarks[$key],
+                        'date' => $dates[$key],
+                    ]);
+                    addActivity($id, 'material_entry', "Material Entry Data Updated via Bulk Edit", 3);
+                }
+                DB::connection($user_db_conn_name)->commit();
+                return redirect('/pending_material')
+                    ->with('success', 'Material Entries Updated successfully!');
+            } catch (\Exception $e) {
+                DB::connection($user_db_conn_name)->rollBack();
+                return redirect('/pending_material')
+                    ->with('error', 'Error While Updating Material Entries. ' . $e->getMessage());
+            }
+        } else {
+            return redirect('/pending_material')
+                ->with('error', 'No entries to update!');
+        }
     }
 }

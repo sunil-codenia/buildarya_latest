@@ -19,9 +19,83 @@ class MaterialController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data = DB::connection($user_db_conn_name)->table('materials')->get();
+        $data = [];
+        return view('layouts.material.material')->with('data', json_encode($data));
+    }
 
-        return  view('layouts.material.material')->with('data', json_encode($data));
+    public function get_material_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $query = DB::connection($user_db_conn_name)->table('materials');
+
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'asc');
+        
+        $columns = [
+            2 => 'name'
+        ];
+        
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('name', 'asc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+
+        $formattedData = [];
+        $i = $start + 1;
+        
+        $can_edit = checkmodulepermission(3, 'can_edit') == 1;
+        $can_delete = checkmodulepermission(3, 'can_delete') == 1;
+
+        foreach ($data as $row) {
+            $ddid = $row->id;
+            
+            $checkbox = '<div class="checkbox"><input id="check_'.$ddid.'" name="check_list[]" class="item_checkbox check_item" type="checkbox" value="'.$ddid.'"><label for="check_'.$ddid.'">&nbsp;</label></div>';
+            $name = '<a class="single-user-name" href="#">'.htmlspecialchars((string)$row->name).'</a>';
+            
+            $actionHtml = '<a title="Manage Conversion" href="'.url('/manage_unit_conversion?id='.$ddid).'" class="btn btn-simple btn-round waves-effect">Manage Conversions</a>&nbsp;&nbsp;';
+            
+            if ($can_edit) {
+                $actionHtml .= '<button title="Edit" type="button" onclick="editdata(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>&nbsp;';
+            }
+            if ($can_delete && isMaterialDeletable($ddid)) {
+                $actionHtml .= '<button title="Delete" type="button" onclick="deletedata(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-delete"></i></button>';
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $name,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
     }
     public function addmaterial(Request $request)
     {
@@ -58,9 +132,42 @@ class MaterialController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data['data'] = DB::connection($user_db_conn_name)->table('materials')->get();
+        $data['data'] = [];
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('materials')->where('id', '=', $id)->get();
         return  view('layouts.material.material')->with('data', json_encode($data));
+    }
+
+    public function bulk_action(Request $request)
+    {
+        $ids = $request->input('check_list');
+        $action = $request->input('bulk_action');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        if (empty($ids)) {
+            return redirect('/material')->with('error', 'Please select at least one record.');
+        }
+
+        try {
+            DB::connection($user_db_conn_name)->beginTransaction();
+
+            if ($action == 'delete') {
+                foreach ($ids as $id) {
+                    if (isMaterialDeletable($id)) {
+                        DB::connection($user_db_conn_name)->table('materials')->where('id', '=', $id)->delete();
+                        addActivity(0, 'materials', "Bulk Deleted Material", 3);
+                    }
+                }
+                DB::connection($user_db_conn_name)->commit();
+                return redirect('/material')->with('success', 'Selected Deletable Materials Deleted Successfully!');
+            }
+            
+            DB::connection($user_db_conn_name)->commit();
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            return redirect('/material')->with('error', 'Error processing bulk action!');
+        }
+
+        return redirect('/material');
     }
     public function delete_material(Request $request)
     {
@@ -303,5 +410,39 @@ class MaterialController extends Controller
 
 
         return Excel::download(new MaterialExport($user_db_conn_name, $start_date, $end_date, $report_code, $sitename, $partyname, $headname), $file_name);
+    }
+    public function bulk_edit_material(Request $request)
+    {
+        $ids = $request->input('check_list');
+        if (empty($ids)) {
+            return redirect('/material')->with('error', 'Please select at least one material to edit!');
+        }
+
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $data = DB::connection($user_db_conn_name)->table('materials')->whereIn('id', $ids)->get();
+
+        return view('layouts.material.bulk_edit_material')->with('data', json_encode($data));
+    }
+
+    public function update_bulk_material(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('id');
+        $names = $request->input('name');
+
+        try {
+            DB::connection($user_db_conn_name)->beginTransaction();
+            foreach ($ids as $key => $id) {
+                DB::connection($user_db_conn_name)->table('materials')
+                    ->where('id', $id)
+                    ->update(['name' => $names[$key]]);
+                addActivity($id, 'materials', "Material SKU Updated via Bulk Edit", 3);
+            }
+            DB::connection($user_db_conn_name)->commit();
+            return redirect('/material')->with('success', 'Materials Updated Successfully!');
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            return redirect('/material')->with('error', 'Error while updating bulk materials!');
+        }
     }
 }

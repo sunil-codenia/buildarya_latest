@@ -128,9 +128,32 @@
                 <div class="body">
                     @if (checkmodulepermission(1, 'can_view') == 1)
                         <div class="table-responsive">
+                        <div id="bulkActions" class="align-right mb-2" style="display: none; padding-bottom: 10px;">
+                            @if(checkmodulepermission(1,'can_edit') == 1)
+                                <button type="button" onclick="bulkEditData()" title="Edit" class="btn btn-warning btn-simple btn-round waves-effect">
+                                    <i class="zmdi zmdi-edit"></i>
+                                </button>
+                            @endif
+                            @if(checkmodulepermission(1,'can_certify') == 1)
+                                <button type="button" onclick="bulkUpdateStatus('Active')" title="Mark Active" class="btn btn-success btn-simple btn-round waves-effect">
+                                    <i class="zmdi zmdi-check-circle"></i>
+                                </button>
+                                <button type="button" onclick="bulkUpdateStatus('Deactive')" title="Mark Deactive" class="btn btn-danger btn-simple btn-round waves-effect">
+                                    <i class="zmdi zmdi-close-circle"></i>
+                                </button>
+                            @endif
+                            <button type="button" onclick="bulkSitePayments()" title="Site Payments" class="btn btn-info btn-simple btn-round waves-effect">
+                                <i class="zmdi zmdi-balance-wallet"></i>
+                            </button>
+                        </div>
+
+                        <form id="bulkActionForm" action="{{ url('/sites/bulk_action') }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="bulk_action_type" id="bulk_action_type" value="">
                             <table id="dataTable" class="table table-hover">
                                 <thead>
                                     <tr>
+                                        <th style="width:30px;"><input type="checkbox" id="select_all"></th>
                                         <th>#</th>
                                         <th>Name</th>
                                         <th>Address</th>
@@ -153,6 +176,7 @@
                                         @endphp
 
                                         <tr>
+                                            <td><input type="checkbox" name="check_list[]" class="check_item" value="{{$ddid}}" onclick="event.stopPropagation()"></td>
                                             <td>{{ $i++ }}</td>
                                             <td>
                                                 <a class="single-user-name" href="#">{{ $dd['name'] }}</a>
@@ -209,6 +233,7 @@
 
                                 </tbody>
                             </table>
+                        </form>
                         </div>
                     @else
                         <div class="alert alert-danger">You Don't Have Permission to View </div>
@@ -515,6 +540,78 @@
                     window.location.href = url;
                 }
             });
+        }
+
+        $('#select_all').on('click', function() {
+            if (this.checked) {
+                $('.check_item').each(function() {
+                    this.checked = true;
+                });
+            } else {
+                $('.check_item').each(function() {
+                    this.checked = false;
+                });
+            }
+            toggleBulkActions();
+        });
+
+        $('.check_item').on('change', function() {
+            toggleBulkActions();
+        });
+
+        function toggleBulkActions() {
+            if ($('.check_item:checked').length > 0) {
+                $('#bulkActions').show();
+            } else {
+                $('#bulkActions').hide();
+            }
+        }
+        
+        function getCheckedIds() {
+            var selected = [];
+            $('.check_item:checked').each(function() {
+                selected.push($(this).val());
+            });
+            return selected;
+        }
+
+        function getSingleCheckedId() {
+            var selected = getCheckedIds();
+            if (selected.length === 1) {
+                return selected[0];
+            } else {
+                Swal.fire('Notice', 'Please select exactly one site for this specific action.', 'info');
+                return null;
+            }
+        }
+
+        function bulkEditData() {
+            var id = getSingleCheckedId();
+            if(id) { editdata(id); }
+        }
+
+        function bulkSitePayments() {
+            var id = getSingleCheckedId();
+            if(id) { window.location.href = "{{ url('/view_site_payments?id=') }}" + id; }
+        }
+
+        function bulkUpdateStatus(status) {
+            var selected = getCheckedIds();
+            if (selected.length === 0) return;
+            $('#bulk_action_type').val('status_' + status);
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "Do you want to update status for selected sites?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes, update!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $('#bulkActionForm').submit();
+                }
+            })
         }
     </script>
 @endsection

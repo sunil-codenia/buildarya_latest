@@ -73,6 +73,7 @@ Route::group(['middleware' => ['auth']], function () {
 
 
     Route::get('/expense_head', [ExpenseHeadController::class, 'index']);
+    Route::post('/expense_head_ajax', [ExpenseHeadController::class, 'get_expense_head_ajax']);
     Route::post('/addexpensehead', [ExpenseHeadController::class, 'addexpensehead']);
     Route::get('/edit_expense_head', [ExpenseHeadController::class, 'edit_expense_head']);
     Route::get('/delete_expense_head', [ExpenseHeadController::class, 'delete_expense_head']);
@@ -82,6 +83,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/update_bulk_head', [ExpenseHeadController::class, 'update_bulk_head']);
 
     Route::get('/expense_party', [ExpensePartyController::class, 'expense_party']);
+    Route::post('/expense_party_ajax', [ExpensePartyController::class, 'get_expense_party_ajax']);
     Route::post('/addexpenseparty', [ExpensePartyController::class, 'addexpenseparty']);
     Route::get('/edit_expense_party', [ExpensePartyController::class, 'edit_expense_party']);
     Route::get('/delete_expense_party', [ExpensePartyController::class, 'delete_expense_party']);
@@ -114,6 +116,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/approve_expense_by_id', [ExpenseController::class, 'approve_expense_by_id']);
     Route::post('/expense_report', [ExpenseController::class, 'expenses_download']);
     Route::get('/pending_expense', [ExpenseController::class, 'pending_expense']);
+    Route::post('/pending_expense_ajax', [ExpenseController::class, 'get_pending_expense_ajax']);
     Route::post('/updateexpenseAssetHead', [ExpenseController::class, 'updateexpenseAssetHead']);
     Route::post('/updateexpenseMachineryHead', [ExpenseController::class, 'updateexpenseMachineryHead']);
     Route::get('/expense_reports', [ExpenseController::class, 'expense_reports']);
@@ -129,13 +132,15 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/delete_sites', [SiteController::class, 'delete_sites']);
     Route::post('/updatesites', [SiteController::class, 'updatesites']);
     Route::get('/update_site_status', [SiteController::class, 'update_site_status']);
+    Route::post('/sites/bulk_action', [SiteController::class, 'bulk_action']);
 
     Route::post('/addsitesBalance', [SiteController::class, 'addsitesBalance']);
     Route::post('/siteStatement', [SiteController::class, 'siteStatement']);
     Route::get('/view_site_payments', [SiteController::class, 'view_site_payments']);
     
     //user route
-    Route::get('/users', [UserController::class, 'users']);
+        Route::get('/users', [UserController::class, 'users']);
+    Route::post('/users_ajax', [UserController::class, 'get_users_ajax']);
     Route::post('/addnewuser', [UserController::class, 'addnewuser']);
     Route::get('/edit_users', [UserController::class, 'edit_users']);
     Route::get('/delete_users', [UserController::class, 'delete_users']);
@@ -143,6 +148,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/assign_permission', [UserController::class, 'assign_permission']);
     Route::post('/update_user_permission', [UserController::class, 'update_user_permission']);
     Route::get('/update_user_status', [UserController::class, 'update_user_status']);
+
 
     Route::post('/siteToSiteBalanceTransfer', [SiteController::class, 'siteToSiteBalanceTransfer']);
 
@@ -159,10 +165,14 @@ Route::group(['middleware' => ['auth']], function () {
 
     //material unit route
     Route::get('/materialunit', [MaterialUnitController::class, 'index']);
+    Route::post('/materialunit_ajax', [MaterialUnitController::class, 'get_material_unit_ajax']);
+    Route::post('/materialunit/bulk_action', [MaterialUnitController::class, 'bulk_action']);
     Route::post('/addmaterialunit', [MaterialUnitController::class, 'addmaterialunit']);
     Route::get('/edit_material_unit', [MaterialUnitController::class, 'edit_material_unit']);
     Route::get('/delete_material_unit', [MaterialUnitController::class, 'delete_material_unit']);
-    Route::post('/updatematerialunit', [MaterialUnitController::class, 'updatematerialunit']);
+        Route::post('/updatematerialunit', [MaterialUnitController::class, 'updatematerialunit']);
+    Route::post('/bulk_edit_unit', [MaterialUnitController::class, 'bulk_edit_unit']);
+    Route::post('/update_bulk_unit', [MaterialUnitController::class, 'update_bulk_unit']);
 
     Route::get('/manage_unit_conversion', [MaterialUnitController::class, 'manage_unit_conversion']);
     Route::post('/add_unit_conversion', [MaterialUnitController::class, 'add_unit_conversion']);
@@ -171,10 +181,14 @@ Route::group(['middleware' => ['auth']], function () {
 
     //material route
     Route::get('/material', [MaterialController::class, 'index']);
+    Route::post('/material_ajax', [MaterialController::class, 'get_material_ajax']);
+    Route::post('/material/bulk_action', [MaterialController::class, 'bulk_action']);
     Route::post('/addmaterial', [MaterialController::class, 'addmaterial']);
     Route::get('/edit_material', [MaterialController::class, 'edit_material']);
     Route::get('/delete_material', [MaterialController::class, 'delete_material']);
-    Route::post('/updatematerial', [MaterialController::class, 'updatematerial']);
+        Route::post('/updatematerial', [MaterialController::class, 'updatematerial']);
+    Route::post('/bulk_edit_material', [MaterialController::class, 'bulk_edit_material']);
+    Route::post('/update_bulk_material', [MaterialController::class, 'update_bulk_material']);
     Route::post('/materialreport', [MaterialController::class, 'Material_Report']);
     Route::get('/materials_report', [MaterialController::class, 'materials_report']);
     Route::Post('/materialreports', [MaterialController::class, 'materialreports']);
@@ -182,10 +196,14 @@ Route::group(['middleware' => ['auth']], function () {
 
     //material supplier route
     Route::get('/materialsupplier', [MaterialSupplierController::class, 'index']);
+    Route::post('/materialsupplier_ajax', [MaterialSupplierController::class, 'get_material_supplier_ajax']);
+    Route::post('/materialsupplier/bulk_action', [MaterialSupplierController::class, 'bulk_action']);
     Route::post('/addmaterialsupplier', [MaterialSupplierController::class, 'addmaterialsupplier']);
     Route::get('/edit_materialsupplier', [MaterialSupplierController::class, 'edit_materialsupplier']);
     Route::get('/delete_materialsupplier', [MaterialSupplierController::class, 'delete_materialsupplier']);
-    Route::post('/updatematerialsupplier', [MaterialSupplierController::class, 'updatematerialsupplier']);
+        Route::post('/updatematerialsupplier', [MaterialSupplierController::class, 'updatematerialsupplier']);
+    Route::post('/bulk_edit_supplier', [MaterialSupplierController::class, 'bulk_edit_supplier']);
+    Route::post('/update_bulk_supplier', [MaterialSupplierController::class, 'update_bulk_supplier']);
 
     Route::post('/material_supplier_report', [MaterialSupplierController::class, 'material_supplier_report']);
 
@@ -195,9 +213,13 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/new_material', [MaterialEntryController::class, 'new_material']);
     Route::post('/addnewmaterial', [MaterialEntryController::class, 'addnewmaterial']);
     Route::post('/update_material', [MaterialEntryController::class, 'update_material']);
+    Route::post('/bulk_edit_pending_material', [MaterialEntryController::class, 'bulk_edit_pending_material']);
+    Route::post('/update_bulk_pending_material', [MaterialEntryController::class, 'update_bulk_pending_material']);
 
-    Route::get('/verified_material', [MaterialEntryController::class, 'verified_material']);
-    Route::get('/pending_material', [MaterialEntryController::class, 'pending_material']);
+        Route::get('/verified_material', [MaterialEntryController::class, 'verified_material']);
+    Route::post('/verified_material_ajax', [MaterialEntryController::class, 'get_verified_material_ajax']);
+        Route::get('/pending_material', [MaterialEntryController::class, 'pending_material']);
+    Route::post('/pending_material_ajax', [MaterialEntryController::class, 'get_pending_material_ajax']);
     Route::get('/approve_material_by_id', [MaterialEntryController::class, 'approve_material_by_id']);
     Route::get('/edit_material_entry', [MaterialEntryController::class, 'edit_material_entry']);
     Route::get('/reject_material_by_id', [MaterialEntryController::class, 'reject_material_by_id']);

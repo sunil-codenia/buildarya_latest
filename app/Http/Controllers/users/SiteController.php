@@ -142,7 +142,37 @@ class SiteController extends Controller
         DB::connection($user_db_conn_name)->table('sites')->where('id', $id)->update(['status' => $status]);
         addActivity($id, 'sites', "Site Status Updated - " . $status, 1);
 
-        return redirect('/sites')->with('success', 'Site Status Updated successfully!');;
+        return redirect('/sites')->with('success', 'Site Status Updated successfully!');
+    }
+
+    public function bulk_action(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $action = $request->input('bulk_action_type');
+        $check_list = $request->input('check_list');
+
+        if (empty($check_list) || !is_array($check_list)) {
+            return redirect('/sites')->with('error', 'Select at least one site!');
+        }
+
+        if ($action == 'status_Active' || $action == 'status_Deactive') {
+            $status = ($action == 'status_Active') ? 'Active' : 'Deactive';
+            DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $check_list)->update(['status' => $status]);
+            addActivity(0, 'sites', "Bulk Update Status to $status", 1);
+            return redirect('/sites')->with('success', 'Sites Status Updated successfully!');
+        } elseif ($action == 'delete') {
+            foreach ($check_list as $id) {
+                if (!isSiteDeletable($id)) continue;
+                $site = DB::connection($user_db_conn_name)->table('sites')->where('id', $id)->first();
+                if ($site) {
+                    addActivity(0, 'sites', "Site Deleted - " . $site->name, 1);
+                }
+                DB::connection($user_db_conn_name)->table('sites')->where('id', $id)->delete();
+            }
+            return redirect('/sites')->with('success', 'Deletable Sites Removed Successfully!');
+        }
+
+        return redirect('/sites')->with('error', 'Invalid Action!');
     }
 
     public function siteToSiteBalanceTransfer(Request $request)

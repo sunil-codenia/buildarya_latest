@@ -35,9 +35,125 @@ class ExpensePartyController extends Controller
             $query->whereBetween('create_datetime', [$from, $to]);
         }
 
-        $data = $query->get();
+        $data = [];
 
         return  view('layouts.expense.party')->with('data', json_encode($data));
+    }
+
+    public function get_expense_party_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        $query = DB::connection($user_db_conn_name)->table('expense_party');
+
+        // Total records
+        $totalRecords = $query->count();
+
+        // Search
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('address', 'LIKE', "%{$search}%")
+                  ->orWhere('pan_no', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $filteredRecords = $query->count();
+
+        // Ordering
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'asc');
+        
+        $columns = [
+            2 => 'name',
+            3 => 'address',
+            4 => 'pan_no',
+            5 => 'status'
+        ];
+        
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('id', 'desc');
+        }
+
+        // Pagination
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+
+        $formattedData = [];
+        $i = $start + 1;
+        $can_certify = checkmodulepermission(2, 'can_certify') == 1;
+        $can_edit = checkmodulepermission(2, 'can_edit') == 1;
+        $can_delete = checkmodulepermission(2, 'can_delete') == 1;
+
+        foreach ($data as $row) {
+            $ddid = $row->id;
+            
+            // Checkbox
+            $checkbox = '<div class="checkbox"><input id="check_'.$ddid.'" name="check_list[]" class="item_checkbox" type="checkbox" value="'.$ddid.'"><label for="check_'.$ddid.'">&nbsp;</label></div>';
+            
+            // Name
+            $name = '<a class="single-user-name" href="#">'.htmlspecialchars($row->name).'</a>';
+            
+            // Address
+            $address = htmlspecialchars($row->address);
+            
+            // PAN
+            $pan = '<strong>'.htmlspecialchars($row->pan_no).'</strong>';
+            
+            // Status
+            $statusHtml = '';
+            if ($row->status == 'Active') {
+                if ($can_certify) {
+                    $statusHtml = '<span onclick="updatepartystatus(\''.$ddid.'\',\'Deactive\')" class="badge badge-success">'.$row->status.'</span>';
+                } else {
+                    $statusHtml = '<span class="badge badge-success">'.$row->status.'</span>';
+                }
+            } else {
+                if ($can_certify) {
+                    $statusHtml = '<span onclick="updatepartystatus(\''.$ddid.'\',\'Active\')" class="badge badge-danger">'.$row->status.'</span>';
+                } else {
+                    $statusHtml = '<span class="badge badge-danger">'.$row->status.'</span>';
+                }
+            }
+            
+            // Action
+            $actionHtml = '';
+            if ($can_edit) {
+                $actionHtml .= '<button title="Edit" onclick="editparty(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>&nbsp;';
+            }
+            if ($can_delete && isExpensepartyDeletable($ddid)) {
+                $actionHtml .= '<button title="Delete" onclick="deletedata(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-delete"></i></button>&nbsp;';
+            }
+            if ($row->status == 'Pending' && $can_certify) {
+                $actionHtml .= '<button title="Certify" onclick="updatepartystatus(\''.$ddid.'\',\'Active\')" style="all:unset"><i class="zmdi zmdi-check-circle"></i></button>';
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $name,
+                $address,
+                $pan,
+                $statusHtml,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
     }
     public function addexpenseparty(Request $request)
     {
@@ -88,7 +204,7 @@ class ExpensePartyController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data['data'] = DB::connection($user_db_conn_name)->table('expense_party')->get();
+        $data['data'] = [];
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $id)->get();
         return  view('layouts.expense.party')->with('data', json_encode($data));
     }

@@ -23,7 +23,7 @@ class NewBillController extends Controller
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
         $role_details = getRoleDetailsById($role_id);
-        $view_duration = $role_details->view_duration;
+        $view_duration = $request->session()->get('view_duration');
         $visiblity_at_site = $role_details->visiblity_at_site;
         $dates = getdurationdates($view_duration);
         $min_date = $dates['min'];
@@ -44,7 +44,7 @@ class NewBillController extends Controller
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
         $role_details = getRoleDetailsById($role_id);
-        $view_duration = $role_details->view_duration;
+        $view_duration = $request->session()->get('view_duration');
         $visiblity_at_site = $role_details->visiblity_at_site;
 
         $from_date = $request->get('from_date');
@@ -248,7 +248,7 @@ class NewBillController extends Controller
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
         $entry_at_site = $role_details->entry_at_site;
-        $add_duration = $role_details->add_duration;
+        $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
         if ($entry_at_site == "current" && $site_id != $data['bill']->site_id) {

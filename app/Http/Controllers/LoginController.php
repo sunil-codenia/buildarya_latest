@@ -46,7 +46,9 @@ class LoginController extends Controller
                             "comp_add" => $compdata->address,
                             "comp_mobile" => $compdata->mobile,
                             "comp_email" => $compdata->email,
-                            "comp_db_conn_name" => $compdata->db_conn_name
+                            "comp_db_conn_name" => $compdata->db_conn_name,
+                            "view_duration" => !empty($userdata->view_duration) ? $userdata->view_duration : $roledata->view_duration,
+                            "add_duration" => !empty($userdata->add_duration) ? $userdata->add_duration : $roledata->add_duration
                         ]);
                         foreach ($settings as $setting) {
                             $request->session()->push($setting->name, $setting->value);

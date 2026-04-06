@@ -15,8 +15,14 @@ class RoleController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
         $roles = DB::connection($user_db_conn_name)->table('roles')->get();
+        $all_users = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image', 'role_id')->get();
         for ($i = 0; $i < sizeof($roles); $i++) {
-            $users  = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image')->where('role_id', $roles[$i]->id)->get();
+            $users = [];
+            foreach ($all_users as $au) {
+                if ($au->role_id == $roles[$i]->id) {
+                    $users[] = $au;
+                }
+            }
             $data[$i]['roles'] = $roles[$i];
             $data[$i]['users'] = $users;
         }
@@ -53,8 +59,14 @@ class RoleController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('roles')->where('id', '=', $id)->get();
         $roles = DB::connection($user_db_conn_name)->table('roles')->get();
+        $all_users = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image', 'role_id')->get();
         for ($i = 0; $i < sizeof($roles); $i++) {
-            $users  = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image')->where('role_id', $roles[$i]->id)->get();
+            $users = [];
+            foreach ($all_users as $au) {
+                if ($au->role_id == $roles[$i]->id) {
+                    $users[] = $au;
+                }
+            }
             $rdata[$i]['roles'] = $roles[$i];
             $rdata[$i]['users'] = $users;
         }
@@ -69,8 +81,14 @@ class RoleController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data['edit_setting'] = DB::connection($user_db_conn_name)->table('roles')->where('id', '=', $id)->get();
         $roles = DB::connection($user_db_conn_name)->table('roles')->get();
+        $all_users = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image', 'role_id')->get();
         for ($i = 0; $i < sizeof($roles); $i++) {
-            $users  = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image')->where('role_id', $roles[$i]->id)->get();
+            $users = [];
+            foreach ($all_users as $au) {
+                if ($au->role_id == $roles[$i]->id) {
+                    $users[] = $au;
+                }
+            }
             $rdata[$i]['roles'] = $roles[$i];
             $rdata[$i]['users'] = $users;
         }

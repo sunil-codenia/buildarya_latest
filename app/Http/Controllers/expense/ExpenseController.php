@@ -22,7 +22,7 @@ class ExpenseController extends Controller
         $site_id = $request->session()->get('site_id');
 
         $role_details = getRoleDetailsById($role_id);
-        $view_duration = $role_details->view_duration;
+        $view_duration = $request->session()->get('view_duration');
         $visiblity_at_site = $role_details->visiblity_at_site;
 
         $dates = getdurationdates($view_duration);
@@ -89,7 +89,7 @@ class ExpenseController extends Controller
         $site_id = $request->session()->get('site_id');
 
         $role_details = getRoleDetailsById($role_id);
-        $view_duration = $role_details->view_duration;
+        $view_duration = $request->session()->get('view_duration');
         $visiblity_at_site = $role_details->visiblity_at_site;
 
         $dates = getdurationdates($view_duration);
@@ -262,8 +262,8 @@ class ExpenseController extends Controller
 
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
-        $role_details = getRoleDetailsById($role_id);
-        $view_duration = $role_details->view_duration;
+        $view_duration = $request->session()->get('view_duration');
+        $role_details = DB::connection($user_db_conn_name)->table('roles')->where('id', $role_id)->first();
         $visiblity_at_site = $role_details->visiblity_at_site;
 
         $from_date = $request->get('from_date');
@@ -288,9 +288,176 @@ class ExpenseController extends Controller
             }
         }
 
-        $data = DB::connection($user_db_conn_name)->table('expenses')->leftjoin('expense_party', 'expense_party.id', '=', 'expenses.party_id')->leftjoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')->leftjoin('sites', 'sites.id', '=', 'expenses.site_id')->leftjoin('users', 'users.id', '=', 'expenses.user_id')->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_party.name as party', 'expense_head.name as head')->where($filters)->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))])->orderBy('expenses.create_datetime', 'desc')->get();
+        $data = [];
 
         return  view('layouts.expense.pending')->with('data', json_encode($data));
+    }
+
+    public function get_pending_expense_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        $role_id = $request->session()->get('role');
+        $site_id = $request->session()->get('site_id');
+        $view_duration = $request->session()->get('view_duration');
+        $role_details = DB::connection($user_db_conn_name)->table('roles')->where('id', $role_id)->first();
+        $visiblity_at_site = $role_details->visiblity_at_site;
+
+        $from_date = $request->get('from_date');
+        $to_date = $request->get('to_date');
+        if ($from_date && $to_date) {
+            $min_date = $from_date;
+            $max_date = $to_date;
+        } else {
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+        }
+
+        $req_site_id = $request->get('site_id');
+        if ($visiblity_at_site == 'current') {
+            $filters = [['expenses.status', '=', 'Pending'], ['expenses.site_id', '=', $site_id]];
+        } else {
+            if ($req_site_id && $req_site_id != 'all') {
+                $filters = [['expenses.status', '=', 'Pending'], ['expenses.site_id', '=', $req_site_id]];
+            } else {
+                $filters = [['expenses.status', '=', 'Pending']];
+            }
+        }
+
+        $query = DB::connection($user_db_conn_name)->table('expenses')
+            ->leftjoin('expense_party', 'expense_party.id', '=', 'expenses.party_id')
+            ->leftjoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
+            ->leftjoin('sites', 'sites.id', '=', 'expenses.site_id')
+            ->leftjoin('users', 'users.id', '=', 'expenses.user_id')
+            ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_party.name as party', 'expense_head.name as head')
+            ->where($filters)
+            ->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
+
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                // We must search on alias or base names
+                $q->where('expense_head.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.particular', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.amount', 'LIKE', "%{$search}%")
+                  ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                  ->orWhere('users.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.location', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.remark', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'desc');
+        
+        // 0:Check, 1: #, 2: Party, 3: Head, 4: Particular, 5: Amount, 6: Site, 7: User, 8: Location, 9: Status, 10: Remark, 11: Date, 12: Image, 13: Action
+        $columns = [
+            3 => 'expense_head.name',
+            4 => 'expenses.particular',
+            5 => 'expenses.amount',
+            6 => 'sites.name',
+            7 => 'users.name',
+            8 => 'expenses.location',
+            10 => 'expenses.remark',
+            11 => 'expenses.date'
+        ];
+        
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('expenses.create_datetime', 'desc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+
+        $formattedData = [];
+        $i = $start + 1;
+        
+        $can_certify = checkmodulepermission(2, 'can_certify') == 1;
+        $can_edit = checkmodulepermission(2, 'can_edit') == 1;
+
+        foreach ($data as $row) {
+            $ddid = $row->id;
+            
+            $checkbox = '<input type="checkbox" name="check_list[]" class="check_item" value="'.$ddid.'" onclick="event.stopPropagation()">';
+            
+            $partyName = htmlspecialchars(getExpensePartyNameByPartyType($row->party_id, $row->party_type));
+            $headName = htmlspecialchars((string) $row->head);
+            $particular = htmlspecialchars((string) $row->particular);
+            $amount = htmlspecialchars((string) $row->amount);
+            $site = htmlspecialchars((string) $row->site);
+            $user = htmlspecialchars((string) $row->user);
+            $location = htmlspecialchars((string) $row->location);
+            $status = htmlspecialchars((string) $row->status);
+            $remark = htmlspecialchars((string) $row->remark);
+            $date = htmlspecialchars((string) $row->date);
+            
+            $imageLink = $row->image;
+            $image = '<img class="lazy" data-src="'.$imageLink.'" src="'.$imageLink.'" onclick="enlargeImage(\''.$imageLink.'\')" height="50px" width="50px" />';
+            
+            $actionHtml = '';
+            if (is_asset_head($row->head_id) || is_machinery_head($row->head_id)) {
+                if (is_asset_head($row->head_id)) {
+                    if (!empty($row->asset_head)) {
+                        $assetVal = getAssetHeadsById($row->asset_head);
+                        $assetName = $assetVal ? $assetVal->name : '';
+                        $actionHtml .= 'Asset Category - ' . htmlspecialchars((string)$assetName) . '<br>';
+                    }
+                    if ($can_certify) {
+                        $actionHtml .= '<button type="button" onclick="openassignassetheadmodel(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-wrench"></i></button>';
+                    }
+                } elseif (is_machinery_head($row->head_id)) {
+                    if (!empty($row->machinery_head)) {
+                        $machineVal = getMachineryHeadsById($row->machinery_head);
+                        $machineName = $machineVal ? $machineVal->name : '';
+                        $actionHtml .= 'Machinery Category - ' . htmlspecialchars((string)$machineName) . '<br>';
+                    }
+                    if ($can_certify) {
+                        $actionHtml .= '<button type="button" onclick="openassignmachineryheadmodel(\''.$ddid.'\')" style="all:unset"><img src="'.asset('/images/gears.png').'" style="width:20px" /></button>';
+                    }
+                }
+            }
+            $actionHtml .= '&nbsp;';
+            if ($can_edit) {
+                $actionHtml .= '<button title="Edit" type="button" onclick="editexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>';
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $partyName,
+                $headName,
+                $particular,
+                $amount,
+                $site,
+                $user,
+                $location,
+                $status,
+                $remark,
+                $date,
+                $image,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
     }
     public function new_expense(Request $request)
     {
@@ -315,7 +482,7 @@ class ExpenseController extends Controller
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
         $entry_at_site = $role_details->entry_at_site;
-        $add_duration = $role_details->add_duration;
+        $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
         if ($entry_at_site == "current" && $site_id != $data['expense']->site_id) {
@@ -353,6 +520,10 @@ class ExpenseController extends Controller
         $user_id = session()->get('uid');
         $role_id = session()->get('role');
         $status = getInitialEntryStatusByRole($role_id);
+        $add_duration = session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
 
         $ids = $request->input('id');
         $site_ids = $request->input('site_id');
@@ -365,6 +536,9 @@ class ExpenseController extends Controller
 
         try {
             foreach ($ids as $key => $id) {
+                if ($dates[$key] < $min_date || $dates[$key] > $max_date) {
+                    return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $dates[$key]);
+                }
                 $head_id = $head_ids[$key];
                 $current_status = $status;
                 if (is_machinery_head($head_id) || is_asset_head($head_id)) {
@@ -431,12 +605,20 @@ class ExpenseController extends Controller
         // print_r($data);
         $user_id = session()->get('uid');
         $role_id = session()->get('role');
+        $add_duration = session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
         $status = getInitialEntryStatusByRole($role_id);
         if (is_machinery_head($data['head_id']) || is_asset_head($data['head_id'])) {
             $status = 'Pending';
         }
         $length = count($data['site_id']);
         for ($i = 0; $i < $length; $i++) {
+            if ($data['date'][$i] < $min_date || $data['date'][$i] > $max_date) {
+                return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['date'][$i]);
+            }
             if (isset($request->image[$i])) {
                 $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
                 $request->image[$i]->move(public_path('images/app_images/'.$user_db_conn_name.'/expense'), $imageName);
@@ -556,8 +738,16 @@ class ExpenseController extends Controller
 
         $data = $request->input();
         $user_id = session()->get('uid');
-        $role_id = session()->get('role');
         $status = getInitialEntryStatusByRole($role_id);
+        $add_duration = session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if ($data['date'] < $min_date || $data['date'] > $max_date) {
+            return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
+        }
+
         if (is_machinery_head($data['head_id']) || is_asset_head($data['head_id'])) {
             $status = 'Pending';
         }

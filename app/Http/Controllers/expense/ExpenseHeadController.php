@@ -17,9 +17,83 @@ class ExpenseHeadController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data = DB::connection($user_db_conn_name)->table('expense_head')->get();
+        $data = [];
 
         return  view('layouts.expense.head')->with('data', json_encode($data));
+    }
+
+    public function get_expense_head_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        $query = DB::connection($user_db_conn_name)->table('expense_head');
+
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where('name', 'LIKE', "%{$search}%");
+        }
+
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'asc');
+        
+        $columns = [
+            2 => 'name'
+        ];
+        
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('id', 'desc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+
+        $formattedData = [];
+        $i = $start + 1;
+        
+        $can_edit = checkmodulepermission(2, 'can_edit') == 1;
+        $can_delete = checkmodulepermission(2, 'can_delete') == 1;
+
+        foreach ($data as $row) {
+            $ddid = $row->id;
+            
+            $checkbox = '<div class="checkbox"><input id="check_'.$ddid.'" name="check_list[]" class="item_checkbox" type="checkbox" value="'.$ddid.'"><label for="check_'.$ddid.'">&nbsp;</label></div>';
+            
+            $name = '<a class="single-user-name" href="#">'.htmlspecialchars($row->name).'</a>';
+            
+            $actionHtml = '';
+            if ($can_edit) {
+                $actionHtml .= '<button title="Edit" onclick="editdata(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>&nbsp;';
+            }
+            if ($can_delete && isExpenseHeadDeletable($ddid)) {
+                $actionHtml .= '<button title="Delete" onclick="deletedata(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-delete"></i></button>';
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $name,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
     }
     public function addexpensehead(Request $request)
     {
@@ -67,7 +141,7 @@ class ExpenseHeadController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data['data'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
+        $data['data'] = [];
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('expense_head')->where('id', '=', $id)->get();
         return  view('layouts.expense.head')->with('data', json_encode($data));
     }

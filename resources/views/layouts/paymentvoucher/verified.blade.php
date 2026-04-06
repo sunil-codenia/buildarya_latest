@@ -12,6 +12,10 @@
                 </div>
                 <div class="body">
                 @if(checkmodulepermission(8,'can_view') == 1)
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                        </div>
+                    </div>
                     <div class="table-responsive">
                          
                             <table id="dataTable" class="table table-hover">

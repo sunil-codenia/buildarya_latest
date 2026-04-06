@@ -97,7 +97,7 @@ $dataarray = json_decode($data, true);
                     <input type="hidden" name="type" value="party">
                     <input type="hidden" name="status" id="bulkStatusField" value="">
                     <div class="table-responsive">
-                        <table id="dataTable" class="table table-hover">
+                        <table id="expensePartyTable" class="table table-hover">
                             <thead>
                                 <tr>      
                                     <th style="width: 20px;">
@@ -108,74 +108,16 @@ $dataarray = json_decode($data, true);
                                     </th>
                                     <th style="width: 50px;">#</th>                                 
                                     <th >Name</th>
-                                   
-                                    <th><strong>Address</th>                                        
+                                    <th><strong>Address</strong></th>                                        
                                     <th >Pan No</th>
                                     <th style="width: 100px;">Status</th>
                                     <th style="width: 100px;">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                            @php
-                                $i=1;
-                                @endphp
-                                @foreach($dataarray as $dd)
-                                @php
-                                $ddid = $dd['id'];
-                                @endphp
-                              <tr>
-                                <td style="padding-left: 10px;">
-                                    <div class="checkbox">
-                                        <input id="check_{{ $ddid }}" name="check_list[]" class="item_checkbox" type="checkbox" value="{{ $ddid }}">
-                                        <label for="check_{{ $ddid }}">&nbsp;</label>
-                                    </div>
-                                </td>
-                                <td>
-                                    {{$i++}}
-                                </td>
-                                        <td>
-                                            <a class="single-user-name" href="#">{{$dd['name']}}</a>
-                                        </td>
-                                        <td>
-                                            {{$dd['address']}}
-                                        </td>                                        
-                                        
-                                        <td>
-                                            <strong>{{$dd['pan_no']}}</strong>
-                                        </td>   
-                                        @if($dd['status'] == 'Active')
-                                        @if(checkmodulepermission(2,'can_certify') == 1)
-                            
-                                            <td><span onclick="updatepartystatus('{{$ddid}}','Deactive')" class="badge badge-success">{{$dd['status']}}</span></td>
-                                        @endif
-                                            @else
-                                            @if(checkmodulepermission(2,'can_certify') == 1)
-                                        <td><span onclick="updatepartystatus('{{$ddid}}','Active')" class="badge badge-danger">{{$dd['status']}}</span></td>
-                                        @endif
-                                        @endif
-                                        <td>
-                                        @if(checkmodulepermission(2,'can_edit') == 1)
-                                        <button title="Edit" onclick="editparty('{{$ddid}}')" style="all:unset" ><i class="zmdi zmdi-edit"></i> </button>
-                                        &nbsp;
-                                        @endif
-                                        @if(checkmodulepermission(2,'can_delete') == 1)
-                                        @if(isExpensepartyDeletable($ddid))
-                                    <button title="Delete" onclick="deletedata('{{$ddid}}')" style="all:unset" ><i class="zmdi zmdi-delete"></i> </button>
-                                    &nbsp;
-                                    @endif
-                                    @endif
-                                    @if($dd['status'] == 'Pending')
-                                    @if(checkmodulepermission(2,'can_certify') == 1)
-                                    <button onclick="updatepartystatus('{{$ddid}}','Active')" style="all:unset" ><i class="zmdi zmdi-check-circle"></i> </button>
-                                    @endif
-                                    @endif
-
-                                        </td>
-                                    </tr>    
-                       @endforeach
-                            
-                        </tbody>
-                    </table>
+                                <!-- DataTables will populate this dynamically -->
+                            </tbody>
+                        </table>
                 </div>
                 </form>
                 
@@ -357,6 +299,102 @@ $dataarray = json_decode($data, true);
             $("#bulkEditForm").attr('action', "{{ url('/update_bulk_party_status') }}");
             $("#bulkEditForm").submit();
         }
+
+        $(document).ready(function() {
+            var newExportAction = function (e, dt, button, config) {
+                var self = this;
+                var oldStart = dt.settings()[0]._iDisplayStart;
+                dt.one('preXhr', function (e, s, data) {
+                    data.start = 0;
+                    data.length = -1;
+                    dt.one('preDraw', function (e, settings) {
+                        if (button[0].className.indexOf('buttons-copy') >= 0) {
+                            $.fn.dataTable.ext.buttons.copyHtml5.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-excel') >= 0) {
+                            $.fn.dataTable.ext.buttons.excelHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.excelHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.excelFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-csv') >= 0) {
+                            $.fn.dataTable.ext.buttons.csvHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.csvHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.csvFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-pdf') >= 0) {
+                            $.fn.dataTable.ext.buttons.pdfHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.pdfHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.pdfFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-print') >= 0) {
+                            $.fn.dataTable.ext.buttons.print.action(e, dt, button, config);
+                        }
+                        dt.one('preXhr', function (e, s, data) {
+                            settings._iDisplayStart = oldStart;
+                            data.start = oldStart;
+                        });
+                        setTimeout(dt.ajax.reload, 0);
+                        return false;
+                    });
+                });
+                dt.ajax.reload();
+            };
+
+            $('#expensePartyTable').DataTable({
+                serverSide: true,
+                processing: true,
+                ajax: {
+                    url: "{{ url('/expense_party_ajax') }}",
+                    type: "POST",
+                    data: {
+                        _token: "{{ csrf_token() }}"
+                    }
+                },
+                columnDefs: [
+                    { orderable: false, targets: [0, 1, 6] }
+                ],
+                responsive: true,
+                dom: 'lBfrtip<"actions">',
+                buttons: [
+                    {
+                        extend: 'csvHtml5',
+                        text: window.csvButtonTrans || 'CSV',
+                        action: newExportAction,
+                        className: 'btn btn-round waves-effect waves-light btn-custom-color'
+                    },
+                    {
+                        extend: 'excelHtml5',
+                        text: window.excelButtonTrans || 'Excel',
+                        action: newExportAction,
+                        className: 'btn btn-round waves-effect waves-light btn-custom-color'
+                    },
+                    {
+                        extend: 'pdfHtml5',
+                        text: window.pdfButtonTrans || 'PDF',
+                        action: newExportAction,
+                        className: 'btn btn-round waves-effect waves-light btn-custom-color'
+                    }
+                ],
+                "oLanguage": {
+                    "oPaginate": {
+                        "sFirst": '<i class="zmdi zmdi-fast-rewind"></i>',
+                        "sLast": '<i class="zmdi zmdi-fast-forward"></i>',
+                        "sPrevious": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>',
+                        "sNext": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-right"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>'
+                    },
+                    "sInfo": "Showing ( <b>_START_ - _END_ </b>) Of <b> _TOTAL_ </b> Entries <br> Page<b> _PAGE_ </b>of <b>_PAGES_</b> Pages",
+                    "sSearch": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>',
+                    "sSearchPlaceholder": "Search...",
+                    "sLengthMenu": "Results :  _MENU_",
+                    "sPadding": '2rem'
+                },
+                pagingType: "full_numbers",
+                drawCallback: function(settings) {
+                    if ($('.item_checkbox:checked').length > 0 && $('.item_checkbox:checked').length == $('.item_checkbox').length) {
+                        $('#select_all').prop('checked', true);
+                    } else {
+                        $('#select_all').prop('checked', false);
+                    }
+                    toggleBulkActions();
+                }
+            });
+        });
 </script>
 
 
