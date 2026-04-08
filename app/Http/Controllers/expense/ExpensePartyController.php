@@ -36,6 +36,7 @@ class ExpensePartyController extends Controller
         }
 
         $data = [];
+        $data['cost_categories'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
 
         return  view('layouts.expense.party')->with('data', json_encode($data));
     }
@@ -86,6 +87,9 @@ class ExpensePartyController extends Controller
             $query->skip($start)->take($length);
         }
 
+        $query->leftJoin('expense_head', 'expense_head.id', '=', 'expense_party.cost_category_id')
+            ->select('expense_party.*', 'expense_head.name as category_name');
+
         $data = $query->get();
 
         $formattedData = [];
@@ -108,6 +112,9 @@ class ExpensePartyController extends Controller
             
             // PAN
             $pan = '<strong>'.htmlspecialchars($row->pan_no).'</strong>';
+
+            // Cost Category
+            $category = htmlspecialchars($row->category_name ?? 'N/A');
             
             // Status
             $statusHtml = '';
@@ -143,6 +150,7 @@ class ExpensePartyController extends Controller
                 $name,
                 $address,
                 $pan,
+                $category,
                 $statusHtml,
                 $actionHtml
             ];
@@ -152,7 +160,8 @@ class ExpensePartyController extends Controller
             "draw" => intval($request->input('draw')),
             "recordsTotal" => $totalRecords,
             "recordsFiltered" => $filteredRecords,
-            "data" => $formattedData
+            "data" => $formattedData,
+            "cost_categories" => DB::connection($user_db_conn_name)->table('expense_head')->get()
         ]);
     }
     public function addexpenseparty(Request $request)
@@ -168,6 +177,7 @@ class ExpensePartyController extends Controller
             'address' => $address,
             'pan_no' => $pan,
             'site_id' => $site_id,
+            'cost_category_id' => $request->input('cost_category_id'),
             'status' => $status
         ];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
@@ -194,7 +204,12 @@ class ExpensePartyController extends Controller
         $pan_no = $request->input('pan_no');
 
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        DB::connection($user_db_conn_name)->table('expense_party')->where('id', $id)->update(['name' => $name, 'address' => $address, 'pan_no' => $pan_no]);
+        DB::connection($user_db_conn_name)->table('expense_party')->where('id', $id)->update([
+            'name' => $name, 
+            'address' => $address, 
+            'pan_no' => $pan_no,
+            'cost_category_id' => $request->input('cost_category_id')
+        ]);
         addActivity($id,'expense_party',"Expense Party Updated",2);
         return redirect('/expense_party');
     }

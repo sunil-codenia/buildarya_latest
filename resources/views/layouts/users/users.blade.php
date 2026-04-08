@@ -544,12 +544,12 @@
                 { data: 8 },
                 { data: 9 },
                 @if (Session::get('role') == 1)
-                { data: 9 },
+                { data: 10 },
+                { data: 11 },
+                { data: 12, orderable: false }
+                @else
                 { data: 10 },
                 { data: 11, orderable: false }
-                @else
-                { data: 9 },
-                { data: 10, orderable: false }
                 @endif
             ],
             responsive: true,

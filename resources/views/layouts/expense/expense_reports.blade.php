@@ -303,7 +303,7 @@
                                         required>
                                         <option value="" selected disabled>--Select Head--</option>
                                         @php
-                                            $heads = getallexpenseheads();
+                                            $heads = getallCostCategories();
                                         @endphp
                                         @foreach ($heads as $head)
                                             <option value="{{ $head->id }}">{{ $head->name }}</option>
@@ -371,7 +371,7 @@
                                         required>
                                         <option value="" selected disabled>--Select Head--</option>
                                         @php
-                                            $heads = getallexpenseheads();
+                                            $heads = getallCostCategories();
                                         @endphp
                                         @foreach ($heads as $head)
                                             <option value="{{ $head->id }}">{{ $head->name }}</option>

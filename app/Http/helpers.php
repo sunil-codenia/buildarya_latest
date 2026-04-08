@@ -173,7 +173,7 @@ function getallexpenseparties()
     $parties = DB::connection($user_db_conn_name)->table('expense_party')->get();
     return $parties;
 }
-function getallexpenseheads()
+function getallCostCategories()
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
     $heads = DB::connection($user_db_conn_name)->table('expense_head')->get();

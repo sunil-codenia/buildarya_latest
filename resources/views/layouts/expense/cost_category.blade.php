@@ -1,6 +1,6 @@
 @extends('app')
 @section('content')
-    @include('templates.blockheader', ['pagename' => 'Expense head'])
+    @include('templates.blockheader', ['pagename' => 'Cost Category'])
     @php
         $edit = false;
         $dataarray = json_decode($data, true);
@@ -12,15 +12,15 @@
     @endphp
     <div class="row clearfix">
         @if ($edit)
-            @if (checkmodulepermission(2, 'can_edit') == 1)
+            @if (checkmodulepermission(12, 'can_edit') == 1)
                 <div class="col-md-12 col-sm-12 col-xs-12">
                     <div class="card project_list">
 
-                        <form action="{{ url('/updateexpensehead') }}" method="post" class="form">
+                        <form action="{{ url('/updatecostcategory') }}" method="post" class="form">
                             @csrf
                             <div class="modal-content">
                                 <div class="modal-header">
-                                    <h4 class="title">Edit Expense Head</h4>
+                                    <h4 class="title">Edit Cost Category</h4>
                                 </div>
                                 <div class="modal-body">
                                     <div class="row clearfix">
@@ -32,7 +32,7 @@
                                                 <input type="hidden" name="id" value="{{ $editdata['id'] }}">
                                                 <input type="text" id="Name" required class="form-control"
                                                     value="{{ $editdata['name'] }}" name="name"
-                                                    placeholder="Enter the Expense Head Name">
+                                                    placeholder="Enter the Cost Category Name">
                                             </div>
                                         </div>
                                     </div>
@@ -52,12 +52,12 @@
         <div class="col-md-12 col-sm-12 col-xs-12">
             <div class="card project_list">
                 <div class="header">
-                    <h2><strong>Expense Head</strong> List&nbsp;<i class="zmdi zmdi-info info-hover"></i>
+                    <h2><strong>Cost Category</strong> List&nbsp;<i class="zmdi zmdi-info info-hover"></i>
                         <div class="info-content">Head will be listed here.</div>
                     </h2>
                     <ul class="header-dropdown">
                         <li id="bulkActions" style="display: none;">
-                            @if (checkmodulepermission(2, 'can_edit') == 1)
+                            @if (checkmodulepermission(12, 'can_edit') == 1)
                                 <button class="btn btn-warning btn-icon btn-round hidden-sm-down float-right m-l-10"
                                     title="Bulk Edit" type="button" onclick="submitBulkEdit()">
                                     <i class="zmdi zmdi-edit" style="color: white;"></i>
@@ -65,9 +65,9 @@
                             @endif
                         </li>
                         <li>
-                            @if (checkmodulepermission(2, 'can_add') == 1)
+                            @if (checkmodulepermission(12, 'can_add') == 1)
                                 <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10"
-                                    data-toggle="modal" data-target="#newexpensehead1" type="button">
+                                    data-toggle="modal" data-target="#newcostcategory1" type="button">
                                     <i class="zmdi zmdi-plus" style="color: white;"></i>
                                 </button>
                             @endif
@@ -76,7 +76,7 @@
                 </div>
 
                 <div class="body">
-                    @if (checkmodulepermission(2, 'can_view') == 1)
+                    @if (checkmodulepermission(12, 'can_view') == 1)
                         <form action="{{ url('/bulk_edit_head') }}" method="POST" id="bulkEditForm">
                             @csrf
                             <input type="hidden" name="type" value="head">
@@ -108,14 +108,14 @@
 @endsection
 
 @section('models')
-    @if (checkmodulepermission(2, 'can_add') == 1)
-        <div class="modal fade" id="newexpensehead1" tabindex="-1" role="dialog">
+    @if (checkmodulepermission(12, 'can_add') == 1)
+        <div class="modal fade" id="newcostcategory1" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-md" role="document">
-                <form action="{{ url('/addexpensehead') }}" method="post" class="form">
+                <form action="{{ url('/addcostcategory') }}" method="post" class="form">
                     @csrf
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h4 class="title">Add New Expense Head</h4>
+                            <h4 class="title">Add New Cost Category</h4>
                         </div>
                         <div class="modal-body">
                             <div class="row clearfix">
@@ -125,7 +125,7 @@
                                 <div class="col-lg-8 col-md-8 col-sm-8">
                                     <div class="form-group">
                                         <input type="text" id="Name" required class="form-control" name="name"
-                                            placeholder="Enter the Expense Head Name">
+                                            placeholder="Enter the Cost Category Name">
                                     </div>
                                 </div>
                             </div>
@@ -164,7 +164,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/delete_expense_head/?id=') }}" + id;
+                    var url = "{{ url('/delete_cost_category/?id=') }}" + id;
                     window.location.href = url;
                 }
             });
@@ -190,7 +190,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/edit_expense_head/?id=') }}" + id;
+                    var url = "{{ url('/edit_cost_category/?id=') }}" + id;
                     window.location.href = url;
                 }
             });
@@ -263,7 +263,7 @@
                 serverSide: true,
                 processing: true,
                 ajax: {
-                    url: "{{ url('/expense_head_ajax') }}",
+                    url: "{{ url('/cost_category_ajax') }}",
                     type: "POST",
                     data: {
                         _token: "{{ csrf_token() }}"

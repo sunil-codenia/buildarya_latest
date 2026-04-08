@@ -26,23 +26,34 @@ $dataarray = json_decode($data, true);
                 <div class="modal-body">
                     <div class="row clearfix">
 
-                        <div class="col-lg-4 col-md-4 col-sm-4">
+                        <div class="col-lg-3 col-md-3 col-sm-4">
                             <div class="form-group">
                             <label for="Name">Name</label>
                                 <input type="hidden" name="id" value="{{$editdata['id']}}">
                                 <input type="text" id="Name" required class="form-control" value="{{$editdata['name']}}" name="name" >
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4 col-sm-4">
+                        <div class="col-lg-3 col-md-3 col-sm-4">
                             <div class="form-group">
                             <label for="Name">Address</label>
                                 <input type="text" id="Name" required class="form-control" value="{{$editdata['address']}}" name="address" >
                             </div>
                         </div>
-                        <div class="col-lg-4 col-md-4 col-sm-4">
+                        <div class="col-lg-3 col-md-3 col-sm-4">
                             <div class="form-group">
                             <label for="Name">Pan No.</label>
                                 <input type="text" id="Name" required class="form-control" value="{{$editdata['pan_no']}}" name="pan_no" >
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-3 col-sm-4">
+                            <div class="form-group">
+                            <label for="Name">Cost Category</label>
+                                <select name="cost_category_id" class="form-control show-tick" required>
+                                    <option value="">Select Cost Category</option>
+                                    @foreach($dataarray['cost_categories'] as $cat)
+                                        <option value="{{ $cat['id'] }}" {{ $editdata['cost_category_id'] == $cat['id'] ? 'selected' : '' }}>{{ $cat['name'] }}</option>
+                                    @endforeach
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -110,6 +121,7 @@ $dataarray = json_decode($data, true);
                                     <th >Name</th>
                                     <th><strong>Address</strong></th>                                        
                                     <th >Pan No</th>
+                                    <th><strong>Cost Category</strong></th>
                                     <th style="width: 100px;">Status</th>
                                     <th style="width: 100px;">Action</th>
                                 </tr>
@@ -172,6 +184,21 @@ $dataarray = json_decode($data, true);
                                 <div class="col-lg-8 col-md-8 col-sm-8">
                                     <div class="form-group">
                                         <input type="text" name="pan_no" required class="form-control" placeholder="Enter the Pan No. of expense party">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row clearfix">
+                                <div class="col-lg-2 col-md-2 col-sm-4 form-control-label">
+                                    <label for="email_address_2">Cost Category</label>
+                                </div>
+                                <div class="col-lg-8 col-md-8 col-sm-8">
+                                    <div class="form-group">
+                                        <select name="cost_category_id" class="form-control show-tick" required>
+                                            <option value="">Select Cost Category</option>
+                                            @foreach($dataarray['cost_categories'] as $cat)
+                                                <option value="{{ $cat['id'] }}">{{ $cat['name'] }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -347,7 +374,7 @@ $dataarray = json_decode($data, true);
                     }
                 },
                 columnDefs: [
-                    { orderable: false, targets: [0, 1, 6] }
+                    { orderable: false, targets: [0, 1, 7] }
                 ],
                 responsive: true,
                 dom: 'lBfrtip<"actions">',

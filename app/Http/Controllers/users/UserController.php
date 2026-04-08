@@ -5,7 +5,7 @@ namespace App\Http\Controllers\users;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
-use Symfony\Component\Console\Input\Input;
+// use Symfony\Component\Console\Input\Input;
 
 class UserController extends Controller
 {
@@ -18,9 +18,10 @@ class UserController extends Controller
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
+        $main_db = config('database.connections.mysql.database');
         $query = DB::connection($user_db_conn_name)->table('users')
-            ->leftJoin('rsgeotech.companies', 'rsgeotech.companies.id', '=', 'users.company_id')
-            ->select('users.*', 'rsgeotech.companies.name as company_name');
+            ->leftJoin($main_db . '.companies', $main_db . '.companies.id', '=', 'users.company_id')
+            ->select('users.*', $main_db . '.companies.name as company_name');
 
         $totalRecords = $query->count();
 

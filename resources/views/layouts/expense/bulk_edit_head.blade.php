@@ -1,6 +1,6 @@
 @extends('app')
 @section('content')
-@include('templates.blockheader', ['pagename' => 'Bulk Edit Expense Heads'])
+@include('templates.blockheader', ['pagename' => 'Bulk Edit Cost Categorys'])
 @php
 $heads = json_decode($data, true);
 @endphp
@@ -8,7 +8,7 @@ $heads = json_decode($data, true);
     <div class="col-md-12 col-sm-12 col-xs-12">
         <div class="card">
             <div class="header">
-                <h2><strong>Bulk Edit</strong> Expense Heads</h2>
+                <h2><strong>Bulk Edit</strong> Cost Categorys</h2>
             </div>
             <div class="body">
                 @if(checkmodulepermission(2,'can_edit') == 1)

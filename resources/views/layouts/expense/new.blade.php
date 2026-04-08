@@ -79,7 +79,7 @@
                                             </div>
                                             <div class="col-lg-3 col-md-3 col-sm-3">
                                                 <div class="form-group">
-                                                    <label>Expense Head</label>
+                                                    <label>Cost Category</label>
                                                     <select name="head_id[]" class="form-control show-tick"
                                                         data-live-search="true" required>
                                                         <option value="" selected disabled>--Select Head--</option>
@@ -181,7 +181,7 @@
                 '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Expense Party</label>' +
                 party_html + '</div></div>';
             result +=
-                '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Expense Head</label>' +
+                '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Cost Category</label>' +
                 head_html + '</div></div>';
             result +=
                 '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Particular</label><input type="text"  required class="form-control" name="particular[]" placeholder="Enter The Particular Item"></div></div>';

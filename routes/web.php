@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\users\UserController;
 use App\Http\Controllers\users\SiteController;
-use App\Http\Controllers\expense\ExpenseHeadController;
+use App\Http\Controllers\expense\CostCategoryController;
 use App\Http\Controllers\expense\ExpensePartyController;
 use App\Http\Controllers\material\MaterialUnitController;
 use App\Http\Controllers\material\MaterialController;
@@ -66,20 +66,22 @@ Route::group(['middleware' => ['auth']], function () {
 
     // routes for application
 
-
+    // Cost Category Module
+    Route::group(['middleware' => ['module.access:12']], function () {
+        Route::get('/cost_category', [CostCategoryController::class, 'index']);
+        Route::post('/cost_category_ajax', [CostCategoryController::class, 'get_cost_category_ajax']);
+        Route::post('/addcostcategory', [CostCategoryController::class, 'addcostcategory']);
+        Route::get('/edit_cost_category', [CostCategoryController::class, 'edit_cost_category']);
+        Route::get('/delete_cost_category', [CostCategoryController::class, 'delete_cost_category']);
+        Route::post('/updatecostcategory', [CostCategoryController::class, 'updatecostcategory']);
+        Route::post('/expense_head_report', [CostCategoryController::class, 'pdf_csv']);
+        Route::post('/bulk_edit_head', [CostCategoryController::class, 'bulk_edit_head']);
+        Route::post('/update_bulk_head', [CostCategoryController::class, 'update_bulk_head']);
+        Route::post('/expenseHeadReport', [CostCategoryController::class, 'expenseHeadReport']);
+    });
 
     //expense routes
     Route::group(['middleware' => ['module.access:2']], function () {
-        Route::get('/expense_head', [ExpenseHeadController::class, 'index']);
-        Route::post('/expense_head_ajax', [ExpenseHeadController::class, 'get_expense_head_ajax']);
-        Route::post('/addexpensehead', [ExpenseHeadController::class, 'addexpensehead']);
-        Route::get('/edit_expense_head', [ExpenseHeadController::class, 'edit_expense_head']);
-        Route::get('/delete_expense_head', [ExpenseHeadController::class, 'delete_expense_head']);
-        Route::post('/updateexpensehead', [ExpenseHeadController::class, 'updateexpensehead']);
-        Route::post('/expense_head_report', [ExpenseHeadController::class, 'pdf_csv']);
-        Route::post('/bulk_edit_head', [ExpenseHeadController::class, 'bulk_edit_head']);
-        Route::post('/update_bulk_head', [ExpenseHeadController::class, 'update_bulk_head']);
-
         Route::get('/expense_party', [ExpensePartyController::class, 'expense_party']);
         Route::post('/expense_party_ajax', [ExpensePartyController::class, 'get_expense_party_ajax']);
         Route::post('/addexpenseparty', [ExpensePartyController::class, 'addexpenseparty']);
@@ -91,7 +93,6 @@ Route::group(['middleware' => ['auth']], function () {
         Route::post('/update_bulk_party', [ExpensePartyController::class, 'update_bulk_party']);
         Route::post('/update_bulk_party_status', [ExpensePartyController::class, 'update_bulk_party_status']);
         Route::post('/expensespartyreport', [ExpensePartyController::class, 'expensespertyreports']);
-        Route::post('/expenseHeadReport', [ExpenseHeadController::class, 'expenseHeadReport']);
 
         Route::get('/new_expense', [ExpenseController::class, 'new_expense']);
         Route::get('/edit_expense', [ExpenseController::class, 'edit_expense']);

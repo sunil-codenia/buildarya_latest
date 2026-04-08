@@ -9,7 +9,7 @@ use Response;
 use File;
 use PDF;
 
-class ExpenseHeadController extends Controller
+class CostCategoryController extends Controller
 {
     //
     public function index(Request $request)
@@ -19,10 +19,10 @@ class ExpenseHeadController extends Controller
 
         $data = [];
 
-        return  view('layouts.expense.head')->with('data', json_encode($data));
+        return  view('layouts.expense.cost_category')->with('data', json_encode($data));
     }
 
-    public function get_expense_head_ajax(Request $request)
+    public function get_cost_category_ajax(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
@@ -62,8 +62,8 @@ class ExpenseHeadController extends Controller
         $formattedData = [];
         $i = $start + 1;
         
-        $can_edit = checkmodulepermission(2, 'can_edit') == 1;
-        $can_delete = checkmodulepermission(2, 'can_delete') == 1;
+        $can_edit = checkmodulepermission(12, 'can_edit') == 1; // Module 12: Cost Category
+        $can_delete = checkmodulepermission(12, 'can_delete') == 1; // Module 12: Cost Category
 
         foreach ($data as $row) {
             $ddid = $row->id;
@@ -95,47 +95,47 @@ class ExpenseHeadController extends Controller
             "data" => $formattedData
         ]);
     }
-    public function addexpensehead(Request $request)
+    public function addcostcategory(Request $request)
     {
         $name = $request->input('name');
         $data = ['name' => $name];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {
             $id = DB::connection($user_db_conn_name)->table('expense_head')->insertGetId($data);
-            addActivity($id, 'expense_head', "New Expense Head Created", 2);
-            return redirect('/expense_head')
-                ->with('success', 'Expense Head Created successfully!');
+            addActivity($id, 'expense_head', "New Cost Category Created", 12);
+            return redirect('/cost_category')
+                ->with('success', 'Cost Category Created successfully!');
         } catch (\Exception $e) {
             if ($e->getCode() == 23000) {
-                return redirect('/expense_head')
-                    ->with('error', 'Expense Head Already Exists!');
+                return redirect('/cost_category')
+                    ->with('error', 'Cost Category Already Exists!');
             } else {
-                return redirect('/expense_head')
-                    ->with('error', 'Error While Creating Expense Head!');
+                return redirect('/cost_category')
+                    ->with('error', 'Error While Creating Cost Category!');
             }
         }
     }
-    public function updateexpensehead(Request $request)
+    public function updatecostcategory(Request $request)
     {
         $id = $request->input('id');
         $name = $request->input('name');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {
             DB::connection($user_db_conn_name)->table('expense_head')->where('id', $id)->update(['name' => $name]);
-            addActivity($id, 'expense_head', "Expense Head Updated", 2);
-            return redirect('/expense_head')
-                ->with('success', 'Expense Head Updated Successfully!');;
+            addActivity($id, 'expense_head', "Cost Category Updated", 12);
+            return redirect('/cost_category')
+                ->with('success', 'Cost Category Updated Successfully!');;
         } catch (\Exception $e) {
             if ($e->getCode() == 23000) {
-                return redirect('/expense_head')
-                    ->with('error', 'Expense Head Already Exists!');
+                return redirect('/cost_category')
+                    ->with('error', 'Cost Category Already Exists!');
             } else {
-                return redirect('/expense_head')
-                    ->with('error', 'Error While Updating Expense Head!');
+                return redirect('/cost_category')
+                    ->with('error', 'Error While Updating Cost Category!');
             }
         }
     }
-    public function edit_expense_head(Request $request)
+    public function edit_cost_category(Request $request)
     {
         $id = $request->get('id');
         $data = array();
@@ -143,9 +143,9 @@ class ExpenseHeadController extends Controller
 
         $data['data'] = [];
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('expense_head')->where('id', '=', $id)->get();
-        return  view('layouts.expense.head')->with('data', json_encode($data));
+        return  view('layouts.expense.cost_category')->with('data', json_encode($data));
     }
-    public function delete_expense_head(Request $request)
+    public function delete_cost_category(Request $request)
     {
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
@@ -154,13 +154,13 @@ class ExpenseHeadController extends Controller
         $expense_head = DB::connection($user_db_conn_name)->table('expense_head')->where('id', '=', $id)->get()[0]->name;
 
         if (Count($check) > 0) {
-            return redirect('/expense_head')
-                ->with('error', 'Expense Head Is In Use!');
+            return redirect('/cost_category')
+                ->with('error', 'Cost Category Is In Use!');
         } else {
             DB::connection($user_db_conn_name)->table('expense_head')->where('id', '=', $id)->delete();
-            addActivity(0, 'expense_head', "Expense Head Deleted - " . $expense_head, 2);
-            return redirect('/expense_head')
-                ->with('success', 'Expense Head Deleted Successfully!');
+            addActivity(0, 'expense_head', "Cost Category Deleted - " . $expense_head, 12);
+            return redirect('/cost_category')
+                ->with('success', 'Cost Category Deleted Successfully!');
         }
     }
 
@@ -168,7 +168,7 @@ class ExpenseHeadController extends Controller
     {
         $ids = $request->input('check_list');
         if (empty($ids)) {
-            return redirect('/expense_head')->with('error', 'Please select at least one head to edit!');
+            return redirect('/cost_category')->with('error', 'Please select at least one Cost Category to edit!');
         }
 
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
@@ -189,13 +189,19 @@ class ExpenseHeadController extends Controller
                 DB::connection($user_db_conn_name)->table('expense_head')
                     ->where('id', $id)
                     ->update(['name' => $names[$key]]);
-                addActivity($id, 'expense_head', "Expense Head Updated via Bulk Edit", 2);
+                addActivity($id, 'expense_head', "Cost Category Updated via Bulk Edit", 12);
             }
             DB::connection($user_db_conn_name)->commit();
-            return redirect('/expense_head')->with('success', 'Expense Heads Updated Successfully!');
+            return redirect('/cost_category')->with('success', 'Cost Categories Updated Successfully!');
         } catch (\Exception $e) {
             DB::connection($user_db_conn_name)->rollBack();
-            return redirect('/expense_head')->with('error', 'Error while updating bulk heads!');
+            return redirect('/cost_category')->with('error', 'Error while updating bulk Cost Categories!');
         }
+    }
+
+    public function expenseHeadReport(Request $request)
+    {
+        // Placeholder for the report method if needed
+        return redirect('/cost_category');
     }
 }

@@ -35,7 +35,7 @@ $max_date = substr($duration['max'], 0, 10);
                                 <tr>
                                     <th style="min-width: 150px;">Site</th>
                                     <th style="min-width: 150px;">Expense Party</th>
-                                    <th style="min-width: 150px;">Expense Head</th>
+                                    <th style="min-width: 150px;">Cost Category</th>
                                     <th style="min-width: 150px;">Particular</th>
                                     <th style="min-width: 100px;">Amount</th>
                                     <th style="min-width: 150px;">Remark</th>

@@ -34,10 +34,9 @@
 
             {{-- Module 2: Expenses --}}
             @if (canViewModule(2))
-            <li class="{{ Request::is('expense_party') || Request::is('expense_head') || Request::is('new_expense') || Request::is('pending_expense*') || Request::is('return_expense') || Request::is('verified_expense') || Request::is('expense_reports') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-receipt"></i><span>Expenses</span> </a>
-                <ul style="list-style-type: none; display: {{ Request::is('expense_party') || Request::is('expense_head') || Request::is('new_expense') || Request::is('pending_expense*') || Request::is('return_expense') || Request::is('verified_expense') || Request::is('expense_reports') ? 'block' : 'none' }};">
+            <li class="{{ Request::is('expense_party') || Request::is('new_expense') || Request::is('pending_expense*') || Request::is('return_expense') || Request::is('verified_expense') || Request::is('expense_reports') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-receipt"></i><span>Expenses</span> </a>
+                <ul style="list-style-type: none; display: {{ Request::is('expense_party') || Request::is('new_expense') || Request::is('pending_expense*') || Request::is('return_expense') || Request::is('verified_expense') || Request::is('expense_reports') ? 'block' : 'none' }};">
                     <li class="{{ Request::is('expense_party') ? 'active' : '' }}"><a href="{{url('/expense_party')}}"> <i class="zmdi zmdi-face"></i> Expense Parties</a></li>
-                    <li class="{{ Request::is('expense_head') ? 'active' : '' }}"><a href="{{url('/expense_head')}}"> <i class="zmdi zmdi-puzzle-piece"></i> Expense Head</a></li>
                     @if (isSuperAdmin() || checkmodulepermission(2, 'can_add') == 1)
                     <li class="{{ Request::is('new_expense') ? 'active' : '' }}"><a href="{{url('/new_expense')}}"> <i class="zmdi zmdi-plus-circle"></i> New Expenses</a></li>
                     @endif
@@ -49,6 +48,11 @@
                     @endif
                 </ul>
             </li>
+            @endif
+
+            {{-- Module 12: Cost Category --}}
+            @if (canViewModule(12))
+            <li class="{{ Request::is('cost_category') ? 'active open' : '' }}"><a href="{{url('/cost_category')}}"><i class="zmdi zmdi-puzzle-piece"></i><span>Cost Category</span> </a></li>
             @endif
 
             {{-- Module 3: Material Purchase --}}

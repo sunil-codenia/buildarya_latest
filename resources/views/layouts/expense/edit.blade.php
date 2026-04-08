@@ -89,7 +89,7 @@ $max_date = substr($duration['max'], 0, 10);
                            </div>
                            <div class="col-lg-3 col-md-3 col-sm-3">
                               <div class="form-group">
-                                 <label>Expense Head</label>
+                                 <label>Cost Category</label>
                                  <select name="head_id" class="form-control show-tick" data-live-search="true" required>
                                     <option value="" selected disabled>--Select Head--</option>
                                     @foreach($heads as $head)

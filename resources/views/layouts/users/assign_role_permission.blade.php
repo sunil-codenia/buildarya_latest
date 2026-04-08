@@ -53,7 +53,7 @@
                                     <th>View (Sidebar Access)</th>
                                     <th>Add</th>
                                     <th>Edit</th>
-                                    <th>Certify</th>
+                                    <th>Approve / Certify</th>
                                     <th>Delete</th>
                                     <th>Pay</th>
                                     <th>Generate Report</th>
