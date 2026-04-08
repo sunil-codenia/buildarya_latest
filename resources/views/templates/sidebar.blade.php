@@ -8,7 +8,7 @@
                     <div class="image"><a href="{{url('/dashboard')}}"><img src="{{ asset('/' . Session::get('image')) }}" alt="User"></a></div>
                     <div class="detail">
                         <h4>{{Session::get('name')}}</h4>
-                        <small>{{getRoleDetailsById(Session::get('role'))->name}}</small>                        
+                        <small>{{Session::get('comp_name')}} ({{getRoleDetailsById(Session::get('role'))->name}})</small>                        
                     </div>
                     <a href="{{url('/dashboard')}}" title="Events"><i class="zmdi zmdi-home"></i></a>
                     <a href="{{url('/contacts')}}" title="Contact List"><i class="zmdi zmdi-account-box-phone"></i></a>

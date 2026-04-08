@@ -25,11 +25,24 @@
                         <input type="date" name="to_date" class="form-control" value="{{ $to_date }}">
                     </div>
 
+                    @php
+                        $role_id = session()->get('role');
+                        $role_details = getRoleDetailsById($role_id);
+                        $visiblity_at_site = $role_details->visiblity_at_site;
+                        $assigned_ids = session()->get('assigned_site_ids', []);
+                    @endphp
+
                     @if(isset($sitesnameadd))
                     <div class="col-lg-2 col-md-4 col-sm-6">
                         <label>Site Filter</label>
                         <select class="form-control" name="site_id" id="site_id">
-                            <option value="all">All Sites</option>
+                            @if($visiblity_at_site != 'current')
+                                <option value="all">All Sites</option>
+                            @else
+                                @if(count($assigned_ids) > 1)
+                                    <option value="all" {{ (isset($id) && $id == 'all') ? 'selected' : '' }}>All Assigned Sites</option>
+                                @endif
+                            @endif
                             @foreach($sitesnameadd as $site)
                                 <option value="{{ $site->id }}" {{ (isset($id) && $id == $site->id) ? 'selected' : '' }}>{{ $site->name }}</option>
                             @endforeach
@@ -56,6 +69,7 @@
 
                     <div class="col-lg-2 col-md-4 col-sm-6 d-flex align-items-end" style="justify-content:space-between; gap:5px;">
                         <button type="submit" class="btn btn-info" style="font-size:smaller; flex:1; white-space: nowrap;">Filter</button>
+                        <button type="button" onclick="switchSiteNow()" class="btn btn-warning" title="Switch as Active Site" style="font-size:smaller; flex:0 0 auto; white-space: nowrap;"><i class="zmdi zmdi-apps"></i> Switch</button>
                         <button type="submit" formaction="{{ url('/dashboard/export') }}" class="btn btn-success" style="font-size:smaller; flex:1; white-space: nowrap;">Export CSV</button>
                     </div>
                 </div>
@@ -74,5 +88,14 @@
     function toggleComparison() {
         const checked = document.getElementById('enable_comparison').checked;
         document.getElementById('comparison_site_div').style.display = (checked ? 'block' : 'none');
+    }
+
+    function switchSiteNow() {
+        var sid = document.getElementById('site_id').value;
+        if (sid) {
+            window.location.href = "{{ url('/switch_site') }}/" + btoa(sid);
+        } else {
+            alert('Please select a site first');
+        }
     }
 </script>

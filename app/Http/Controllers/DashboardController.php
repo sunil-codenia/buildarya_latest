@@ -38,12 +38,13 @@ class DashboardController extends Controller
         $from_chart = $from;
         $to_chart = $to;
 
-        $sitesnameadd = DB::connection($user_db_conn_name)->select("SELECT * from `sites` WHERE status = 'Active'");
-
         if ($visiblity_at_site == 'current') {
+            $assigned_ids = $request->session()->get('assigned_site_ids', []);
+            $sitesnameadd = DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $assigned_ids)->get();
             $id = $request->session()->get('site_id');
             return view('layouts.dashboard', compact(['id', 'from', 'to', 'from_chart', 'to_chart', 'filter_type', 'from_date', 'to_date', 'sitesnameadd']));
         } else {
+            $sitesnameadd = DB::connection($user_db_conn_name)->select("SELECT * from `sites` WHERE status = 'Active'");
             if ($site_id && $site_id != 'all') {
                 $id = $site_id;
                 return view('layouts.dashboard', compact(['id', 'from', 'to', 'from_chart', 'to_chart', 'filter_type', 'from_date', 'to_date', 'sitesnameadd', 'compare_site_id']));
@@ -311,5 +312,17 @@ class DashboardController extends Controller
 
             fclose($file);
         }, 200, $headers);
+    }
+    public function switch_active_site(Request $request, $id)
+    {
+        $id = base64_decode($id);
+        $assigned_ids = $request->session()->get('assigned_site_ids', []);
+        
+        if ($id == 'all' || in_array($id, $assigned_ids) || $request->session()->get('is_superadmin') == 1) {
+            $request->session()->put('site_id', $id);
+            return redirect('/dashboard')->with('success', 'Site switched successfully!');
+        }
+        
+        return redirect('/dashboard')->with('error', 'You are not assigned to this site!');
     }
 }

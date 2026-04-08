@@ -19,8 +19,8 @@ class UserController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
         $query = DB::connection($user_db_conn_name)->table('users')
-            ->leftJoin('sites', 'users.site_id', '=', 'sites.id')
-            ->select('users.*', 'sites.name AS site');
+            ->leftJoin('rsgeotech.companies', 'rsgeotech.companies.id', '=', 'users.company_id')
+            ->select('users.*', 'rsgeotech.companies.name as company_name');
 
         $totalRecords = $query->count();
 
@@ -29,8 +29,7 @@ class UserController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('users.name', 'LIKE', "%{$search}%")
                     ->orWhere('users.username', 'LIKE', "%{$search}%")
-                    ->orWhere('users.contact_no', 'LIKE', "%{$search}%")
-                    ->orWhere('sites.name', 'LIKE', "%{$search}%");
+                    ->orWhere('users.contact_no', 'LIKE', "%{$search}%");
             });
         }
 
@@ -61,16 +60,20 @@ class UserController extends Controller
 
         $users = $query->get();
 
-        // Efficiently fetch "Other Site Members" avatars
-        $site_ids = $users->pluck('site_id')->unique()->filter()->toArray();
+        $all_sites = DB::connection($user_db_conn_name)->table('sites')->pluck('name', 'id')->toArray();
         $all_possible_members = [];
-        if (!empty($site_ids)) {
+        // Note: For multi-site users, "Team" display might need rethinking or simplified.
+        // For now, we'll keep the team as others in their FIRST assigned site.
+        $site_ids_first = $users->map(fn($u) => explode(',', (string)$u->site_id)[0] ?? null)->unique()->filter()->toArray();
+        if (!empty($site_ids_first)) {
             $all_possible_members = DB::connection($user_db_conn_name)->table('users')
-                ->whereIn('site_id', $site_ids)
+                ->whereIn('site_id', $site_ids_first)
                 ->select('name', 'id', 'image', 'site_id')
                 ->get()
                 ->groupBy('site_id');
         }
+
+
 
         $formattedData = [];
         $i = $start + 1;
@@ -84,12 +87,21 @@ class UserController extends Controller
             $role_name = getRoleDetailsById($user->role_id)->name;
             $nameInfo = '<a class="single-user-name" href="#">'.htmlspecialchars($user->name).'</a><br><small>'.htmlspecialchars($role_name).'</small>';
             
-            $siteInfo = '<strong>'.htmlspecialchars($user->site).'</strong>';
+            $assigned_site_ids = explode(',', (string)$user->site_id);
+            $site_names = [];
+            foreach ($assigned_site_ids as $sid) {
+                if (isset($all_sites[$sid])) {
+                    $site_names[] = $all_sites[$sid];
+                }
+            }
+            $siteInfo = '<strong>'.htmlspecialchars(implode(', ', $site_names)).'</strong>';
+            $companyInfo = '<strong>'.htmlspecialchars($user->company_name ?? 'N/A').'</strong>';
 
-            // Other Site Members Avatars
+            // Other Site Members Avatars (using first assigned site)
+            $first_site_id = $assigned_site_ids[0] ?? null;
             $other_members_html = '<ul class="list-unstyled team-info margin-0">';
-            if (isset($all_possible_members[$user->site_id])) {
-                foreach ($all_possible_members[$user->site_id] as $member) {
+            if (isset($all_possible_members[$first_site_id])) {
+                foreach ($all_possible_members[$first_site_id] as $member) {
                     if ($member->id != $user->id) {
                         $other_members_html .= '<li><a title="'.htmlspecialchars($member->name).'"><img src="'.asset($member->image).'" style="max-height: 40px;" alt="'.htmlspecialchars($member->name).'"></a></li>';
                     }
@@ -120,6 +132,7 @@ class UserController extends Controller
                 $image,
                 $nameInfo,
                 $siteInfo,
+                $companyInfo,
                 $other_members_html,
                 $statusHtml,
                 $user->username,
@@ -163,7 +176,7 @@ class UserController extends Controller
         $username = $request->username;
         $password = $request->password;
         $contact_no = $request->contact_no;
-        $site_id = $request->site_id;
+        $site_id = is_array($request->site_id) ? implode(',', $request->site_id) : $request->site_id;
         $role_id = $request->role_id;
         $pan_no = $request->pan_no;
         $mobile_only = $request->mobile_only;
@@ -207,6 +220,7 @@ class UserController extends Controller
             'name' => $name,
             'username' => $username,
             'pass' => $password,
+            'company_id' => $request->company_id,
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,
@@ -309,17 +323,11 @@ class UserController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
         $users_list = array();
-        $users = DB::connection($user_db_conn_name)->table('users')->leftJoin('sites', 'users.site_id', '=', 'sites.id')->select('users.*', 'sites.name AS site')->get();
-        $all_users = DB::connection($user_db_conn_name)->table('users')->select('name', 'id', 'image', 'site_id')->get();
+        $users = DB::connection($user_db_conn_name)->table('users')->get();
+        // Skip team enrichment here as it's complex for multi-site and might not be used in the edit view
         for ($i = 0; $i < sizeof($users); $i++) {
-            $other_users = [];
-            foreach ($all_users as $au) {
-                if ($au->site_id == $users[$i]->site_id && $au->id != $users[$i]->id) {
-                    $other_users[] = $au;
-                }
-            }
             $users_list[$i]['data'] = $users[$i];
-            $users_list[$i]['list'] = $other_users;
+            $users_list[$i]['list'] = [];
         }
         $data['data'] = $users_list;
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('users')->where('id', '=', $id)->get();
@@ -363,7 +371,7 @@ class UserController extends Controller
         $username = $request->input('username');
         $password = $request->input('pass');
         $contact_no = $request->input('contact_no');
-        $site_id = $request->input('site_id');
+        $site_id = is_array($request->input('site_id')) ? implode(',', $request->input('site_id')) : $request->input('site_id');
         $role_id = $request->input('role_id');
         $pan_no = $request->input('pan_no');
         $mobile_only=$request->input('mobile_only');
@@ -373,6 +381,7 @@ class UserController extends Controller
             'name' => $name,
             'username' => $username,
             'pass' => $password,
+            'company_id' => $request->company_id,
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,

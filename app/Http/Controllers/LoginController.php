@@ -22,6 +22,12 @@ class LoginController extends Controller
                 $usercount = DB::connection($compdata->db_conn_name)->table('users')->where('username', '=', $uname)->where('pass', '=', $pass)->count();
                 if ($usercount == 1) {
                     $userdata = DB::connection($compdata->db_conn_name)->table('users')->where('username', '=', $uname)->where('pass', '=', $pass)->first();
+                    
+                    // Verify Company ID Match
+                    if ($userdata->company_id != $compdata->id) {
+                        return view('/login')->with('errorcode', "This User is not assigned to this Company! Please check Company ID.");
+                    }
+
                     if ($userdata->status == "Active") {
                         if ($userdata->mobile_only == "no") {
                         $settings = DB::connection($compdata->db_conn_name)->table('settings')->select('name', 'value')->get();
@@ -38,7 +44,8 @@ class LoginController extends Controller
                             "role" => $userdata->role_id,
                             "is_superadmin" => $roledata->is_superadmin,
                             "role_perms_set" => ($role_perms_count > 0),
-                            "site_id" => $userdata->site_id,
+                            "assigned_site_ids" => explode(',', (string)$userdata->site_id),
+                            "site_id" => count(explode(',', (string)$userdata->site_id)) > 1 ? 'all' : explode(',', (string)$userdata->site_id)[0],
                             "image" => $userdata->image,
                             "comp_id" => $compdata->uid,
                             "comp_db_id" => $compdata->id,
@@ -48,7 +55,8 @@ class LoginController extends Controller
                             "comp_email" => $compdata->email,
                             "comp_db_conn_name" => $compdata->db_conn_name,
                             "view_duration" => !empty($userdata->view_duration) ? $userdata->view_duration : $roledata->view_duration,
-                            "add_duration" => !empty($userdata->add_duration) ? $userdata->add_duration : $roledata->add_duration
+                            "add_duration" => !empty($userdata->add_duration) ? $userdata->add_duration : $roledata->add_duration,
+                            "company_modules" => DB::table('company_modules')->where('company_id', $compdata->id)->pluck('module_id')->toArray()
                         ]);
                         foreach ($settings as $setting) {
                             $request->session()->push($setting->name, $setting->value);

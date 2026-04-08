@@ -78,47 +78,56 @@
                                                     value="{{ $editdata['name'] }}">
                                             </div>
                                         </div>
-                                        <div class="col-lg-4 col-md-4 col-sm-4">
+                                        <div class="col-lg-6 col-md-6 col-sm-12">
                                             <div class="form-group">
-                                                <label for="Name">Data View Duration</label>
-                                                <select class="form-control show-tick" data-live-search="true"
-                                                    name="view_duration" required>
-                                                    <option value="" selected disabled>--Select Duration--</option>
-                                                    @php
-                                                        $durations = getviewdurations();
-                                                    @endphp
-                                                    @foreach ($durations as $key => $value)
-                                                        @if ($key == $editdata['view_duration'])
-                                                            <option selected value="{{ $key }}">{{ $value }}
-                                                            </option>
-                                                        @else
-                                                            <option value="{{ $key }}">{{ $value }}</option>
-                                                        @endif
-                                                    @endforeach
-                                                </select>
+                                                <label>Data View Duration</label>
+                                                @php
+                                                    $view_dur = $editdata['view_duration'] ?? '';
+                                                    $is_range = strpos($view_dur, ',') !== false;
+                                                    $parts = $is_range ? explode(',', $view_dur) : [$view_dur, ''];
+                                                    $from = $parts[0];
+                                                    $to = $parts[1] ?? '';
+                                                @endphp
+                                                <div class="row">
+                                                    <div class="col-6">
+                                                        <small>From</small>
+                                                        <input type="date" class="form-control date-range-from" data-target="#view_duration_final" value="{{ preg_match("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/", $from) ? $from : '' }}">
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <small>To (Optional)</small>
+                                                        <input type="date" class="form-control date-range-to" data-target="#view_duration_final" value="{{ preg_match("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/", $to) ? $to : '' }}">
+                                                    </div>
+                                                </div>
+                                                <input type="hidden" name="view_duration" id="view_duration_final" value="{{ $view_dur }}">
+                                                @if(!empty($view_dur) && !strpos($view_dur, '-') && !strpos($view_dur, ','))
+                                                    <small class="text-muted">Current: {{ getviewdurations($view_dur) }}</small>
+                                                @endif
                                             </div>
                                         </div>
-                                        <div class="col-lg-4 col-md-4 col-sm-4">
+                                        <div class="col-lg-6 col-md-6 col-sm-12">
                                             <div class="form-group">
-                                                <label for="Name">Data Creation Duration</label>
-                                                <select class="form-control show-tick" data-live-search="true"
-                                                    name="add_duration" required>
-                                                    <option value="" selected disabled>--Select Duration--</option>
-                                                    @php
-                                                        $durations = getadddurations();
-                                                    @endphp
-                                                    @foreach ($durations as $key => $value)
-                                                        @if ($key == $editdata['add_duration'])
-                                                            <option selected value="{{ $key }}">
-                                                                {{ $value }}
-                                                            </option>
-                                                        @else
-                                                            <option value="{{ $key }}">{{ $value }}
-                                                            </option>
-                                                        @endif
-                                                    @endforeach
-                                                </select>
-
+                                                <label>Data Creation Duration</label>
+                                                @php
+                                                    $add_dur = $editdata['add_duration'] ?? '';
+                                                    $is_add_range = strpos($add_dur, ',') !== false;
+                                                    $add_parts = $is_add_range ? explode(',', $add_dur) : [$add_dur, ''];
+                                                    $add_from = $add_parts[0];
+                                                    $add_to = $add_parts[1] ?? '';
+                                                @endphp
+                                                <div class="row">
+                                                    <div class="col-6">
+                                                        <small>From</small>
+                                                        <input type="date" class="form-control date-range-from" data-target="#add_duration_final" value="{{ preg_match("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/", $add_from) ? $add_from : '' }}">
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <small>To (Optional)</small>
+                                                        <input type="date" class="form-control date-range-to" data-target="#add_duration_final" value="{{ preg_match("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/", $add_to) ? $add_to : '' }}">
+                                                    </div>
+                                                </div>
+                                                <input type="hidden" name="add_duration" id="add_duration_final" value="{{ $add_dur }}">
+                                                @if(!empty($add_dur) && !strpos($add_dur, '-') && !strpos($add_dur, ','))
+                                                    <small class="text-muted">Current: {{ getadddurations($add_dur) }}</small>
+                                                @endif
                                             </div>
                                         </div>
                                         <div class="col-lg-4 col-md-4 col-sm-4">
@@ -386,5 +395,18 @@
                 }
             });
         }
+
+        $(document).on('change', '.date-range-from, .date-range-to', function() {
+            var container = $(this).closest('.form-group');
+            var from = container.find('.date-range-from').val();
+            var to = container.find('.date-range-to').val();
+            var target = $(this).data('target');
+            
+            if (from || to) {
+                $(target).val(from + ',' + to);
+            } else {
+                $(target).val('');
+            }
+        });
     </script>
 @endsection

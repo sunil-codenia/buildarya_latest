@@ -9,6 +9,7 @@ use App\Http\Controllers\api\SiteBillsController;
 use App\Http\Controllers\api\AssetsController;
 use App\Http\Controllers\api\MachineryController;
 use App\Http\Controllers\api\ChatController;
+use App\Http\Controllers\api\CompanyRegistrationController;
 use App\Http\Controllers\DocumentController;
 
 /*
@@ -26,6 +27,7 @@ use App\Http\Controllers\DocumentController;
 
 Route::get('/get_all_data', [UserController::class, 'get_all_data']);
 Route::get('/api_login', [UserController::class, 'login']);
+Route::post('/register_company', [CompanyRegistrationController::class, 'register_company']);
 Route::post('/get_users', [UserController::class, 'get_users']);
 Route::post('/get_sites', [UserController::class, 'get_sites']);
 Route::post('/get_modules', [UserController::class, 'get_modules']);

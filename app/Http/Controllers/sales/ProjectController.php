@@ -12,9 +12,26 @@ class ProjectController extends Controller
     //
     function sales_project(Request $request)
     {
-        $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data = DB::connection($user_db_conn_name)->table('sales_project')->get();
+        $role_id = $request->session()->get('role');
+        $role_details = getRoleDetailsById($role_id);
+        $visiblity_at_site = $role_details->visiblity_at_site;
+        $site_id = $request->session()->get('site_id');
+
+        $query = DB::connection($user_db_conn_name)->table('sales_project');
+
+        if ($visiblity_at_site == 'current') {
+            if ($site_id == 'all') {
+                $assigned_site_ids = $request->session()->get('assigned_site_ids', []);
+                $project_ids = DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $assigned_site_ids)->where('project_id', '!=', 0)->pluck('project_id')->toArray();
+                $query->whereIn('id', $project_ids);
+            } else {
+                $project_id = DB::connection($user_db_conn_name)->table('sites')->where('id', $site_id)->value('project_id');
+                $query->where('id', $project_id);
+            }
+        }
+
+        $data = $query->get();
         for ($i = 0; $i < count($data); $i++) {
             $data[$i]->invoices = DB::connection($user_db_conn_name)->table('sales_invoice')->where('project_id', '=', $data[$i]->id)->COUNT('id');
         }
@@ -121,7 +138,8 @@ class ProjectController extends Controller
          $addsalesProject = DB::connection($user_db_conn_name)->table('sales_project')->insertGetId($data);
             addActivity($addsalesProject,'sales_project',"New Sales Project Created",7);            
             return redirect('/sales_project')
-                ->with('success', 'Project Created successfully!');
+                ->with('success', 'Project Created successfully!')
+                ->with('ask_create_site', $addsalesProject);
         } catch (\Exception $e) {
             if ($e->getCode() == 23000) {
                 return redirect('/sales_project')

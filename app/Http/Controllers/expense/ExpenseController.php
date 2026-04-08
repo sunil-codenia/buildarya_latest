@@ -30,7 +30,7 @@ class ExpenseController extends Controller
         $max_date = $dates['max'];
 
         $filters = [['expenses.status', '!=', 'Pending']];
-        if ($visiblity_at_site == 'current') {
+        if ($visiblity_at_site == 'current' && $site_id != 'all') {
             $filters[] = ['expenses.site_id', '=', $site_id];
         }
 
@@ -55,6 +55,10 @@ class ExpenseController extends Controller
             )
             ->where($filters)
             ->whereBetween('expenses.create_datetime', [$min_date, $max_date]);
+
+        if ($visiblity_at_site == 'current' && $site_id == 'all') {
+            apply_site_filter($query, $site_id, 'expenses.site_id');
+        }
 
         if ($request->get('search')) {
             $search = $request->get('search');
@@ -97,7 +101,7 @@ class ExpenseController extends Controller
         $max_date = $dates['max'];
 
         $filters = [['expenses.status', '!=', 'Pending']];
-        if ($visiblity_at_site == 'current') {
+        if ($visiblity_at_site == 'current' && $site_id != 'all') {
             $filters[] = ['expenses.site_id', '=', $site_id];
         }
 
@@ -122,6 +126,10 @@ class ExpenseController extends Controller
             )
             ->where($filters)
             ->whereBetween('expenses.create_datetime', [$min_date, $max_date]);
+
+        if ($visiblity_at_site == 'current' && $site_id == 'all') {
+            apply_site_filter($query, $site_id, 'expenses.site_id');
+        }
 
         if ($request->get('search')) {
             $search = $request->get('search');

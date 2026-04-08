@@ -613,5 +613,17 @@
                 }
             })
         }
+
+        @if(request()->has('action') && request()->get('action') == 'add_new')
+        $(document).ready(function() {
+            setTimeout(function() {
+                $('#newsitemodel').modal('show');
+                @if(request()->has('project_id'))
+                    var projectId = "{{request()->get('project_id')}}";
+                    $('#newsitemodel select[name="project_id"]').val(projectId).selectpicker('refresh');
+                @endif
+            }, 300);
+        });
+        @endif
     </script>
 @endsection

@@ -38,6 +38,37 @@ function getRoleDetailsById($id)
     return $roles;
 }
 
+function get_site_details_by_ids($ids_str)
+{
+    if (empty($ids_str)) return collect([]);
+    $ids = explode(',', (string)$ids_str);
+    $user_db_conn_name = session()->get('comp_db_conn_name');
+    return DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $ids)->get();
+}
+
+function get_user_assigned_sites()
+{
+    $assigned_ids = session()->get('assigned_site_ids');
+    if (empty($assigned_ids)) return collect([]);
+    $user_db_conn_name = session()->get('comp_db_conn_name');
+    return DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $assigned_ids)->get();
+}
+
+/**
+ * Applies site filter to a query builder instance.
+ * Handles 'all' sites for multi-site users.
+ */
+function apply_site_filter($query, $site_id, $column = 'site_id')
+{
+    if ($site_id == 'all') {
+        $assigned_ids = session()->get('assigned_site_ids', []);
+        $query->whereIn($column, $assigned_ids);
+    } else {
+        $query->where($column, '=', $site_id);
+    }
+    return $query;
+}
+
 function getSalesProjects($id = null)
 {
     if ($id == null) {
@@ -83,6 +114,16 @@ function getallRoles()
     $user_db_conn_name = session()->get('comp_db_conn_name');
     $roles = DB::connection($user_db_conn_name)->table('roles')->get();
     return $roles;
+}
+
+function getallCompanies()
+{
+    return DB::table('companies')->select('id', 'name', 'uid')->where('status', 'Active')->get();
+}
+
+function getCompanyDetailsById($id)
+{
+    return DB::table('companies')->where('id', $id)->first();
 }
 function getallworkslist()
 {
@@ -226,6 +267,11 @@ function isSuperAdmin()
 
 function canViewModule($module_id)
 {
+    $company_modules = session()->get('company_modules', []);
+    if (!in_array($module_id, $company_modules)) {
+        return false;
+    }
+
     if (isSuperAdmin()) {
         return true;
     }
@@ -293,7 +339,13 @@ function getviewdurations($id = null)
         'complete' => 'Complete Data',
     ];
     if ($id != null) {
-        return $data[$id];
+        if (strpos($id, ',') !== false) {
+            $parts = explode(',', $id);
+            $from = !empty($parts[0]) ? date('d-M-Y', strtotime($parts[0])) : 'Beginning';
+            $to = !empty($parts[1]) ? date('d-M-Y', strtotime($parts[1])) : 'End';
+            return "$from to $to";
+        }
+        return isset($data[$id]) ? $data[$id] : $id;
     } else {
         return $data;
     }
@@ -309,7 +361,13 @@ function getadddurations($id = null)
         'anytime' => 'No Date Boundation',
     ];
     if ($id != null) {
-        return $data[$id];
+        if (strpos($id, ',') !== false) {
+            $parts = explode(',', $id);
+            $from = !empty($parts[0]) ? date('d-M-Y', strtotime($parts[0])) : 'Beginning';
+            $to = !empty($parts[1]) ? date('d-M-Y', strtotime($parts[1])) : 'End';
+            return "$from to $to";
+        }
+        return isset($data[$id]) ? $data[$id] : $id;
     } else {
         return $data;
     }
@@ -415,47 +473,46 @@ function getdurationdates($id = null)
     date_default_timezone_set("Asia/Kolkata");
     $today_start = date('Y-m-d 00:00:00');
     $today = date('Y-m-d 23:59:59');
-    switch ($id) {
-        case 'current':
-            $min = $today_start;
-            $max = $today;
-            break;
-        case '1m':
-            $min = date('Y-m-d 00:00:00', strtotime($today . ' -1 months'));
-            $max = $today;
-            break;
-        case '3m':
-            $min = date('Y-m-d 00:00:00', strtotime($today . ' -3 months'));
-            $max = $today;
-            break;
-        case '6m':
-            $min = date('Y-m-d 00:00:00', strtotime($today . ' -6 months'));
-            $max = $today;
-            break;
-        case '12m':
-            $min = date('Y-m-d 00:00:00', strtotime($today . ' -12 months'));
-            $max = $today;
-            break;
-        case 'complete':
-            $min = '0001-01-01 00:00:00';
-            $max = '2100-01-01 23:59:59';
-            break;
-        case 'anytime':
-            $min = '0001-01-01 00:00:00';
-            $max = '2100-01-01 23:59:59';
-            break;
-        default:
-            $min = '0001-01-01 00:00:00';
-            $max = '2100-01-01 23:59:59';
-            break;
+
+    // Default values
+    $min_date = '2001-01-01';
+    $max_date = '2100-01-01';
+
+    // Check if $id is a valid range (YYYY-MM-DD,YYYY-MM-DD)
+    if (strpos($id, ',') !== false) {
+        $parts = explode(',', $id);
+        $min_date = !empty($parts[0]) ? $parts[0] : '2001-01-01';
+        $max_date = !empty($parts[1]) ? $parts[1] : '2100-01-01';
     }
-    $data = [
+    // Check if $id is a valid date (YYYY-MM-DD) for single start date support
+    elseif (preg_match("/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/", $id)) {
+        $min_date = $id;
+    }
+    
+    // Original token-based logic
+    if ($id == '1m') {
+        $min_date = date('Y-m-d', strtotime('-1 months'));
+    } elseif ($id == '3m') {
+        $min_date = date('Y-m-d', strtotime('-3 months'));
+    } elseif ($id == '6m') {
+        $min_date = date('Y-m-d', strtotime('-6 months'));
+    } elseif ($id == '12m') {
+        $min_date = date('Y-m-d', strtotime('-12 months'));
+    } elseif ($id == 'complete' || $id == 'anytime') {
+        $min_date = '2001-01-01';
+    } elseif ($id == 'current') {
+        $min_date = date('Y-m-d');
+    }
+
+    return [
         'today' => $today_start,
-        'min' => $min,
-        'max' => $max
+        'min' => $min_date, // Use plain date for correct string comparison in controllers
+        'max' => $max_date . ' 23:59:59', // Use timestamp for full day inclusion in SQL queries
+        'start_date' => $min_date,
+        'end_date' => $max_date
     ];
-    return $data;
 }
+
 
 function getStructuredAmount($amount, $with_currency, $with_sub)
 {
@@ -714,10 +771,17 @@ function getSiteBalance($id, $to_date = null)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
     
-    $expenseQuery = DB::connection($user_db_conn_name)->table('sites_transaction')->join('expenses', 'expenses.id', '=', 'sites_transaction.expense_id')->where('sites_transaction.site_id', '=', $id)->where('sites_transaction.type', '=', 'Debit');
-    $paymentOutQuery = DB::connection($user_db_conn_name)->table('sites_transaction')->join('site_payments', 'site_payments.id', '=', 'sites_transaction.payment_id')->where('sites_transaction.site_id', '=', $id)->where('sites_transaction.type', '=', 'Debit')->whereNotNull('sites_transaction.payment_id');
-    $paymentInQuery = DB::connection($user_db_conn_name)->table('sites_transaction')->join('site_payments', 'site_payments.id', '=', 'sites_transaction.payment_id')->where('sites_transaction.site_id', '=', $id)->where('sites_transaction.type', '=', 'Credit')->whereNotNull('sites_transaction.payment_id');
-    $voucherQuery = DB::connection($user_db_conn_name)->table('sites_transaction')->join('payment_vouchers', 'payment_vouchers.id', '=', 'sites_transaction.payment_voucher_id')->where('sites_transaction.site_id', '=', $id)->where('sites_transaction.type', '=', 'Credit')->whereNotNull('sites_transaction.payment_voucher_id');
+    $expenseQuery = DB::connection($user_db_conn_name)->table('sites_transaction')->join('expenses', 'expenses.id', '=', 'sites_transaction.expense_id')->where('sites_transaction.type', '=', 'Debit');
+    apply_site_filter($expenseQuery, $id, 'sites_transaction.site_id');
+
+    $paymentOutQuery = DB::connection($user_db_conn_name)->table('sites_transaction')->join('site_payments', 'site_payments.id', '=', 'sites_transaction.payment_id')->where('sites_transaction.type', '=', 'Debit')->whereNotNull('sites_transaction.payment_id');
+    apply_site_filter($paymentOutQuery, $id, 'sites_transaction.site_id');
+
+    $paymentInQuery = DB::connection($user_db_conn_name)->table('sites_transaction')->join('site_payments', 'site_payments.id', '=', 'sites_transaction.payment_id')->where('sites_transaction.type', '=', 'Credit')->whereNotNull('sites_transaction.payment_id');
+    apply_site_filter($paymentInQuery, $id, 'sites_transaction.site_id');
+
+    $voucherQuery = DB::connection($user_db_conn_name)->table('sites_transaction')->join('payment_vouchers', 'payment_vouchers.id', '=', 'sites_transaction.payment_voucher_id')->where('sites_transaction.type', '=', 'Credit')->whereNotNull('sites_transaction.payment_voucher_id');
+    apply_site_filter($voucherQuery, $id, 'sites_transaction.site_id');
 
     if ($to_date) {
         $expenseQuery->where('expenses.date', '<=', $to_date);
@@ -1094,8 +1158,14 @@ function get_monthly_expense_data_widget($id, $from = null, $to = null)
     $user_db_conn_name = session()->get('comp_db_conn_name');
     
     $query = DB::connection($user_db_conn_name)->table('expenses')
-        ->where('site_id', $id)
         ->where('status', 'Approved');
+
+    if ($id == 'all') {
+        $assigned_ids = session()->get('assigned_site_ids', []);
+        $query->whereIn('site_id', $assigned_ids);
+    } else {
+        $query->where('site_id', $id);
+    }
 
     if ($from && $to) {
         $query->whereBetween('date', [$from, $to]);
@@ -1129,7 +1199,12 @@ function get_company_monthly_expense_data_widget($from = null, $to = null)
 function get_employee_on_site_data_widget($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $siteWorking = DB::connection($user_db_conn_name)->table('users')->where('site_id', $id)->where('status', 'Active')->count();
+    if ($id == 'all') {
+        $assigned_ids = session()->get('assigned_site_ids', []);
+        $siteWorking = DB::connection($user_db_conn_name)->table('users')->whereIn('site_id', $assigned_ids)->where('status', 'Active')->count();
+    } else {
+        $siteWorking = DB::connection($user_db_conn_name)->table('users')->where('site_id', $id)->where('status', 'Active')->count();
+    }
     return $siteWorking;
 }
 function get_total_employee_data_widget()
@@ -1155,15 +1230,15 @@ function get_site_expense_area_chart_widget($id, $from = null, $to = null)
     $startOfWeek = Carbon::now()->startOfWeek()->format('Y-m-d');
     $endOfWeek = Carbon::now()->endOfWeek()->format('Y-m-d');
 
-    $monthExpense = getStructuredAmount(DB::connection($user_db_conn_name)->table('expenses')->where('site_id', $id)->where('status', 'Approved')->whereRaw("DATE_FORMAT(`date`, '%Y-%m') = ?", [$currentMonth])->sum('amount'), true, true);
-    $todayExpense = getStructuredAmount(DB::connection($user_db_conn_name)->table('expenses')->where('site_id', $id)->where('status', 'Approved')->where('date', $today)->sum('amount'), true, true);
-    $yearExpense = getStructuredAmount(DB::connection($user_db_conn_name)->table('expenses')->where('site_id', $id)->where('status', 'Approved')->whereRaw("DATE_FORMAT(`date`, '%Y') = ?", [$currentYear])->sum('amount'), true, true);
-    $weeklyExpenses = getStructuredAmount(DB::connection($user_db_conn_name)->table('expenses')->where('site_id', $id)->where('status', 'Approved')->whereBetween('date', [$startOfWeek, $endOfWeek])->sum('amount'), true, true);
-    $completeExpense = getStructuredAmount(DB::connection($user_db_conn_name)->table('expenses')->where('site_id', $id)->where('status', 'Approved')->sum('amount'), true, true);
+    $monthExpense = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('expenses'), $id)->where('status', 'Approved')->whereRaw("DATE_FORMAT(`date`, '%Y-%m') = ?", [$currentMonth])->sum('amount'), true, true);
+    $todayExpense = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('expenses'), $id)->where('status', 'Approved')->where('date', $today)->sum('amount'), true, true);
+    $yearExpense = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('expenses'), $id)->where('status', 'Approved')->whereRaw("DATE_FORMAT(`date`, '%Y') = ?", [$currentYear])->sum('amount'), true, true);
+    $weeklyExpenses = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('expenses'), $id)->where('status', 'Approved')->whereBetween('date', [$startOfWeek, $endOfWeek])->sum('amount'), true, true);
+    $completeExpense = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('expenses'), $id)->where('status', 'Approved')->sum('amount'), true, true);
 
     $filteredExpense = null;
     if ($from && $to) {
-        $filteredExpense = getStructuredAmount(DB::connection($user_db_conn_name)->table('expenses')->where('site_id', $id)->where('status', 'Approved')->whereBetween('date', [$from, $to])->sum('amount'), true, true);
+        $filteredExpense = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('expenses'), $id)->where('status', 'Approved')->whereBetween('date', [$from, $to])->sum('amount'), true, true);
     }
 
     $result = ['todayExpense' => $todayExpense, 'monthExpense' => $monthExpense, 'weeklyExpenses' => $weeklyExpenses, 'yearExpense' => $yearExpense,'completeExpense'=>$completeExpense, 'filteredExpense' => $filteredExpense];
@@ -1199,9 +1274,9 @@ function get_monthlyExpenses_chart_head_table($id, $from = null, $to = null){
     $user_db_conn_name = session()->get('comp_db_conn_name');
     
     $query = DB::connection($user_db_conn_name)->table('expenses')
-    ->join('expense_head', 'expense_head.id', '=', 'expenses.head_id')
-    ->where('expenses.site_id', '=', $id)
-    ->where('expenses.status', 'Approved');
+    ->join('expense_head', 'expense_head.id', '=', 'expenses.head_id');
+    apply_site_filter($query, $id, 'expenses.site_id');
+    $query->where('expenses.status', 'Approved');
 
     if ($from && $to) {
         $query->whereBetween('expenses.date', [$from, $to]);
@@ -1236,9 +1311,9 @@ function get_monthlyExpensesFormatted_chart_widget($id, $from = null, $to = null
     date_default_timezone_set('Asia/Kolkata');
     
     $query = DB::connection($user_db_conn_name)->table('expenses')
-        ->select(DB::raw('MONTH(date) as month'), DB::raw('YEAR(date) as year'), DB::raw('SUM(amount) as total_amount'))
-        ->where('site_id', $id)
-        ->where('status', 'Approved');
+        ->select(DB::raw('MONTH(date) as month'), DB::raw('YEAR(date) as year'), DB::raw('SUM(amount) as total_amount'));
+    apply_site_filter($query, $id, 'site_id');
+    $query->where('status', 'Approved');
 
     if ($from && $to) {
         $query->whereBetween('date', [$from, $to]);
@@ -1348,13 +1423,20 @@ function get_pending_flags_data_widget($id, $from = null, $to = null)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
     
-    $q_exp = DB::connection($user_db_conn_name)->table('expenses')->where('status', '=', 'Pending')->where('site_id', '=', $id);
-    $q_mat = DB::connection($user_db_conn_name)->table('material_entry')->where('status', '=', 'Pending')->where('site_id', '=', $id);
-    $q_bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('status', '=', 'Pending')->where('site_id', '=', $id);
-    $q_pv_p = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('status', '=', 'Pending')->where('site_id', '=', $id);
-    $q_pv_u = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('status', '=', 'Approved')->where('site_id', '=', $id);
-    $q_ep = DB::connection($user_db_conn_name)->table('expense_party')->where('status', '=', 'Pending')->where('site_id', '=', $id);
-    $q_bp = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Pending')->where('site_id', '=', $id);
+    $q_exp = DB::connection($user_db_conn_name)->table('expenses')->where('status', '=', 'Pending');
+    apply_site_filter($q_exp, $id, 'site_id');
+    $q_mat = DB::connection($user_db_conn_name)->table('material_entry')->where('status', '=', 'Pending');
+    apply_site_filter($q_mat, $id, 'site_id');
+    $q_bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('status', '=', 'Pending');
+    apply_site_filter($q_bill, $id, 'site_id');
+    $q_pv_p = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('status', '=', 'Pending');
+    apply_site_filter($q_pv_p, $id, 'site_id');
+    $q_pv_u = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('status', '=', 'Approved');
+    apply_site_filter($q_pv_u, $id, 'site_id');
+    $q_ep = DB::connection($user_db_conn_name)->table('expense_party')->where('status', '=', 'Pending');
+    apply_site_filter($q_ep, $id, 'site_id');
+    $q_bp = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Pending');
+    apply_site_filter($q_bp, $id, 'site_id');
 
     if ($from && $to) {
         $q_exp->whereBetween('expenses.date', [$from, $to]);
@@ -1428,14 +1510,17 @@ function get_site_sales_invoices_chart_widget($id, $from = null, $to = null)
 {
 
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $site = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->first();
-    if ($site->project_id == 0) {
-        return [];
+    $result = [];
+    if ($id == 'all') {
+        $assigned_site_ids = session()->get('assigned_site_ids', []);
+        $project_ids = DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $assigned_site_ids)->where('project_id', '!=', 0)->pluck('project_id')->toArray();
+        if (empty($project_ids)) return [];
+        $query = DB::connection($user_db_conn_name)->table('sales_invoice')->whereIn('project_id', $project_ids);
     } else {
-        $result = [];
-        $project_id = $site->project_id;
-
-        $query = DB::connection($user_db_conn_name)->table('sales_invoice')->where('project_id', '=', $project_id);
+        $site = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->first();
+        if (!$site || $site->project_id == 0) return [];
+        $query = DB::connection($user_db_conn_name)->table('sales_invoice')->where('project_id', '=', $site->project_id);
+    }
         
         if ($from && $to) {
             $query->whereBetween('date', [$from, $to]);
@@ -1475,7 +1560,6 @@ function get_site_sales_invoices_chart_widget($id, $from = null, $to = null)
         array_unshift($result, $dummy);
     }
     return $result;
-    }
 }
 
 function get_company_sales_invoices_chart_widget()
@@ -1552,31 +1636,36 @@ function get_company_sales_invoices_chart_widget()
 function get_site_sales_invoices_chart_data($id, $from = null, $to = null){
 
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $site = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->first();
-    if ($site->project_id == 0) {
-        $res = ["base" => 0, "tax" => 0, "amount" => 0];
+    if ($id == 'all') {
+        $assigned_site_ids = session()->get('assigned_site_ids', []);
+        $project_ids = DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $assigned_site_ids)->where('project_id', '!=', 0)->pluck('project_id')->toArray();
+        if (empty($project_ids)) return ["base" => 0, "tax" => 0, "amount" => 0];
+        $query = DB::connection($user_db_conn_name)->table('sales_invoice')->whereIn('project_id', $project_ids);
     } else {
+        $site = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->first();
+        if (!$site || $site->project_id == 0) {
+            return ["base" => 0, "tax" => 0, "amount" => 0];
+        }
         $project_id = $site->project_id;
         $query = DB::connection($user_db_conn_name)->table('sales_invoice')->where('project_id', '=', $project_id);
-        
-        if ($from && $to) {
-            $query->whereBetween('date', [$from, $to]);
-        }
-        
-        $invoices = $query->get();
-        $base_sales = 0;
-        $gst = 0;
-        $amount=0;
-        foreach ($invoices as $invoice) {
-            $amount += $invoice->amount;
-            $base_sales += $invoice->taxable_value;
-            $gst += $invoice->amount - $invoice->taxable_value;
-        }
-        $res = ["base" => getStructuredAmount($base_sales,true,true), "tax" => getStructuredAmount($gst,true,true), "amount" =>getStructuredAmount($amount,true,true)];
+    }
+    
+    if ($from && $to) {
+        $query->whereBetween('date', [$from, $to]);
+    }
+    
+    $invoices = $query->get();
+    $base_sales = 0;
+    $gst = 0;
+    $amount=0;
+    foreach ($invoices as $invoice) {
+        $amount += $invoice->amount;
+        $base_sales += $invoice->taxable_value;
+        $gst += $invoice->amount - $invoice->taxable_value;
+    }
+    $res = ["base" => getStructuredAmount($base_sales,true,true), "tax" => getStructuredAmount($gst,true,true), "amount" =>getStructuredAmount($amount,true,true)];
 
-}
-return $res;
-
+    return $res;
 }
 function get_company_sales_invoices_chart_data($from = null, $to = null){
 
@@ -1612,9 +1701,9 @@ function get_site_bills_area_chart_work_table($id, $from = null, $to = null){
         'bw.unit as unit',
         DB::raw('SUM(nbi.qty) as total_qty'),
         DB::raw('SUM(nbi.amount) as total_amount')
-    )
-    ->where('nb.site_id','=',$id)
-    ->where('nb.status','=','Approved');
+    );
+    apply_site_filter($query, $id, 'nb.site_id');
+    $query->where('nb.status','=','Approved');
 
     if ($from && $to) {
         $query->whereBetween('nb.billdate', [$from, $to]);
@@ -1636,15 +1725,15 @@ function  get_site_bill_area_chart_widget_data($id, $from = null, $to = null)
     $endOfWeek = Carbon::now()->endOfWeek()->format('Y-m-d');
 
 
-    $monthbill = getStructuredAmount(DB::connection($user_db_conn_name)->table('new_bill_entry')->where('site_id', $id)->where('status', 'Approved')->whereRaw("DATE_FORMAT(`billdate`, '%Y-%m') = ?", [$currentMonth])->sum('amount'), true, true);
-    $todaybill = getStructuredAmount(DB::connection($user_db_conn_name)->table('new_bill_entry')->where('site_id', $id)->where('status', 'Approved')->where('billdate', $today)->sum('amount'), true, true);
-    $yearbill = getStructuredAmount(DB::connection($user_db_conn_name)->table('new_bill_entry')->where('site_id', $id)->where('status', 'Approved')->whereRaw("DATE_FORMAT(`billdate`, '%Y') = ?", [$currentYear])->sum('amount'), true, true);
-    $weeklybill = getStructuredAmount(DB::connection($user_db_conn_name)->table('new_bill_entry')->where('site_id', $id)->where('status', 'Approved')->whereBetween('billdate', [$startOfWeek, $endOfWeek])->sum('amount'), true, true);
-    $completeBill = getStructuredAmount(DB::connection($user_db_conn_name)->table('new_bill_entry')->where('site_id', $id)->where('status', 'Approved')->sum('amount'), true, true);
+    $monthbill = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('new_bill_entry'), $id)->where('status', 'Approved')->whereRaw("DATE_FORMAT(`billdate`, '%Y-%m') = ?", [$currentMonth])->sum('amount'), true, true);
+    $todaybill = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('new_bill_entry'), $id)->where('status', 'Approved')->where('billdate', $today)->sum('amount'), true, true);
+    $yearbill = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('new_bill_entry'), $id)->where('status', 'Approved')->whereRaw("DATE_FORMAT(`billdate`, '%Y') = ?", [$currentYear])->sum('amount'), true, true);
+    $weeklybill = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('new_bill_entry'), $id)->where('status', 'Approved')->whereBetween('billdate', [$startOfWeek, $endOfWeek])->sum('amount'), true, true);
+    $completeBill = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('new_bill_entry'), $id)->where('status', 'Approved')->sum('amount'), true, true);
 
     $filteredBill = null;
     if ($from && $to) {
-        $filteredBill = getStructuredAmount(DB::connection($user_db_conn_name)->table('new_bill_entry')->where('site_id', $id)->where('status', 'Approved')->whereBetween('billdate', [$from, $to])->sum('amount'), true, true);
+        $filteredBill = getStructuredAmount(apply_site_filter(DB::connection($user_db_conn_name)->table('new_bill_entry'), $id)->where('status', 'Approved')->whereBetween('billdate', [$from, $to])->sum('amount'), true, true);
     }
 
     $result = ['todaybill' => $todaybill, 'monthbill' => $monthbill, 'weeklybill' => $weeklybill, 'yearbill' => $yearbill,'completeBill'=>$completeBill, 'filteredBill' => $filteredBill];
@@ -1656,9 +1745,9 @@ function get_site_bills_area_chart($id, $from = null, $to = null)
     date_default_timezone_set('Asia/Kolkata');
     
     $query = DB::connection($user_db_conn_name)->table('new_bill_entry')
-        ->select(DB::raw('MONTH(billdate) as month'), DB::raw('YEAR(billdate) as year'), DB::raw('SUM(amount) as total_amount'))
-        ->where('site_id', $id)
-        ->where('status', 'Approved');
+        ->select(DB::raw('MONTH(billdate) as month'), DB::raw('YEAR(billdate) as year'), DB::raw('SUM(amount) as total_amount'));
+    apply_site_filter($query, $id, 'site_id');
+    $query->where('status', 'Approved');
 
     if ($from && $to) {
         $query->whereBetween('billdate', [$from, $to]);
@@ -1791,8 +1880,9 @@ function get_asset_list_table_widget($id, $from = null, $to = null){
     $query = DB::connection($user_db_conn_name)->table('assets')
         ->leftjoin('sites', 'sites.id', '=', 'assets.site_id')
         ->leftjoin('asset_head', 'asset_head.id', '=', 'assets.head_id')
-        ->select('assets.*', 'sites.name as site', 'asset_head.name as head')
-        ->where('assets.status','=','Working');
+        ->select('assets.*', 'sites.name as site', 'asset_head.name as head');
+    apply_site_filter($query, $id, 'assets.site_id');
+    $query->where('assets.status','=','Working');
 
     return $query->get();
 }
@@ -1814,9 +1904,9 @@ function get_machinery_list_table_widget($id, $from = null, $to = null){
     $query = DB::connection($user_db_conn_name)->table('machinery_details')
         ->leftjoin('sites', 'sites.id', '=', 'machinery_details.site_id')
         ->leftjoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
-        ->select('machinery_details.*', 'sites.name as site', 'machinery_head.name as head')
-        ->where('machinery_details.site_id','=',$id)
-        ->where('machinery_details.status','=','Working');
+        ->select('machinery_details.*', 'sites.name as site', 'machinery_head.name as head');
+    apply_site_filter($query, $id, 'machinery_details.site_id');
+    $query->where('machinery_details.status','=','Working');
 
     return $query->get();
 }
@@ -1836,9 +1926,9 @@ function get_payment_voucher_chart_widget($id, $from = null, $to = null)
     $user_db_conn_name = session()->get('comp_db_conn_name');
     date_default_timezone_set('Asia/Kolkata');
     
-    $query_base = DB::connection($user_db_conn_name)->table('payment_vouchers')
-        ->where('site_id', $id)
-        ->where('status', 'Paid');
+    $query_base = DB::connection($user_db_conn_name)->table('payment_vouchers');
+    apply_site_filter($query_base, $id, 'site_id');
+    $query_base->where('status', 'Paid');
 
     if ($from && $to) {
         $query_base->whereBetween('date', [$from, $to]);

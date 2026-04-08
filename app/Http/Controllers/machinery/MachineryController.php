@@ -45,13 +45,15 @@ class MachineryController extends Controller
         $role_details = getRoleDetailsById($role_id);
         $visiblity_at_site = $role_details->visiblity_at_site;
 
+        $query = DB::connection($user_db_conn_name)->table('machinery_details');
         if ($visiblity_at_site == 'current') {
-            $filters = [['machinery_details.head_id', '=', $id], ['machinery_details.site_id', '=', $site_id]];
+            apply_site_filter($query, $site_id, 'machinery_details.site_id');
+            $filters = [['machinery_details.head_id', '=', $id]];
         } else {
             $filters = [['machinery_details.head_id', '=', $id]];
         }
 
-        $data = DB::connection($user_db_conn_name)->table('machinery_details')->leftjoin('sites', 'sites.id', '=', 'machinery_details.site_id')->leftjoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')->select('machinery_details.*', 'sites.name as site', 'machinery_head.name as head')->where($filters)->get();
+        $data = $query->leftjoin('sites', 'sites.id', '=', 'machinery_details.site_id')->leftjoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')->select('machinery_details.*', 'sites.name as site', 'machinery_head.name as head')->where($filters)->get();
         return  view('layouts.machinery.machinery')->with('data', json_encode($data));
     }
     // public function machinery_head(Request $request)

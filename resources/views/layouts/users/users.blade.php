@@ -59,14 +59,16 @@
                                                 </div>
                                                 <div class="col-lg-3 col-md-3 col-sm-3">
                                                     <div class="form-group"><b>Site</b>
-                                                        <select name="site_id" class="form-control show-tick"
-                                                            data-live-search="true" required>
-                                                            <option value="" selected disabled>--Select Site--</option>
+                                                        @php
+                                                            $assigned_sites = explode(',', $editdata['site_id']);
+                                                        @endphp
+                                                        <select name="site_id[]" class="form-control show-tick"
+                                                            data-live-search="true" required multiple>
                                                             @php
                                                                 $sites = getallsites();
                                                             @endphp
                                                             @foreach ($sites as $site)
-                                                                <option {{ $site->id == $editdata['site_id'] ? 'selected' : '' }} value="{{ $site->id }}">{{ $site->name }}</option>
+                                                                <option {{ in_array($site->id, $assigned_sites) ? 'selected' : '' }} value="{{ $site->id }}">{{ $site->name }}</option>
                                                             @endforeach
                                                         </select>
                                                     </div>
@@ -109,25 +111,64 @@
                                                     </div>
                                                 </div>
                                                 <div class="col-lg-3 col-md-3 col-sm-3">
-                                                    <div class="form-group">
-                                                        <label>Data View Duration</label>
-                                                        <select class="form-control show-tick" name="view_duration">
-                                                            <option value="">Default (From Role)</option>
-                                                            @foreach (getviewdurations() as $key => $value)
-                                                                <option value="{{ $key }}" {{ (isset($editdata['view_duration']) && $editdata['view_duration'] == $key) ? 'selected' : '' }}>{{ $value }}</option>
+                                                    <div class="form-group"><b>Company</b>
+                                                        <select name="company_id" class="form-control show-tick" data-live-search="true" required>
+                                                            @foreach (getallCompanies() as $comp)
+                                                                <option {{ $comp->id == ($editdata['company_id'] ?? '') ? 'selected' : '' }} value="{{ $comp->id }}">{{ $comp->name }}</option>
                                                             @endforeach
                                                         </select>
                                                     </div>
                                                 </div>
-                                                <div class="col-lg-3 col-md-3 col-sm-3">
+                                                <div class="col-lg-6 col-md-6 col-sm-12">
+                                                    <div class="form-group">
+                                                        <label>Data View Duration</label>
+                                                        @php
+                                                            $view_dur = $editdata['view_duration'] ?? '';
+                                                            $is_range = strpos($view_dur, ',') !== false;
+                                                            $parts = $is_range ? explode(',', $view_dur) : [$view_dur, ''];
+                                                            $from = $parts[0];
+                                                            $to = $parts[1] ?? '';
+                                                        @endphp
+                                                        <div class="row">
+                                                            <div class="col-6">
+                                                                <small>From</small>
+                                                                <input type="date" class="form-control date-range-from" data-target="#view_duration_edit" value="{{ preg_match("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/", $from) ? $from : '' }}">
+                                                            </div>
+                                                            <div class="col-6">
+                                                                <small>To (Optional)</small>
+                                                                <input type="date" class="form-control date-range-to" data-target="#view_duration_edit" value="{{ preg_match("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/", $to) ? $to : '' }}">
+                                                            </div>
+                                                        </div>
+                                                        <input type="hidden" name="view_duration" id="view_duration_edit" value="{{ $view_dur }}">
+                                                        @if(!empty($view_dur) && !strpos($view_dur, '-') && !strpos($view_dur, ','))
+                                                            <small class="text-muted">Current: {{ getviewdurations($view_dur) }}</small>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                                <div class="col-lg-6 col-md-6 col-sm-12">
                                                     <div class="form-group">
                                                         <label>Data Creation Duration</label>
-                                                        <select class="form-control show-tick" name="add_duration">
-                                                            <option value="">Default (From Role)</option>
-                                                            @foreach (getadddurations() as $key => $value)
-                                                                <option value="{{ $key }}" {{ (isset($editdata['add_duration']) && $editdata['add_duration'] == $key) ? 'selected' : '' }}>{{ $value }}</option>
-                                                            @endforeach
-                                                        </select>
+                                                        @php
+                                                            $add_dur = $editdata['add_duration'] ?? '';
+                                                            $is_add_range = strpos($add_dur, ',') !== false;
+                                                            $add_parts = $is_add_range ? explode(',', $add_dur) : [$add_dur, ''];
+                                                            $add_from = $add_parts[0];
+                                                            $add_to = $add_parts[1] ?? '';
+                                                        @endphp
+                                                        <div class="row">
+                                                            <div class="col-6">
+                                                                <small>From</small>
+                                                                <input type="date" class="form-control date-range-from" data-target="#add_duration_edit" value="{{ preg_match("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/", $add_from) ? $add_from : '' }}">
+                                                            </div>
+                                                            <div class="col-6">
+                                                                <small>To (Optional)</small>
+                                                                <input type="date" class="form-control date-range-to" data-target="#add_duration_edit" value="{{ preg_match("/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/", $add_to) ? $add_to : '' }}">
+                                                            </div>
+                                                        </div>
+                                                        <input type="hidden" name="add_duration" id="add_duration_edit" value="{{ $add_dur }}">
+                                                        @if(!empty($add_dur) && !strpos($add_dur, '-') && !strpos($add_dur, ','))
+                                                            <small class="text-muted">Current: {{ getadddurations($add_dur) }}</small>
+                                                        @endif
                                                     </div>
                                                 </div>
                                                 <div class="col-lg-3 col-md-3 col-sm-3">
@@ -173,6 +214,7 @@
                                             <th style="width:50px;">Pic</th>
                                             <th>Name/Role</th>
                                             <th>Site</th>
+                                            <th>Company</th>
                                             <th>Team</th>
                                             <th>Status</th>
                                             <th>Username</th>
@@ -239,8 +281,7 @@
                                     </div>
                                     <div class="row clearfix m-t-15">
                                         <div class="col-sm-6"><b>Site</b>
-                                            <select name="site_id" class="form-control show-tick" data-live-search="true" required>
-                                                <option value="" selected disabled>--Select Site--</option>
+                                            <select name="site_id[]" class="form-control show-tick" data-live-search="true" required multiple data-placeholder="Select Sites">
                                                 @foreach (getallsites() as $site)
                                                     <option value="{{ $site->id }}">{{ $site->name }}</option>
                                                 @endforeach
@@ -265,23 +306,44 @@
                                                 <option value="yes">Only Mobile App</option>
                                             </select>
                                         </div>
-                                    </div>
-                                    <div class="row clearfix m-t-15">
-                                        <div class="col-sm-6"><b>View Duration</b>
-                                            <select class="form-control show-tick" name="view_duration">
-                                                <option value="">Default (From Role)</option>
-                                                @foreach (getviewdurations() as $key => $value)
-                                                    <option value="{{ $key }}">{{ $value }}</option>
+                                        <div class="col-sm-6"><b>Company</b>
+                                            <select name="company_id" class="form-control show-tick" data-live-search="true" required>
+                                                @foreach (getallCompanies() as $comp)
+                                                    <option value="{{ $comp->id }}">{{ $comp->name }}</option>
                                                 @endforeach
                                             </select>
                                         </div>
-                                        <div class="col-sm-6"><b>Add Duration</b>
-                                            <select class="form-control show-tick" name="add_duration">
-                                                <option value="">Default (From Role)</option>
-                                                @foreach (getadddurations() as $key => $value)
-                                                    <option value="{{ $key }}">{{ $value }}</option>
-                                                @endforeach
-                                            </select>
+                                    </div>
+                                    <div class="row clearfix m-t-15">
+                                        <div class="col-sm-6">
+                                            <b>View Duration Range</b>
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <small>From</small>
+                                                    <input type="date" class="form-control date-range-from" data-target="#view_duration_add">
+                                                </div>
+                                                <div class="col-6">
+                                                    <small>To</small>
+                                                    <input type="date" class="form-control date-range-to" data-target="#view_duration_add">
+                                                </div>
+                                            </div>
+                                            <input type="hidden" name="view_duration" id="view_duration_add" value="">
+                                            <small class="text-muted">Optional: Defaults to Role setting if empty.</small>
+                                        </div>
+                                        <div class="col-sm-6">
+                                            <b>Add Duration Range</b>
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <small>From</small>
+                                                    <input type="date" class="form-control date-range-from" data-target="#add_duration_add">
+                                                </div>
+                                                <div class="col-6">
+                                                    <small>To</small>
+                                                    <input type="date" class="form-control date-range-to" data-target="#add_duration_add">
+                                                </div>
+                                            </div>
+                                            <input type="hidden" name="add_duration" id="add_duration_add" value="">
+                                            <small class="text-muted">Optional: Defaults to Role setting if empty.</small>
                                         </div>
                                     </div>
                                 </div>
@@ -475,11 +537,12 @@
                 { data: 1, orderable: false },
                 { data: 2 },
                 { data: 3 },
-                { data: 4, orderable: false },
-                { data: 5 },
+                { data: 4 },
+                { data: 5, orderable: false },
                 { data: 6 },
                 { data: 7 },
                 { data: 8 },
+                { data: 9 },
                 @if (Session::get('role') == 1)
                 { data: 9 },
                 { data: 10 },
@@ -523,6 +586,19 @@
             },
             pagingType: "full_numbers",
             drawCallback: function(settings) {
+            }
+        });
+
+        $(document).on('change', '.date-range-from, .date-range-to', function() {
+            var container = $(this).closest('.form-group, .col-sm-6');
+            var from = container.find('.date-range-from').val();
+            var to = container.find('.date-range-to').val();
+            var target = $(this).data('target');
+            
+            if (from || to) {
+                $(target).val(from + ',' + to);
+            } else {
+                $(target).val('');
             }
         });
     });

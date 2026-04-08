@@ -52,12 +52,14 @@ class AssetController extends Controller
         $role_details = getRoleDetailsById($role_id);
         $visiblity_at_site = $role_details->visiblity_at_site;
 
+        $query = DB::connection($user_db_conn_name)->table('assets');
         if ($visiblity_at_site == 'current') {
-            $filters = [['assets.head_id', '=', $id], ['assets.site_id', '=', $site_id]];
+            apply_site_filter($query, $site_id, 'assets.site_id');
+            $filters = [['assets.head_id', '=', $id]];
         } else {
             $filters = [['assets.head_id', '=', $id]];
         }
-        $data = DB::connection($user_db_conn_name)->table('assets')->leftjoin('sites', 'sites.id', '=', 'assets.site_id')->leftjoin('asset_head', 'asset_head.id', '=', 'assets.head_id')->select('assets.*', 'sites.name as site', 'asset_head.name as head')->where($filters)->get();
+        $data = $query->leftjoin('sites', 'sites.id', '=', 'assets.site_id')->leftjoin('asset_head', 'asset_head.id', '=', 'assets.head_id')->select('assets.*', 'sites.name as site', 'asset_head.name as head')->where($filters)->get();
         return  view('layouts.asset.asset')->with('data', json_encode($data));
     }
    

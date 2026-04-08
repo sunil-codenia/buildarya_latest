@@ -45,7 +45,7 @@ class MaterialEntryController extends Controller
             ->where('material_entry.status', '!=', 'Pending');
 
         if ($visiblity_at_site == 'current') {
-            $query->where('material_entry.site_id', '=', $site_id);
+            apply_site_filter($query, $site_id, 'material_entry.site_id');
         }
 
         $query->whereBetween('material_entry.date', [$min_date, $max_date]);
@@ -211,7 +211,7 @@ class MaterialEntryController extends Controller
             ->where('material_entry.status', '=', 'Pending');
 
         if ($visiblity_at_site == 'current') {
-            $query->where('material_entry.site_id', '=', $site_id);
+            apply_site_filter($query, $site_id, 'material_entry.site_id');
         } else {
             if ($req_site_id && $req_site_id != 'all') {
                 $query->where('material_entry.site_id', '=', $req_site_id);

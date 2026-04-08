@@ -28,12 +28,14 @@ class NewBillController extends Controller
         $dates = getdurationdates($view_duration);
         $min_date = $dates['min'];
         $max_date = $dates['max'];
+        $query = DB::connection($user_db_conn_name)->table('new_bill_entry');
         if ($visiblity_at_site == 'current') {
-            $filters = [['new_bill_entry.status', '!=', 'Pending'], ['new_bill_entry.site_id', '=', $site_id]];
+            apply_site_filter($query, $site_id, 'new_bill_entry.site_id');
+            $filters = [['new_bill_entry.status', '!=', 'Pending']];
         } else {
             $filters = [['new_bill_entry.status', '!=', 'Pending']];
         }
-        $data = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftjoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')->leftjoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')->leftjoin('users', 'users.id', '=', 'new_bill_entry.user_id')->select('new_bill_entry.*', 'sites.name as site', 'users.name as user', 'bills_party.name as party')->where($filters)->whereBetween('new_bill_entry.create_datetime', [$min_date, $max_date])->orderBy('new_bill_entry.create_datetime', 'desc')->get();
+        $data = $query->leftjoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')->leftjoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')->leftjoin('users', 'users.id', '=', 'new_bill_entry.user_id')->select('new_bill_entry.*', 'sites.name as site', 'users.name as user', 'bills_party.name as party')->where($filters)->whereBetween('new_bill_entry.create_datetime', [$min_date, $max_date])->orderBy('new_bill_entry.create_datetime', 'desc')->get();
 
         return  view('layouts.bills.verified')->with('data', json_encode($data));
     }
@@ -59,8 +61,10 @@ class NewBillController extends Controller
         }
 
         $req_site_id = $request->get('site_id');
+        $query = DB::connection($user_db_conn_name)->table('new_bill_entry');
         if ($visiblity_at_site == 'current') {
-            $filters = [['new_bill_entry.status', '=', 'Pending'], ['new_bill_entry.site_id', '=', $site_id]];
+            apply_site_filter($query, $site_id, 'new_bill_entry.site_id');
+            $filters = [['new_bill_entry.status', '=', 'Pending']];
         } else {
             if ($req_site_id && $req_site_id != 'all') {
                 $filters = [['new_bill_entry.status', '=', 'Pending'], ['new_bill_entry.site_id', '=', $req_site_id]];
@@ -69,7 +73,7 @@ class NewBillController extends Controller
             }
         }
 
-        $data = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftjoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')->leftjoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')->leftjoin('users', 'users.id', '=', 'new_bill_entry.user_id')->select('new_bill_entry.*', 'sites.name as site', 'users.name as user', 'bills_party.name as party')->where($filters)->whereBetween('new_bill_entry.billdate', [$min_date, $max_date])->orderBy('new_bill_entry.create_datetime', 'desc')->get();
+        $data = $query->leftjoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')->leftjoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')->leftjoin('users', 'users.id', '=', 'new_bill_entry.user_id')->select('new_bill_entry.*', 'sites.name as site', 'users.name as user', 'bills_party.name as party')->where($filters)->whereBetween('new_bill_entry.billdate', [$min_date, $max_date])->orderBy('new_bill_entry.create_datetime', 'desc')->get();
 
         return  view('layouts.bills.pending')->with('data', json_encode($data));
     }

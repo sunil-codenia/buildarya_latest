@@ -25,8 +25,25 @@ class InvoiceController extends Controller
     public function all_sales_invoice(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $role_id = $request->session()->get('role');
+        $role_details = getRoleDetailsById($role_id);
+        $visiblity_at_site = $role_details->visiblity_at_site;
+        $site_id = $request->session()->get('site_id');
 
-        $invoices = DB::connection($user_db_conn_name)->table('sales_invoice')->leftJoin('sales_company', 'sales_company.id', '=', 'sales_invoice.company_id')->leftJoin('sales_party', 'sales_party.id', '=', 'sales_invoice.party_id')->leftJoin('sales_project', 'sales_project.id', '=', 'sales_invoice.project_id')->select('sales_invoice.*', 'sales_company.name as company', 'sales_party.name as party', 'sales_project.name as project')->get();
+        $query = DB::connection($user_db_conn_name)->table('sales_invoice')->leftJoin('sales_company', 'sales_company.id', '=', 'sales_invoice.company_id')->leftJoin('sales_party', 'sales_party.id', '=', 'sales_invoice.party_id')->leftJoin('sales_project', 'sales_project.id', '=', 'sales_invoice.project_id')->select('sales_invoice.*', 'sales_company.name as company', 'sales_party.name as party', 'sales_project.name as project');
+
+        if ($visiblity_at_site == 'current') {
+            if ($site_id == 'all') {
+                $assigned_site_ids = $request->session()->get('assigned_site_ids', []);
+                $project_ids = DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $assigned_site_ids)->where('project_id', '!=', 0)->pluck('project_id')->toArray();
+                $query->whereIn('sales_invoice.project_id', $project_ids);
+            } else {
+                $project_id = DB::connection($user_db_conn_name)->table('sites')->where('id', $site_id)->value('project_id');
+                $query->where('sales_invoice.project_id', $project_id);
+            }
+        }
+
+        $invoices = $query->get();
         return  view('layouts.sales.allinvoices')->with('data', json_encode($invoices));
     }
     function delete_sales_invoice(Request $request)

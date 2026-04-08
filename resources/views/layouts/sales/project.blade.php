@@ -290,4 +290,27 @@ uploadField.onchange = function() {
         }
         </script>
 
+@if(session('ask_create_site'))
+<script>
+    $(document).ready(function() {
+        Swal.fire({
+            title: 'Project Created Successfully!',
+            text: "Do you want to create a site also?",
+            icon: 'success',
+            showCancelButton: true,
+            confirmButtonColor: '#eda61a',
+            cancelButtonColor: '#000000',
+            confirmButtonText: 'Yes',
+            cancelButtonText: 'No',
+            timer: 60000,
+            timerProgressBar: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = "{{url('/sites?action=add_new&project_id=')}}{{session('ask_create_site')}}";
+            }
+        });
+    });
+</script>
+@endif
+
 @endsection

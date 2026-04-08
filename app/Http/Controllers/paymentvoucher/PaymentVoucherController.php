@@ -38,8 +38,10 @@ class PaymentVoucherController extends Controller
         }
 
         $req_site_id = $request->get('site_id');
+        $query = DB::connection($user_db_conn_name)->table('payment_vouchers');
         if ($visiblity_at_site == 'current') {
-            $filters = [['payment_vouchers.site_id', '=', $site_id]];
+            apply_site_filter($query, $site_id, 'payment_vouchers.site_id');
+            $filters = array();
         } else {
             if ($req_site_id && $req_site_id != 'all') {
                 $filters = [['payment_vouchers.site_id', '=', $req_site_id]];
@@ -48,8 +50,7 @@ class PaymentVoucherController extends Controller
             }
         }
 
-        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data = DB::connection($user_db_conn_name)->table('payment_vouchers')->leftjoin('sites', 'sites.id', '=', 'payment_vouchers.site_id')->leftjoin('sales_company', 'sales_company.id', '=', 'payment_vouchers.company_id')->select('payment_vouchers.*', 'sites.name as site', 'sales_company.name as company')->whereIn('payment_vouchers.status', ['Rejected', 'Approved'])->where($filters)->whereBetween('payment_vouchers.date', [$min_date, $max_date])->orderBy('payment_vouchers.create_datetime', 'desc')->get();
+        $data = $query->leftjoin('sites', 'sites.id', '=', 'payment_vouchers.site_id')->leftjoin('sales_company', 'sales_company.id', '=', 'payment_vouchers.company_id')->select('payment_vouchers.*', 'sites.name as site', 'sales_company.name as company')->whereIn('payment_vouchers.status', ['Rejected', 'Approved'])->where($filters)->whereBetween('payment_vouchers.date', [$min_date, $max_date])->orderBy('payment_vouchers.create_datetime', 'desc')->get();
         return  view('layouts.paymentvoucher.verified')->with('data', json_encode($data));
     }
     public function pending_paymentvoucher(Request $request)
@@ -73,8 +74,10 @@ class PaymentVoucherController extends Controller
         }
 
         $req_site_id = $request->get('site_id');
+        $query = DB::connection($user_db_conn_name)->table('payment_vouchers');
         if ($visiblity_at_site == 'current') {
-            $filters = [['payment_vouchers.status', '=', 'Pending'], ['payment_vouchers.site_id', '=', $site_id]];
+            apply_site_filter($query, $site_id, 'payment_vouchers.site_id');
+            $filters = [['payment_vouchers.status', '=', 'Pending']];
         } else {
             if ($req_site_id && $req_site_id != 'all') {
                 $filters = [['payment_vouchers.status', '=', 'Pending'], ['payment_vouchers.site_id', '=', $req_site_id]];
@@ -83,8 +86,7 @@ class PaymentVoucherController extends Controller
             }
         }
 
-        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data = DB::connection($user_db_conn_name)->table('payment_vouchers')->leftjoin('sites', 'sites.id', '=', 'payment_vouchers.site_id')->leftjoin('sales_company', 'sales_company.id', '=', 'payment_vouchers.company_id')->select('payment_vouchers.*', 'sites.name as site', 'sales_company.name as company')->where($filters)->whereBetween('payment_vouchers.date', [$min_date, $max_date])->orderBy('payment_vouchers.create_datetime', 'desc')->get();
+        $data = $query->leftjoin('sites', 'sites.id', '=', 'payment_vouchers.site_id')->leftjoin('sales_company', 'sales_company.id', '=', 'payment_vouchers.company_id')->select('payment_vouchers.*', 'sites.name as site', 'sales_company.name as company')->where($filters)->whereBetween('payment_vouchers.date', [$min_date, $max_date])->orderBy('payment_vouchers.create_datetime', 'desc')->get();
         return  view('layouts.paymentvoucher.pending')->with('data', json_encode($data));
     }
 
@@ -103,13 +105,14 @@ class PaymentVoucherController extends Controller
         $dates = getdurationdates($view_duration);
         $min_date = $dates['min'];
         $max_date = $dates['max'];
+        $query = DB::connection($user_db_conn_name)->table('payment_vouchers');
         if ($visiblity_at_site == 'current') {
-            $filters = [['payment_vouchers.status', '=', 'Paid'], ['payment_vouchers.site_id', '=', $site_id]];
+            apply_site_filter($query, $site_id, 'payment_vouchers.site_id');
+            $filters = [['payment_vouchers.status', '=', 'Paid']];
         } else {
             $filters = [['payment_vouchers.status', '=', 'Paid']];
         }
-        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data = DB::connection($user_db_conn_name)->table('payment_vouchers')->leftjoin('sites', 'sites.id', '=', 'payment_vouchers.site_id')->leftjoin('sales_company', 'sales_company.id', '=', 'payment_vouchers.company_id')->select('payment_vouchers.*', 'sites.name as site', 'sales_company.name as company')->where($filters)->whereBetween('payment_vouchers.create_datetime', [$min_date, $max_date])->orderBy('payment_vouchers.create_datetime', 'desc')->get();
+        $data = $query->leftjoin('sites', 'sites.id', '=', 'payment_vouchers.site_id')->leftjoin('sales_company', 'sales_company.id', '=', 'payment_vouchers.company_id')->select('payment_vouchers.*', 'sites.name as site', 'sales_company.name as company')->where($filters)->whereBetween('payment_vouchers.create_datetime', [$min_date, $max_date])->orderBy('payment_vouchers.create_datetime', 'desc')->get();
         return  view('layouts.paymentvoucher.paid')->with('data', json_encode($data));
     }
     public function new_paymentvoucher(Request $request)
