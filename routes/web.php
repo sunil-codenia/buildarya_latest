@@ -109,6 +109,11 @@ Route::group(['middleware' => ['auth']], function () {
         Route::post('/expense_report', [ExpenseController::class, 'expenses_download']);
         Route::get('/pending_expense', [ExpenseController::class, 'pending_expense']);
         Route::post('/pending_expense_ajax', [ExpenseController::class, 'get_pending_expense_ajax']);
+        Route::get('/return_expense', [ExpenseController::class, 'return_expense']);
+        Route::post('/return_expense_ajax', [ExpenseController::class, 'get_return_expense_ajax']);
+        Route::post('/return_expense_action', [ExpenseController::class, 'return_expense_action']);
+        Route::post('/resubmit_returned_expense', [ExpenseController::class, 'resubmit_returned_expense']);
+        Route::post('/bulk_resubmit_returned_expense', [ExpenseController::class, 'bulk_resubmit_returned_expense']);
         Route::post('/updateexpenseAssetHead', [ExpenseController::class, 'updateexpenseAssetHead']);
         Route::post('/updateexpenseMachineryHead', [ExpenseController::class, 'updateexpenseMachineryHead']);
         Route::get('/expense_reports', [ExpenseController::class, 'expense_reports']);

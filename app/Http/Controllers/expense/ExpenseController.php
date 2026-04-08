@@ -467,6 +467,228 @@ class ExpenseController extends Controller
             "data" => $formattedData
         ]);
     }
+
+    public function return_expense(Request $request)
+    {
+        $data = array();
+        return view('layouts.expense.return')->with('data', json_encode($data));
+    }
+
+    public function get_return_expense_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        $role_id = $request->session()->get('role');
+        $site_id = $request->session()->get('site_id');
+        $view_duration = $request->session()->get('view_duration');
+        $role_details = DB::connection($user_db_conn_name)->table('roles')->where('id', $role_id)->first();
+        $visiblity_at_site = $role_details->visiblity_at_site;
+
+        $from_date = $request->get('from_date');
+        $to_date = $request->get('to_date');
+        if ($from_date && $to_date) {
+            $min_date = $from_date;
+            $max_date = $to_date;
+        } else {
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+        }
+
+        $req_site_id = $request->get('site_id');
+        if ($visiblity_at_site == 'current') {
+            $filters = [['expenses.status', '=', 'Returned'], ['expenses.site_id', '=', $site_id]];
+        } else {
+            if ($req_site_id && $req_site_id != 'all') {
+                $filters = [['expenses.status', '=', 'Returned'], ['expenses.site_id', '=', $req_site_id]];
+            } else {
+                $filters = [['expenses.status', '=', 'Returned']];
+            }
+        }
+
+        $query = DB::connection($user_db_conn_name)->table('expenses')
+            ->leftjoin('expense_party', 'expense_party.id', '=', 'expenses.party_id')
+            ->leftjoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
+            ->leftjoin('sites', 'sites.id', '=', 'expenses.site_id')
+            ->leftjoin('users', 'users.id', '=', 'expenses.user_id')
+            ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_party.name as party', 'expense_head.name as head')
+            ->where($filters)
+            ->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
+
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('expense_head.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.particular', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.amount', 'LIKE', "%{$search}%")
+                  ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                  ->orWhere('users.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.location', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.remark', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.return_comment', 'LIKE', "%{$search}%");
+            });
+        }
+
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'desc');
+        
+        $columns = [
+            3 => 'expense_head.name',
+            4 => 'expenses.particular',
+            5 => 'expenses.amount',
+            6 => 'sites.name',
+            7 => 'users.name',
+            8 => 'expenses.location',
+            10 => 'expenses.remark',
+            11 => 'expenses.date'
+        ];
+        
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('expenses.create_datetime', 'desc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+
+        $formattedData = [];
+        $i = $start + 1;
+        
+        $can_edit = checkmodulepermission(2, 'can_edit') == 1;
+
+        foreach ($data as $row) {
+            $ddid = $row->id;
+            
+            $checkbox = '<input type="checkbox" name="check_list[]" class="check_item" value="'.$ddid.'" onclick="event.stopPropagation()">';
+            
+            $partyName = htmlspecialchars(getExpensePartyNameByPartyType($row->party_id, $row->party_type));
+            $headName = htmlspecialchars((string) $row->head);
+            $particular = htmlspecialchars((string) $row->particular);
+            $amount = htmlspecialchars((string) $row->amount);
+            $site = htmlspecialchars((string) $row->site);
+            $user = htmlspecialchars((string) $row->user);
+            $location = htmlspecialchars((string) $row->location);
+            $status = htmlspecialchars((string) $row->status);
+            $remark = htmlspecialchars((string) $row->remark) . '<br><b>Return Comment:</b> ' . htmlspecialchars((string) $row->return_comment);
+            $date = htmlspecialchars((string) $row->date);
+            
+            $imageLink = $row->image;
+            $image = '<img class="lazy" data-src="'.$imageLink.'" src="'.$imageLink.'" onclick="enlargeImage(\''.$imageLink.'\')" height="50px" width="50px" />';
+            
+            $actionHtml = '';
+            if ($can_edit) {
+                $actionHtml .= '<button title="Edit" type="button" onclick="editexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>';
+                $actionHtml .= '&nbsp;<button title="Resubmit" type="button" onclick="resubmitexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-refresh-sync"></i></button>';
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $partyName,
+                $headName,
+                $particular,
+                $amount,
+                $site,
+                $user,
+                $location,
+                $status,
+                $remark,
+                $date,
+                $image,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
+    }
+
+    public function return_expense_action(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('check_list');
+        $comment = $request->input('return_comment');
+
+        if (empty($ids)) {
+            return response()->json(['status' => 'error', 'message' => 'Please select at least one expense!']);
+        }
+
+        try {
+            DB::connection($user_db_conn_name)->table('expenses')
+                ->whereIn('id', $ids)
+                ->update([
+                    'status' => 'Returned',
+                    'return_comment' => $comment
+                ]);
+            
+            foreach ($ids as $id) {
+                addActivity($id, 'expenses', "Expense Returned with comment: " . $comment, 2);
+                $expense = DB::connection($user_db_conn_name)->table('expenses')->where('id', $id)->first();
+                sendAlertNotification($expense->user_id, 'Your expense of amount ' . $expense->amount . ' has been returned. Comment: ' . $comment, 'Expense Returned');
+            }
+
+            return response()->json(['status' => 'success', 'message' => 'Selected Expenses Returned Successfully!']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Error while returning expenses: ' . $e->getMessage()]);
+        }
+    }
+
+    public function resubmit_returned_expense(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $id = $request->input('id');
+
+        try {
+            DB::connection($user_db_conn_name)->table('expenses')
+                ->where('id', $id)
+                ->update(['status' => 'Pending']);
+            
+            addActivity($id, 'expenses', "Expense Resubmitted to Pending", 2);
+
+            return response()->json(['status' => 'success', 'message' => 'Expense Resubmitted Successfully!']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Error while resubmitting expense!']);
+        }
+    }
+
+    public function bulk_resubmit_returned_expense(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('check_list');
+
+        if (empty($ids)) {
+            return response()->json(['status' => 'error', 'message' => 'Please select at least one expense!']);
+        }
+
+        try {
+            DB::connection($user_db_conn_name)->table('expenses')
+                ->whereIn('id', $ids)
+                ->update(['status' => 'Pending']);
+            
+            foreach ($ids as $id) {
+                addActivity($id, 'expenses', "Expense Resubmitted to Pending (Bulk)", 2);
+            }
+
+            return response()->json(['status' => 'success', 'message' => count($ids) . ' Expenses Resubmitted Successfully!']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Error while resubmitting expenses!']);
+        }
+    }
     public function new_expense(Request $request)
     {
         $data = array();
@@ -746,7 +968,8 @@ class ExpenseController extends Controller
 
         $data = $request->input();
         $user_id = session()->get('uid');
-        $status = getInitialEntryStatusByRole($role_id);
+        $role_id = session()->get('role');
+        $status = 'Pending';
         $add_duration = session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
@@ -754,10 +977,6 @@ class ExpenseController extends Controller
 
         if ($data['date'] < $min_date || $data['date'] > $max_date) {
             return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
-        }
-
-        if (is_machinery_head($data['head_id']) || is_asset_head($data['head_id'])) {
-            $status = 'Pending';
         }
         $id = $data['id'];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');

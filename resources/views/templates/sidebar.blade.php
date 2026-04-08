@@ -34,14 +34,15 @@
 
             {{-- Module 2: Expenses --}}
             @if (canViewModule(2))
-            <li class="{{ Request::is('expense_party') || Request::is('expense_head') || Request::is('new_expense') || Request::is('pending_expense*') || Request::is('verified_expense') || Request::is('expense_reports') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-receipt"></i><span>Expenses</span> </a>
-                <ul style="list-style-type: none; display: {{ Request::is('expense_party') || Request::is('expense_head') || Request::is('new_expense') || Request::is('pending_expense*') || Request::is('verified_expense') || Request::is('expense_reports') ? 'block' : 'none' }};">
+            <li class="{{ Request::is('expense_party') || Request::is('expense_head') || Request::is('new_expense') || Request::is('pending_expense*') || Request::is('return_expense') || Request::is('verified_expense') || Request::is('expense_reports') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-receipt"></i><span>Expenses</span> </a>
+                <ul style="list-style-type: none; display: {{ Request::is('expense_party') || Request::is('expense_head') || Request::is('new_expense') || Request::is('pending_expense*') || Request::is('return_expense') || Request::is('verified_expense') || Request::is('expense_reports') ? 'block' : 'none' }};">
                     <li class="{{ Request::is('expense_party') ? 'active' : '' }}"><a href="{{url('/expense_party')}}"> <i class="zmdi zmdi-face"></i> Expense Parties</a></li>
                     <li class="{{ Request::is('expense_head') ? 'active' : '' }}"><a href="{{url('/expense_head')}}"> <i class="zmdi zmdi-puzzle-piece"></i> Expense Head</a></li>
                     @if (isSuperAdmin() || checkmodulepermission(2, 'can_add') == 1)
                     <li class="{{ Request::is('new_expense') ? 'active' : '' }}"><a href="{{url('/new_expense')}}"> <i class="zmdi zmdi-plus-circle"></i> New Expenses</a></li>
                     @endif
                     <li class="{{ Request::is('pending_expense*') ? 'active' : '' }}"><a href="{{url('/pending_expense')}}"> <i class="zmdi zmdi-dot-circle"></i> Pending Expense</a></li>
+                    <li class="{{ Request::is('return_expense') ? 'active' : '' }}"><a href="{{url('/return_expense')}}"> <i class="zmdi zmdi-alert-circle"></i> Returned Expense</a></li>
                     <li class="{{ Request::is('verified_expense') ? 'active' : '' }}"><a href="{{url('/verified_expense')}}"> <i class="zmdi zmdi-check-circle"></i> Verified Expense</a></li>
                     @if (isSuperAdmin() || checkmodulepermission(2, 'can_report') == 1)
                     <li class="{{ Request::is('expense_reports') ? 'active' : '' }}"><a href="{{url('/expense_reports')}}"> <i class="zmdi zmdi-chart"></i> Reports</a></li>                   

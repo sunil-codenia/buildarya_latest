@@ -28,6 +28,8 @@
                                     @if (checkmodulepermission(2, 'can_edit') == 1)
                                         <button type="submit" formaction="{{ url('/pending_expense/bulk_edit_expense') }}"
                                             class="btn btn-warning btn-simple btn-round waves-effect"><a>Edit</a></button>
+                                        <button type="button" onclick="openReturnModal()"
+                                            class="btn btn-info btn-simple btn-round waves-effect"><a>Return</a></button>
                                     @endif
                                 </div>
                                 <table id="pendingExpenseTable" class="table table-hover">
@@ -152,6 +154,31 @@
             </div>
         </div>
     @endif
+    @if (checkmodulepermission(2, 'can_certify') == 1)
+        <div class="modal fade" id="returnexpensemodal" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-md" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h4 class="title">Return Expenses</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row clearfix">
+                            <div class="col-lg-12">
+                                <div class="form-group">
+                                    <label>Return Comment</label>
+                                    <textarea id="return_comment" class="form-control" placeholder="Enter reason for returning these expenses..." rows="4"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary btn-simple waves-effect" data-dismiss="modal"><a>CLOSE</a></button>
+                        <button type="button" onclick="submitReturn()" class="btn btn-primary btn-simple btn-round waves-effect"><a>Submit</a></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
 
 @endsection
 @section('scripts')
@@ -195,6 +222,81 @@
         }
 
 
+
+        function openReturnModal() {
+            if ($('.check_item:checked').length == 0) {
+                Swal.fire({
+                    title: 'Error!',
+                    text: "Please select at least one expense to return!",
+                    icon: 'error',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true,
+                });
+                return;
+            }
+            $('#returnexpensemodal').modal();
+        }
+
+        function submitReturn() {
+            var ids = [];
+            $('.check_item:checked').each(function() {
+                ids.push($(this).val());
+            });
+            var comment = $('#return_comment').val();
+            if (comment == "") {
+                Swal.fire({
+                    title: 'Error!',
+                    text: "Please enter a return comment!",
+                    icon: 'error',
+                    toast: true,
+                    position: 'top-end',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true,
+                });
+                return;
+            }
+
+            $.ajax({
+                url: "{{ url('/return_expense_action') }}",
+                type: "POST",
+                data: {
+                    _token: "{{ csrf_token() }}",
+                    check_list: ids,
+                    return_comment: comment
+                },
+                success: function(response) {
+                    if (response.status == 'success') {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: response.message,
+                            icon: 'success',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000,
+                            timerProgressBar: true,
+                        });
+                        $('#returnexpensemodal').modal('hide');
+                        $('#pendingExpenseTable').DataTable().ajax.reload();
+                    } else {
+                        Swal.fire({
+                            title: 'Error!',
+                            text: response.message,
+                            icon: 'error',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000,
+                            timerProgressBar: true,
+                        });
+                    }
+                }
+            });
+        }
 
         function openassignmachineryheadmodel(id) {
             $('#machinery_head_expense_id').val(id);
