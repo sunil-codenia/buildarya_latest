@@ -78,6 +78,17 @@
                                                     value="{{ $editdata['ac_holder_name'] }}" name="ac_holder_name">
                                             </div>
                                         </div>
+                                        <div class="col-lg-4 col-md-4 col-sm-4">
+                                            <div class="form-group">
+                                                <label for="cost_category_id">Cost Category</label>
+                                                <select name="cost_category_id" id="cost_category_id" class="form-control show-tick" required>
+                                                    <option value="">-- Select Cost Category --</option>
+                                                    @foreach($cost_categories as $category)
+                                                        <option value="{{$category->id}}" {{$editdata['cost_category_id'] == $category->id ? 'selected' : ''}}>{{$category->name}}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
@@ -119,6 +130,7 @@
                                     <tr>
                                         <th>#</th>
                                         <th>Name</th>
+                                        <th>Cost Category</th>
                                         <th>Address</th>
                                         <th>Pan No.</th>
                                         <th>Balance</th>
@@ -144,6 +156,9 @@
                                             <td>{{ $i++ }}</td>
                                             <td>
                                                 <a class="single-user-name" href="#">{{ $dd['name'] }}</a>
+                                            </td>
+                                            <td>
+                                                <a class="single-user-name" href="#">{{ $dd['category_name'] }}</a>
                                             </td>
                                             <td>
                                                 <a class="single-user-name" href="#">{{ $dd['address'] }}</a>
@@ -288,6 +303,17 @@
 
                                         <input type="text" id="ac_holder_name" required class="form-control"
                                             name="ac_holder_name">
+                                    </div>
+                                </div>
+                                <div class="col-lg-12 col-md-12 col-sm-12">
+                                    <div class="form-group">
+                                        <label for="cost_category_id">Cost Category</label>
+                                        <select name="cost_category_id" id="cost_category_id" class="form-control show-tick" required>
+                                            <option value="">-- Select Cost Category --</option>
+                                            @foreach($cost_categories as $category)
+                                                <option value="{{$category->id}}">{{$category->name}}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 </div>
                             </div>

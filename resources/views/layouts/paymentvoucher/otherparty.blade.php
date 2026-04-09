@@ -78,6 +78,17 @@
                                                     value="{{ $editdata['bank_ac_holder'] }}" name="bank_ac_holder">
                                             </div>
                                         </div>
+                                        <div class="col-lg-4 col-md-4 col-sm-4">
+                                            <div class="form-group">
+                                                <label for="cost_category_id">Cost Category</label>
+                                                <select name="cost_category_id" id="cost_category_id" class="form-control show-tick" required>
+                                                    <option value="">-- Select Cost Category --</option>
+                                                    @foreach($cost_categories as $category)
+                                                        <option value="{{$category->id}}" {{$editdata['cost_category_id'] == $category->id ? 'selected' : ''}}>{{$category->name}}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
@@ -121,6 +132,7 @@
                                         <th>Pan No.</th>
                                         <th>Address</th>
                                         <th>Bank Details</th>
+                                        <th>Cost Category</th>
                                         <th>Status</th>
                                         <th>Action</th>
 
@@ -152,6 +164,9 @@
                                                     {{ $dd['bank_name'] }}<br>Bank A/C - {{ $dd['bank_ac'] }}<br>Bank IFSC
                                                     - {{ $dd['bank_ifsc'] }}<br>A/C Holder -
                                                     {{ $dd['bank_ac_holder'] }}</a>
+                                            </td>
+                                            <td>
+                                                <a class="single-user-name" href="#">{{ $dd['category_name'] }}</a>
                                             </td>
                                             <td>
                                                 @if ($dd['status'] == 'Active')
@@ -263,6 +278,17 @@
 
                                         <input type="text" id="bank_ac_holder" required class="form-control"
                                             name="bank_ac_holder">
+                                    </div>
+                                </div>
+                                <div class="col-lg-4 col-md-4 col-sm-4">
+                                    <div class="form-group">
+                                        <label for="cost_category_id">Cost Category</label>
+                                        <select name="cost_category_id" id="cost_category_id" class="form-control show-tick" required>
+                                            <option value="">-- Select Cost Category --</option>
+                                            @foreach($cost_categories as $category)
+                                                <option value="{{$category->id}}">{{$category->name}}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
                                 </div>
                             </div>

@@ -100,8 +100,15 @@
                         },
                         success: function(response) {
                             if (response.status == 'success') {
-                                Swal.fire('Success!', response.message, 'success');
-                                $('#returnExpenseTable').DataTable().ajax.reload();
+                                Swal.fire({
+                                    title: 'Success!',
+                                    text: response.message,
+                                    icon: 'success',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                }).then(() => {
+                                    window.location.href = "{{ url('/pending_expense') }}";
+                                });
                             } else {
                                 Swal.fire('Error!', response.message, 'error');
                             }
@@ -149,8 +156,15 @@
                         },
                         success: function(response) {
                             if (response.status == 'success') {
-                                Swal.fire('Success!', response.message, 'success');
-                                $('#returnExpenseTable').DataTable().ajax.reload();
+                                Swal.fire({
+                                    title: 'Success!',
+                                    text: response.message,
+                                    icon: 'success',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                }).then(() => {
+                                    window.location.href = "{{ url('/pending_expense') }}";
+                                });
                             } else {
                                 Swal.fire('Error!', response.message, 'error');
                             }

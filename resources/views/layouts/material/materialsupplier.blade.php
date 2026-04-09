@@ -65,8 +65,22 @@ $dataarray = json_decode($data, true);
                         </div>
                         <div class="col-lg-4 col-md-4 col-sm-4">
                             <div class="form-group">
-                            <label for="Name">Bank A/C Holder</label>
+                            <label for="Bank_ac_holder">Bank A/C Holder</label>
                                 <input type="text" id="bank_ac_holder" required class="form-control" value="{{$editdata['bank_ac_holder']}}" name="bank_ac_holder"  >
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-4 col-sm-4">
+                            <div class="form-group">
+                            <label for="cost_category_id">Cost Category</label>
+                                <select name="cost_category_id" id="cost_category_id" class="form-control show-tick" required>
+                                    <option value="">-- Select Cost Category --</option>
+                                    @php
+                                        $categories = json_decode($data, true)['cost_categories'];
+                                    @endphp
+                                    @foreach($categories as $category)
+                                        <option value="{{$category['id']}}" {{$editdata['cost_category_id'] == $category['id'] ? 'selected' : ''}}>{{$category['name']}}</option>
+                                    @endforeach
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -127,6 +141,7 @@ $dataarray = json_decode($data, true);
                                 <th>Bank Ifsc</th>
                                 <th>Bank Name</th>
                                 <th>Bank A/C Holder</th>
+                                <th>Cost Category</th>
                                 <th>Status</th>
                                 <th style="width: 100px;">Action</th>
                                 
@@ -209,6 +224,20 @@ $dataarray = json_decode($data, true);
                             <label for="Name">Bank Account</label>
 
                                 <input type="text" id="bank_ac_holder" required class="form-control" name="bank_ac_holder" >
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-4 col-sm-4">
+                            <div class="form-group">
+                            <label for="cost_category_id">Cost Category</label>
+                                <select name="cost_category_id" id="cost_category_id" class="form-control show-tick" required>
+                                    <option value="">-- Select Cost Category --</option>
+                                    @php
+                                        $categories = json_decode($data, true)['cost_categories'];
+                                    @endphp
+                                    @foreach($categories as $category)
+                                        <option value="{{$category['id']}}">{{$category['name']}}</option>
+                                    @endforeach
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -417,7 +446,7 @@ $dataarray = json_decode($data, true);
                     }
                 },
                 columnDefs: [
-                    { orderable: false, targets: [0, 1, 10] }
+                    { orderable: false, targets: [0, 1, 11] }
                 ],
                 responsive: true,
                 dom: 'lBfrtip<"actions">',

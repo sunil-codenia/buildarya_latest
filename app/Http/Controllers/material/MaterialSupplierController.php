@@ -18,6 +18,7 @@ class MaterialSupplierController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
         $data = [];
+        $data['cost_categories'] = getallCostCategories();
 
         return  view('layouts.material.materialsupplier')->with('data', json_encode($data));
     }
@@ -26,7 +27,9 @@ class MaterialSupplierController extends Controller
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
-        $query = DB::connection($user_db_conn_name)->table('material_supplier');
+        $query = DB::connection($user_db_conn_name)->table('material_supplier')
+            ->leftJoin('expense_head', 'expense_head.id', '=', 'material_supplier.cost_category_id')
+            ->select('material_supplier.*', 'expense_head.name as category_name');
 
         $totalRecords = $query->count();
 
@@ -40,7 +43,8 @@ class MaterialSupplierController extends Controller
                   ->orWhere('bank_ifsc', 'LIKE', "%{$search}%")
                   ->orWhere('bank_name', 'LIKE', "%{$search}%")
                   ->orWhere('bank_ac_holder', 'LIKE', "%{$search}%")
-                  ->orWhere('status', 'LIKE', "%{$search}%");
+                  ->orWhere('expense_head.name', 'LIKE', "%{$search}%")
+                  ->orWhere('material_supplier.status', 'LIKE', "%{$search}%");
             });
         }
 
@@ -57,7 +61,8 @@ class MaterialSupplierController extends Controller
             6 => 'bank_ifsc',
             7 => 'bank_name',
             8 => 'bank_ac_holder',
-            9 => 'status'
+            9 => 'expense_head.name',
+            10 => 'status'
         ];
         
         if (isset($columns[$orderColumnIndex])) {
@@ -94,6 +99,7 @@ class MaterialSupplierController extends Controller
             $bank_ifsc = '<a class="single-user-name" href="#">'.htmlspecialchars((string)$row->bank_ifsc).'</a>';
             $bank_name = '<a class="single-user-name" href="#">'.htmlspecialchars((string)$row->bank_name).'</a>';
             $bank_ac_holder = '<a class="single-user-name" href="#">'.htmlspecialchars((string)$row->bank_ac_holder).'</a>';
+            $category = '<a class="single-user-name" href="#">'.htmlspecialchars((string)$row->category_name).'</a>';
             
             $statusHtml = '';
             if ($row->status == 'Active') {
@@ -128,6 +134,7 @@ class MaterialSupplierController extends Controller
                 $bank_ifsc,
                 $bank_name,
                 $bank_ac_holder,
+                $category,
                 $statusHtml,
                 $actionHtml
             ];
@@ -164,6 +171,7 @@ class MaterialSupplierController extends Controller
         $bank_ifsc = $request->input('bank_ifsc');
         $bank_name = $request->input('bank_name');
         $bank_ac_holder = $request->input('bank_ac_holder');
+        $cost_category_id = $request->input('cost_category_id');
         $data = [
             'name' => $name,
             'address' => $address,
@@ -171,7 +179,8 @@ class MaterialSupplierController extends Controller
             'bank_ac' => $bank_ac,
             'bank_ifsc' => $bank_ifsc,
             'bank_name' => $bank_name,
-            'bank_ac_holder' => $bank_ac_holder
+            'bank_ac_holder' => $bank_ac_holder,
+            'cost_category_id' => $cost_category_id
         ];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {
@@ -200,8 +209,18 @@ class MaterialSupplierController extends Controller
         $bank_ifsc = $request->input('bank_ifsc');
         $bank_name = $request->input('bank_name');
         $bank_ac_holder = $request->input('bank_ac_holder');
+        $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $id)->update(['name' => $name, 'address' => $address, 'gstin' => $gstin, 'bank_ac' => $bank_ac, 'bank_ifsc' => $bank_ifsc, 'bank_name' => $bank_name, 'bank_ac_holder' => $bank_ac_holder]);
+        DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $id)->update([
+            'name' => $name, 
+            'address' => $address, 
+            'gstin' => $gstin, 
+            'bank_ac' => $bank_ac, 
+            'bank_ifsc' => $bank_ifsc, 
+            'bank_name' => $bank_name, 
+            'bank_ac_holder' => $bank_ac_holder,
+            'cost_category_id' => $cost_category_id
+        ]);
         addActivity($id, 'material_supplier', "Material Supplier Updated", 3);
         return redirect('/materialsupplier');
     }
@@ -211,7 +230,7 @@ class MaterialSupplierController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data['data'] = [];
+        $data['cost_categories'] = getallCostCategories();
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', '=', $id)->get();
         return  view('layouts.material.materialsupplier')->with('data', json_encode($data));
     }

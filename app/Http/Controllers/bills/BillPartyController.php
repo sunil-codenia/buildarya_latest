@@ -20,25 +20,30 @@ class BillPartyController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $query = DB::connection($user_db_conn_name)->table('bills_party');
+        $query = DB::connection($user_db_conn_name)->table('bills_party')
+            ->leftJoin('expense_head', 'expense_head.id', '=', 'bills_party.cost_category_id')
+            ->select('bills_party.*', 'expense_head.name as category_name');
 
         if ($request->get('status')) {
-            $query->where('status', $request->get('status'));
+            $query->where('bills_party.status', $request->get('status'));
         }
 
         if ($request->get('site_id') && $request->get('site_id') != 'all') {
-            $query->where('site_id', $request->get('site_id'));
+            $query->where('bills_party.site_id', $request->get('site_id'));
         }
 
         if ($request->get('from_date') && $request->get('to_date')) {
             $from = date('Y-m-d 00:00:00', strtotime($request->get('from_date')));
             $to = date('Y-m-d 23:59:59', strtotime($request->get('to_date')));
-            $query->whereBetween('create_datetime', [$from, $to]);
+            $query->whereBetween('bills_party.create_datetime', [$from, $to]);
         }
 
         $data = $query->get();
+        $cost_categories = getallCostCategories();
 
-        return  view('layouts.bills.billparty')->with('data', json_encode($data));
+        return view('layouts.bills.billparty')
+            ->with('data', json_encode($data))
+            ->with('cost_categories', $cost_categories);
     }
     public function bill_party_payment(Request $request){
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
@@ -57,9 +62,10 @@ class BillPartyController extends Controller
         $ifsc = $request->input('ifsc');
         $bankname = $request->input('bankname');
         $ac_holder_name = $request->input('ac_holder_name');
+        $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data = [
-            'name' => $name, 'address' => $address, 'panno' => $panno, 'bank_ac' => $bank_ac, 'ifsc' => $ifsc, 'bankname' => $bankname, 'ac_holder_name' => $ac_holder_name
+            'name' => $name, 'address' => $address, 'panno' => $panno, 'bank_ac' => $bank_ac, 'ifsc' => $ifsc, 'bankname' => $bankname, 'ac_holder_name' => $ac_holder_name, 'cost_category_id' => $cost_category_id
         ];
 
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
@@ -149,8 +155,9 @@ class BillPartyController extends Controller
         $ifsc = $request->input('ifsc');
         $bankname = $request->input('bankname');
         $ac_holder_name = $request->input('ac_holder_name');
+        $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        DB::connection($user_db_conn_name)->table('bills_party')->where('id', $id)->update(['name' => $name, 'panno' => $panno, 'bank_ac' => $bank_ac, 'ifsc' => $ifsc, 'bankname' => $bankname, 'ac_holder_name' => $ac_holder_name]);
+        DB::connection($user_db_conn_name)->table('bills_party')->where('id', $id)->update(['name' => $name, 'panno' => $panno, 'bank_ac' => $bank_ac, 'ifsc' => $ifsc, 'bankname' => $bankname, 'ac_holder_name' => $ac_holder_name, 'cost_category_id' => $cost_category_id]);
         addActivity($id,'bills_party',"Bill Party Data Updated.",4);
         return redirect('/billparty')->with('success', 'Bill Party Updated successfully!');;
     }
@@ -160,9 +167,16 @@ class BillPartyController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data['data'] = DB::connection($user_db_conn_name)->table('bills_party')->get();
+        $data['data'] = DB::connection($user_db_conn_name)->table('bills_party')
+            ->leftJoin('expense_head', 'expense_head.id', '=', 'bills_party.cost_category_id')
+            ->select('bills_party.*', 'expense_head.name as category_name')
+            ->get();
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $id)->get();
-        return  view('layouts.bills.billparty')->with('data', json_encode($data));
+        $cost_categories = getallCostCategories();
+        
+        return view('layouts.bills.billparty')
+            ->with('data', json_encode($data))
+            ->with('cost_categories', $cost_categories);
     }
     public function delete_billparty(Request $request)
     {

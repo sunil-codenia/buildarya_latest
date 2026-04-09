@@ -274,14 +274,11 @@
                             title: 'Success!',
                             text: response.message,
                             icon: 'success',
-                            toast: true,
-                            position: 'top-end',
-                            showConfirmButton: false,
-                            timer: 3000,
-                            timerProgressBar: true,
+                            timer: 2000,
+                            showConfirmButton: false
+                        }).then(() => {
+                            window.location.href = "{{ url('/return_expense') }}";
                         });
-                        $('#returnexpensemodal').modal('hide');
-                        $('#pendingExpenseTable').DataTable().ajax.reload();
                     } else {
                         Swal.fire({
                             title: 'Error!',

@@ -13,10 +13,16 @@ class OtherPartiesController extends Controller
         $data =array();
             $user_db_conn_name = $request->session()->get('comp_db_conn_name');
  
-            $data = DB::connection($user_db_conn_name)->table('other_parties')->get();
+            $data = DB::connection($user_db_conn_name)->table('other_parties')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'other_parties.cost_category_id')
+                ->select('other_parties.*', 'expense_head.name as category_name')
+                ->get();
+            
+            $cost_categories = getallCostCategories();
 
-            return  view('layouts.paymentvoucher.otherparty')->with('data',json_encode($data));
-       
+            return view('layouts.paymentvoucher.otherparty')
+                ->with('data', json_encode($data))
+                ->with('cost_categories', $cost_categories);
     }
     public function addotherparty(Request $request){
         $name = $request->input('name');
@@ -27,8 +33,9 @@ class OtherPartiesController extends Controller
         $bank_ifsc = $request->input('bank_ifsc');
         $bank_name = $request->input('bank_name');
         $bank_ac_holder = $request->input('bank_ac_holder');
+        $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data=['name'=>$name,'panno'=>$panno,'address'=>$address,'bank_ac'=>$bank_ac,'bank_ifsc'=>$bank_ifsc,'bank_name'=>$bank_name,'bank_ac_holder'=>$bank_ac_holder
+        $data=['name'=>$name,'panno'=>$panno,'address'=>$address,'bank_ac'=>$bank_ac,'bank_ifsc'=>$bank_ifsc,'bank_name'=>$bank_name,'bank_ac_holder'=>$bank_ac_holder, 'cost_category_id'=>$cost_category_id
     ];
 
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
@@ -59,10 +66,11 @@ class OtherPartiesController extends Controller
         $bank_ifsc = $request->input('bank_ifsc');
         $bank_name = $request->input('bank_name');
         $bank_ac_holder = $request->input('bank_ac_holder');
+        $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
          
          try {
-            DB::connection($user_db_conn_name)->table('other_parties')->where('id', $id)->update(['name'=>$name,'panno'=>$panno,'address'=>$address,'bank_ac'=>$bank_ac,'bank_ifsc'=>$bank_ifsc,'bank_name'=>$bank_name,'bank_ac_holder'=>$bank_ac_holder]);
+            DB::connection($user_db_conn_name)->table('other_parties')->where('id', $id)->update(['name'=>$name,'panno'=>$panno,'address'=>$address,'bank_ac'=>$bank_ac,'bank_ifsc'=>$bank_ifsc,'bank_name'=>$bank_name,'bank_ac_holder'=>$bank_ac_holder, 'cost_category_id'=>$cost_category_id]);
             addActivity($id,'other_parties',"Other Party Data Updated",8);
  
             return redirect('/otherparty')
@@ -83,10 +91,16 @@ class OtherPartiesController extends Controller
         $data =array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data['data'] = DB::connection($user_db_conn_name)->table('other_parties')->get();
+        $data['data'] = DB::connection($user_db_conn_name)->table('other_parties')
+            ->leftJoin('expense_head', 'expense_head.id', '=', 'other_parties.cost_category_id')
+            ->select('other_parties.*', 'expense_head.name as category_name')
+            ->get();
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('other_parties')->where('id','=',$id)->get();
-        return  view('layouts.paymentvoucher.otherparty')->with('data',json_encode($data));
-
+        $cost_categories = getallCostCategories();
+        
+        return view('layouts.paymentvoucher.otherparty')
+            ->with('data', json_encode($data))
+            ->with('cost_categories', $cost_categories);
     }
     public function delete_otherparty(Request $request){
         $id = $request->get('id');
