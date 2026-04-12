@@ -222,6 +222,7 @@ class UserController extends Controller
             'username' => $username,
             'pass' => $password,
             'company_id' => $request->company_id,
+            'company_plan_id' => $request->company_plan_id,
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,
@@ -260,6 +261,7 @@ class UserController extends Controller
                 $res = array();
                 $res['user_id'] = $user_id;
                 $res['module_id'] = $module->id;
+                $res['company_plan_id'] = $request->company_plan_id;
                 $res['can_view'] = $permission[$module->id]['can_view'];
                 $res['can_add'] = $permission[$module->id]['can_add'];
                 $res['can_delete'] = $permission[$module->id]['can_delete'];
@@ -383,6 +385,7 @@ class UserController extends Controller
             'username' => $username,
             'pass' => $password,
             'company_id' => $request->company_id,
+            'company_plan_id' => $request->company_plan_id,
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,
@@ -410,8 +413,14 @@ class UserController extends Controller
         $id = $request->get('id');
 
         $comp_id = $request->session()->get('comp_db_id');
+        $plan_id = $request->session()->get('company_plan_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $raw_modules = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id)->get();
+        
+        $query = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id);
+        if ($plan_id) {
+            $query->where('company_modules.company_plan_id', '=', $plan_id);
+        }
+        $raw_modules = $query->get();
         
         $sidebar_map = [
             1 => 'Sites & Users',
@@ -468,8 +477,14 @@ class UserController extends Controller
         }
         $user_id = $request->input('user_id');
         $comp_id = $request->session()->get('comp_db_id');
+        $plan_id = $request->session()->get('company_plan_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $modules = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id)->get();
+        
+        $query = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id);
+        if ($plan_id) {
+            $query->where('company_modules.company_plan_id', '=', $plan_id);
+        }
+        $modules = $query->get();
         $permission = array();
         foreach ($modules as $module) {
 
@@ -538,9 +553,9 @@ class UserController extends Controller
                 $permission[$module->id]['can_report'] = 0;
             }
 
-            $res = array();
             $res['user_id'] = $user_id;
             $res['module_id'] = $module->id;
+            $res['company_plan_id'] = $plan_id;
             $res['can_view'] = $permission[$module->id]['can_view'];
             $res['can_add'] = $permission[$module->id]['can_add'];
             $res['can_delete'] = $permission[$module->id]['can_delete'];

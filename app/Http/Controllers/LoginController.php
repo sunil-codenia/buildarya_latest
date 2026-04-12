@@ -53,24 +53,35 @@ class LoginController extends Controller
                             "comp_add" => $compdata->address,
                             "comp_mobile" => $compdata->mobile,
                             "comp_email" => $compdata->email,
+                            "comp_mobile" => $compdata->mobile,
+                            "comp_email" => $compdata->email,
                             "comp_db_conn_name" => $compdata->db_conn_name,
                             "view_duration" => !empty($userdata->view_duration) ? $userdata->view_duration : $roledata->view_duration,
                             "add_duration" => !empty($userdata->add_duration) ? $userdata->add_duration : $roledata->add_duration,
-                            "company_modules" => DB::table('company_modules')->where('company_id', $compdata->id)->pluck('module_id')->toArray()
+                            "company_plan_id" => $userdata->company_plan_id,
+                            "company_plan_id" => $userdata->company_plan_id,
+                            "company_modules" => DB::table('company_modules')
+                                ->where('company_id', $compdata->id)
+                                ->where('company_plan_id', $userdata->company_plan_id)
+                                ->pluck('module_id')->toArray()
                         ]);
                         foreach ($settings as $setting) {
                             $request->session()->push($setting->name, $setting->value);
                         }
-                        $perm = DB::connection($compdata->db_conn_name)->select("SELECT * FROM user_permission WHERE user_id = $userdata->id");
+                        $perm = DB::connection($compdata->db_conn_name)->table('user_permission')
+                            ->where('user_id', $userdata->id)
+                            ->whereIn('module_id', session('company_modules'))
+                            ->get();
+                        
                         $permissions = array();
                         foreach($perm as $per){
-$permissions[$per->module_id]['can_view'] = $per->can_view;
-$permissions[$per->module_id]['can_add'] = $per->can_add;
-$permissions[$per->module_id]['can_edit'] = $per->can_edit;
-$permissions[$per->module_id]['can_certify'] = $per->can_certify;
-$permissions[$per->module_id]['can_pay'] = $per->can_pay;
-$permissions[$per->module_id]['can_delete'] = $per->can_delete;
-$permissions[$per->module_id]['can_report'] = $per->can_report;
+                            $permissions[$per->module_id]['can_view'] = $per->can_view;
+                            $permissions[$per->module_id]['can_add'] = $per->can_add;
+                            $permissions[$per->module_id]['can_edit'] = $per->can_edit;
+                            $permissions[$per->module_id]['can_certify'] = $per->can_certify;
+                            $permissions[$per->module_id]['can_pay'] = $per->can_pay;
+                            $permissions[$per->module_id]['can_delete'] = $per->can_delete;
+                            $permissions[$per->module_id]['can_report'] = $per->can_report;
                         }
 
                         $request->session()->push("permissions", $permissions);

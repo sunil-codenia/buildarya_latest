@@ -210,7 +210,10 @@ function getMachineryHeadsById($id)
 function getcompanyModules()
 {
     $comp_id = session()->get('comp_db_id');
-    $modules = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id)->get();
+    $plan_id = session()->get('company_plan_id');
+    $query = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id);
+    $query->where('company_modules.company_plan_id', '=', $plan_id);
+    $modules = $query->get();
     return $modules;
 }
 function getcompanyModulesName($id)

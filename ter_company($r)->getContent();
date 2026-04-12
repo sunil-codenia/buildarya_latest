@@ -1,0 +1,10 @@
+[90m= [39m[34;4mIlluminate\Http\Request[39;24m {#5206
+    +[1mattributes[22m: [34;4mSymfony\Component\HttpFoundation\ParameterBag[39;24m {#5296},
+    +[1mrequest[22m: [34;4mSymfony\Component\HttpFoundation\InputBag[39;24m {#5298},
+    +[1mquery[22m: [34;4mSymfony\Component\HttpFoundation\InputBag[39;24m {#5297},
+    +[1mserver[22m: [34;4mSymfony\Component\HttpFoundation\ServerBag[39;24m {#5293},
+    +[1mfiles[22m: [34;4mSymfony\Component\HttpFoundation\FileBag[39;24m {#5294},
+    +[1mcookies[22m: [34;4mSymfony\Component\HttpFoundation\InputBag[39;24m {#5295},
+    +[1mheaders[22m: [34;4mSymfony\Component\HttpFoundation\HeaderBag[39;24m {#5292},
+  }
+

@@ -290,6 +290,12 @@ class UserController extends Controller
         $data = DB::select($query);
         return json_encode($data);
     }
+    public function get_all_modules(Request $request)
+    {
+        $query = "SELECT id, name FROM modules";
+        $data = DB::select($query);
+        return json_encode($data);
+    }
     public function get_site_transaction(Request $request)
     {
         $conn = $request->post('conn');

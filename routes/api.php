@@ -10,6 +10,7 @@ use App\Http\Controllers\api\AssetsController;
 use App\Http\Controllers\api\MachineryController;
 use App\Http\Controllers\api\ChatController;
 use App\Http\Controllers\api\CompanyRegistrationController;
+use App\Http\Controllers\api\CompanyPlanController;
 use App\Http\Controllers\DocumentController;
 
 /*
@@ -28,9 +29,11 @@ use App\Http\Controllers\DocumentController;
 Route::get('/get_all_data', [UserController::class, 'get_all_data']);
 Route::get('/api_login', [UserController::class, 'login']);
 Route::post('/register_company', [CompanyRegistrationController::class, 'register_company']);
+Route::post('/add_company_plan', [CompanyPlanController::class, 'add_company_plan']);
 Route::post('/get_users', [UserController::class, 'get_users']);
 Route::post('/get_sites', [UserController::class, 'get_sites']);
 Route::post('/get_modules', [UserController::class, 'get_modules']);
+Route::get('/get_all_modules', [UserController::class, 'get_all_modules']);
 Route::post('/get_permission', [UserController::class, 'get_permission']);
 Route::post('/get_site_transaction', [UserController::class, 'get_site_transaction']);
 Route::post('/update_fcm_id', [UserController::class, 'update_fcm_id']);
