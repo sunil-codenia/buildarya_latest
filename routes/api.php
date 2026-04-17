@@ -32,6 +32,10 @@ Route::post('/register_company', [CompanyRegistrationController::class, 'registe
 Route::post('/add_company_plan', [CompanyPlanController::class, 'add_company_plan']);
 Route::post('/get_users', [UserController::class, 'get_users']);
 Route::post('/get_sites', [UserController::class, 'get_sites']);
+Route::get('/clear_config_cache', function() {
+    \Illuminate\Support\Facades\Artisan::call('config:clear');
+    return response()->json(['status' => true, 'message' => 'Configuration cache cleared successfully']);
+});
 Route::post('/get_modules', [UserController::class, 'get_modules']);
 Route::get('/get_all_modules', [UserController::class, 'get_all_modules']);
 Route::post('/get_permission', [UserController::class, 'get_permission']);

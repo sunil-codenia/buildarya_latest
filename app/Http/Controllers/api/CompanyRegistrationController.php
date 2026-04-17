@@ -71,6 +71,9 @@ class CompanyRegistrationController extends Controller
                     $uid = strtolower(preg_replace('/[^A-Za-z0-9]/', '_', $companyName));
                     $dbNamePrefix = config('database.name_prefix', 'company_');
                     $dbUserPrefix = config('database.user_prefix', 'company_');
+                    
+                    \Log::info("DEBUG - Current Config Prefixes - DB Name Prefix: '{$dbNamePrefix}', User Prefix: '{$dbUserPrefix}'");
+                    
                     $dbName = $dbNamePrefix . $uid;
                     $dbUser = $dbUserPrefix . $uid;
                     $dbPass = $this->generateDbPassword();
