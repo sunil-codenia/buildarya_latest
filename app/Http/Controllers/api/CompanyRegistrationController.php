@@ -69,8 +69,8 @@ class CompanyRegistrationController extends Controller
                     // DDL statements (CREATE DATABASE, CREATE USER, GRANT) must run
                     // OUTSIDE any transaction because MySQL auto-commits on DDL.
                     $uid = strtolower(preg_replace('/[^A-Za-z0-9]/', '_', $companyName));
-                    $dbNamePrefix = env('DB_NAME_PREFIX', 'company_');
-                    $dbUserPrefix = env('DB_USER_PREFIX', 'company_');
+                    $dbNamePrefix = config('database.name_prefix', 'company_');
+                    $dbUserPrefix = config('database.user_prefix', 'company_');
                     $dbName = $dbNamePrefix . $uid;
                     $dbUser = $dbUserPrefix . $uid;
                     $dbPass = $this->generateDbPassword();

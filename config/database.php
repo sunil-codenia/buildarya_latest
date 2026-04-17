@@ -19,6 +19,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Company Database Settings
+    |--------------------------------------------------------------------------
+    |
+    | These settings are used when dynamically creating new company databases
+    | and users. The prefixes are often mandatory on shared hosting.
+    |
+    */
+
+    'name_prefix' => env('DB_NAME_PREFIX', 'company_'),
+    'user_prefix' => env('DB_USER_PREFIX', 'company_'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
     |
