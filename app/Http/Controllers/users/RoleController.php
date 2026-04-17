@@ -162,11 +162,15 @@ class RoleController extends Controller
         $comp_id = $request->session()->get('comp_db_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
-        $raw_modules = DB::table('company_modules')
+        $plan_id = $request->session()->get('company_plan_id');
+        $query = DB::table('company_modules')
                              ->join('modules', 'modules.id', '=', 'company_modules.module_id')
                              ->select('modules.id', 'modules.name')
-                             ->where('company_modules.company_id', '=', $comp_id)
-                             ->get();
+                             ->where('company_modules.company_id', '=', $comp_id);
+        if ($plan_id) {
+            $query->where('company_modules.company_plan_id', '=', $plan_id);
+        }
+        $raw_modules = $query->get();
                              
         $sidebar_map = [
             1 => 'Sites & Users',
@@ -222,11 +226,15 @@ class RoleController extends Controller
         $pay = $request->get('pay') ?? [];
         $report = $request->get('report') ?? [];
 
-        $modules = DB::table('company_modules')
+        $plan_id = $request->session()->get('company_plan_id');
+        $query = DB::table('company_modules')
                      ->join('modules', 'modules.id', '=', 'company_modules.module_id')
                      ->select('modules.id')
-                     ->where('company_modules.company_id', '=', $comp_id)
-                     ->get();
+                     ->where('company_modules.company_id', '=', $comp_id);
+        if ($plan_id) {
+            $query->where('company_modules.company_plan_id', '=', $plan_id);
+        }
+        $modules = $query->get();
 
         $result = array();
         foreach ($modules as $module) {

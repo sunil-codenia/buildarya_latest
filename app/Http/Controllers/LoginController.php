@@ -42,7 +42,7 @@ class LoginController extends Controller
                             "name" => $userdata->name,
                             "username" => $userdata->username,
                             "role" => $userdata->role_id,
-                            "is_superadmin" => $roledata->is_superadmin,
+                            "is_superadmin" => $userdata->role_id == 1 ? 'yes' : 'no',
                             "role_perms_set" => ($role_perms_count > 0),
                             "assigned_site_ids" => explode(',', (string)$userdata->site_id),
                             "site_id" => count(explode(',', (string)$userdata->site_id)) > 1 ? 'all' : explode(',', (string)$userdata->site_id)[0],
@@ -56,32 +56,50 @@ class LoginController extends Controller
                             "comp_mobile" => $compdata->mobile,
                             "comp_email" => $compdata->email,
                             "comp_db_conn_name" => $compdata->db_conn_name,
-                            "view_duration" => !empty($userdata->view_duration) ? $userdata->view_duration : $roledata->view_duration,
-                            "add_duration" => !empty($userdata->add_duration) ? $userdata->add_duration : $roledata->add_duration,
+                            "view_duration" => !empty($userdata->view_duration) ? $userdata->view_duration : ($roledata ? $roledata->view_duration : ($userdata->role_id == 1 ? 'all' : 'complete')),
+                            "add_duration" => !empty($userdata->add_duration) ? $userdata->add_duration : ($roledata ? $roledata->add_duration : ($userdata->role_id == 1 ? 'all' : 'anytime')),
                             "company_plan_id" => $userdata->company_plan_id,
                             "company_plan_id" => $userdata->company_plan_id,
-                            "company_modules" => DB::table('company_modules')
-                                ->where('company_id', $compdata->id)
-                                ->where('company_plan_id', $userdata->company_plan_id)
-                                ->pluck('module_id')->toArray()
+                            "company_modules" => $userdata->company_plan_id 
+                                ? DB::table('company_modules')
+                                    ->where('company_id', $compdata->id)
+                                    ->where('company_plan_id', $userdata->company_plan_id)
+                                    ->pluck('module_id')->toArray()
+                                : DB::table('company_modules')
+                                    ->where('company_id', $compdata->id)
+                                    ->pluck('module_id')->toArray()
                         ]);
                         foreach ($settings as $setting) {
                             $request->session()->push($setting->name, $setting->value);
                         }
-                        $perm = DB::connection($compdata->db_conn_name)->table('user_permission')
-                            ->where('user_id', $userdata->id)
-                            ->whereIn('module_id', session('company_modules'))
-                            ->get();
-                        
                         $permissions = array();
-                        foreach($perm as $per){
-                            $permissions[$per->module_id]['can_view'] = $per->can_view;
-                            $permissions[$per->module_id]['can_add'] = $per->can_add;
-                            $permissions[$per->module_id]['can_edit'] = $per->can_edit;
-                            $permissions[$per->module_id]['can_certify'] = $per->can_certify;
-                            $permissions[$per->module_id]['can_pay'] = $per->can_pay;
-                            $permissions[$per->module_id]['can_delete'] = $per->can_delete;
-                            $permissions[$per->module_id]['can_report'] = $per->can_report;
+                        
+                        if ($userdata->role_id == 1) {
+                            $company_modules = session('company_modules') ?? [];
+                            foreach ($company_modules as $mod_id) {
+                                $permissions[$mod_id]['can_view'] = 1;
+                                $permissions[$mod_id]['can_add'] = 1;
+                                $permissions[$mod_id]['can_edit'] = 1;
+                                $permissions[$mod_id]['can_certify'] = 1;
+                                $permissions[$mod_id]['can_pay'] = 1;
+                                $permissions[$mod_id]['can_delete'] = 1;
+                                $permissions[$mod_id]['can_report'] = 1;
+                            }
+                        } else {
+                            $perm = DB::connection($compdata->db_conn_name)->table('user_permission')
+                                ->where('user_id', $userdata->id)
+                                ->whereIn('module_id', session('company_modules'))
+                                ->get();
+                                
+                            foreach($perm as $per){
+                                $permissions[$per->module_id]['can_view'] = $per->can_view;
+                                $permissions[$per->module_id]['can_add'] = $per->can_add;
+                                $permissions[$per->module_id]['can_edit'] = $per->can_edit;
+                                $permissions[$per->module_id]['can_certify'] = $per->can_certify;
+                                $permissions[$per->module_id]['can_pay'] = $per->can_pay;
+                                $permissions[$per->module_id]['can_delete'] = $per->can_delete;
+                                $permissions[$per->module_id]['can_report'] = $per->can_report;
+                            }
                         }
 
                         $request->session()->push("permissions", $permissions);

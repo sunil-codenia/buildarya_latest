@@ -67,7 +67,7 @@
         
                                                     <option value="" selected disabled>--Select Project--</option>
 
-                                                    @php $projects = getSalesProjects();@endphp
+                                                    @php $projects = getSalesProjects('ALL_PROJECTS');@endphp
                                                     @foreach($projects as $project)
                                                     @if($project->id == $editdata['project_id'])
                                                     <option selected value="{{$project->id}}">{{$project->name}}</option>
@@ -191,7 +191,10 @@
                                                 <a class="single-user-name" href="#">{{ $dd['sites_type'] }}</a>
                                             </td>
                                             <td>
-                                                <a class="single-user-name" href="#">{{ $dd['project_id'] == '0' ? "No Project" : getSalesProjects($dd['project_id'])->name }}</a>
+                                                <a class="single-user-name" href="#">
+                                                    @php $project_info = getSalesProjects($dd['project_id']); @endphp
+                                                    {{ ($dd['project_id'] == '0' || !$project_info || is_a($project_info, 'Illuminate\Support\Collection')) ? "No Project" : $project_info->name }}
+                                                </a>
                                             </td>
                                             <td>
 
@@ -298,7 +301,7 @@
                                             data-live-search="true" required>
 
                                             <option value="" selected disabled>--Select Project--</option>
-                                            @php $projects = getSalesProjects();@endphp
+                                            @php $projects = getSalesProjects('ALL_PROJECTS');@endphp
                                             @foreach($projects as $project)
                                             <option value="{{$project->id}}">{{$project->name}}</option>
                                             @endforeach

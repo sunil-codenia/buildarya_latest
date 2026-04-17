@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\api;
 
 use App\Http\Controllers\Controller;
+use App\Providers\CompanyDatabaseProvider;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -39,8 +40,6 @@ class CompanyRegistrationController extends Controller
         }
 
         try {
-            DB::beginTransaction();
-
             // =========================
             // ✅ 1. COMPANY LOGIC
             // =========================
@@ -48,6 +47,8 @@ class CompanyRegistrationController extends Controller
             $companyName = $request->input('company.name') ?? $request->input('company_name');
             $companyData = $request->input('company', []);
             $uid = null;
+            $isNewCompany = false;
+            $connName = null;
 
             if ($companyId) {
                 $company = DB::table('companies')->where('id', $companyId)->first();
@@ -56,27 +57,59 @@ class CompanyRegistrationController extends Controller
                 }
                 $companyId = $company->id;
                 $uid = $company->uid;
+                $connName = $company->db_conn_name;
             } elseif ($companyName) {
                 $company = DB::table('companies')->where('name', $companyName)->first();
                 if ($company) {
                     $companyId = $company->id;
                     $uid = $company->uid;
+                    $connName = $company->db_conn_name;
                 } else {
-                    // Create New Company
+                    // --- CREATE NEW COMPANY ---
+                    // DDL statements (CREATE DATABASE, CREATE USER, GRANT) must run
+                    // OUTSIDE any transaction because MySQL auto-commits on DDL.
                     $uid = strtolower(preg_replace('/[^A-Za-z0-9]/', '_', $companyName));
+                    $dbName = 'company_' . $uid;
+                    $dbUser = 'company_' . $uid;
+                    $dbPass = $this->generateDbPassword();
+                    $dbHost = env('DB_HOST', '127.0.0.1');
+                    $dbPort = env('DB_PORT', '3306');
+
+                    // Step 1: Create MySQL database + user (DDL - no transaction)
+                    $this->createCompanyDatabase($dbName, $dbUser, $dbPass, $dbHost);
+
+                    // Step 2: Insert company record into main DB
                     $companyId = DB::table('companies')->insertGetId([
                         'name' => $companyName,
                         'uid' => $uid,
-                        'db_conn_name' => $companyData['db_conn_name'] ?? 'mysql',
+                        'db_name' => $dbName,
+                        'db_conn_name' => $dbName,
+                        'db_host' => $dbHost,
+                        'db_port' => $dbPort,
+                        'db_pass' => $dbPass,
+                        'username' => $dbUser,
+                        'address' => $companyData['address'] ?? null,
+                        'mobile' => $companyData['mobile'] ?? null,
+                        'email' => $companyData['email'] ?? null,
                         'status' => $companyData['status'] ?? 'Active',
                     ]);
+
+                    // Step 3: Dynamically register this new connection
+                    $newCompany = DB::table('companies')->where('id', $companyId)->first();
+                    CompanyDatabaseProvider::registerConnection($newCompany);
+                    $connName = $dbName;
+
+                    // Step 4: Import the template schema into the new database
+                    $this->importTemplateSchema($dbName, $dbUser, $dbPass, $dbHost, $dbPort);
+
+                    $isNewCompany = true;
                 }
             } else {
                 throw new \Exception("Neither company ID nor company name provided.");
             }
 
             // =========================
-            // ✅ 2. PLAN LOGIC
+            // ✅ 2. PLAN LOGIC (main DB)
             // =========================
             $planId = $request->input('company_plan_id') ?? $request->input('user.company_plan_id');
             $planName = $request->input('plan_name');
@@ -84,12 +117,7 @@ class CompanyRegistrationController extends Controller
             if ($planId) {
                 $plan = DB::table('company_plan')->where('id', $planId)->where('company_id', $companyId)->first();
                 if (!$plan) {
-                    // If plan not found for THIS company, check if it was intended to be global or create it
                     $plan = DB::table('company_plan')->where('id', $planId)->first();
-                    if ($plan && $plan->company_id != $companyId) {
-                        // Plan exists but belongs to another company? Handle or throw.
-                        // For now, assume it's valid if ID is explicitly passed.
-                    }
                 }
                 $planId = $plan ? $plan->id : $planId;
             } elseif ($planName) {
@@ -97,7 +125,6 @@ class CompanyRegistrationController extends Controller
                 if ($plan) {
                     $planId = $plan->id;
                 } else {
-                    // Create New Plan
                     $planId = DB::table('company_plan')->insertGetId([
                         'plan_name' => $planName,
                         'company_id' => $companyId,
@@ -108,7 +135,7 @@ class CompanyRegistrationController extends Controller
             }
 
             // =========================
-            // ✅ 3. MODULE LOGIC
+            // ✅ 3. MODULE LOGIC (main DB)
             // =========================
             $moduleIds = $request->input('modules', []);
             $moduleNames = $request->input('module_names', []);
@@ -138,24 +165,39 @@ class CompanyRegistrationController extends Controller
             }
 
             // =========================
-            // ✅ 4. USER LOGIC
+            // ✅ 4. USER LOGIC (company DB)
             // =========================
             $userId = null;
-            if ($request->has('user')) {
-                $userData = $request->user;
+            $userData = $request->input('user');
+
+            if (!empty($userData) && !empty($connName)) {
                 $username = $userData['username'] ?? null;
+                $siteId = $userData['site_id'] ?? 45; // Default to 45 if not provided
+                $roleId = $userData['role_id'] ?? 1;
+
+                // Ensure site exists in tenant DB
+                $existsS = DB::connection($connName)->table('sites')->where('id', $siteId)->exists();
+                if (!$existsS) {
+                    DB::connection($connName)->table('sites')->insert([
+                        'id' => $siteId,
+                        'name' => 'Head Office',
+                        'address' => 'N/A',
+                        'status' => 'Active',
+                        'create_datetime' => now()
+                    ]);
+                }
 
                 if ($username) {
-                    $existingUser = DB::table('users')
+                    $existingUser = DB::connection($connName)->table('users')
                         ->where('username', $username)
-                        ->where('company_id', $companyId)
                         ->first();
 
                     if ($existingUser) {
                         // Update existing user
-                        DB::table('users')->where('id', $existingUser->id)->update([
+                        DB::connection($connName)->table('users')->where('id', $existingUser->id)->update([
                             'name' => $userData['name'] ?? $existingUser->name,
                             'pass' => $userData['pass'] ?? $existingUser->pass,
+                            'company_id' => $companyId,
                             'company_plan_id' => $planId ?? $existingUser->company_plan_id,
                             'site_id' => $userData['site_id'] ?? $existingUser->site_id,
                             'role_id' => $userData['role_id'] ?? $existingUser->role_id,
@@ -164,40 +206,260 @@ class CompanyRegistrationController extends Controller
                         ]);
                         $userId = $existingUser->id;
                     } else {
-                        // Create new user
-                        $userId = DB::table('users')->insertGetId([
+                        // Create new user in company's database
+                        $roleId = $userData['role_id'] ?? 1;
+                        $siteId = $userData['site_id'] ?? null;
+
+                        $userId = DB::connection($connName)->table('users')->insertGetId([
                             'name' => $userData['name'] ?? $username,
                             'username' => $username,
                             'pass' => $userData['pass'] ?? '123456',
                             'company_id' => $companyId,
                             'company_plan_id' => $planId,
-                            'site_id' => $userData['site_id'] ?? null,
-                            'role_id' => $userData['role_id'] ?? null,
+                            'site_id' => $siteId,
+                            'role_id' => $roleId,
                             'status' => $userData['status'] ?? 'Active',
-                            'mobile_only' => $userData['mobile_only'] ?? 'yes',
+                            'mobile_only' => $userData['mobile_only'] ?? 'no',
                             'create_datetime' => now()
                         ]);
+                    }
+
+                    // =========================
+                    // ✅ 4.5 COPY DB ROLES
+                    // =========================
+                    if ($isNewCompany) {
+                        $masterRoles = DB::table('roles')->get()->map(function($role) {
+                            return (array)$role;
+                        })->toArray();
+                        DB::connection($connName)->table('roles')->truncate();
+                        DB::connection($connName)->table('roles')->insert($masterRoles);
+                    }
+
+                    // =========================
+                    // ✅ 5. ROLE & USER PERMISSIONS (company DB)
+                    // =========================
+                    $roleId = $userData['role_id'] ?? 1;
+
+                    if (!empty($moduleIds) && $roleId != 1) {
+                        // Grant other roles full access to all assigned modules on registration
+                        foreach ($moduleIds as $moduleId) {
+                            $existsRP = DB::connection($connName)->table('role_permission')
+                                ->where('role_id', $roleId)
+                                ->where('module_id', $moduleId)
+                                ->exists();
+
+                            if (!$existsRP) {
+                                DB::connection($connName)->table('role_permission')->insert([
+                                    'role_id' => $roleId,
+                                    'module_id' => $moduleId,
+                                    'can_view' => 1,
+                                    'can_add' => 1,
+                                    'can_edit' => 1,
+                                    'can_certify' => 1,
+                                    'can_pay' => 1,
+                                    'can_delete' => 1,
+                                    'can_report' => 1,
+                                    'create_datetime' => now()
+                                ]);
+                            }
+                        }
+
+                        // Grant user full access to all assigned modules
+                        foreach ($moduleIds as $moduleId) {
+                            $existsUP = DB::connection($connName)->table('user_permission')
+                                ->where('user_id', $userId)
+                                ->where('module_id', $moduleId)
+                                ->exists();
+
+                            if (!$existsUP) {
+                                DB::connection($connName)->table('user_permission')->insert([
+                                    'user_id' => $userId,
+                                    'company_plan_id' => $planId,
+                                    'module_id' => $moduleId,
+                                    'can_view' => 1,
+                                    'can_add' => 1,
+                                    'can_edit' => 1,
+                                    'can_certify' => 1,
+                                    'can_pay' => 1,
+                                    'can_delete' => 1,
+                                    'can_report' => 1,
+                                    'create_datetime' => now()
+                                ]);
+                            }
+                        }
                     }
                 }
             }
 
-            DB::commit();
-
             return response()->json([
                 'status' => true,
-                'message' => 'Registration processed successfully',
+                'message' => $isNewCompany
+                    ? 'Company created with new database, user, and permissions successfully'
+                    : 'Registration processed successfully',
                 'company_id' => $companyId,
                 'company_uid' => $uid,
                 'plan_id' => $planId,
-                'user_id' => $userId
+                'user_id' => $userId,
+                'is_new_company' => $isNewCompany,
+                'db_conn_name' => $connName
             ]);
 
         } catch (\Exception $e) {
-            DB::rollBack();
+            \Log::error('Company Registration Error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([
                 'status' => false,
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Create a new MySQL database and user for a company.
+     * NOTE: DDL statements auto-commit in MySQL, so do NOT call this inside a transaction.
+     */
+    private function createCompanyDatabase($dbName, $dbUser, $dbPass, $dbHost)
+    {
+        try {
+            DB::statement("CREATE DATABASE IF NOT EXISTS `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+            $host = ($dbHost === '127.0.0.1' || $dbHost === 'localhost') ? 'localhost' : $dbHost;
+
+            try {
+                DB::statement("CREATE USER '{$dbUser}'@'{$host}' IDENTIFIED BY '{$dbPass}'");
+            } catch (\Exception $e) {
+                if (strpos($e->getMessage(), 'already exists') !== false || $e->getCode() == 'HY000') {
+                    DB::statement("ALTER USER '{$dbUser}'@'{$host}' IDENTIFIED BY '{$dbPass}'");
+                } else {
+                    throw $e;
+                }
+            }
+
+            DB::statement("GRANT ALL PRIVILEGES ON `{$dbName}`.* TO '{$dbUser}'@'{$host}'");
+            
+            // Cross-database JOIN support: Grant SELECT on main DB to company user
+            $mainDb = config('database.connections.mysql.database');
+            DB::statement("GRANT SELECT ON `{$mainDb}`.* TO '{$dbUser}'@'{$host}'");
+            
+            DB::statement("FLUSH PRIVILEGES");
+
+        } catch (\Exception $e) {
+            throw new \Exception("Failed to create database: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Import the template schema SQL into a new company database.
+     * Uses the mysql CLI tool for reliable import (handles comments, multi-line statements).
+     */
+    private function importTemplateSchema($dbName, $dbUser, $dbPass, $dbHost, $dbPort)
+    {
+        $templatePath = base_path('database/company_template.sql');
+
+        if (!file_exists($templatePath)) {
+            throw new \Exception("Company template SQL file not found at: {$templatePath}");
+        }
+
+        // Build mysql command (handle empty password case)
+        $passArg = !empty($dbPass) ? '--password=' . escapeshellarg($dbPass) : '';
+        $cmd = sprintf(
+            'mysql --host=%s --port=%s --user=%s %s %s < %s 2>&1',
+            escapeshellarg($dbHost),
+            escapeshellarg($dbPort),
+            escapeshellarg($dbUser),
+            $passArg,
+            escapeshellarg($dbName),
+            escapeshellarg($templatePath)
+        );
+
+        $output = null;
+        $returnCode = null;
+        exec($cmd, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            $errorMsg = implode("\n", $output);
+            \Log::error("Template SQL import failed (code {$returnCode}): {$errorMsg}");
+
+            // Fallback: try PHP-based import if mysql CLI is not available
+            \Log::info("Trying PHP-based SQL import as fallback...");
+            $this->importTemplateSchemaPHP($dbName, $dbUser, $dbPass, $dbHost, $dbPort);
+        }
+    }
+
+    /**
+     * Fallback: PHP-based template schema import.
+     * Used when mysql CLI tool is not available.
+     */
+    private function importTemplateSchemaPHP($dbName, $dbUser, $dbPass, $dbHost, $dbPort)
+    {
+        $templatePath = base_path('database/company_template.sql');
+        $sql = file_get_contents($templatePath);
+
+        $tempConnName = 'temp_new_company';
+        config([
+            "database.connections.{$tempConnName}" => [
+                'driver'    => 'mysql',
+                'host'      => $dbHost,
+                'port'      => $dbPort,
+                'database'  => $dbName,
+                'username'  => $dbUser,
+                'password'  => $dbPass,
+                'charset'   => 'utf8mb4',
+                'collation' => 'utf8mb4_unicode_ci',
+                'prefix'    => '',
+                'strict'    => false,
+            ]
+        ]);
+
+        try {
+            // Remove comment-only lines from the SQL before splitting
+            $lines = explode("\n", $sql);
+            $cleanedLines = [];
+            foreach ($lines as $line) {
+                $trimmed = trim($line);
+                // Keep empty lines and non-comment lines
+                if ($trimmed === '' || substr($trimmed, 0, 2) !== '--') {
+                    $cleanedLines[] = $line;
+                }
+            }
+            $cleanedSql = implode("\n", $cleanedLines);
+
+            // Split by semicolons
+            $statements = array_filter(
+                array_map('trim', explode(';', $cleanedSql)),
+                function ($stmt) {
+                    return !empty(trim($stmt));
+                }
+            );
+
+            foreach ($statements as $stmt) {
+                $stmt = trim($stmt);
+                if (!empty($stmt)) {
+                    try {
+                        DB::connection($tempConnName)->unprepared($stmt);
+                    } catch (\Exception $e) {
+                        \Log::warning("Template SQL: " . substr($stmt, 0, 80) . " - " . $e->getMessage());
+                    }
+                }
+            }
+
+            DB::purge($tempConnName);
+
+        } catch (\Exception $e) {
+            DB::purge($tempConnName);
+            throw new \Exception("Failed to import template schema: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Generate a secure random password for the database user.
+     */
+    private function generateDbPassword()
+    {
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $password = '';
+        for ($i = 0; $i < 12; $i++) {
+            $password .= $chars[random_int(0, strlen($chars) - 1)];
+        }
+        return '*' . $password . '#';
     }
 }

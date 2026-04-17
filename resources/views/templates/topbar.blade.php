@@ -2,7 +2,8 @@
     <div class="col-12">        
         <div class="navbar-header" style="text-align-last: center;">
             @php   
-             $menu_theme = session()->get('menutheme')[0];
+             $menu_theme_arr = session()->get('menutheme');
+             $menu_theme = is_array($menu_theme_arr) ? $menu_theme_arr[0] : ($menu_theme_arr ?? 'menu_dark');
             if($menu_theme == "menu_light"){
                 $logo="/images/logoblackhori.png";
             }else{

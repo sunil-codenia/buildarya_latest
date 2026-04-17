@@ -28,14 +28,27 @@ function getFinancialYearByDate($date)
 function getSiteDetailsById($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $sites = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->get()[0];
-    return $sites;
+    $site = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->first();
+    if (!$site) {
+        $site = new \stdClass();
+        $site->id = $id;
+        $site->name = 'N/A';
+        $site->status = 'Inactive';
+    }
+    return $site;
 }
 function getRoleDetailsById($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $roles = DB::connection($user_db_conn_name)->table('roles')->where('id', '=', $id)->get()[0];
-    return $roles;
+    $role = DB::connection($user_db_conn_name)->table('roles')->where('id', '=', $id)->first();
+    if (!$role) {
+        $role = new \stdClass();
+        $role->id = $id;
+        $role->name = 'N/A';
+        $role->data_access = 'none';
+        $role->entry_at_site = 'all';
+    }
+    return $role;
 }
 
 function get_site_details_by_ids($ids_str)
@@ -69,16 +82,25 @@ function apply_site_filter($query, $site_id, $column = 'site_id')
     return $query;
 }
 
-function getSalesProjects($id = null)
+function getSalesProjects($id = 'ALL_PROJECTS')
 {
-    if ($id == null) {
-        $user_db_conn_name = session()->get('comp_db_conn_name');
-        $projects = DB::connection($user_db_conn_name)->table('sales_project')->get();
-        return $projects;
+    $user_db_conn_name = session()->get('comp_db_conn_name');
+    if ($id === 'ALL_PROJECTS') {
+        return DB::connection($user_db_conn_name)->table('sales_project')->get();
     } else {
-        $user_db_conn_name = session()->get('comp_db_conn_name');
-        $projects = DB::connection($user_db_conn_name)->table('sales_project')->where('id', $id)->get()[0];
-        return $projects;
+        if (empty($id) || $id == '0') {
+            $project = new \stdClass();
+            $project->id = $id;
+            $project->name = 'N/A';
+            return $project;
+        }
+        $project = DB::connection($user_db_conn_name)->table('sales_project')->where('id', $id)->first();
+        if (!$project) {
+            $project = new \stdClass();
+            $project->id = $id;
+            $project->name = 'N/A';
+        }
+        return $project;
     }
 }
 function getSalesInvoiceBalance($id)
@@ -104,8 +126,14 @@ function getSalesInvoiceBalance($id)
 function getUserDetailsById($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $users = DB::connection($user_db_conn_name)->table('users')->where('id', '=', $id)->get()[0];
-    return $users;
+    $user = DB::connection($user_db_conn_name)->table('users')->where('id', '=', $id)->first();
+    if (!$user) {
+        $user = new \stdClass();
+        $user->id = $id;
+        $user->name = 'N/A';
+        $user->username = 'N/A';
+    }
+    return $user;
 }
 
 
@@ -134,7 +162,12 @@ function getallworkslist()
 function getWorkDetailsById($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $work = DB::connection($user_db_conn_name)->table('bills_work')->where('id', '=', $id)->get()[0];
+    $work = DB::connection($user_db_conn_name)->table('bills_work')->where('id', '=', $id)->first();
+    if (!$work) {
+        $work = new \stdClass();
+        $work->id = $id;
+        $work->name = 'N/A';
+    }
     return $work;
 }
 function getallsites()
@@ -218,22 +251,21 @@ function getcompanyModules()
 }
 function getcompanyModulesName($id)
 {
-    $comp_id = session()->get('comp_db_id');
-    $modules = DB::table('modules')->where('id', '=', $id)->get()[0]->name;
-    return $modules;
+    $module = DB::table('modules')->where('id', '=', $id)->first();
+    return $module ? $module->name : 'N/A';
 }
 function getViewDurationByRole($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $duration = DB::connection($user_db_conn_name)->table('roles')->select('view_duration')->where('id', $id)->get();
-    return $duration[0]->view_duration;
+    $duration = DB::connection($user_db_conn_name)->table('roles')->select('view_duration')->where('id', $id)->first();
+    return $duration ? $duration->view_duration : 'all';
 }
 
 function getAddDurationByRole($id)
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $duration = DB::connection($user_db_conn_name)->table('roles')->select('add_duration')->where('id', $id)->get();
-    return $duration[0]->add_duration;
+    $duration = DB::connection($user_db_conn_name)->table('roles')->select('add_duration')->where('id', $id)->first();
+    return $duration ? $duration->add_duration : 'all';
 }
 function getInitialEntryStatusByRole($id)
 {
@@ -265,7 +297,8 @@ function checkmodulepermission($module_id, $permission)
 
 function isSuperAdmin()
 {
-    return session()->get('is_superadmin') == 'yes';
+    $val = session()->get('is_superadmin');
+    return $val === 'yes' || $val == '1' || session()->get('role') == 1;
 }
 
 function canViewModule($module_id)
@@ -319,13 +352,26 @@ function getAppDataAccess($id = null)
 }
 function getAppSiteDetailsById($id, $user_db_conn_name)
 {
-    $sites = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->get()[0];
-    return $sites;
+    $site = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->first();
+    if (!$site) {
+        $site = new \stdClass();
+        $site->id = $id;
+        $site->name = 'N/A';
+        $site->status = 'Inactive';
+    }
+    return $site;
 }
 function getAppRoleDetailsById($id, $user_db_conn_name)
 {
-    $roles = DB::connection($user_db_conn_name)->table('roles')->where('id', '=', $id)->get()[0];
-    return $roles;
+    $role = DB::connection($user_db_conn_name)->table('roles')->where('id', '=', $id)->first();
+    if (!$role) {
+        $role = new \stdClass();
+        $role->id = $id;
+        $role->name = 'N/A';
+        $role->data_access = 'none';
+        $role->entry_at_site = 'all';
+    }
+    return $role;
 }
 
 
@@ -568,16 +614,16 @@ function getPaymentVoucherPartyInfo($id, $type)
     $data = array();
     if ($type == 'bill') {
         $data['type'] = 'Bill Party';
-        $data['party_status'] = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $id)->get()[0];
+        $data['party_status'] = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $id)->first();
     } else if ($type == 'material') {
         $data['type'] = 'Material Supplier';
-        $data['party_status'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', '=', $id)->get()[0];
+        $data['party_status'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', '=', $id)->first();
     } else if ($type == 'other') {
         $data['type'] = 'Other Party';
-        $data['party_status'] = DB::connection($user_db_conn_name)->table('other_parties')->where('id', '=', $id)->get()[0];
+        $data['party_status'] = DB::connection($user_db_conn_name)->table('other_parties')->where('id', '=', $id)->first();
     } else if ($type == 'site') {
         $data['type'] = 'Site';
-        $data['party_status'] = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->get()[0];
+        $data['party_status'] = DB::connection($user_db_conn_name)->table('sites')->where('id', '=', $id)->first();
     }
 
     return $data;
@@ -1006,7 +1052,8 @@ function sendAlertNotification($user_id, $msg, $title)
     //   $access_token = $this->generateAccessToken();
     $user_db_conn_name = session()->get('comp_db_conn_name');
 
-    $fcm_code =  DB::connection($user_db_conn_name)->table('users')->where('id', '=', $user_id)->get()[0]->fcm_id;
+    $user = DB::connection($user_db_conn_name)->table('users')->where('id', '=', $user_id)->first();
+    $fcm_code = $user ? $user->fcm_id : '';
 
     try {
         $access_token = sendPushNotification();

@@ -18,10 +18,8 @@ class UserController extends Controller
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
-        $main_db = config('database.connections.mysql.database');
-        $query = DB::connection($user_db_conn_name)->table('users')
-            ->leftJoin($main_db . '.companies', $main_db . '.companies.id', '=', 'users.company_id')
-            ->select('users.*', $main_db . '.companies.name as company_name');
+        $query = DB::connection($user_db_conn_name)->table('users');
+        $companyName = $request->session()->get('comp_name', 'N/A');
 
         $totalRecords = $query->count();
 
@@ -96,7 +94,7 @@ class UserController extends Controller
                 }
             }
             $siteInfo = '<strong>'.htmlspecialchars(implode(', ', $site_names)).'</strong>';
-            $companyInfo = '<strong>'.htmlspecialchars($user->company_name ?? 'N/A').'</strong>';
+            $companyInfo = '<strong>'.htmlspecialchars($companyName).'</strong>';
 
             // Other Site Members Avatars (using first assigned site)
             $first_site_id = $assigned_site_ids[0] ?? null;

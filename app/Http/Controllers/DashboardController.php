@@ -318,7 +318,7 @@ class DashboardController extends Controller
         $id = base64_decode($id);
         $assigned_ids = $request->session()->get('assigned_site_ids', []);
         
-        if ($id == 'all' || in_array($id, $assigned_ids) || $request->session()->get('is_superadmin') == 1) {
+        if ($id == 'all' || in_array($id, $assigned_ids) || isSuperAdmin()) {
             $request->session()->put('site_id', $id);
             return redirect('/dashboard')->with('success', 'Site switched successfully!');
         }

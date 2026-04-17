@@ -268,7 +268,7 @@
                                                         href="#">{{ $role['name'] }}</a>
                                                 </strong>
                                             </td>
-                                            <td>{{ $role['is_superadmin'] }}</td>
+                                            <td>{{ $role['id'] == 1 ? 'yes' : 'no' }}</td>
                                             <td class="hidden-md-down">
                                                 <ul class="list-unstyled team-info margin-0">
                                                     @foreach ($users as $ul)
@@ -291,7 +291,7 @@
                                             <td>{{ $role['created_at'] }}</td>
 
                                             <td>
-                                                @if ($role['is_superadmin'] == 'no')
+                                                @if ($role['id'] != 1)
                                                     @if (isSuperAdmin())
                                                         <a class="btn btn-primary btn-sm" title="Manage Permissions"
                                                             href="{{ url('/assign_role_permission?id=' . $role['id']) }}"><i
