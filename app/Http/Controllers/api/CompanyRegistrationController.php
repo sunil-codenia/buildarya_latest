@@ -320,29 +320,46 @@ class CompanyRegistrationController extends Controller
     private function createCompanyDatabase($dbName, $dbUser, $dbPass, $dbHost)
     {
         try {
+            \Log::info("Starting creation of database: {$dbName}");
             DB::statement("CREATE DATABASE IF NOT EXISTS `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            \Log::info("Database `{$dbName}` created or already exists.");
 
-            $host = ($dbHost === '127.0.0.1' || $dbHost === 'localhost') ? 'localhost' : $dbHost;
+            // Determine the host for the MySQL user
+            // If the DB host is local, we use 'localhost'. 
+            // Otherwise, we use '%' to allow connection from any host (common for App/DB separation).
+            $host = ($dbHost === '127.0.0.1' || $dbHost === 'localhost') ? 'localhost' : '%';
+            \Log::info("Using host '{$host}' for user '{$dbUser}'");
 
             try {
                 DB::statement("CREATE USER '{$dbUser}'@'{$host}' IDENTIFIED BY '{$dbPass}'");
+                \Log::info("User '{$dbUser}'@'{$host}' created.");
             } catch (\Exception $e) {
                 if (strpos($e->getMessage(), 'already exists') !== false || $e->getCode() == 'HY000') {
                     DB::statement("ALTER USER '{$dbUser}'@'{$host}' IDENTIFIED BY '{$dbPass}'");
+                    \Log::info("User '{$dbUser}'@'{$host}' already exists, password updated.");
                 } else {
+                    \Log::error("Failed to create/alter user: " . $e->getMessage());
                     throw $e;
                 }
             }
 
             DB::statement("GRANT ALL PRIVILEGES ON `{$dbName}`.* TO '{$dbUser}'@'{$host}'");
+            \Log::info("Privileges granted on `{$dbName}` to '{$dbUser}'@'{$host}'");
             
             // Cross-database JOIN support: Grant SELECT on main DB to company user
             $mainDb = config('database.connections.mysql.database');
-            DB::statement("GRANT SELECT ON `{$mainDb}`.* TO '{$dbUser}'@'{$host}'");
+            try {
+                DB::statement("GRANT SELECT ON `{$mainDb}`.* TO '{$dbUser}'@'{$host}'");
+                \Log::info("Select privileges on main DB `{$mainDb}` granted to '{$dbUser}'@'{$host}'");
+            } catch (\Exception $e) {
+                \Log::warning("Could not grant SELECT on main DB: " . $e->getMessage() . ". Cross-DB joins might fail.");
+            }
             
             DB::statement("FLUSH PRIVILEGES");
+            \Log::info("Privileges flushed.");
 
         } catch (\Exception $e) {
+            \Log::error("Failed to create database/user: " . $e->getMessage());
             throw new \Exception("Failed to create database: " . $e->getMessage());
         }
     }
@@ -356,8 +373,11 @@ class CompanyRegistrationController extends Controller
         $templatePath = base_path('database/company_template.sql');
 
         if (!file_exists($templatePath)) {
+            \Log::error("Template SQL not found: {$templatePath}");
             throw new \Exception("Company template SQL file not found at: {$templatePath}");
         }
+
+        \Log::info("Attempting to import template schema to {$dbName} using CLI...");
 
         // Build mysql command (handle empty password case)
         $passArg = !empty($dbPass) ? '--password=' . escapeshellarg($dbPass) : '';
@@ -377,11 +397,13 @@ class CompanyRegistrationController extends Controller
 
         if ($returnCode !== 0) {
             $errorMsg = implode("\n", $output);
-            \Log::error("Template SQL import failed (code {$returnCode}): {$errorMsg}");
+            \Log::warning("Template SQL import via CLI failed (code {$returnCode}): " . substr($errorMsg, 0, 500));
 
             // Fallback: try PHP-based import if mysql CLI is not available
-            \Log::info("Trying PHP-based SQL import as fallback...");
+            \Log::info("Trying PHP-based SQL import as fallback for {$dbName}...");
             $this->importTemplateSchemaPHP($dbName, $dbUser, $dbPass, $dbHost, $dbPort);
+        } else {
+            \Log::info("Template SQL import via CLI successful for {$dbName}.");
         }
     }
 
