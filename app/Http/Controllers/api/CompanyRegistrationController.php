@@ -230,14 +230,22 @@ class CompanyRegistrationController extends Controller
                     }
 
                     // =========================
-                    // ✅ 4.5 COPY DB ROLES
+                    // ✅ 4.5 SEED DEFAULT ROLES
                     // =========================
                     if ($isNewCompany) {
-                        $masterRoles = DB::table('roles')->get()->map(function($role) {
-                            return (array)$role;
-                        })->toArray();
+                        $defaultRoles = [
+                            ['id' => 1, 'name' => 'SuperAdmin', 'is_superadmin' => 'yes', 'add_duration' => 'anytime', 'view_duration' => 'complete', 'initial_entry_status' => 'Approved', 'entry_at_site' => 'all', 'visiblity_at_site' => 'all', 'created_at' => '2022-12-27 08:54:01', 'data_access' => NULL],
+                            ['id' => 2, 'name' => 'ADMIN', 'is_superadmin' => 'no', 'add_duration' => '1m', 'view_duration' => '6m', 'initial_entry_status' => 'Approved', 'entry_at_site' => 'all', 'visiblity_at_site' => 'all', 'created_at' => '2022-12-27 08:54:27', 'data_access' => NULL],
+                            ['id' => 3, 'name' => 'SUPERVISOR', 'is_superadmin' => 'no', 'add_duration' => 'current', 'view_duration' => '3m', 'initial_entry_status' => 'Pending', 'entry_at_site' => 'current', 'visiblity_at_site' => 'current', 'created_at' => '2023-04-24 05:29:55', 'data_access' => NULL],
+                            ['id' => 4, 'name' => 'SITE INCHARGE', 'is_superadmin' => 'no', 'add_duration' => 'current', 'view_duration' => '1m', 'initial_entry_status' => 'Pending', 'entry_at_site' => 'current', 'visiblity_at_site' => 'current', 'created_at' => '2023-04-24 05:30:19', 'data_access' => NULL],
+                            ['id' => 5, 'name' => 'MANAGER', 'is_superadmin' => 'no', 'add_duration' => 'current', 'view_duration' => '3m', 'initial_entry_status' => 'Pending', 'entry_at_site' => 'current', 'visiblity_at_site' => 'current', 'created_at' => '2023-04-24 05:31:31', 'data_access' => NULL],
+                            ['id' => 6, 'name' => 'General Manager', 'is_superadmin' => 'no', 'add_duration' => 'current', 'view_duration' => '6m', 'initial_entry_status' => 'Pending', 'entry_at_site' => 'all', 'visiblity_at_site' => 'all', 'created_at' => '2023-04-24 05:31:48', 'data_access' => NULL],
+                            ['id' => 7, 'name' => 'EX - EMPLOYEE', 'is_superadmin' => 'no', 'add_duration' => 'current', 'view_duration' => '1m', 'initial_entry_status' => 'Pending', 'entry_at_site' => 'current', 'visiblity_at_site' => 'current', 'created_at' => '2023-04-27 10:40:22', 'data_access' => NULL],
+                            ['id' => 8, 'name' => 'User', 'is_superadmin' => 'no', 'add_duration' => 'anytime', 'view_duration' => '1m', 'initial_entry_status' => 'Pending', 'entry_at_site' => 'current', 'visiblity_at_site' => 'current', 'created_at' => '2026-04-03 18:01:20', 'data_access' => NULL],
+                        ];
                         DB::connection($connName)->table('roles')->truncate();
-                        DB::connection($connName)->table('roles')->insert($masterRoles);
+                        DB::connection($connName)->table('roles')->insert($defaultRoles);
+                        \Log::info("Default roles seeded for company {$companyId}");
                     }
 
                     // =========================
