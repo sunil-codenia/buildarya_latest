@@ -242,12 +242,10 @@ function getMachineryHeadsById($id)
 
 function getcompanyModules()
 {
-    $comp_id = session()->get('comp_db_id');
-    $plan_id = session()->get('company_plan_id');
-    $query = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id);
-    $query->where('company_modules.company_plan_id', '=', $plan_id);
-    $modules = $query->get();
-    return $modules;
+    $plan_id = session()->get('subscription_plan_id');
+    $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
+    $allowedModules = $sub ? json_decode($sub->modules, true) : [];
+    return DB::table('modules')->whereIn('id', $allowedModules)->get();
 }
 function getcompanyModulesName($id)
 {
@@ -297,6 +295,13 @@ function checkmodulepermission($module_id, $permission)
 
 function isSuperAdmin()
 {
+    // Try API Auth first
+    if (auth('sanctum')->check()) {
+        $user = auth('sanctum')->user();
+        return $user->is_superadmin === 'yes' || $user->is_superadmin == '1' || $user->role_id == 1;
+    }
+
+    // Fallback to Session for Website
     $val = session()->get('is_superadmin');
     return $val === 'yes' || $val == '1' || session()->get('role') == 1;
 }
@@ -342,6 +347,7 @@ function getAppDataAccess($id = null)
     $data = [
         'self' => 'User Data',
         'current' => 'Assigned Site Only',
+        'assigned' => 'Assigned Site Only', // Missing key added
         'all' => 'All Sites',
     ];
     if ($id != null) {
@@ -437,6 +443,7 @@ function getsiteEntryAccess($id = null)
 {
     $data = [
         'current' => 'Assigned Site Only',
+        'assigned' => 'Assigned Site Only', // Missing key added
         'all' => 'All Sites',
     ];
     if ($id != null) {

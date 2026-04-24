@@ -39,6 +39,7 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
+            \Illuminate\Session\Middleware\StartSession::class,
             'throttle:60,1',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
@@ -64,5 +65,7 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'module.access' => \App\Http\Middleware\CompanyModuleCheck::class,
+        'tenant' => \App\Http\Middleware\SanctumTenantMiddleware::class,
+        'api-tenant-bootstrap' => \App\Http\Middleware\ApiTenantBootstrapper::class,
     ];
 }

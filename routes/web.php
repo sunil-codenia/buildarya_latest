@@ -36,11 +36,19 @@ use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ExcelImportController;
 use App\Http\Controllers\material\StockController;
 
-Route::get('/', [LoginController::class, 'checkAuth']);
+use App\Http\Controllers\FrontendController;
+
+Route::get('/', [FrontendController::class, 'index']);
+Route::get('/features', [FrontendController::class, 'features']);
+Route::get('/modules', [FrontendController::class, 'modules']);
+Route::get('/pricing', [FrontendController::class, 'pricing']);
+Route::get('/contact', [FrontendController::class, 'contact']);
+Route::get('/privacy-policy', [FrontendController::class, 'privacy']);
+Route::get('/terms-and-conditions', [FrontendController::class, 'terms']);
 
 Route::get('/login', function () {
     return view('login');
-});
+})->name('login');
 Route::post('/loginf', [LoginController::class, 'loginfunc']);
 Route::get('/logout', [LoginController::class, 'logout']);
 
@@ -149,6 +157,8 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/assign_permission', [UserController::class, 'assign_permission']);
         Route::post('/update_user_permission', [UserController::class, 'update_user_permission']);
         Route::get('/update_user_status', [UserController::class, 'update_user_status']);
+        Route::get('/profile', [UserController::class, 'profile']);
+        Route::post('/update_password', [UserController::class, 'updatePassword']);
 
         Route::post('/siteToSiteBalanceTransfer', [SiteController::class, 'siteToSiteBalanceTransfer']);
 

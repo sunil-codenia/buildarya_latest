@@ -50,6 +50,11 @@ class Handler extends ExceptionHandler
      */
     public function render($request, Throwable $exception)
     {
+        // Force API requests to return JSON on errors instead of redirecting to login page (HTML)
+        if ($request->is('api/*')) {
+            $request->headers->set('Accept', 'application/json');
+        }
+
         return parent::render($request, $exception);
     }
 }

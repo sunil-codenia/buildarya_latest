@@ -198,6 +198,7 @@ class UserController extends Controller
         if( $valid_username ==0 ){
 
 
+        $imagePath = "images/noprofile.jpg";
         if (isset($request->image)) {
             $request->validate(
                 [
@@ -213,18 +214,34 @@ class UserController extends Controller
             $request->image->move(public_path('images/app_images/'.$user_db_conn_name.'/users'), $imageName);
             $imagePath = "images/app_images/".$user_db_conn_name."/users/" . $imageName;
         }
+
+        // Logic to automatically assign company's active plan if none provided in request
+        $subscription_plan_id = $request->subscription_plan_id;
+        if (!$subscription_plan_id) {
+            // Priority 1: Inherit from the logged-in SuperAdmin's current session
+            $subscription_plan_id = $request->session()->get('subscription_plan_id');
+
+            // Priority 2: Fallback to latest active plan in DB if session is missing it
+            if (!$subscription_plan_id) {
+                $comp_db_id = $request->session()->get('comp_db_id');
+                $active_plan = DB::table('subscription_plans')
+                    ->where('company_id', $comp_db_id)
+                    ->where('status', 'Active')
+                    ->orderBy('id', 'desc')
+                    ->first();
+                $subscription_plan_id = $active_plan ? $active_plan->id : null;
+            }
+        }
         
-        $image = $imagePath;
         $data = [
             'name' => $name,
             'username' => $username,
             'pass' => $password,
-            'company_id' => $request->company_id,
-            'company_plan_id' => $request->company_plan_id,
+            'subscription_plan_id' => $subscription_plan_id,
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,
-            'image' => $image,
+            'image' => $imagePath,
             'contact_no' => $contact_no,
             'mobile_only'=>$mobile_only,
             'view_duration' => $request->view_duration,
@@ -235,9 +252,9 @@ class UserController extends Controller
             $user_id = DB::connection($user_db_conn_name)->table('users')->insertGetId($data);
             $rolename = getRoleDetailsById($role_id)->name;
             DB::connection($user_db_conn_name)->table('contact')->insert(['profile_id' => "1", 'name' => $name, 'phone'=>$contact_no,'position' => $rolename]);
-            $comp_id = $request->session()->get('comp_db_id');
-            $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-            $modules = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id)->get();
+            $sub = DB::table('subscription_plans')->where('id', $request->subscription_plan_id)->first();
+            $allowedModules = $sub ? json_decode($sub->modules, true) : [];
+            $modules = DB::table('modules')->whereIn('id', $allowedModules)->get();
             
             // Fetch default permissions for the assigned role
             $role_permissions = DB::connection($user_db_conn_name)->table('role_permission')->where('role_id', '=', $role_id)->get()->keyBy('module_id');
@@ -259,7 +276,7 @@ class UserController extends Controller
                 $res = array();
                 $res['user_id'] = $user_id;
                 $res['module_id'] = $module->id;
-                $res['company_plan_id'] = $request->company_plan_id;
+                $res['subscription_plan_id'] = $request->subscription_plan_id;
                 $res['can_view'] = $permission[$module->id]['can_view'];
                 $res['can_add'] = $permission[$module->id]['can_add'];
                 $res['can_delete'] = $permission[$module->id]['can_delete'];
@@ -378,12 +395,30 @@ class UserController extends Controller
         $mobile_only=$request->input('mobile_only');
         $image = $imagePath;
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        // Ensure subscription_plan_id is not wiped if missing from request
+        $subscription_plan_id = $request->subscription_plan_id;
+        if (!$subscription_plan_id) {
+            $existing_user = DB::connection($user_db_conn_name)->table('users')->where('id', $id)->first();
+            $subscription_plan_id = $existing_user ? $existing_user->subscription_plan_id : null;
+        }
+
+        // If still null, try to fallback to company active plan
+        if (!$subscription_plan_id) {
+            $comp_db_id = $request->session()->get('comp_db_id');
+            $active_plan = DB::table('subscription_plans')
+                ->where('company_id', $comp_db_id)
+                ->where('status', 'Active')
+                ->orderBy('id', 'desc')
+                ->first();
+            $subscription_plan_id = $active_plan ? $active_plan->id : null;
+        }
+
         DB::connection($user_db_conn_name)->table('users')->where('id', $id)->update([
             'name' => $name,
             'username' => $username,
             'pass' => $password,
-            'company_id' => $request->company_id,
-            'company_plan_id' => $request->company_plan_id,
+            'subscription_plan_id' => $subscription_plan_id,
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,
@@ -411,14 +446,12 @@ class UserController extends Controller
         $id = $request->get('id');
 
         $comp_id = $request->session()->get('comp_db_id');
-        $plan_id = $request->session()->get('company_plan_id');
+        $plan_id = $request->session()->get('subscription_plan_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
-        $query = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id);
-        if ($plan_id) {
-            $query->where('company_modules.company_plan_id', '=', $plan_id);
-        }
-        $raw_modules = $query->get();
+        $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
+        $allowedModules = $sub ? json_decode($sub->modules, true) : [];
+        $raw_modules = DB::table('modules')->whereIn('id', $allowedModules)->get();
         
         $sidebar_map = [
             1 => 'Sites & Users',
@@ -475,14 +508,12 @@ class UserController extends Controller
         }
         $user_id = $request->input('user_id');
         $comp_id = $request->session()->get('comp_db_id');
-        $plan_id = $request->session()->get('company_plan_id');
+        $plan_id = $request->session()->get('subscription_plan_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
-        $query = DB::table('company_modules')->join('modules', 'modules.id', '=', 'company_modules.module_id')->select('modules.id', 'modules.name')->where('company_modules.company_id', '=', $comp_id);
-        if ($plan_id) {
-            $query->where('company_modules.company_plan_id', '=', $plan_id);
-        }
-        $modules = $query->get();
+        $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
+        $allowedModules = $sub ? json_decode($sub->modules, true) : [];
+        $modules = DB::table('modules')->whereIn('id', $allowedModules)->get();
         $permission = array();
         foreach ($modules as $module) {
 
@@ -553,7 +584,7 @@ class UserController extends Controller
 
             $res['user_id'] = $user_id;
             $res['module_id'] = $module->id;
-            $res['company_plan_id'] = $plan_id;
+            $res['subscription_plan_id'] = $plan_id;
             $res['can_view'] = $permission[$module->id]['can_view'];
             $res['can_add'] = $permission[$module->id]['can_add'];
             $res['can_delete'] = $permission[$module->id]['can_delete'];
@@ -578,5 +609,43 @@ class UserController extends Controller
             }
     }
 
-  
+
+    public function profile(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $user_id = session()->get('uid');
+        
+        $user = DB::connection($user_db_conn_name)->table('users')->where('id', $user_id)->first();
+        
+        if (!$user) {
+            return redirect('/login')->with('error', 'Please login to access profile.');
+        }
+        
+        return view('layouts.users.profile')->with('user', $user);
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|min:5|confirmed',
+        ]);
+
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $user_id = session()->get('uid');
+        
+        $user = DB::connection($user_db_conn_name)->table('users')->where('id', $user_id)->first();
+
+        if ($user->pass !== $request->current_password) {
+            return redirect()->back()->with('error', 'Current password does not match!');
+        }
+
+        DB::connection($user_db_conn_name)->table('users')->where('id', $user_id)->update([
+            'pass' => $request->new_password
+        ]);
+
+        addActivity($user_id, 'users', "User Password Updated", 1);
+
+        return redirect()->back()->with('success', 'Password updated successfully!');
+    }
 }

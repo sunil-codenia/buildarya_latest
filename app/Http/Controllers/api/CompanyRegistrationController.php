@@ -30,6 +30,10 @@ class CompanyRegistrationController extends Controller
             'user.username' => 'sometimes|string|max:255',
             'user.pass' => 'sometimes|string|min:4',
             'user.company_plan_id' => 'sometimes|integer',
+
+            'subscription_plaatform_name' => 'sometimes|string|max:255',
+            'plan_amount' => 'sometimes|numeric',
+            'Expired' => 'sometimes|string',
         ]);
 
         if ($validator->fails()) {
@@ -97,6 +101,9 @@ class CompanyRegistrationController extends Controller
                         'mobile' => $companyData['mobile'] ?? null,
                         'email' => $companyData['email'] ?? null,
                         'status' => $companyData['status'] ?? 'Active',
+                        'subscription_platform_name' => $request->input('subscription_plaatform_name'),
+                        'plan_name' => $request->input('plan_name'),
+                        'expired' => $this->formatExpiryDate($request->input('Expired')),
                     ]);
 
                     // Step 3: Dynamically register this new connection
@@ -131,60 +138,61 @@ class CompanyRegistrationController extends Controller
             }
 
             // =========================
-            // ✅ 2. PLAN LOGIC (main DB)
+            // ✅ 1.5 SUBSCRIPTION LOGIC
             // =========================
-            $planId = $request->input('company_plan_id') ?? $request->input('user.company_plan_id');
-            $planName = $request->input('plan_name');
+            $subPlatform = $request->input('subscription_plaatform_name');
+            $subPlanName = $request->input('plan_name');
+            $subAmount = $request->input('plan_amount');
+            $subExpiry = $request->input('Expired');
+            $formattedExpiry = $this->formatExpiryDate($subExpiry);
+            $planId = null;
 
-            if ($planId) {
-                $plan = DB::table('company_plan')->where('id', $planId)->where('company_id', $companyId)->first();
-                if (!$plan) {
-                    $plan = DB::table('company_plan')->where('id', $planId)->first();
-                }
-                $planId = $plan ? $plan->id : $planId;
-            } elseif ($planName) {
-                $plan = DB::table('company_plan')->where('plan_name', $planName)->where('company_id', $companyId)->first();
-                if ($plan) {
-                    $planId = $plan->id;
-                } else {
-                    $planId = DB::table('company_plan')->insertGetId([
-                        'plan_name' => $planName,
+
+            // Update existing company if needed
+            if (!$isNewCompany) {
+                DB::table('companies')->where('id', $companyId)->update([
+                    'subscription_platform_name' => $subPlatform,
+                    'plan_name' => $subPlanName,
+                    'expired' => $formattedExpiry,
+                ]);
+            }
+
+            // Sync subscription_plans
+            if ($subPlatform && $subPlanName) {
+                $planExists = DB::table('subscription_plans')
+                    ->where('company_id', $companyId)
+                    ->where('platform_name', $subPlatform)
+                    ->where('plan_name', $subPlanName)
+                    ->first();
+                
+                if (!$planExists) {
+                    $planId = DB::table('subscription_plans')->insertGetId([
                         'company_id' => $companyId,
+                        'platform_name' => $subPlatform,
+                        'plan_name' => $subPlanName,
+                        'plan_amount' => $subAmount,
+                        'expiry_date' => $formattedExpiry,
+                        'modules' => json_encode($request->input('modules', [])),
+                        'status' => 'Active',
                         'created_at' => now(),
                         'updated_at' => now()
                     ]);
-                }
-            }
-
-            // =========================
-            // ✅ 3. MODULE LOGIC (main DB)
-            // =========================
-            $moduleIds = $request->input('modules', []);
-            $moduleNames = $request->input('module_names', []);
-
-            if (!empty($moduleNames)) {
-                $foundModuleIds = DB::table('modules')->whereIn('name', $moduleNames)->pluck('id')->toArray();
-                $moduleIds = array_unique(array_merge($moduleIds, $foundModuleIds));
-            }
-
-            if (!empty($moduleIds)) {
-                foreach ($moduleIds as $moduleId) {
-                    $exists = DB::table('company_modules')
-                        ->where('company_id', $companyId)
-                        ->where('module_id', $moduleId)
-                        ->where('company_plan_id', $planId)
-                        ->exists();
-
-                    if (!$exists) {
-                        DB::table('company_modules')->insert([
-                            'company_id' => $companyId,
-                            'module_id' => $moduleId,
-                            'company_plan_id' => $planId,
-                            'created_at' => now()
+                } else {
+                    $planId = $planExists->id;
+                    DB::table('subscription_plans')
+                        ->where('id', $planId)
+                        ->update([
+                            'plan_amount' => $subAmount,
+                            'expiry_date' => $formattedExpiry,
+                            'modules' => json_encode($request->input('modules', [])),
+                            'updated_at' => now()
                         ]);
-                    }
                 }
             }
+
+
+
+
 
             // =========================
             // ✅ 4. USER LOGIC (company DB)
@@ -219,9 +227,9 @@ class CompanyRegistrationController extends Controller
                         DB::connection($connName)->table('users')->where('id', $existingUser->id)->update([
                             'name' => $userData['name'] ?? $existingUser->name,
                             'pass' => $userData['pass'] ?? $existingUser->pass,
-                            'company_id' => $companyId,
                             'company_plan_id' => $planId ?? $existingUser->company_plan_id,
                             'site_id' => $userData['site_id'] ?? $existingUser->site_id,
+
                             'role_id' => $userData['role_id'] ?? $existingUser->role_id,
                             'status' => $userData['status'] ?? $existingUser->status,
                             'mobile_only' => $userData['mobile_only'] ?? $existingUser->mobile_only,
@@ -236,9 +244,9 @@ class CompanyRegistrationController extends Controller
                             'name' => $userData['name'] ?? $username,
                             'username' => $username,
                             'pass' => $userData['pass'] ?? '123456',
-                            'company_id' => $companyId,
                             'company_plan_id' => $planId,
                             'site_id' => $siteId,
+
                             'role_id' => $roleId,
                             'status' => $userData['status'] ?? 'Active',
                             'mobile_only' => $userData['mobile_only'] ?? 'no',
@@ -495,5 +503,18 @@ class CompanyRegistrationController extends Controller
             $password .= $chars[random_int(0, strlen($chars) - 1)];
         }
         return '*' . $password . '#';
+    }
+
+    /**
+     * Helper to format expiry date from d-m-Y to Y-m-d.
+     */
+    private function formatExpiryDate($date)
+    {
+        if (!$date) return null;
+        try {
+            return \Carbon\Carbon::createFromFormat('d-m-Y', $date)->format('Y-m-d');
+        } catch (\Exception $e) {
+            return $date;
+        }
     }
 }

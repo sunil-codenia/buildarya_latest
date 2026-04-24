@@ -14,6 +14,9 @@ class CompanyPlanController extends Controller
         $validator = Validator::make($request->all(), [
             'plan_name' => 'required|string|max:255',
             'company_id' => 'required|integer|exists:companies,id',
+            'platform_name' => 'sometimes|string|max:255',
+            'plan_amount' => 'sometimes|numeric',
+            'expiry_date' => 'sometimes|string',
             'modules' => 'sometimes|array',
             'modules.*' => 'integer'
         ]);
@@ -28,29 +31,26 @@ class CompanyPlanController extends Controller
         try {
             DB::beginTransaction();
 
-            $planId = DB::table('company_plan')->insertGetId([
-                'plan_name' => $request->plan_name,
+            $platformName = $request->input('platform_name', 'Default');
+            $expiryDate = $request->has('expiry_date') ? \Carbon\Carbon::parse($request->expiry_date)->format('Y-m-d') : null;
+
+            $planId = DB::table('subscription_plans')->insertGetId([
                 'company_id' => $request->company_id,
+                'platform_name' => $platformName,
+                'plan_name' => $request->plan_name,
+                'plan_amount' => $request->input('plan_amount', 0),
+                'expiry_date' => $expiryDate,
+                'modules' => json_encode($request->input('modules', [])),
+                'status' => 'Active',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-
-            if ($request->has('modules')) {
-                foreach ($request->modules as $moduleId) {
-                    DB::table('company_modules')->insert([
-                        'company_id' => $request->company_id,
-                        'company_plan_id' => $planId,
-                        'module_id' => $moduleId,
-                        'created_at' => now()
-                    ]);
-                }
-            }
 
             DB::commit();
 
             return response()->json([
                 'status' => true,
-                'message' => 'Company plan created successfully',
+                'message' => 'Subscription plan created successfully',
                 'plan_id' => $planId
             ]);
 

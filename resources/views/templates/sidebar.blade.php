@@ -8,10 +8,12 @@
                     <div class="image"><a href="{{url('/dashboard')}}" target="_blank"><img src="{{ asset('/' . Session::get('image')) }}" alt="User"></a></div>
                     <div class="detail">
                         <h4>{{Session::get('name')}}</h4>
-                        <small>{{Session::get('comp_name')}} ({{getRoleDetailsById(Session::get('role'))->name}})</small>                        
+                        <small>{{Session::get('comp_name')}} ({{getRoleDetailsById(Session::get('role'))->name}})</small><br>
+                        <small style="color: #FFC107;">Expires: {{ Session::get('expiry_date') }}</small>
                     </div>
-                    <a href="{{url('/dashboard')}}" title="Events" target="_blank"><i class="zmdi zmdi-home"></i></a>
-                    <a href="{{url('/contacts')}}" title="Contact List" target="_blank"><i class="zmdi zmdi-account-box-phone"></i></a>
+                    <a href="{{url('/profile')}}" title="Profile & Password"><i class="zmdi zmdi-account"></i></a>
+                    <a href="{{url('/dashboard')}}" title="Dashboard"><i class="zmdi zmdi-home"></i></a>
+                    <a href="{{url('/contacts')}}" title="Contact List"><i class="zmdi zmdi-account-box-phone"></i></a>
                     <a href="{{url('/file-structure')}}" title="Chat App" target="_blank"><i class="zmdi zmdi-folder-star"></i></a>
                     <a href="{{url('/activity')}}" title="Chat App" target="_blank"><i class="zmdi zmdi-chart"></i></a>
                    

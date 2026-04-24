@@ -17,15 +17,18 @@ class LoginController extends Controller
 
         $users = DB::table('companies')->select('id', 'name', 'db_name', 'db_pass', 'db_host', 'db_port', 'status')->where('uid', $uid)->count();
         if ($users == 1) {
-            $compdata = DB::table('companies')->select('id', 'uid', 'name', 'db_conn_name', 'status','address','mobile','email')->where('uid', $uid)->first();
+            $compdata = DB::table('companies')->select('id', 'uid', 'name', 'db_conn_name', 'status','address','mobile','email', 'expired')->where('uid', $uid)->first();
             if ($compdata->status == 'Active') {
                 $usercount = DB::connection($compdata->db_conn_name)->table('users')->where('username', '=', $uname)->where('pass', '=', $pass)->count();
                 if ($usercount == 1) {
                     $userdata = DB::connection($compdata->db_conn_name)->table('users')->where('username', '=', $uname)->where('pass', '=', $pass)->first();
                     
-                    // Verify Company ID Match
-                    if ($userdata->company_id != $compdata->id) {
-                        return view('/login')->with('errorcode', "This User is not assigned to this Company! Please check Company ID.");
+                    // Expiry Check (Allow login on the day of expiration)
+                    if (!empty($compdata->expired)) {
+                        $expiry_date = Carbon::parse($compdata->expired)->startOfDay();
+                        if (Carbon::now()->startOfDay()->gt($expiry_date)) {
+                            return view('/login')->with('errorcode', "Your subscription has expired on " . $expiry_date->format('d M Y') . ". Please contact support for renewal!");
+                        }
                     }
 
                     if ($userdata->status == "Active") {
@@ -36,6 +39,12 @@ class LoginController extends Controller
 
                         $key =   $request->session()->regenerate();
                         $mytime = Carbon::now();
+                        $company_modules = [];
+                        if ($userdata->subscription_plan_id) {
+                            $sub = DB::table('subscription_plans')->where('id', $userdata->subscription_plan_id)->first();
+                            $company_modules = $sub ? json_decode($sub->modules, true) : [];
+                        }
+
                         session([
                             'key' => $key,
                             "uid" => $userdata->id,
@@ -58,24 +67,17 @@ class LoginController extends Controller
                             "comp_db_conn_name" => $compdata->db_conn_name,
                             "view_duration" => !empty($userdata->view_duration) ? $userdata->view_duration : ($roledata ? $roledata->view_duration : ($userdata->role_id == 1 ? 'all' : 'complete')),
                             "add_duration" => !empty($userdata->add_duration) ? $userdata->add_duration : ($roledata ? $roledata->add_duration : ($userdata->role_id == 1 ? 'all' : 'anytime')),
-                            "company_plan_id" => $userdata->company_plan_id,
-                            "company_plan_id" => $userdata->company_plan_id,
-                            "company_modules" => $userdata->company_plan_id 
-                                ? DB::table('company_modules')
-                                    ->where('company_id', $compdata->id)
-                                    ->where('company_plan_id', $userdata->company_plan_id)
-                                    ->pluck('module_id')->toArray()
-                                : DB::table('company_modules')
-                                    ->where('company_id', $compdata->id)
-                                    ->pluck('module_id')->toArray()
-                        ]);
+                             "subscription_plan_id" => $userdata->subscription_plan_id,
+                             "expiry_date" => !empty($compdata->expired) ? Carbon::parse($compdata->expired)->format('d M Y') : 'N/A',
+                             "raw_expiry_date" => $compdata->expired,
+                             "company_modules" => $company_modules
+                         ]);
                         foreach ($settings as $setting) {
                             $request->session()->push($setting->name, $setting->value);
                         }
                         $permissions = array();
                         
                         if ($userdata->role_id == 1) {
-                            $company_modules = session('company_modules') ?? [];
                             foreach ($company_modules as $mod_id) {
                                 $permissions[$mod_id]['can_view'] = 1;
                                 $permissions[$mod_id]['can_add'] = 1;
@@ -88,8 +90,16 @@ class LoginController extends Controller
                         } else {
                             $perm = DB::connection($compdata->db_conn_name)->table('user_permission')
                                 ->where('user_id', $userdata->id)
-                                ->whereIn('module_id', session('company_modules'))
+                                ->whereIn('module_id', $company_modules)
                                 ->get();
+                                
+                            // Fallback to role_permission if user_permission is empty
+                            if ($perm->isEmpty()) {
+                                $perm = DB::connection($compdata->db_conn_name)->table('role_permission')
+                                    ->where('role_id', $userdata->role_id)
+                                    ->whereIn('module_id', $company_modules)
+                                    ->get();
+                            }
                                 
                             foreach($perm as $per){
                                 $permissions[$per->module_id]['can_view'] = $per->can_view;

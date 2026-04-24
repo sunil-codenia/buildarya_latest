@@ -9,7 +9,7 @@ SET NAMES utf8mb4;
 -- --------------------------------------------------------
 
 CREATE TABLE `activity` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `uid` int(11) DEFAULT NULL,
   `ref_id` int(11) NOT NULL,
   `ref_table` varchar(250) NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE `activity` (
 -- --------------------------------------------------------
 
 CREATE TABLE `assets` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(500) NOT NULL,
   `head_id` int(11) NOT NULL,
   `cost_price` varchar(500) NOT NULL,
@@ -36,21 +36,21 @@ CREATE TABLE `assets` (
 -- --------------------------------------------------------
 
 CREATE TABLE `assets_expense_head` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `head_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `asset_head` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(250) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `asset_transaction` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `asset_id` int(11) NOT NULL,
   `from_site` int(11) DEFAULT NULL,
   `to_site` int(11) DEFAULT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE `asset_transaction` (
 -- --------------------------------------------------------
 
 CREATE TABLE `bills_party` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   `address` varchar(500) DEFAULT NULL,
   `panno` varchar(50) DEFAULT NULL,
@@ -79,7 +79,7 @@ CREATE TABLE `bills_party` (
 -- --------------------------------------------------------
 
 CREATE TABLE `bills_rate` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `work_id` varchar(255) DEFAULT NULL,
   `rate` varchar(255) NOT NULL,
   `site_id` varchar(50) NOT NULL
@@ -88,7 +88,7 @@ CREATE TABLE `bills_rate` (
 -- --------------------------------------------------------
 
 CREATE TABLE `bills_work` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
   `unit` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -96,7 +96,7 @@ CREATE TABLE `bills_work` (
 -- --------------------------------------------------------
 
 CREATE TABLE `bill_party_payments` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `party_id` int(11) NOT NULL,
   `amount` varchar(250) NOT NULL,
   `remark` varchar(2000) DEFAULT NULL,
@@ -107,7 +107,7 @@ CREATE TABLE `bill_party_payments` (
 -- --------------------------------------------------------
 
 CREATE TABLE `bill_party_statement` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `party_id` int(11) NOT NULL,
   `type` varchar(200) NOT NULL,
   `particular` varchar(2000) NOT NULL,
@@ -121,7 +121,7 @@ CREATE TABLE `bill_party_statement` (
 -- --------------------------------------------------------
 
 CREATE TABLE `contact` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `profile_id` int(11) NOT NULL,
   `name` varchar(255) NOT NULL,
   `phone` varchar(255) NOT NULL,
@@ -132,7 +132,7 @@ CREATE TABLE `contact` (
 -- --------------------------------------------------------
 
 CREATE TABLE `contact_profile` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `comp_name` varchar(255) NOT NULL,
   `contact_name` varchar(255) NOT NULL,
   `mobile` varchar(255) DEFAULT NULL,
@@ -143,7 +143,7 @@ CREATE TABLE `contact_profile` (
 -- --------------------------------------------------------
 
 CREATE TABLE `data_time` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `type` varchar(250) NOT NULL,
   `from_date` varchar(250) NOT NULL,
   `to_date` varchar(250) NOT NULL
@@ -152,14 +152,14 @@ CREATE TABLE `data_time` (
 -- --------------------------------------------------------
 
 CREATE TABLE `doc_head` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `doc_head_option` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `head_id` int(11) NOT NULL,
   `name` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -167,7 +167,7 @@ CREATE TABLE `doc_head_option` (
 -- --------------------------------------------------------
 
 CREATE TABLE `doc_meta` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `doc_id` int(11) NOT NULL,
   `head_id` int(11) NOT NULL,
   `option_id` int(11) NOT NULL,
@@ -177,7 +177,7 @@ CREATE TABLE `doc_meta` (
 -- --------------------------------------------------------
 
 CREATE TABLE `doc_upload` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
   `path` varchar(255) NOT NULL,
   `date` date DEFAULT NULL,
@@ -191,7 +191,7 @@ CREATE TABLE `doc_upload` (
 -- --------------------------------------------------------
 
 CREATE TABLE `expenses` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `party_id` varchar(255) NOT NULL,
   `party_type` varchar(250) NOT NULL,
   `head_id` varchar(255) NOT NULL,
@@ -212,14 +212,14 @@ CREATE TABLE `expenses` (
 -- --------------------------------------------------------
 
 CREATE TABLE `expense_head` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `expense_party` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   `address` varchar(500) DEFAULT NULL,
   `pan_no` varchar(15) DEFAULT NULL,
@@ -232,7 +232,7 @@ CREATE TABLE `expense_party` (
 -- --------------------------------------------------------
 
 CREATE TABLE `machinery_details` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(500) NOT NULL,
   `head_id` int(11) DEFAULT NULL,
   `status` varchar(250) NOT NULL DEFAULT 'Working',
@@ -246,7 +246,7 @@ CREATE TABLE `machinery_details` (
 -- --------------------------------------------------------
 
 CREATE TABLE `machinery_documents` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `machinery_id` int(11) NOT NULL,
   `name` varchar(500) NOT NULL,
   `issue_date` date NOT NULL,
@@ -259,21 +259,21 @@ CREATE TABLE `machinery_documents` (
 -- --------------------------------------------------------
 
 CREATE TABLE `machinery_expense_head` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `head_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `machinery_head` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(250) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `machinery_services` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `machinery_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
   `maintainence_item` varchar(2000) NOT NULL,
@@ -290,7 +290,7 @@ CREATE TABLE `machinery_services` (
 -- --------------------------------------------------------
 
 CREATE TABLE `machinery_transaction` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `machinery_id` int(11) NOT NULL,
   `from_site` int(11) DEFAULT NULL,
   `to_site` int(11) DEFAULT NULL,
@@ -302,14 +302,14 @@ CREATE TABLE `machinery_transaction` (
 -- --------------------------------------------------------
 
 CREATE TABLE `materials` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `material_consumption` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `material_id` int(11) NOT NULL,
   `site_id` int(11) NOT NULL,
   `qty` varchar(250) NOT NULL,
@@ -327,7 +327,7 @@ CREATE TABLE `material_consumption` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_conversion_rules` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `material_id` int(11) NOT NULL,
   `from_unit` int(11) NOT NULL,
   `to_unit` int(11) NOT NULL,
@@ -339,7 +339,7 @@ CREATE TABLE `material_conversion_rules` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_entry` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `supplier` varchar(255) NOT NULL,
   `material_id` varchar(255) NOT NULL,
   `unit` varchar(255) NOT NULL,
@@ -363,7 +363,7 @@ CREATE TABLE `material_entry` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_reconsilation_data` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `reconsilation_id` int(11) NOT NULL,
   `material_id` int(11) NOT NULL,
   `system_qty` varchar(250) NOT NULL,
@@ -375,7 +375,7 @@ CREATE TABLE `material_reconsilation_data` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_reconsilation_record` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `site_id` int(11) NOT NULL,
   `requested_by` int(11) NOT NULL,
   `upload_by` int(11) DEFAULT NULL,
@@ -389,7 +389,7 @@ CREATE TABLE `material_reconsilation_record` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_site_transfers` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `material_id` int(11) NOT NULL,
   `qty` varchar(250) NOT NULL,
   `unit` int(11) NOT NULL,
@@ -405,7 +405,7 @@ CREATE TABLE `material_site_transfers` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_stock_record` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `material_id` int(11) NOT NULL,
   `site_id` int(11) NOT NULL,
   `qty` varchar(250) NOT NULL,
@@ -416,7 +416,7 @@ CREATE TABLE `material_stock_record` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_stock_transactions` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `site_id` int(11) NOT NULL,
   `material_id` int(11) NOT NULL,
   `qty` varchar(250) NOT NULL,
@@ -430,7 +430,7 @@ CREATE TABLE `material_stock_transactions` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_supplier` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   `address` varchar(255) DEFAULT NULL,
   `gstin` varchar(20) DEFAULT NULL,
@@ -446,7 +446,7 @@ CREATE TABLE `material_supplier` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_supplier_statement` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `supplier_id` int(11) NOT NULL,
   `type` varchar(250) NOT NULL,
   `entry_id` int(11) DEFAULT NULL,
@@ -457,7 +457,7 @@ CREATE TABLE `material_supplier_statement` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_units_conversion_record` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `material_id` int(11) NOT NULL,
   `qty` varchar(250) NOT NULL,
   `from_unit` int(11) NOT NULL,
@@ -473,7 +473,7 @@ CREATE TABLE `material_units_conversion_record` (
 -- --------------------------------------------------------
 
 CREATE TABLE `material_wastage` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `material_id` int(11) NOT NULL,
   `site_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
@@ -491,7 +491,7 @@ CREATE TABLE `material_wastage` (
 -- --------------------------------------------------------
 
 CREATE TABLE `new_bills_item_entry` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `work_id` varchar(255) NOT NULL,
   `unit` varchar(255) NOT NULL,
   `rate` varchar(255) NOT NULL,
@@ -503,7 +503,7 @@ CREATE TABLE `new_bills_item_entry` (
 -- --------------------------------------------------------
 
 CREATE TABLE `new_bill_entry` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `party_id` varchar(255) NOT NULL,
   `bill_no` varchar(255) NOT NULL,
   `site_id` varchar(255) NOT NULL,
@@ -520,7 +520,7 @@ CREATE TABLE `new_bill_entry` (
 -- --------------------------------------------------------
 
 CREATE TABLE `other_parties` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(250) NOT NULL,
   `panno` varchar(15) DEFAULT NULL,
   `address` varchar(500) DEFAULT NULL,
@@ -536,7 +536,7 @@ CREATE TABLE `other_parties` (
 -- --------------------------------------------------------
 
 CREATE TABLE `other_party_statement` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `party_id` int(11) NOT NULL,
   `type` varchar(250) NOT NULL,
   `payment_voucher_id` int(11) NOT NULL,
@@ -546,7 +546,7 @@ CREATE TABLE `other_party_statement` (
 -- --------------------------------------------------------
 
 CREATE TABLE `payment_vouchers` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `company_id` varchar(250) NOT NULL,
   `site_id` varchar(250) NOT NULL,
   `party_type` varchar(250) NOT NULL,
@@ -569,7 +569,7 @@ CREATE TABLE `payment_vouchers` (
 -- --------------------------------------------------------
 
 CREATE TABLE `rights` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(50) NOT NULL,
   `symbol` varchar(50) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -577,7 +577,7 @@ CREATE TABLE `rights` (
 -- --------------------------------------------------------
 
 CREATE TABLE `roles` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(250) NOT NULL,
   `is_superadmin` varchar(250) NOT NULL DEFAULT 'no',
   `data_access` varchar(250) DEFAULT 'current',
@@ -592,7 +592,7 @@ CREATE TABLE `roles` (
 -- --------------------------------------------------------
 
 CREATE TABLE `sales_company` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   `address` varchar(255) DEFAULT NULL,
   `phone` varchar(255) DEFAULT NULL,
@@ -606,7 +606,7 @@ CREATE TABLE `sales_company` (
 -- --------------------------------------------------------
 
 CREATE TABLE `sales_dedadd` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(250) NOT NULL,
   `type` varchar(250) NOT NULL,
   `create_datetime` datetime NOT NULL DEFAULT current_timestamp()
@@ -615,7 +615,7 @@ CREATE TABLE `sales_dedadd` (
 -- --------------------------------------------------------
 
 CREATE TABLE `sales_invoice` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `company_id` varchar(250) DEFAULT NULL,
   `project_id` varchar(250) DEFAULT NULL,
   `party_id` varchar(250) DEFAULT NULL,
@@ -634,7 +634,7 @@ CREATE TABLE `sales_invoice` (
 -- --------------------------------------------------------
 
 CREATE TABLE `sales_manage_invoice` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `invoice_id` varchar(250) NOT NULL,
   `type_id` varchar(250) NOT NULL,
   `amount` varchar(250) NOT NULL,
@@ -647,7 +647,7 @@ CREATE TABLE `sales_manage_invoice` (
 -- --------------------------------------------------------
 
 CREATE TABLE `sales_party` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(250) DEFAULT NULL,
   `address` varchar(250) DEFAULT NULL,
   `phone` varchar(250) DEFAULT NULL,
@@ -661,7 +661,7 @@ CREATE TABLE `sales_party` (
 -- --------------------------------------------------------
 
 CREATE TABLE `sales_project` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(250) DEFAULT NULL,
   `details` varchar(250) DEFAULT NULL,
   `status` varchar(250) NOT NULL DEFAULT 'Active',
@@ -677,7 +677,7 @@ CREATE TABLE `session` (
   `login_time` datetime DEFAULT NULL,
   `last_activity` varchar(500) DEFAULT NULL,
   `ip_address` varchar(500) DEFAULT NULL,
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `browser` varchar(500) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -688,14 +688,14 @@ CREATE TABLE `settings` (
   `name` varchar(200) NOT NULL,
   `uid` varchar(200) NOT NULL,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `sites` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
   `address` varchar(1000) NOT NULL,
   `status` varchar(250) NOT NULL DEFAULT 'Active',
@@ -707,7 +707,7 @@ CREATE TABLE `sites` (
 -- --------------------------------------------------------
 
 CREATE TABLE `sites_transaction` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `site_id` varchar(250) NOT NULL,
   `type` varchar(250) NOT NULL,
   `expense_id` varchar(200) DEFAULT NULL,
@@ -719,7 +719,7 @@ CREATE TABLE `sites_transaction` (
 -- --------------------------------------------------------
 
 CREATE TABLE `site_payments` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `site_id` varchar(250) NOT NULL,
   `amount` varchar(250) NOT NULL,
   `remark` varchar(2000) NOT NULL,
@@ -730,7 +730,7 @@ CREATE TABLE `site_payments` (
 -- --------------------------------------------------------
 
 CREATE TABLE `tasks` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `project_id` int(11) NOT NULL,
   `site_id` int(11) NOT NULL,
   `parent_task_id` int(11) DEFAULT NULL,
@@ -748,7 +748,7 @@ CREATE TABLE `tasks` (
 -- --------------------------------------------------------
 
 CREATE TABLE `task_progress` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `task_id` int(11) NOT NULL,
   `completed_units` varchar(250) NOT NULL,
   `date` varchar(250) NOT NULL,
@@ -764,18 +764,17 @@ CREATE TABLE `task_progress` (
 -- --------------------------------------------------------
 
 CREATE TABLE `units` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 CREATE TABLE `users` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `name` varchar(250) NOT NULL,
   `username` varchar(250) NOT NULL,
   `pass` varchar(250) NOT NULL,
-  `company_id` int(11) DEFAULT NULL,
   `company_plan_id` int(11) DEFAULT NULL,
   `site_id` varchar(200) NOT NULL,
   `role_id` int(11) NOT NULL,
@@ -793,7 +792,7 @@ CREATE TABLE `users` (
 -- --------------------------------------------------------
 
 CREATE TABLE `role_permission` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `role_id` int(11) NOT NULL,
   `module_id` int(11) NOT NULL,
   `can_view` int(11) NOT NULL DEFAULT 0,
@@ -809,7 +808,7 @@ CREATE TABLE `role_permission` (
 -- --------------------------------------------------------
 
 CREATE TABLE `user_permission` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `company_plan_id` int(11) DEFAULT NULL,
   `module_id` int(11) NOT NULL,
@@ -826,7 +825,7 @@ CREATE TABLE `user_permission` (
 -- --------------------------------------------------------
 
 CREATE TABLE `user_sites` (
-  `id` int(11) NOT NULL,
+  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `site_id` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
@@ -835,410 +834,282 @@ CREATE TABLE `user_sites` (
 -- Indexes and AUTO_INCREMENT
 
 ALTER TABLE `role_permission`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `role_permission`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `activity`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `activity`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `assets`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `expense_id` (`expense_id`);
 
 ALTER TABLE `assets`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `assets_expense_head`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `head_id` (`head_id`);
 
 ALTER TABLE `assets_expense_head`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `asset_head`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
 
 ALTER TABLE `asset_head`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `asset_transaction`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `asset_transaction`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `bills_party`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `bills_party`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `bills_rate`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `bills_rate`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `bills_work`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `bills_work`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `bill_party_payments`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `bill_party_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `bill_party_statement`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `expense_id` (`expense_id`),
   ADD UNIQUE KEY `bill_no` (`bill_no`),
   ADD UNIQUE KEY `payment_id` (`payment_id`),
   ADD UNIQUE KEY `payment_voucher_id` (`payment_voucher_id`);
 
 ALTER TABLE `bill_party_statement`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `contact`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `contact`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `contact_profile`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `contact_profile`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `data_time`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `data_time`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `doc_head`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `doc_head`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `doc_head_option`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `doc_head_option`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `doc_meta`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `doc_meta`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `doc_upload`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `doc_upload`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `expenses`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `expenses`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `expense_head`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
 
 ALTER TABLE `expense_head`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `expense_party`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `expense_party`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `machinery_details`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `machinery_details`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `machinery_documents`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `machinery_documents`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `machinery_expense_head`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `machinery_expense_head`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `machinery_head`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `machinery_head`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `machinery_services`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `machinery_services`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `machinery_transaction`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `machinery_transaction`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `materials`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `materials`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_consumption`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_consumption`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_conversion_rules`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_conversion_rules`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_entry`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_entry`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_reconsilation_data`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_reconsilation_data`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_reconsilation_record`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_reconsilation_record`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_site_transfers`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_site_transfers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `material_stock_record`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_stock_record`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_stock_transactions`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_stock_transactions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_supplier`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_supplier`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_supplier_statement`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_supplier_statement`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_units_conversion_record`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_units_conversion_record`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `material_wastage`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `material_wastage`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `new_bills_item_entry`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `new_bills_item_entry`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `new_bill_entry`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `bill_no` (`bill_no`);
 
 ALTER TABLE `new_bill_entry`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `other_parties`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`),
   ADD UNIQUE KEY `panno` (`panno`);
 
 ALTER TABLE `other_parties`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `other_party_statement`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `other_party_statement`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `payment_vouchers`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `voucher_no` (`voucher_no`);
 
 ALTER TABLE `payment_vouchers`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `rights`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `rights`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `roles`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
 
 ALTER TABLE `roles`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `sales_company`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `gst` (`gst`),
   ADD UNIQUE KEY `name` (`name`);
 
 ALTER TABLE `sales_company`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `sales_dedadd`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
 
 ALTER TABLE `sales_dedadd`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `sales_invoice`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `invoice_no` (`invoice_no`);
 
 ALTER TABLE `sales_invoice`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `sales_manage_invoice`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `sales_manage_invoice`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `sales_party`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
 
 ALTER TABLE `sales_party`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `sales_project`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
 
 ALTER TABLE `sales_project`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `session`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `session`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `settings`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `name` (`name`);
 
 ALTER TABLE `settings`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `sites`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `sites`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `sites_transaction`
-  ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `expense_id` (`expense_id`),
   ADD UNIQUE KEY `payment_id` (`payment_id`);
 
 ALTER TABLE `sites_transaction`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `site_payments`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `site_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `tasks`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `tasks`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `task_progress`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `task_progress`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 ALTER TABLE `units`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `units`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `users`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `user_permission`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `user_permission`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 ALTER TABLE `user_sites`
-  ADD PRIMARY KEY (`id`);
 
 ALTER TABLE `user_sites`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 
 -- Default Data

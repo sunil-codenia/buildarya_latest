@@ -67,7 +67,8 @@ class UserController extends Controller
                             'role_id' => $userdata->role_id,
                             'view_duration' => $view_duration,
                             'add_duration' => $add_duration,
-                            'entry_at_site' => $entry_at_site
+                            'entry_at_site' => $entry_at_site,
+                            'subscription_plan_id' => $userdata->subscription_plan_id
                         ];
 
                         // } else {
@@ -286,8 +287,46 @@ class UserController extends Controller
     public function get_modules(Request $request)
     {
         $comp_id = $request->post('comp_id');
-        $query = "SELECT modules.id,modules.name FROM modules JOIN company_modules ON company_modules.module_id = modules.id WHERE company_modules.company_id = '$comp_id'";
-        $data = DB::select($query);
+        $plan_id = $request->post('subscription_plan_id');
+        
+        $query = DB::table('subscription_plans');
+
+        if ($plan_id) {
+            $query->where('id', $plan_id);
+        } elseif ($comp_id) {
+            $query->where('company_id', $comp_id)->where('status', 'Active')->orderBy('id', 'desc');
+        } else {
+            return json_encode([]);
+        }
+
+        $sub = $query->first();
+            
+        if (!$sub) {
+            // Fallback for legacy companies if necessary, or return empty
+            // For now, following the new requirement strictly
+            return json_encode([]);
+        }
+
+        // 2. Check Expiry
+        if ($sub->expiry_date) {
+            $expiry = \Illuminate\Support\Carbon::parse($sub->expiry_date);
+            if (\Illuminate\Support\Carbon::now()->startOfDay()->greaterThan($expiry)) {
+                // Subscription has expired
+                return json_encode([]);
+            }
+        }
+
+        // 3. Get Modules from JSON
+        $moduleIds = json_decode($sub->modules, true);
+        if (empty($moduleIds)) {
+            return json_encode([]);
+        }
+
+        // 4. Fetch module names
+        $data = DB::table('modules')
+            ->whereIn('id', $moduleIds)
+            ->get(['id', 'name']);
+
         return json_encode($data);
     }
     public function get_all_modules(Request $request)
