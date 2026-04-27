@@ -518,4 +518,35 @@ class CompanyRegistrationController extends Controller
             return $date;
         }
     }
+
+    public function get_companies(Request $request)
+    {
+        try {
+            $search = $request->input('search') ?? $request->input('serch');
+            $query = DB::table('companies');
+            if ($search) {
+                $query->where('name', 'like', "%{$search}%")
+                      ->orWhere('uid', 'like', "%{$search}%");
+            }
+            $data = $query->orderBy('id', 'desc')->get();
+            return response()->json(['status' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function search_companies(Request $request)
+    {
+        try {
+            $search = $request->input('search');
+            $data = DB::table('companies')
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('uid', 'like', "%{$search}%")
+                ->orderBy('id', 'desc')
+                ->get();
+            return response()->json(['status' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }

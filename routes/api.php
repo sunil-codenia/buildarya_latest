@@ -49,6 +49,8 @@ Route::get('/info', function() {
 Route::get('/get_all_data', [UserController::class, 'get_all_data']);
 Route::get('/api_login', [UserController::class, 'login']);
 Route::post('/register_company', [CompanyRegistrationController::class, 'register_company']);
+Route::match(['get', 'post'], '/get_companies', [CompanyRegistrationController::class, 'get_companies']);
+Route::match(['get', 'post'], '/search_companies', [CompanyRegistrationController::class, 'search_companies']);
 Route::post('/add_company_plan', [CompanyPlanController::class, 'add_company_plan']);
 Route::post('/get_users', [UserController::class, 'get_users']);
 Route::post('/get_sites', [UserController::class, 'get_sites']);
@@ -57,6 +59,10 @@ Route::get('/clear_config_cache', function() {
     return response()->json(['status' => true, 'message' => 'Configuration cache cleared successfully']);
 });
 Route::post('/get_modules', [UserController::class, 'get_modules']);
+Route::middleware(['api-tenant-bootstrap'])->group(function () {
+    Route::match(['get', 'post'], '/get_roles', [UserController::class, 'get_roles']);
+    Route::match(['get', 'post'], '/search_roles', [UserController::class, 'search_roles']);
+});
 Route::get('/get_all_modules', [UserController::class, 'get_all_modules']);
 Route::post('/get_permission', [UserController::class, 'get_permission']);
 Route::post('/get_site_transaction', [UserController::class, 'get_site_transaction']);
@@ -165,6 +171,7 @@ Route::prefix('v1')->group(function () {
 
         // Users (Management)
         Route::get('/users', [ApiManagementController::class, 'listUsers']);
+        Route::get('/users/{id}', [ApiManagementController::class, 'getUser']);
         Route::get('/users/export/csv', [ApiManagementController::class, 'exportUsersCsv']);
         Route::get('/users/export/excel', [ApiManagementController::class, 'exportUsersExcel']);
         Route::get('/users/export/pdf', [ApiManagementController::class, 'exportUsersPdf']);

@@ -429,6 +429,42 @@ class UserController extends Controller
         $response = array();
         array_push($response, $result);
         return json_encode($response);
+    }
 
+    public function get_roles(Request $request)
+    {
+        try {
+            $conn = $request->input('conn') ?? config('database.default');
+            $search = $request->input('search') ?? $request->input('serch');
+            if (!$conn || $conn === 'mysql') {
+                return response()->json(['status' => false, 'message' => 'Connection (conn) is required or could not be detected from your session.'], 400);
+            }
+            
+            $query = DB::connection($conn)->table('roles');
+            if ($search) {
+                $query->where('name', 'like', "%{$search}%");
+            }
+            
+            $data = $query->get();
+            return response()->json(['status' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function search_roles(Request $request)
+    {
+        try {
+            $conn = $request->input('conn');
+            if (!$conn) return response()->json(['status' => false, 'message' => 'Connection (conn) is required'], 400);
+
+            $search = $request->input('search');
+            $data = DB::connection($conn)->table('roles')
+                ->where('name', 'like', "%{$search}%")
+                ->get();
+            return response()->json(['status' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
     }
 }

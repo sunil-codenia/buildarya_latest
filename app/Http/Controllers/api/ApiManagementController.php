@@ -50,6 +50,27 @@ class ApiManagementController extends Controller
         }
     }
 
+    public function getUser(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $user = DB::connection($conn)->table('users')
+                ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
+                ->leftJoin('sites', 'sites.id', '=', 'users.site_id')
+                ->select('users.*', 'roles.name as role_name', 'sites.name as site_name')
+                ->where('users.id', $id)
+                ->first();
+
+            if (!$user) {
+                return response()->json(['status' => 'Error', 'message' => 'User not found'], 404);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $user]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function storeUser(Request $request)
     {
         $request->validate([
