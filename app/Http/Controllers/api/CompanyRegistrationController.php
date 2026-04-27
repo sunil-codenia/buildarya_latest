@@ -18,7 +18,7 @@ class CompanyRegistrationController extends Controller
             'company_name' => 'sometimes|string|max:255',
             'company.db_conn_name' => 'sometimes|string|max:50',
 
-            'company_plan_id' => 'sometimes|integer',
+            'subscription_plan_id' => 'sometimes|integer',
             'plan_name' => 'sometimes|string|max:255',
 
             'modules' => 'sometimes|array',
@@ -29,7 +29,7 @@ class CompanyRegistrationController extends Controller
             'user.name' => 'sometimes|string|max:255',
             'user.username' => 'sometimes|string|max:255',
             'user.pass' => 'sometimes|string|min:4',
-            'user.company_plan_id' => 'sometimes|integer',
+            'user.subscription_plan_id' => 'sometimes|integer',
 
             'subscription_plaatform_name' => 'sometimes|string|max:255',
             'plan_amount' => 'sometimes|numeric',
@@ -48,6 +48,7 @@ class CompanyRegistrationController extends Controller
             // ✅ 1. COMPANY LOGIC
             // =========================
             $companyId = $request->input('company.id') ?? $request->input('company_id');
+            $moduleIds = $request->input('modules', []);
             $companyName = $request->input('company.name') ?? $request->input('company_name');
             $companyData = $request->input('company', []);
             $uid = null;
@@ -227,7 +228,7 @@ class CompanyRegistrationController extends Controller
                         DB::connection($connName)->table('users')->where('id', $existingUser->id)->update([
                             'name' => $userData['name'] ?? $existingUser->name,
                             'pass' => $userData['pass'] ?? $existingUser->pass,
-                            'company_plan_id' => $planId ?? $existingUser->company_plan_id,
+                            'subscription_plan_id' => $planId ?? $existingUser->subscription_plan_id,
                             'site_id' => $userData['site_id'] ?? $existingUser->site_id,
 
                             'role_id' => $userData['role_id'] ?? $existingUser->role_id,
@@ -244,7 +245,7 @@ class CompanyRegistrationController extends Controller
                             'name' => $userData['name'] ?? $username,
                             'username' => $username,
                             'pass' => $userData['pass'] ?? '123456',
-                            'company_plan_id' => $planId,
+                            'subscription_plan_id' => $planId,
                             'site_id' => $siteId,
 
                             'role_id' => $roleId,
@@ -294,7 +295,7 @@ class CompanyRegistrationController extends Controller
                             if (!$existsUP) {
                                 DB::connection($connName)->table('user_permission')->insert([
                                     'user_id' => $userId,
-                                    'company_plan_id' => $planId,
+                                    'subscription_plan_id' => $planId,
                                     'module_id' => $moduleId,
                                     'can_view' => 1,
                                     'can_add' => 1,

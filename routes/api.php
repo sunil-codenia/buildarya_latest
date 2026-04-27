@@ -38,6 +38,14 @@ use App\Http\Controllers\api\ApiContactController;
 
 
 
+Route::get('/info', function() {
+    return response()->json([
+        'latest_commit' => trim(shell_exec('git log -1 --format="%H | %s | %cr"')),
+        'server_time' => now()->toDateTimeString(),
+        'status' => 'online'
+    ]);
+});
+
 Route::get('/get_all_data', [UserController::class, 'get_all_data']);
 Route::get('/api_login', [UserController::class, 'login']);
 Route::post('/register_company', [CompanyRegistrationController::class, 'register_company']);

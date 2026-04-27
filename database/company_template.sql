@@ -775,7 +775,7 @@ CREATE TABLE `users` (
   `name` varchar(250) NOT NULL,
   `username` varchar(250) NOT NULL,
   `pass` varchar(250) NOT NULL,
-  `company_plan_id` int(11) DEFAULT NULL,
+  `subscription_plan_id` int(11) DEFAULT NULL,
   `site_id` varchar(200) NOT NULL,
   `role_id` int(11) NOT NULL,
   `view_duration` varchar(50) DEFAULT NULL,
@@ -810,7 +810,7 @@ CREATE TABLE `role_permission` (
 CREATE TABLE `user_permission` (
   `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
-  `company_plan_id` int(11) DEFAULT NULL,
+  `subscription_plan_id` int(11) DEFAULT NULL,
   `module_id` int(11) NOT NULL,
   `can_view` int(11) NOT NULL DEFAULT 0,
   `can_add` int(11) NOT NULL DEFAULT 0,
