@@ -5,3 +5,6 @@ vendor/
 storage/
 .env
 *.zip
+
+# ADD THIS 👇
+*.json
