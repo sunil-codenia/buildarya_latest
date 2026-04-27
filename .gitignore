@@ -4,5 +4,4 @@ vendor/
 !public/vendor/**
 storage/
 .env
-*.json
 *.zip

@@ -5,7 +5,7 @@
             @php   
              $logo = "/images/buildarya.png";
             @endphp
-            <a href="javascript:void(0);" class="ls-toggle-btn bars d-block" data-close="true" style="padding: 0 15px; z-index: 102;">
+            <a href="javascript:void(0);" class="ls-toggle-btn bars d-xl-none" data-close="true" style="padding: 0 15px; z-index: 102;">
                 <i class="zmdi zmdi-menu" style="color: #ffffff; font-size: 28px;"></i>
             </a>
             <a class="navbar-brand dashboard-logo-link m-0" href="{{url('/dashboard')}}">

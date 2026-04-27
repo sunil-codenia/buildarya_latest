@@ -132,11 +132,13 @@ input:checked+.switch:active::before {
     outline: none !important;
     border: none !important;
     box-shadow: none !important;
+    padding: 0 !important;
 }
 
+
 .navbar {
-    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+    border: none !important;
+    box-shadow: none !important;
     padding: 0 15px !important;
     height: var(--header-height) !important;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
@@ -373,14 +375,32 @@ section.content {
     }
 
     .navbar-header {
-        min-width: 140px !important;
+        min-width: auto !important;
         height: var(--header-height) !important;
+        flex: 0 0 auto !important;
     }
 
-    .dashboard-logo {
-        height: 60px !important;
-        transform: translateY(0) !important;
+    .dashboard-logo-link {
+        position: absolute !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        width: auto !important;
+        justify-content: center !important;
     }
+
+
+    .dashboard-logo {
+        height: 100px !important;
+        width: auto !important;
+        transform: translateY(5px) !important;
+        object-fit: contain;
+        filter: none !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+
+
 
     .company-name-center {
         display: none !important;
@@ -400,21 +420,54 @@ section.content {
     }
 
     .ls-toggle-btn i {
-        font-size: 28px !important; /* Larger hamburger menu */
+        font-size: 28px !important;
         line-height: var(--header-height) !important;
     }
 
-    .navbar-header {
-        min-width: 160px !important;
-        justify-content: flex-start !important;
+    .ls-toggle-btn, .ls-toggle-btn:before, .ls-toggle-btn:after, .ls-toggle-btn i, .bars, .bars:before, .bars:after {
+        border: none !important;
+        text-decoration: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        outline: none !important;
     }
+
+
+    .ls-toggle-btn:focus, .ls-toggle-btn:active, .ls-toggle-btn:hover {
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+    }
+
+
+
+    .navbar, .navbar-header, .navbar-brand, .dashboard-logo-link {
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .navbar:after, .navbar:before, .navbar-header:after, .navbar-header:before {
+        display: none !important;
+    }
+
+
+
+
+
+    .navbar-header {
+        justify-content: flex-start !important;
+        gap: 10px;
+    }
+
 
     section.content {
         margin-left: 0 !important;
         margin-top: var(--header-height) !important;
         padding-left: 10px !important;
         padding-right: 10px !important;
+        border: none !important;
     }
+
 
     .model-width-450px {
         width: 95% !important;
