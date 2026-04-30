@@ -181,13 +181,156 @@ class ApiManagementController extends Controller
             $user = $request->user('sanctum');
             $conn = config('database.default');
 
+            // Handle comma-separated IDs for bulk deletion
+            $ids = explode(',', $id);
+            $ids = array_map('trim', $ids);
+            $ids = array_filter($ids);
+
+            if (count($ids) > 1) {
+                // Bulk Deletion Logic
+                $deletableIds = [];
+                $skippedIds = [];
+                foreach ($ids as $uid) {
+                    if (isUserDeletable($uid)) {
+                        $deletableIds[] = $uid;
+                    } else {
+                        $skippedIds[] = $uid;
+                    }
+                }
+
+                if (empty($deletableIds)) {
+                    return response()->json([
+                        'status' => 'Failed',
+                        'message' => 'Selected users cannot be deleted.',
+                        'skipped_ids' => $skippedIds
+                    ], 400);
+                }
+
+                DB::connection($conn)->table('users')->whereIn('id', $deletableIds)->delete();
+                foreach ($deletableIds as $uid) {
+                    addActivity($uid, 'users', "User Deleted via Bulk API", 1, $user->id, $conn);
+                }
+
+                return response()->json([
+                    'status' => 'Ok',
+                    'message' => count($deletableIds) . ' Users deleted successfully.',
+                    'skipped_count' => count($skippedIds)
+                ]);
+            } else {
+                // Single Deletion Logic
+                $staff = DB::connection($conn)->table('users')->where('id', $id)->first();
+                if (!$staff) return response()->json(['status' => 'Failed', 'message' => 'User not found'], 404);
+
+                if (!isUserDeletable($id)) {
+                    return response()->json(['status' => 'Failed', 'message' => 'This user cannot be deleted.'], 400);
+                }
+
+                DB::connection($conn)->table('users')->where('id', $id)->delete();
+                addActivity($id, 'users', "User Deleted via API", 1, $user->id, $conn);
+
+                return response()->json(['status' => 'Ok', 'message' => 'User deleted successfully']);
+            }
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateUserStatus(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            $status = $request->input('status');
+
+            if (!$status) {
+                return response()->json(['status' => 'Error', 'message' => 'Status is required'], 400);
+            }
+
             $staff = DB::connection($conn)->table('users')->where('id', $id)->first();
             if (!$staff) return response()->json(['status' => 'Failed', 'message' => 'User not found'], 404);
 
-            DB::connection($conn)->table('users')->where('id', $id)->delete();
-            addActivity($id, 'users', "User Deleted via API", 1, $user->id, $conn);
+            DB::connection($conn)->table('users')->where('id', $id)->update(['status' => $status]);
+            addActivity($id, 'users', "User status updated to $status via API", 1, $user->id, $conn);
 
-            return response()->json(['status' => 'Ok', 'message' => 'User deleted successfully']);
+            return response()->json(['status' => 'Ok', 'message' => "User status updated to $status successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function bulkDeleteUsers(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user('sanctum');
+
+            $data = $request->all();
+            if ($request->getContent()) {
+                $jsonData = json_decode($request->getContent(), true);
+                if ($jsonData) $data = array_merge($data, $jsonData);
+            }
+
+            $ids = $data['ids'] ?? [];
+            if (is_string($ids)) $ids = explode(',', $ids);
+
+            if (empty($ids)) {
+                return response()->json(['status' => 'Error', 'message' => 'No User IDs provided'], 400);
+            }
+
+            $deletableIds = [];
+            $skippedIds = [];
+            foreach ($ids as $id) {
+                if (isUserDeletable($id)) {
+                    $deletableIds[] = $id;
+                } else {
+                    $skippedIds[] = $id;
+                }
+            }
+
+            if (empty($deletableIds)) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'message' => 'Selected users cannot be deleted (they may be primary admins or have dependencies).',
+                    'skipped_ids' => $skippedIds
+                ], 400);
+            }
+
+            DB::connection($conn)->table('users')->whereIn('id', $deletableIds)->delete();
+
+            foreach ($deletableIds as $id) {
+                addActivity($id, 'users', "User Deleted via Bulk API", 1, $user->id, $conn);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => count($deletableIds) . ' Users deleted successfully.',
+                'skipped_count' => count($skippedIds),
+                'skipped_ids' => $skippedIds
+            ]);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function bulkUpdateUsersStatus(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? null;
+            $status = $input['status'] ?? null;
+
+            if (empty($ids) || !$status) {
+                return response()->json(['status' => 'Error', 'message' => 'IDs and Status are required'], 400);
+            }
+
+            DB::connection($conn)->table('users')->whereIn('id', $ids)->update(['status' => $status]);
+            
+            foreach ($ids as $id) {
+                addActivity($id, 'users', "User status updated to $status via Bulk API", 1, $user->id, $conn);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "Users updated to $status successfully"]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
@@ -743,6 +886,125 @@ class ApiManagementController extends Controller
 
             return response()->stream($callback, 200, $headers);
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function bulkUpdateExpenseParties(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user('sanctum');
+            
+            // Raw JSON detection
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $parties = $input['parties'] ?? null;
+
+            if (empty($parties)) {
+                return response()->json(['status' => 'Error', 'message' => 'No data provided'], 400);
+            }
+
+            DB::connection($conn)->beginTransaction();
+            foreach ($parties as $party) {
+                if (!isset($party['id'])) continue;
+                
+                $updateData = array_intersect_key($party, array_flip(['name', 'address', 'pan_no', 'cost_category_id', 'status']));
+                if (!empty($updateData)) {
+                    DB::connection($conn)->table('expense_party')->where('id', $party['id'])->update($updateData);
+                    addActivity($party['id'], 'expense_party', "Expense Party Updated via Bulk API", 1, $user->id, $conn);
+                }
+            }
+            DB::connection($conn)->commit();
+
+            return response()->json(['status' => 'Ok', 'message' => 'Parties updated successfully']);
+        } catch (\Exception $e) { 
+            DB::connection($conn)->rollBack();
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); 
+        }
+    }
+
+    public function bulkDeleteExpenseParties(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user('sanctum');
+            
+            // Raw JSON detection
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? null;
+
+            if (empty($ids)) {
+                return response()->json(['status' => 'Error', 'message' => 'No IDs provided'], 400);
+            }
+
+            // Check if any party is in use
+            $inUse = DB::connection($conn)->table('expenses')
+                ->where('party_type', 'expense')
+                ->whereIn('party_id', $ids)
+                ->pluck('party_id')
+                ->toArray();
+
+            $deletableIds = array_diff($ids, $inUse);
+
+            if (empty($deletableIds)) {
+                return response()->json([
+                    'status' => 'Failed', 
+                    'message' => 'Selected parties are in use and cannot be deleted!',
+                    'skipped_ids' => $inUse
+                ], 400);
+            }
+
+            DB::connection($conn)->table('expense_party')->whereIn('id', $deletableIds)->delete();
+            
+            foreach ($deletableIds as $id) {
+                addActivity($id, 'expense_party', "Expense Party Deleted via Bulk API", 1, $user->id, $conn);
+            }
+
+            return response()->json([
+                'status' => 'Ok', 
+                'message' => count($deletableIds) . ' Parties deleted successfully.',
+                'skipped_count' => count($inUse),
+                'skipped_ids' => $inUse
+            ]);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function bulkUpdateExpensePartiesStatus(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user('sanctum');
+            
+            // Raw JSON detection
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? null;
+            $status = $input['status'] ?? null;
+
+            if (empty($ids) || !$status) {
+                return response()->json(['status' => 'Error', 'message' => 'IDs and Status are required'], 400);
+            }
+
+            DB::connection($conn)->beginTransaction();
+            foreach ($ids as $id) {
+                $party = DB::connection($conn)->table('expense_party')->where('id', $id)->first();
+                if (!$party) continue;
+
+                DB::connection($conn)->table('expense_party')->where('id', $id)->update(['status' => $status]);
+                addActivity($id, 'expense_party', "Status changed to $status via Bulk API", 1, $user->id, $conn);
+
+                if ($status == 'Active' && $party->status == 'Pending') {
+                    DB::connection($conn)->table('contact_profile')->insert([
+                        'comp_name' => $party->name,
+                        'contact_name' => $party->name,
+                        'category' => 'Expense Party'
+                    ]);
+                }
+            }
+            DB::connection($conn)->commit();
+
+            return response()->json(['status' => 'Ok', 'message' => "Parties updated to $status successfully"]);
+        } catch (\Exception $e) { 
+            DB::connection($conn)->rollBack();
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); 
+        }
     }
 
 

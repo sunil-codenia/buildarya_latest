@@ -26,6 +26,51 @@
         <div class="col-md-8">
             <div class="card">
                 <div class="header">
+                    <h2><strong>Update</strong> Profile</h2>
+                </div>
+                <div class="body">
+                    <form action="{{ url('/update_profile') }}" method="post" enctype="multipart/form-data">
+                        @csrf
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Full Name</label>
+                                    <input type="text" name="name" class="form-control" value="{{ $user->name }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Username</label>
+                                    <input type="text" name="username" class="form-control" value="{{ $user->username }}" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>Contact Number</label>
+                                    <input type="text" name="contact_no" class="form-control" value="{{ $user->contact_no }}" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>PAN Number</label>
+                                    <input type="text" name="pan_no" class="form-control" value="{{ $user->pan_no }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Profile Image</label>
+                            <input type="file" name="image" class="form-control">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-round waves-effect">Update Profile</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="header">
                     <h2><strong>Change</strong> Password</h2>
                 </div>
                 <div class="body">

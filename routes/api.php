@@ -69,6 +69,7 @@ Route::post('/get_site_transaction', [UserController::class, 'get_site_transacti
 Route::post('/update_fcm_id', [UserController::class, 'update_fcm_id']);
 
   Route::post('/update_profile_picture', [UserController::class, 'update_profile_picture']);
+  Route::post('/update_profile', [UserController::class, 'update_profile']);
 
 Route::post('/get_chat_data', [ChatController::class, 'index']);
 
@@ -176,8 +177,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/users/export/excel', [ApiManagementController::class, 'exportUsersExcel']);
         Route::get('/users/export/pdf', [ApiManagementController::class, 'exportUsersPdf']);
         Route::post('/users', [ApiManagementController::class, 'storeUser']);
+        Route::post('/users/bulk-status', [ApiManagementController::class, 'bulkUpdateUsersStatus']);
+        Route::post('/users/bulk-delete', [ApiManagementController::class, 'bulkDeleteUsers']);
         Route::post('/users/{id}', [ApiManagementController::class, 'updateUser']);
-        Route::delete('/users/{id}', [ApiManagementController::class, 'deleteUser']);
+        Route::post('/users/{id}/status', [ApiManagementController::class, 'updateUserStatus']);
+        Route::delete('/users/{id}', [ApiManagementController::class, 'deleteUser'])->where('id', '[0-9,]+');
         // Sites (Management)
         Route::get('/sites', [ApiManagementController::class, 'listSites']);
         Route::get('/sites/export/csv', [ApiManagementController::class, 'exportSitesCsv']);
@@ -222,6 +226,9 @@ Route::prefix('v1')->group(function () {
         Route::put('expense-parties/{id}', [ApiManagementController::class, 'updateExpenseParty']);
         Route::delete('expense-parties/{id}', [ApiManagementController::class, 'deleteExpenseParty']);
         Route::get('expense-parties/export', [ApiManagementController::class, 'exportExpenseParties']);
+        Route::post('expense-parties/bulk-update', [ApiManagementController::class, 'bulkUpdateExpenseParties']);
+        Route::post('expense-parties/bulk-delete', [ApiManagementController::class, 'bulkDeleteExpenseParties']);
+        Route::post('expense-parties/bulk-status', [ApiManagementController::class, 'bulkUpdateExpensePartiesStatus']);
         Route::post('/documents', [ApiDocumentController::class, 'store']);
         Route::delete('/documents/{id}', [ApiDocumentController::class, 'destroy']);
 

@@ -126,7 +126,10 @@ class UserController extends Controller
                 $actionHtml .= '<button title="delete" onclick="deleteUser('.$ddid.')" style="all:unset"><i class="zmdi zmdi-delete"></i></button>';
             }
 
+            $checkboxHtml = '<input type="checkbox" class="user-checkbox" value="'.$ddid.'">';
+            
             $rowData = [
+                $checkboxHtml,
                 $i++,
                 $image,
                 $nameInfo,
@@ -363,27 +366,50 @@ class UserController extends Controller
             ->with('success', 'Users Deleted Successfully!');
     }
 
-    public function updateusers(Request $request)
+    public function bulk_update_users_status(Request $request)
     {
+        $ids = $request->input('ids');
+        $status = $request->input('status');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $imagePath = "images/noprofile.jpg";
-        if (isset($request->image)) {
-            $request->validate(
-                [
-                    'image' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
-                ],
-                [
-                    'image.mimes'   => 'Please Select Valid Image Format (Jpeg,Png,Jpg,Gif)',
-                    'image.image' => 'Please Select Valid Image (Jpeg,Png,Jpg,Gif)',
-                    'image.uploaded' => 'Please Choose Image Less Than 2 Mb',
-                ]
-            );
-            $imageName = time() . '.' . $request->image->extension();
-            $request->image->move(public_path('images/app_images/'.$user_db_conn_name.'/users'), $imageName);
-            $imagePath = "images/app_images/".$user_db_conn_name."/users/" . $imageName;
+        if (!empty($ids) && !empty($status)) {
+            DB::connection($user_db_conn_name)->table('users')->whereIn('id', $ids)->update(['status' => $status]);
+            foreach ($ids as $id) {
+                addActivity($id, 'users', "User Status Updated to $status via Bulk Action", 1);
+            }
+            return response()->json(['status' => 'Ok', 'message' => "Users marked as $status successfully"]);
         }
+        return response()->json(['status' => 'Error', 'message' => 'Invalid data'], 400);
+    }
 
+    public function bulk_delete_users(Request $request)
+    {
+        $ids = $request->input('ids');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        if (!empty($ids)) {
+            // Check if any user is not deletable (optional, but good for safety)
+            $deletable_ids = [];
+            foreach ($ids as $id) {
+                if (isUserDeletable($id)) {
+                    $deletable_ids[] = $id;
+                }
+            }
+
+            if (!empty($deletable_ids)) {
+                DB::connection($user_db_conn_name)->table('users')->whereIn('id', $deletable_ids)->delete();
+                foreach ($deletable_ids as $id) {
+                    addActivity($id, 'users', "User Deleted via Bulk Action", 1);
+                }
+                return response()->json(['status' => 'Ok', 'message' => count($deletable_ids) . " Users deleted successfully"]);
+            }
+            return response()->json(['status' => 'Error', 'message' => 'Selected users cannot be deleted'], 400);
+        }
+        return response()->json(['status' => 'Error', 'message' => 'No IDs provided'], 400);
+    }
+
+    public function updateusers(Request $request)
+    {
         $id = $request->input('id');
         $name = $request->input('name');
         $username = $request->input('username');
@@ -393,7 +419,7 @@ class UserController extends Controller
         $role_id = $request->input('role_id');
         $pan_no = $request->input('pan_no');
         $mobile_only=$request->input('mobile_only');
-        $image = $imagePath;
+        
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
         // Ensure subscription_plan_id is not wiped if missing from request
@@ -414,7 +440,7 @@ class UserController extends Controller
             $subscription_plan_id = $active_plan ? $active_plan->id : null;
         }
 
-        DB::connection($user_db_conn_name)->table('users')->where('id', $id)->update([
+        $updateData = [
             'name' => $name,
             'username' => $username,
             'pass' => $password,
@@ -422,12 +448,39 @@ class UserController extends Controller
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,
-            'image' => $image,
             'contact_no' => $contact_no,
             'mobile_only'=>$mobile_only,
             'view_duration' => $request->view_duration,
             'add_duration' => $request->add_duration,
-        ]);
+        ];
+
+        if (isset($request->image)) {
+            $request->validate(
+                [
+                    'image' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+                ],
+                [
+                    'image.mimes'   => 'Please Select Valid Image Format (Jpeg,Png,Jpg,Gif)',
+                    'image.image' => 'Please Select Valid Image (Jpeg,Png,Jpg,Gif)',
+                    'image.uploaded' => 'Please Choose Image Less Than 2 Mb',
+                ]
+            );
+            $imageName = time() . '.' . $request->image->extension();
+            $request->image->move(public_path('images/app_images/'.$user_db_conn_name.'/users'), $imageName);
+            $updateData['image'] = "images/app_images/".$user_db_conn_name."/users/" . $imageName;
+        }
+
+        DB::connection($user_db_conn_name)->table('users')->where('id', $id)->update($updateData);
+
+        // Update session if the admin is editing their own profile
+        if ($id == session()->get('uid')) {
+            session()->put('name', $name);
+            session()->put('username', $username);
+            if (isset($updateData['image'])) {
+                session()->put('image', $updateData['image']);
+            }
+        }
+
         addActivity($id,'users',"User Data Updated",1);
         return redirect('/users')->with('success', 'User Updated successfully!');
     }
@@ -647,5 +700,55 @@ class UserController extends Controller
         addActivity($user_id, 'users', "User Password Updated", 1);
 
         return redirect()->back()->with('success', 'Password updated successfully!');
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $user_id = session()->get('uid');
+
+        $request->validate([
+            'name' => 'required|min:3',
+            'username' => 'required|min:5',
+            'contact_no' => 'required|digits:10',
+            'pan_no' => 'nullable|string',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        $updateData = [
+            'name' => $request->name,
+            'username' => $request->username,
+            'contact_no' => $request->contact_no,
+            'pan_no' => $request->pan_no,
+        ];
+
+        if ($request->hasFile('image')) {
+            $imageName = time() . '.' . $request->image->extension();
+            $request->image->move(public_path('images/app_images/'.$user_db_conn_name.'/users'), $imageName);
+            $updateData['image'] = "images/app_images/".$user_db_conn_name."/users/" . $imageName;
+        }
+
+        // Check if username is already taken by another user
+        $exists = DB::connection($user_db_conn_name)->table('users')
+            ->where('username', $request->username)
+            ->where('id', '!=', $user_id)
+            ->exists();
+
+        if ($exists) {
+            return redirect()->back()->with('error', 'Username already taken by another user!');
+        }
+
+        DB::connection($user_db_conn_name)->table('users')->where('id', $user_id)->update($updateData);
+
+        // Update session variables to reflect changes in sidebar and other layouts
+        session()->put('name', $request->name);
+        session()->put('username', $request->username);
+        if (isset($updateData['image'])) {
+            session()->put('image', $updateData['image']);
+        }
+
+        addActivity($user_id, 'users', "Profile Updated", 1);
+
+        return redirect()->back()->with('success', 'Profile updated successfully!');
     }
 }

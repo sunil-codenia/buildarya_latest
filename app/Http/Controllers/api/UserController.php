@@ -269,6 +269,79 @@ class UserController extends Controller
         }
         return json_encode($data);
     }
+
+    public function update_profile(Request $request)
+    {
+        try {
+            $conn = $request->post('conn');
+            $user_id = $request->post('uid');
+
+            if (!$conn || !$user_id) {
+                return json_encode([
+                    "status" => "Failed",
+                    "status_code" => "300",
+                    "message" => "Database Connection (conn) and User ID (uid) are required!"
+                ]);
+            }
+
+            // Verify if user exists in the specified connection
+            $user_exists = DB::connection($conn)->table('users')->where('id', $user_id)->first();
+            if (!$user_exists) {
+                return json_encode([
+                    "status" => "Failed",
+                    "status_code" => "300",
+                    "message" => "User not found in the specified database!"
+                ]);
+            }
+            
+            $updateData = [];
+            if ($request->has('name')) $updateData['name'] = $request->post('name');
+            if ($request->has('username')) $updateData['username'] = $request->post('username');
+            if ($request->has('contact_no')) $updateData['contact_no'] = $request->post('contact_no');
+            if ($request->has('pan_no')) $updateData['pan_no'] = $request->post('pan_no');
+
+            if ($request->hasFile('image')) {
+                $imageName = time() . rand(10000, 1000000) . '.' . $request->image->extension();
+                $request->image->move(public_path('images/app_images/'.$conn.'/users'), $imageName);
+                $updateData['image'] = "images/app_images/".$conn."/users/" . $imageName;
+            }
+
+            if (isset($updateData['username'])) {
+                // Check if username is already taken
+                $exists = DB::connection($conn)->table('users')
+                    ->where('username', $updateData['username'])
+                    ->where('id', '!=', $user_id)
+                    ->exists();
+
+                if ($exists) {
+                    return json_encode([
+                        "status" => "Failed",
+                        "status_code" => "300",
+                        "message" => "Username already taken!"
+                    ]);
+                }
+            }
+
+            if (!empty($updateData)) {
+                DB::connection($conn)->table('users')->where('id', $user_id)->update($updateData);
+                addActivity($user_id, 'users', "Profile Updated", 1, $user_id, $conn);
+            }
+
+            $data = [
+                "status" => "Ok",
+                "status_code" => "200",
+                "message" => "Profile Updated Successfully!",
+                "image" => $updateData['image'] ?? null
+            ];
+        } catch (\Exception $e) {
+            $data = [
+                "status" => "Failed",
+                "status_code" => "300",
+                "message" => "Profile Updation Failed! " . $e->getMessage()
+            ];
+        }
+        return json_encode($data);
+    }
     public function get_sites(Request $request)
     {
         $conn = $request->post('conn');

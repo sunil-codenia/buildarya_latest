@@ -192,7 +192,6 @@
                 <div class="header">
                     <h2><strong>Users</strong> List</h2>
                     <ul class="header-dropdown">
-
                         <li>
                             @if (checkmodulepermission(1, 'can_add') == 1)
                                 <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10"
@@ -204,12 +203,32 @@
                     </ul>
                 </div>
                 <div class="body">
+                    <!-- Bulk Actions Bar -->
+                    <div id="bulkActionsBar" class="p-2 mb-2 border rounded bg-white shadow-sm" style="display: none; border-left: 5px solid #eda61a !important;">
+                        <div class="row align-items-center">
+                            <div class="col-sm-4">
+                                <span class="ml-2 font-weight-bold" style="color: #eda61a;"><span id="selectedCount">0</span> Users Selected</span>
+                            </div>
+                            <div class="col-sm-8 text-right">
+                                <button onclick="handleBulkAction('Active')" class="btn btn-success btn-sm btn-round">
+                                    <i class="zmdi zmdi-check"></i> Activate
+                                </button>
+                                <button onclick="handleBulkAction('Deactive')" class="btn btn-warning btn-sm btn-round">
+                                    <i class="zmdi zmdi-block"></i> Deactivate
+                                </button>
+                                <button onclick="handleBulkDelete()" class="btn btn-danger btn-sm btn-round">
+                                    <i class="zmdi zmdi-delete"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     @if (checkmodulepermission(1, 'can_view') == 1)
                         <div class="table-responsive">
-
-                                <table id="userTable" class="table table-hover">
+                                <table id="userTable" class="table table-hover no-wrap">
                                     <thead>
                                         <tr>
+                                            <th style="width:20px;"><input type="checkbox" id="selectAllUsers"></th>
                                             <th style="width:30px;">S.No.</th>
                                             <th style="width:50px;">Pic</th>
                                             <th>Name/Role</th>
@@ -230,7 +249,6 @@
                                     <tbody>
                                     </tbody>
                                 </table>
-
                         </div>
                     @else
                         <div class="alert alert-danger">You Don't Have Permission to View </div>
@@ -362,6 +380,75 @@
 
 @section('scripts')
 <script type="text/javascript">
+    function handleBulkAction(status) {
+        let ids = [];
+        $('.user-checkbox:checked').each(function() {
+            ids.push($(this).val());
+        });
+
+        if (ids.length === 0) return;
+
+        Swal.fire({
+            title: 'Bulk Update Status?',
+            text: "Mark " + ids.length + " users as " + status + "?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: (status == 'Active' ? '#28a745' : '#eda61a'),
+            cancelButtonColor: '#000000',
+            confirmButtonText: 'Yes, Update All'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.post("{{ url('/bulk_update_users_status') }}", {
+                    _token: "{{ csrf_token() }}",
+                    ids: ids,
+                    status: status
+                }, function(res) {
+                    if (res.status === 'Ok') {
+                        Swal.fire('Updated!', res.message, 'success');
+                        $('#userTable').DataTable().ajax.reload();
+                        $('#bulkActionsBar').hide();
+                        $('#selectAllUsers').prop('checked', false);
+                    }
+                });
+            }
+        });
+    }
+
+    function handleBulkDelete() {
+        let ids = [];
+        $('.user-checkbox:checked').each(function() {
+            ids.push($(this).val());
+        });
+
+        if (ids.length === 0) return;
+
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You want to delete " + ids.length + " users? This cannot be undone!",
+            icon: 'error',
+            showCancelButton: true,
+            confirmButtonColor: '#ff0000',
+            cancelButtonColor: '#000000',
+            confirmButtonText: 'Yes, Delete All'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.post("{{ url('/bulk_delete_users') }}", {
+                    _token: "{{ csrf_token() }}",
+                    ids: ids
+                }, function(res) {
+                    if (res.status === 'Ok') {
+                        Swal.fire('Deleted!', res.message, 'success');
+                        $('#userTable').DataTable().ajax.reload();
+                        $('#bulkActionsBar').hide();
+                        $('#selectAllUsers').prop('checked', false);
+                    } else {
+                        Swal.fire('Error!', res.message, 'error');
+                    }
+                });
+            }
+        });
+    }
+
     function assignPerm(id) {
         Swal.fire({
             title: 'Are you sure?',
@@ -425,74 +512,30 @@
             }
         });
     }
-
-    function assignPerm(id) {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: "You Want To Update This User Permissions?",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#eda61a',
-            cancelButtonColor: '#000000',
-            confirmButtonText: 'Update'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = "{{ url('/assign_permission/?id=') }}" + id;
-            }
-        });
-    }
-
-    function editdata(id) {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: "You Want To Edit This User?",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#eda61a',
-            cancelButtonColor: '#000000',
-            confirmButtonText: 'Edit'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = "{{ url('/edit_users/?id=') }}" + id;
-            }
-        });
-    }
-
-    function deleteUser(id) {
-        Swal.fire({
-            title: 'Are you sure?',
-            text: "You won't be able to revert this!",
-            icon: 'error',
-            showCancelButton: true,
-            confirmButtonColor: '#ff0000',
-            cancelButtonColor: '#000000',
-            confirmButtonText: 'Delete'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = "{{ url('/delete_users/?id=') }}" + id;
-            }
-        });
-    }
-
-    function updateuserstatus(id, status) {
-        Swal.fire({
-            title: 'Update Status?',
-            text: "Mark this user as " + status + "?",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: (status == 'Active' ? '#28a745' : '#dc3545'),
-            cancelButtonColor: '#000000',
-            confirmButtonText: 'Yes, ' + status
-        }).then((result) => {
-            if (result.isConfirmed) {
-                window.location.href = "{{ url('/update_user_status/?id=') }}" + id + "&status=" + status;
-            }
-        });
-    }
-
-
 
     $(document).ready(function() {
+        // Select All handler
+        $('#selectAllUsers').on('change', function() {
+            $('.user-checkbox').prop('checked', $(this).prop('checked'));
+            updateBulkBar();
+        });
+
+        // Row checkbox handler
+        $(document).on('change', '.user-checkbox', function(e) {
+            updateBulkBar();
+        });
+
+        function updateBulkBar() {
+            let count = $('.user-checkbox:checked').length;
+            if (count > 0) {
+                $('#selectedCount').text(count);
+                $('#bulkActionsBar').fadeIn();
+            } else {
+                $('#bulkActionsBar').fadeOut();
+                $('#selectAllUsers').prop('checked', false);
+            }
+        }
+
         var newExportAction = function (e, dt, button, config) {
             var self = this;
             var oldStart = dt.settings()[0]._iDisplayStart;
@@ -533,26 +576,27 @@
                 data: { _token: "{{ csrf_token() }}" }
             },
             columns: [
-                { data: 0, orderable: false },
-                { data: 1, orderable: false },
-                { data: 2 },
-                { data: 3 },
-                { data: 4 },
-                { data: 5, orderable: false },
-                { data: 6 },
-                { data: 7 },
-                { data: 8 },
-                { data: 9 },
+                { data: 0, orderable: false }, // Checkbox
+                { data: 1, orderable: false }, // S.No
+                { data: 2, orderable: false }, // Pic
+                { data: 3 }, // Name
+                { data: 4 }, // Site
+                { data: 5 }, // Company
+                { data: 6, orderable: false }, // Team
+                { data: 7 }, // Status
+                { data: 8 }, // Username
+                { data: 9 }, // Contact
+                { data: 10 }, // PAN
                 @if (Session::get('role') == 1)
-                { data: 10 },
-                { data: 11 },
-                { data: 12, orderable: false }
+                { data: 11 }, // Pass
+                { data: 12 }, // Created
+                { data: 13, orderable: false } // Action
                 @else
-                { data: 10 },
-                { data: 11, orderable: false }
+                { data: 11 }, // Created
+                { data: 12, orderable: false } // Action
                 @endif
             ],
-            responsive: true,
+            responsive: false, // Disabled to prevent expansion issues
             dom: 'lBfrtip',
             buttons: [
                 {
@@ -586,6 +630,8 @@
             },
             pagingType: "full_numbers",
             drawCallback: function(settings) {
+                $('#bulkActionsBar').hide();
+                $('#selectAllUsers').prop('checked', false);
             }
         });
 
@@ -614,6 +660,41 @@
         padding: 0;
         line-height: 35px;
         text-align: center;
+    }
+    .mr-1 { margin-right: 0.25rem; }
+    .mr-3 { margin-right: 1rem; }
+    .font-weight-bold { font-weight: 700; }
+    .badge-success { background-color: #28a745; color: white; }
+    .badge-danger { background-color: #dc3545; color: white; }
+    #userTable tr { cursor: pointer; }
+    .user-checkbox { cursor: pointer; width: 18px; height: 18px; }
+    
+    /* Team Info Horizontal Layout Fix */
+    .team-info {
+        padding: 0;
+        margin: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+    }
+    .team-info li {
+        margin-left: -10px;
+        transition: all 0.3s ease;
+    }
+    .team-info li:first-child {
+        margin-left: 0;
+    }
+    .team-info li:hover {
+        transform: translateY(-5px);
+        z-index: 10;
+    }
+    .team-info li img {
+        width: 35px;
+        height: 35px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 </style>
 @endsection

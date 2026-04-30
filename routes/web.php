@@ -154,11 +154,14 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/edit_users', [UserController::class, 'edit_users']);
         Route::get('/delete_users', [UserController::class, 'delete_users']);
         Route::post('/updateusers', [UserController::class, 'updateusers']);
+    Route::post('/bulk_update_users_status', [UserController::class, 'bulk_update_users_status']);
+    Route::post('/bulk_delete_users', [UserController::class, 'bulk_delete_users']);
         Route::get('/assign_permission', [UserController::class, 'assign_permission']);
         Route::post('/update_user_permission', [UserController::class, 'update_user_permission']);
         Route::get('/update_user_status', [UserController::class, 'update_user_status']);
         Route::get('/profile', [UserController::class, 'profile']);
         Route::post('/update_password', [UserController::class, 'updatePassword']);
+        Route::post('/update_profile', [UserController::class, 'updateProfile']);
 
         Route::post('/siteToSiteBalanceTransfer', [SiteController::class, 'siteToSiteBalanceTransfer']);
 
