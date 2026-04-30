@@ -128,40 +128,40 @@
                 <div class="body">
                     @if (checkmodulepermission(1, 'can_view') == 1)
                         <div class="table-responsive">
-                        <div id="bulkActions" class="align-right mb-2" style="display: none; padding-bottom: 10px;">
-                            @if(checkmodulepermission(1,'can_edit') == 1)
-                                <button type="button" onclick="bulkEditData()" title="Edit" class="btn btn-warning btn-simple btn-round waves-effect">
-                                    <i class="zmdi zmdi-edit"></i>
-                                </button>
-                            @endif
-                            @if(checkmodulepermission(1,'can_certify') == 1)
-                                <button type="button" onclick="bulkUpdateStatus('Active')" title="Mark Active" class="btn btn-success btn-simple btn-round waves-effect">
-                                    <i class="zmdi zmdi-check-circle"></i>
-                                </button>
-                                <button type="button" onclick="bulkUpdateStatus('Deactive')" title="Mark Deactive" class="btn btn-danger btn-simple btn-round waves-effect">
-                                    <i class="zmdi zmdi-close-circle"></i>
-                                </button>
-                            @endif
-                            <button type="button" onclick="bulkSitePayments()" title="Site Payments" class="btn btn-info btn-simple btn-round waves-effect">
-                                <i class="zmdi zmdi-balance-wallet"></i>
-                            </button>
+                        <!-- Modern Bulk Actions Bar -->
+                        <div id="bulkActions" class="p-2 mb-2 border rounded bg-white shadow-sm" style="display: none; border-left: 5px solid #eda61a !important;">
+                            <div class="row align-items-center">
+                                <div class="col-sm-4">
+                                    <span class="ml-2 font-weight-bold" style="color: #eda61a;"><span id="selectedCount">0</span> Sites Selected</span>
+                                </div>
+                                <div class="col-sm-8 text-right">
+                                    @if(checkmodulepermission(1,'can_certify') == 1)
+                                        <button type="button" onclick="bulkUpdateStatus('Active')" class="btn btn-success btn-sm btn-round">
+                                            <i class="zmdi zmdi-check-circle"></i> Activate
+                                        </button>
+                                        <button type="button" onclick="bulkUpdateStatus('Deactive')" class="btn btn-danger btn-sm btn-round">
+                                            <i class="zmdi zmdi-close-circle"></i> Deactivate
+                                        </button>
+                                    @endif
+                                </div>
+                            </div>
                         </div>
 
                         <form id="bulkActionForm" action="{{ url('/sites/bulk_action') }}" method="POST">
                             @csrf
                             <input type="hidden" name="bulk_action_type" id="bulk_action_type" value="">
-                            <table id="dataTable" class="table table-hover">
+                            <table id="dataTable" class="table table-hover no-wrap">
                                 <thead>
                                     <tr>
-                                        <th style="width:30px;"><input type="checkbox" id="select_all"></th>
-                                        <th>#</th>
+                                        <th style="width:20px;"><input type="checkbox" id="select_all"></th>
+                                        <th style="width:30px;">#</th>
                                         <th>Name</th>
                                         <th>Address</th>
                                         <th>Balance</th>
                                         <th>Site Type</th>
                                         <th>Project</th>
                                         <th>Status</th>
-                                        <th>Action</th>
+                                        <th style="width:100px;">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -178,35 +178,24 @@
                                         <tr>
                                             <td><input type="checkbox" name="check_list[]" class="check_item" value="{{$ddid}}" onclick="event.stopPropagation()"></td>
                                             <td>{{ $i++ }}</td>
+                                            <td>{{ $dd['name'] }}</td>
+                                            <td>{{ $dd['address'] }}</td>
+                                            <td><span class="text-primary font-weight-bold">{{ getSiteBalance($ddid) }}</span></td>
+                                            <td><span class="badge badge-info">{{ $dd['sites_type'] }}</span></td>
                                             <td>
-                                                <a class="single-user-name" href="#">{{ $dd['name'] }}</a>
+                                                @php $project_info = getSalesProjects($dd['project_id']); @endphp
+                                                <span class="badge badge-default">{{ ($dd['project_id'] == '0' || !$project_info || is_a($project_info, 'Illuminate\Support\Collection')) ? "No Project" : $project_info->name }}</span>
                                             </td>
                                             <td>
-                                                <a class="single-user-name" href="#">{{ $dd['address'] }}</a>
-                                            </td>
-                                            <td>
-                                                <a class="single-user-name" href="#">{{ getSiteBalance($ddid) }}</a>
-                                            </td>
-                                            <td>
-                                                <a class="single-user-name" href="#">{{ $dd['sites_type'] }}</a>
-                                            </td>
-                                            <td>
-                                                <a class="single-user-name" href="#">
-                                                    @php $project_info = getSalesProjects($dd['project_id']); @endphp
-                                                    {{ ($dd['project_id'] == '0' || !$project_info || is_a($project_info, 'Illuminate\Support\Collection')) ? "No Project" : $project_info->name }}
-                                                </a>
-                                            </td>
-                                            <td>
-
                                                 @if ($dd['status'] == 'Active')
                                                     @if (checkmodulepermission(1, 'can_certify') == 1)
-                                                        <button onclick="updatestatus('{{ $ddid }}','Deactive')"
+                                                        <button type="button" onclick="updatestatus('{{ $ddid }}','Deactive')"
                                                             style="all:unset"><span
                                                                 class="badge badge-success">{{ $dd['status'] }}</span></button>
                                                     @endif
                                                 @else
                                                     @if (checkmodulepermission(1, 'can_certify') == 1)
-                                                        <button onclick="updatestatus('{{ $ddid }}','Active')"
+                                                        <button type="button" onclick="updatestatus('{{ $ddid }}','Active')"
                                                             style="all:unset"><span
                                                                 class="badge badge-danger">{{ $dd['status'] }}</span></button>
                                                     @endif
@@ -214,7 +203,6 @@
                                             </td>
 
                                             <td>
-                                               
                                                 @if (checkmodulepermission(1, 'can_edit') == 1)
                                                     <button title="Edit" type="button" onclick="editdata('{{$ddid}}')" style="all:unset;"><i
                                                             class="zmdi zmdi-edit"></i>
@@ -223,19 +211,18 @@
 
                                                 @if (isSiteDeletable($ddid))
                                                     @if (checkmodulepermission(1, 'can_delete') == 1)
-                                                        <button title="Delete" onclick="deletedata('{{ $ddid }}')"
-                                                            style="all:unset"><i class="zmdi zmdi-delete"></i> </button>
+                                                        <button title="Delete" type="button" onclick="deletedata('{{ $ddid }}')"
+                                                            style="all:unset"><i class="zmdi zmdi-delete"></i> </button> &nbsp;
                                                     @endif
                                                 @endif
                                                 <a title="Site Payments" href="{{ url('/view_site_payments?id='.$ddid) }}"
-                                                style="all:unset"><i class="zmdi zmdi-balance-wallet"></i> </a>
+                                                style="all:unset"><i class="zmdi zmdi-balance-wallet text-info"></i> </a>
                                             </td>
-
                                         </tr>
                                     @endforeach
-
                                 </tbody>
                             </table>
+                            
                         </form>
                         </div>
                     @else
@@ -412,43 +399,43 @@
                     <div class="modal-body">
                         <div class="row clearfix">
                              <div class="col-lg-6 col-md-6 col-sm-6"><b>Choose Site</b>
-                                <div class="input-group">
-                                    <select name="site_id" class="form-control show-tick" data-live-search="true"
-                                        required>
-                                        <option value="" selected disabled>--Select Site--</option>
-                                        @php
-                                            $sites = getallsites();
-                                        @endphp
-                                        @foreach ($sites as $site)
-                                            <option value="{{ $site->id }}">{{ $site->name }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
+                                 <div class="input-group">
+                                     <select name="site_id" class="form-control show-tick" data-live-search="true"
+                                         required>
+                                         <option value="" selected disabled>--Select Site--</option>
+                                         @php
+                                             $sites = getallsites();
+                                         @endphp
+                                         @foreach ($sites as $site)
+                                             <option value="{{ $site->id }}">{{ $site->name }}</option>
+                                         @endforeach
+                                     </select>
+                                 </div>
+                             </div>
                         
-                            <div class="col-lg-6 col-md-6 col-sm-6"><b>Choose File Type</b>
-                                <div class="input-group">
-                                    <select name="type" class="form-control show-tick" data-live-search="true"
-                                        required>
-                                        <option value="1" selected>Excel</option>
-                                        <option value="2" >PDF</option>
-                                       </select>
-                                </div>
-                            </div>
-                            <div class="col-lg-6 col-md-6 col-sm-6">
-                                <div class="form-group">
-                                    <label>From Date</label>
-                                    <input type="date" required class="form-control" 
-                                        id="start_date1" name="start_date" >
-                                </div>
-                            </div>
-                            <div class="col-lg-6 col-md-6 col-sm-6">
-                                <div class="form-group">
-                                    <label>To Date</label>
-                                    <input type="date" required class="form-control" 
-                                        id="end_date1" name="end_date" >
-                                </div>
-                            </div>
+                             <div class="col-lg-6 col-md-6 col-sm-6"><b>Choose File Type</b>
+                                 <div class="input-group">
+                                     <select name="type" class="form-control show-tick" data-live-search="true"
+                                         required>
+                                         <option value="1" selected>Excel</option>
+                                         <option value="2" >PDF</option>
+                                        </select>
+                                 </div>
+                             </div>
+                             <div class="col-lg-6 col-md-6 col-sm-6">
+                                 <div class="form-group">
+                                     <label>From Date</label>
+                                     <input type="date" required class="form-control" 
+                                         id="start_date1" name="start_date" >
+                                 </div>
+                             </div>
+                             <div class="col-lg-6 col-md-6 col-sm-6">
+                                 <div class="form-group">
+                                     <label>To Date</label>
+                                     <input type="date" required class="form-control" 
+                                         id="end_date1" name="end_date" >
+                                 </div>
+                             </div>
 
                         </div>
                     </div>
@@ -463,13 +450,8 @@
         </div>
     </div>
     @endif
-
-    
- 
-
-  
-   
 @endsection
+
 @section('scripts')
     <script type="text/javascript">
         function deletedata(id) {
@@ -481,92 +463,67 @@
                 confirmButtonColor: '#ff0000',
                 cancelButtonColor: '#000000',
                 confirmButtonText: 'Delete',
-                cancelButtonText: 'Cancel',
-                customClass: {
-                    cancelButton: 'order-1 margin-10p',
-                    confirmButton: 'order-2 margin-10p',
-                }
+                cancelButtonText: 'Cancel'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/delete_sites/?id=') }}" + id;
-                    window.location.href = url;
+                    window.location.href = "{{ url('/delete_sites/?id=') }}" + id;
                 }
             })
         }
 
         function updatestatus(id, status) {
             Swal.fire({
-                title: 'Are you sure?',
-                text: "Do You Really Want To Update Its Status!",
+                title: 'Update Status?',
+                text: "Mark this site as " + status + "?",
                 icon: 'warning',
                 showCancelButton: true,
-                toast: true,
-                position: 'center',
-                showConfirmButton: true,
-                timer: 8000,
-                timerProgressBar: true,
-                confirmButtonColor: '#ff0000',
-                cancelButtonColor: '#000000',
-                confirmButtonText: 'Update',
-                cancelButtonText: 'Cancel',
-                customClass: {
-                    container: 'model-width-450px'
-                },
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    var url = "{{ url('/update_site_status/?id=') }}" + id + "&status=" + status;
-                    window.location.href = url;
-                }
-            });
-        }
-        function editdata(id) {
-            Swal.fire({
-                title: 'Are you sure?',
-                text: "You Want To Edit This Site ?",
-                icon: 'warning',
-                showCancelButton: true,
-                toast: true,
-                position: 'center',
-                showConfirmButton: true,
-                timer: 8000,
-                timerProgressBar: true,
                 confirmButtonColor: '#eda61a',
                 cancelButtonColor: '#000000',
-                confirmButtonText: 'Edit',
-                cancelButtonText: 'Cancel',
-                customClass: {
-                    container: 'model-width-450px'
-                },
+                confirmButtonText: 'Update'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/edit_site/?id=') }}" + id;
-                    window.location.href = url;
+                    window.location.href = "{{ url('/update_site_status/?id=') }}" + id + "&status=" + status;
                 }
             });
         }
 
-        $('#select_all').on('click', function() {
-            if (this.checked) {
-                $('.check_item').each(function() {
-                    this.checked = true;
-                });
-            } else {
-                $('.check_item').each(function() {
-                    this.checked = false;
-                });
-            }
-            toggleBulkActions();
+        function editdata(id) {
+            Swal.fire({
+                title: 'Edit Site?',
+                text: "You want to edit this site details?",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#eda61a',
+                cancelButtonColor: '#000000',
+                confirmButtonText: 'Edit'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = "{{ url('/edit_site/?id=') }}" + id;
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            // Select All handler
+            $('#select_all').on('change', function() {
+                $('.check_item').prop('checked', $(this).prop('checked'));
+                updateBulkBar();
+            });
+
+            // Row checkbox handler
+            $(document).on('change', '.check_item', function() {
+                updateBulkBar();
+            });
         });
 
-        $('.check_item').on('change', function() {
-            toggleBulkActions();
-        });
-
-        function toggleBulkActions() {
-            if ($('.check_item:checked').length > 0) {
-                $('#bulkActions').show();
+        function updateBulkBar() {
+            let count = $('.check_item:checked').length;
+            if (count > 0) {
+                $('#selectedCount').text(count);
+                $('#bulkActions').fadeIn();
             } else {
-                $('#bulkActions').hide();
+                $('#bulkActions').fadeOut();
+                $('#select_all').prop('checked', false);
             }
         }
         
@@ -578,45 +535,28 @@
             return selected;
         }
 
-        function getSingleCheckedId() {
-            var selected = getCheckedIds();
-            if (selected.length === 1) {
-                return selected[0];
-            } else {
-                Swal.fire('Notice', 'Please select exactly one site for this specific action.', 'info');
-                return null;
-            }
-        }
 
-        function bulkEditData() {
-            var id = getSingleCheckedId();
-            if(id) { editdata(id); }
-        }
-
-        function bulkSitePayments() {
-            var id = getSingleCheckedId();
-            if(id) { window.location.href = "{{ url('/view_site_payments?id=') }}" + id; }
-        }
 
         function bulkUpdateStatus(status) {
             var selected = getCheckedIds();
             if (selected.length === 0) return;
+            
             $('#bulk_action_type').val('status_' + status);
             Swal.fire({
-                title: 'Are you sure?',
-                text: "Do you want to update status for selected sites?",
+                title: 'Bulk Update Status?',
+                text: "Mark " + selected.length + " sites as " + status + "?",
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Yes, update!'
+                confirmButtonColor: '#eda61a',
+                cancelButtonColor: '#000000',
+                confirmButtonText: 'Update Status'
             }).then((result) => {
                 if (result.isConfirmed) {
                     $('#bulkActionForm').submit();
                 }
-            })
+            });
         }
-
+        
         @if(request()->has('action') && request()->get('action') == 'add_new')
         $(document).ready(function() {
             setTimeout(function() {

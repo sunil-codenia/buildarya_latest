@@ -1228,19 +1228,32 @@ class ApiManagementController extends Controller
             $conn = config('database.default');
             $user = $request->user('sanctum');
             
-            $data = [
-                'site_id' => $request->site_id,
-                'amount' => $request->amount,
-                'payment_date' => $request->payment_date ?? date('Y-m-d'),
-                'description' => $request->description,
-                'payment_mode' => $request->payment_mode ?? 'Cash',
-                'created_at' => Carbon::now()
-            ];
+            $site_id = $request->site_id;
+            $amount = $request->amount;
+            $remark = $request->remark ?? $request->description;
+            $date = $request->date ?? $request->payment_date ?? date('Y-m-d');
 
-            $id = DB::connection($conn)->table('site_payments')->insertGetId($data);
-            addActivity($id, 'site_payments', "Site Payment Recorded via API", 1, $user->id, $conn);
+            if (!$site_id || !$amount) {
+                return response()->json(['status' => 'Error', 'message' => 'site_id and amount are required'], 400);
+            }
 
-            return response()->json(['status' => 'Ok', 'message' => 'Payment recorded successfully', 'id' => $id]);
+            return DB::transaction(function() use ($conn, $site_id, $amount, $remark, $date, $user) {
+                $pay_id = DB::connection($conn)->table('site_payments')->insertGetId([
+                    'site_id' => $site_id,
+                    'amount' => $amount,
+                    'remark' => $remark,
+                    'date' => $date
+                ]);
+
+                DB::connection($conn)->table('sites_transaction')->insert([
+                    'site_id' => $site_id,
+                    'type' => 'Credit',
+                    'payment_id' => $pay_id
+                ]);
+
+                addActivity($pay_id, 'site_payments', "Site Payment Recorded via API. Amount: $amount", 1, $user->id, $conn);
+                return response()->json(['status' => 'Ok', 'message' => 'Payment recorded successfully', 'id' => $pay_id]);
+            });
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }
 
@@ -1250,21 +1263,48 @@ class ApiManagementController extends Controller
             $conn = config('database.default');
             $user = $request->user('sanctum');
 
-            // site_to_site_transfer logic
-            $id = DB::transaction(function() use($request, $conn, $user) {
-                return DB::connection($conn)->table('sites_transaction')->insertGetId([
-                    'from_site' => $request->from_site,
-                    'to_site' => $request->to_site,
-                    'amount' => $request->amount,
-                    'date' => $request->date ?? date('Y-m-d'),
-                    'remarks' => $request->remarks,
-                    'transfer_by' => $user->id,
-                    'created_at' => Carbon::now()
-                ]);
-            });
+            $from_site = $request->from_site_id ?? $request->from_site;
+            $to_site = $request->to_site_id ?? $request->to_site;
+            $amount = $request->amount;
+            $date = $request->date ?? date('Y-m-d');
+            $remark = "Balance Transfer - " . ($request->remark ?? $request->remarks ?? "API Transfer");
 
-            addActivity($id, 'sites_transaction', "Site Cash Transfer Completed", 1, $user->id, $conn);
-            return response()->json(['status' => 'Ok', 'message' => 'Cash transferred successfully', 'id' => $id]);
+            if (!$from_site || !$to_site || !$amount) {
+                return response()->json(['status' => 'Error', 'message' => 'from_site_id, to_site_id and amount are required'], 400);
+            }
+
+            return DB::transaction(function() use($conn, $user, $from_site, $to_site, $amount, $date, $remark) {
+                // Record for FROM site (Debit)
+                $pay_id1 = DB::connection($conn)->table('site_payments')->insertGetId([
+                    'site_id' => $from_site,
+                    'amount' => $amount,
+                    'remark' => $remark,
+                    'date' => $date
+                ]);
+
+                DB::connection($conn)->table('sites_transaction')->insert([
+                    'site_id' => $from_site,
+                    'type' => 'Debit',
+                    'payment_id' => $pay_id1
+                ]);
+
+                // Record for TO site (Credit)
+                $pay_id2 = DB::connection($conn)->table('site_payments')->insertGetId([
+                    'site_id' => $to_site,
+                    'amount' => $amount,
+                    'remark' => $remark,
+                    'date' => $date
+                ]);
+
+                DB::connection($conn)->table('sites_transaction')->insert([
+                    'site_id' => $to_site,
+                    'type' => 'Credit',
+                    'payment_id' => $pay_id2
+                ]);
+
+                addActivity(0, 'sites', "Site To Site Balance Transfer via API. Amount: $amount", 1, $user->id, $conn);
+                return response()->json(['status' => 'Ok', 'message' => 'Balance transferred successfully']);
+            });
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }
 
@@ -1273,42 +1313,54 @@ class ApiManagementController extends Controller
         try {
             $conn = config('database.default');
             $site_id = $request->site_id;
-            $from_date = $request->from_date;
-            $to_date = $request->to_date;
-            $format = $request->format ?? 'json';
+            $from_date = $request->start_date ?? $request->from_date;
+            $to_date = $request->end_date ?? $request->to_date;
+            $format = $request->format ?? 'json'; // json or pdf
 
             if (!$site_id) return response()->json(['status' => 'Error', 'message' => 'site_id is required'], 400);
 
             $site = DB::connection($conn)->table('sites')->where('id', $site_id)->first();
             if (!$site) return response()->json(['status' => 'Error', 'message' => 'Site not found'], 404);
 
-            // Get all transactions for the site
+            // Fetch ALL transactions to calculate correct opening balance
             $transactions = DB::connection($conn)->table('sites_transaction')
                 ->where('site_id', $site_id)
                 ->orderBy('id', 'asc')->get();
 
             $allData = [];
             foreach ($transactions as $t) {
-                if ($t->type == 'Credit') {
-                    if ($t->payment_id) {
-                        $p = DB::connection($conn)->table('site_payments')->where('id', $t->payment_id)->first();
-                        if($p) $allData[] = ['date' => $p->date, 'type' => 'Credit', 'ref' => 'Payment', 'amount' => $p->amount, 'remark' => $p->remark];
-                    } elseif ($t->payment_voucher_id) {
-                        $pv = DB::connection($conn)->table('payment_vouchers')->where('id', $t->payment_voucher_id)->first();
-                        if($pv) $allData[] = ['date' => $pv->date, 'type' => 'Credit', 'ref' => 'Voucher', 'amount' => $pv->amount, 'remark' => $pv->remark];
+                $row = ['date' => null, 'type' => $t->type, 'ref' => '', 'amount' => 0, 'remark' => ''];
+                
+                if ($t->payment_id) {
+                    $p = DB::connection($conn)->table('site_payments')->where('id', $t->payment_id)->first();
+                    if ($p) {
+                        $row['date'] = $p->date;
+                        $row['ref'] = 'Payment';
+                        $row['amount'] = $p->amount;
+                        $row['remark'] = $p->remark;
                     }
-                } else {
-                    if ($t->expense_id) {
-                        $e = DB::connection($conn)->table('expenses')->where('id', $t->expense_id)->first();
-                        if($e) $allData[] = ['date' => $e->date, 'type' => 'Debit', 'ref' => 'Expense', 'amount' => $e->amount, 'remark' => $e->particular];
-                    } elseif ($t->payment_id) {
-                        $p = DB::connection($conn)->table('site_payments')->where('id', $t->payment_id)->first();
-                        if($p) $allData[] = ['date' => $p->date, 'type' => 'Debit', 'ref' => 'Payment', 'amount' => $p->amount, 'remark' => $p->remark];
+                } elseif ($t->payment_voucher_id) {
+                    $pv = DB::connection($conn)->table('payment_vouchers')->where('id', $t->payment_voucher_id)->first();
+                    if ($pv) {
+                        $row['date'] = $pv->date;
+                        $row['ref'] = 'Voucher (' . $pv->voucher_no . ')';
+                        $row['amount'] = $pv->amount;
+                        $row['remark'] = $pv->remark;
+                    }
+                } elseif ($t->expense_id) {
+                    $e = DB::connection($conn)->table('expenses')->where('id', $t->expense_id)->first();
+                    if ($e) {
+                        $row['date'] = $e->date;
+                        $row['ref'] = 'Expense';
+                        $row['amount'] = $e->amount;
+                        $row['remark'] = $e->particular;
                     }
                 }
+                
+                if ($row['date']) $allData[] = $row;
             }
 
-            // Filter by Date & Calculate Opening Balance
+            // Calculate Opening Balance and Filter Data
             $openingBalance = 0;
             $filteredData = [];
             foreach ($allData as $row) {
@@ -1319,71 +1371,28 @@ class ApiManagementController extends Controller
                 }
             }
 
-            // --- JSON Output ---
             if ($format == 'json') {
                 return response()->json([
                     'status' => 'Ok',
                     'site_name' => $site->name,
                     'opening_balance' => $openingBalance,
-                    'transactions' => $filteredData,
-                    'total_count' => count($filteredData)
+                    'statement' => $filteredData,
+                    'current_balance' => getSiteBalance($site_id, $conn)
                 ]);
             }
 
-            // --- PDF Output ---
-            if ($format == 'pdf') {
-                $total_credit = 0;
-                $total_debit = 0;
-                $current_balance = $openingBalance;
-                
-                $html = '<html><head><style>
-                    body { font-family: sans-serif; font-size: 11px; }
-                    .header { text-align: center; margin-bottom: 20px; }
-                    .info { margin-bottom: 15px; }
-                    table { width: 100%; border-collapse: collapse; }
-                    th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
-                    th { background-color: #f8f9fa; }
-                    .text-right { text-align: right; }
-                    .footer { margin-top: 20px; font-weight: bold; }
-                </style></head><body>';
-                
-                $html .= "<div class='header'><h2>SITE FINANCIAL STATEMENT</h2><h3>{$site->name}</h3></div>";
-                $html .= "<div class='info'><strong>Period:</strong> {$from_date} to {$to_date}<br><strong>Opening Balance:</strong> " . number_format($openingBalance, 2) . "</div>";
-                
-                $html .= '<table><thead><tr><th>Date</th><th>Reference</th><th class="text-right">Credit</th><th class="text-right">Debit</th><th class="text-right">Balance</th></tr></thead><tbody>';
-                $html .= "<tr><td></td><td><strong>OPENING BALANCE</strong></td><td></td><td></td><td class='text-right'>".number_format($openingBalance, 2)."</td></tr>";
-                
-                foreach($filteredData as $r) {
-                    $amt = (float)$r['amount'];
-                    if ($r['type'] == 'Credit') {
-                        $total_credit += $amt;
-                        $current_balance += $amt;
-                        $html .= "<tr><td>{$r['date']}</td><td>{$r['ref']} - {$r['remark']}</td><td class='text-right'>".number_format($amt,2)."</td><td></td><td class='text-right'>".number_format($current_balance,2)."</td></tr>";
-                    } else {
-                        $total_debit += $amt;
-                        $current_balance -= $amt;
-                        $html .= "<tr><td>{$r['date']}</td><td>{$r['ref']} - {$r['remark']}</td><td></td><td class='text-right'>".number_format($amt,2)."</td><td class='text-right'>".number_format($current_balance,2)."</td></tr>";
-                    }
-                }
-                
-                $html .= '</tbody></table>';
-                $html .= "<div class='footer'><p>Total Credit: " . number_format($total_credit, 2) . "</p>";
-                $html .= "<p>Total Debit: " . number_format($total_debit, 2) . "</p>";
-                $html .= "<p>Closing Balance: " . number_format($current_balance, 2) . "</p></div>";
-                $html .= '</body></html>';
-                
-                return \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'portrait')->download("site_statement_{$site_id}.pdf");
-            }
+            // Simple PDF Generation (using PDF facade)
+            $pdfData = [
+                'site_name' => $site->name,
+                'openingBalance' => $openingBalance,
+                'filteredData' => $filteredData,
+                'start_date' => $from_date,
+                'end_date' => $to_date,
+                'sitebalance' => getSiteBalance($site_id, $conn)
+            ];
 
-            // --- CSV Output ---
-            $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=site_statement_{$site_id}.csv"];
-            return response()->stream(function() use($filteredData, $openingBalance) {
-                $file = fopen('php://output', 'w');
-                fputcsv($file, ['Date', 'Reference', 'Credit', 'Debit', 'Remark']);
-                fputcsv($file, ['', 'OPENING BALANCE', $openingBalance, '', '']);
-                foreach ($filteredData as $r) fputcsv($file, [$r['date'], $r['ref'], ($r['type']=='Credit'?$r['amount']:''), ($r['type']=='Debit'?$r['amount']:''), $r['remark']]);
-                fclose($file);
-            }, 200, $headers);
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.users.pdfs.siteStatement', $pdfData);
+            return $pdf->download("Statement_{$site->name}.pdf");
 
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }

@@ -170,6 +170,17 @@ class SiteController extends Controller
                 DB::connection($user_db_conn_name)->table('sites')->where('id', $id)->delete();
             }
             return redirect('/sites')->with('success', 'Deletable Sites Removed Successfully!');
+        } elseif ($action == 'bulk_edit') {
+            $updateData = [];
+            if ($request->filled('sitestype')) $updateData['sites_type'] = $request->input('sitestype');
+            if ($request->filled('project_id')) $updateData['project_id'] = $request->input('project_id');
+
+            if (!empty($updateData)) {
+                DB::connection($user_db_conn_name)->table('sites')->whereIn('id', $check_list)->update($updateData);
+                addActivity(0, 'sites', "Bulk Site Edit Performed", 1);
+                return redirect('/sites')->with('success', 'Selected Sites Updated successfully!');
+            }
+            return redirect('/sites')->with('error', 'No data provided for update!');
         }
 
         return redirect('/sites')->with('error', 'Invalid Action!');
