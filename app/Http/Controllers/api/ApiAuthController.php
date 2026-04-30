@@ -72,8 +72,11 @@ class ApiAuthController extends Controller
         try {
             $userData = DB::connection($company->db_conn_name)
                 ->table('users')
-                ->where('username', $username)
-                ->where('pass', $password) // Using plain 'pass' as per existing project logic
+                ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
+                ->leftJoin('sites', 'sites.id', '=', 'users.site_id')
+                ->select('users.*', 'roles.name as role_name', 'sites.name as site_name')
+                ->where('users.username', $username)
+                ->where('users.pass', $password) // Using plain 'pass' as per existing project logic
                 ->first();
 
             if (!$userData) {

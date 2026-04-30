@@ -135,13 +135,13 @@ class ExpensePartyController extends Controller
             // Action
             $actionHtml = '';
             if ($can_edit) {
-                $actionHtml .= '<button title="Edit" onclick="editparty(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>&nbsp;';
+                $actionHtml .= '<a href="javascript:void(0);" title="Edit" onclick="editparty(\''.$ddid.'\')" class="btn btn-sm btn-warning btn-icon btn-round"><i class="zmdi zmdi-edit"></i></a>&nbsp;';
             }
             if ($can_delete && isExpensepartyDeletable($ddid)) {
-                $actionHtml .= '<button title="Delete" onclick="deletedata(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-delete"></i></button>&nbsp;';
+                $actionHtml .= '<a href="javascript:void(0);" title="Delete" onclick="deletedata(\''.$ddid.'\')" class="btn btn-sm btn-danger btn-icon btn-round"><i class="zmdi zmdi-delete"></i></a>&nbsp;';
             }
             if ($row->status == 'Pending' && $can_certify) {
-                $actionHtml .= '<button title="Certify" onclick="updatepartystatus(\''.$ddid.'\',\'Active\')" style="all:unset"><i class="zmdi zmdi-check-circle"></i></button>';
+                $actionHtml .= '<a href="javascript:void(0);" title="Certify" onclick="updatepartystatus(\''.$ddid.'\',\'Active\')" class="btn btn-sm btn-success btn-icon btn-round"><i class="zmdi zmdi-check-circle"></i></a>';
             }
 
             $formattedData[] = [
@@ -220,6 +220,7 @@ class ExpensePartyController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
         $data['data'] = [];
+        $data['data']['cost_categories'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $id)->get();
         return  view('layouts.expense.party')->with('data', json_encode($data));
     }
@@ -333,5 +334,37 @@ class ExpensePartyController extends Controller
             DB::connection($user_db_conn_name)->rollBack();
             return redirect('/expense_party')->with('error', 'Error while updating bulk status!');
         }
+    }
+
+    public function bulk_delete_party(Request $request)
+    {
+        $ids = $request->input('check_list');
+        if (empty($ids)) {
+            return redirect('/expense_party')->with('error', 'Please select at least one party to delete!');
+        }
+
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $deleted = 0;
+        $skipped = 0;
+
+        foreach ($ids as $id) {
+            $check = DB::connection($user_db_conn_name)->table('expenses')->where('party_type', '=', 'expense')->where('party_id', '=', $id)->exists();
+            if ($check) {
+                $skipped++;
+                continue;
+            }
+
+            $party = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $id)->first();
+            if ($party) {
+                DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $id)->delete();
+                addActivity(0, 'expense_party', "Expense Party Deleted via Bulk Action - " . $party->name, 2);
+                $deleted++;
+            }
+        }
+
+        $msg = "$deleted Expense Parties deleted successfully.";
+        if ($skipped > 0) $msg .= " $skipped skipped (in use).";
+
+        return redirect('/expense_party')->with($deleted > 0 ? 'success' : 'error', $msg);
     }
 }

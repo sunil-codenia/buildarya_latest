@@ -74,10 +74,10 @@ class CostCategoryController extends Controller
             
             $actionHtml = '';
             if ($can_edit) {
-                $actionHtml .= '<button title="Edit" onclick="editdata(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>&nbsp;';
+                $actionHtml .= '<a href="javascript:void(0);" title="Edit" onclick="editdata(\''.$ddid.'\')" class="btn btn-sm btn-warning btn-icon btn-round"><i class="zmdi zmdi-edit"></i></a>&nbsp;';
             }
             if ($can_delete && isExpenseHeadDeletable($ddid)) {
-                $actionHtml .= '<button title="Delete" onclick="deletedata(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-delete"></i></button>';
+                $actionHtml .= '<a href="javascript:void(0);" title="Delete" onclick="deletedata(\''.$ddid.'\')" class="btn btn-sm btn-danger btn-icon btn-round"><i class="zmdi zmdi-delete"></i></a>';
             }
 
             $formattedData[] = [
@@ -203,5 +203,37 @@ class CostCategoryController extends Controller
     {
         // Placeholder for the report method if needed
         return redirect('/cost_category');
+    }
+
+    public function bulk_delete_head(Request $request)
+    {
+        $ids = $request->input('check_list');
+        if (empty($ids)) {
+            return redirect('/cost_category')->with('error', 'Please select at least one Cost Category to delete!');
+        }
+
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $deleted = 0;
+        $skipped = 0;
+
+        foreach ($ids as $id) {
+            $check = DB::connection($user_db_conn_name)->table('expenses')->where('head_id', '=', $id)->exists();
+            if ($check) {
+                $skipped++;
+                continue;
+            }
+
+            $head = DB::connection($user_db_conn_name)->table('expense_head')->where('id', '=', $id)->first();
+            if ($head) {
+                DB::connection($user_db_conn_name)->table('expense_head')->where('id', '=', $id)->delete();
+                addActivity(0, 'expense_head', "Cost Category Deleted via Bulk Action - " . $head->name, 12);
+                $deleted++;
+            }
+        }
+
+        $msg = "$deleted Cost Categories deleted successfully.";
+        if ($skipped > 0) $msg .= " $skipped skipped (in use).";
+        
+        return redirect('/cost_category')->with($deleted > 0 ? 'success' : 'error', $msg);
     }
 }

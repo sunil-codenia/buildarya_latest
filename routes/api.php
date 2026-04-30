@@ -98,7 +98,7 @@ Route::post('get_site_bill_work', [SiteBillsController::class, 'get_site_bill_wo
 Route::post('get_bill_parties', [SiteBillsController::class, 'get_bill_parties']);
 Route::post('get_bill_entries', [SiteBillsController::class, 'get_bill_entries']);
 Route::post('get_bill_item_entries', [SiteBillsController::class, 'get_bill_item_entries']);
-Route::post('addbillparty', [SiteBillsController::class, 'addbillparty']);
+        Route::post('addbillparty', [SiteBillsController::class, 'addbillparty']);
 Route::post('addnewbill', [SiteBillsController::class, 'addnewbill']);
 Route::post('getBillPartyBalance', [SiteBillsController::class, 'getBillPartyBalance']);
 Route::post('get_site_bill_work_name', [SiteBillsController::class, 'get_site_bill_work_name']);
@@ -182,6 +182,13 @@ Route::prefix('v1')->group(function () {
         Route::post('/users/{id}', [ApiManagementController::class, 'updateUser']);
         Route::post('/users/{id}/status', [ApiManagementController::class, 'updateUserStatus']);
         Route::delete('/users/{id}', [ApiManagementController::class, 'deleteUser'])->where('id', '[0-9,]+');
+        // Site Finances (Must be above generic {id} routes to avoid collisions)
+        Route::get('/sites/{id}/payments', [ApiManagementController::class, 'getSitePayments']);
+        Route::get('/sites/{id}/payments/export', [ApiManagementController::class, 'exportSitePayments']);
+        Route::post('/sites/payments', [ApiManagementController::class, 'recordSitePayment']);
+        Route::post('/sites/transfers', [ApiManagementController::class, 'transferSiteCash']);
+        Route::match(['get', 'post'], '/sites/statement', [ApiManagementController::class, 'siteStatement']);
+
         // Sites (Management)
         Route::get('/sites', [ApiManagementController::class, 'listSites']);
         Route::get('/sites/export/csv', [ApiManagementController::class, 'exportSitesCsv']);
@@ -190,12 +197,6 @@ Route::prefix('v1')->group(function () {
         Route::post('/sites', [ApiManagementController::class, 'storeSite']);
         Route::post('/sites/{id}', [ApiManagementController::class, 'updateSite']);
         Route::delete('/sites/{id}', [ApiManagementController::class, 'deleteSite']);
-        
-        // Site Finances
-        Route::get('/sites/payments', [ApiManagementController::class, 'listSitePayments']); // Coming soon in controller
-        Route::post('/sites/payments', [ApiManagementController::class, 'recordSitePayment']);
-        Route::post('/sites/transfers', [ApiManagementController::class, 'transferSiteCash']);
-        Route::match(['get', 'post'], '/sites/statement', [ApiManagementController::class, 'siteStatement']);
 
         // Roles (Management)
         Route::get('/roles', [ApiManagementController::class, 'listRoles']);
@@ -204,7 +205,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/roles/export/pdf', [ApiManagementController::class, 'exportRolesPdf']);
         Route::post('/roles', [ApiManagementController::class, 'storeRole']);
         Route::post('/roles/{id}', [ApiManagementController::class, 'updateRole']);
-        Route::delete('/roles/{id}', [ApiManagementController::class, 'deleteRole']);
+                Route::delete('/roles/{id}', [ApiManagementController::class, 'deleteRole']);
         
         // Permissions (Management)
         Route::get('/roles/{id}/permissions', [ApiManagementController::class, 'listRolePermissions']);
@@ -217,7 +218,7 @@ Route::prefix('v1')->group(function () {
 
         // Expenses
         Route::get('expense-heads', [ApiManagementController::class, 'listExpenseHeads']);
-        Route::get('bills-parties', [ApiManagementController::class, 'listBillsParties']);
+                Route::get('bills-parties', [ApiManagementController::class, 'listBillsParties']);
         Route::post('expenses', [ApiManagementController::class, 'storeExpense']);
 
         // Expense Parties
@@ -256,6 +257,15 @@ Route::prefix('v1')->group(function () {
         Route::post('/contacts/{id}', [ApiContactController::class, 'update']);
         Route::delete('/contacts/{id}', [ApiContactController::class, 'destroy']);
 
+        // Cost Categories (Management)
+        Route::get('/cost-categories', [ApiManagementController::class, 'listCostCategories']);
+        Route::get('/cost-categories/export', [ApiManagementController::class, 'exportCostCategories']);
+        Route::post('/cost-categories', [ApiManagementController::class, 'storeCostCategory']);
+        Route::post('/cost-categories/bulk-update', [ApiManagementController::class, 'bulkUpdateCostCategories']);
+        Route::post('/cost-categories/bulk-delete', [ApiManagementController::class, 'bulkDeleteCostCategories']);
+        Route::post('/cost-categories/{id}', [ApiManagementController::class, 'updateCostCategory'])->where('id', '[0-9]+');
+        Route::delete('/cost-categories/{id}', [ApiManagementController::class, 'deleteCostCategory'])->where('id', '[0-9,]+');
+
         // Resources
         // Route::get('/sites', [ApiResourceController::class, 'sites']); // DUPLICATE REMOVED - Using Management Controller instead
         // Route::get('/users', [ApiResourceController::class, 'users']); // DUPLICATE REMOVED - Using Management Controller instead
@@ -267,4 +277,3 @@ Route::prefix('v1')->group(function () {
         Route::get('/resources/adjustment-types', [ApiResourceController::class, 'adjustmentTypes']);
     });
 });
-

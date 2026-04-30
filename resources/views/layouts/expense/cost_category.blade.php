@@ -10,6 +10,23 @@
             $dataarray = $dataarray['data'];
         }
     @endphp
+    <style>
+        .btn-icon i {
+            line-height: inherit !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+        }
+        .btn-icon {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            padding: 0 !important;
+            vertical-align: middle;
+        }
+    </style>
     <div class="row clearfix">
         @if ($edit)
             @if (checkmodulepermission(12, 'can_edit') == 1)
@@ -61,6 +78,12 @@
                                 <button class="btn btn-warning btn-icon btn-round hidden-sm-down float-right m-l-10"
                                     title="Bulk Edit" type="button" onclick="submitBulkEdit()">
                                     <i class="zmdi zmdi-edit" style="color: white;"></i>
+                                </button>
+                            @endif
+                            @if (checkmodulepermission(12, 'can_delete') == 1)
+                                <button class="btn btn-danger btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                    title="Bulk Delete" type="button" onclick="submitBulkDelete()">
+                                    <i class="zmdi zmdi-delete" style="color: white;"></i>
                                 </button>
                             @endif
                         </li>
@@ -164,7 +187,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/delete_cost_category/?id=') }}" + id;
+                    var url = "{{ url('/delete_cost_category') }}?id=" + id;
                     window.location.href = url;
                 }
             });
@@ -190,7 +213,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/edit_cost_category/?id=') }}" + id;
+                    var url = "{{ url('/edit_cost_category') }}?id=" + id;
                     window.location.href = url;
                 }
             });
@@ -220,7 +243,25 @@
         }
 
         function submitBulkEdit() {
+            $("#bulkEditForm").attr('action', "{{ url('/bulk_edit_head') }}");
             $("#bulkEditForm").submit();
+        }
+
+        function submitBulkDelete() {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You want to delete selected Cost Categories?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete them!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $("#bulkEditForm").attr('action', "{{ url('/bulk_delete_head') }}");
+                    $("#bulkEditForm").submit();
+                }
+            });
         }
 
         $(document).ready(function() {

@@ -1,6 +1,6 @@
 @extends('app')
 @section('content')
-@include('templates.blockheader', ['pagename' => 'Bulk Edit Cost Categorys'])
+@include('templates.blockheader', ['pagename' => 'Bulk Edit Cost Categories'])
 @php
 $heads = json_decode($data, true);
 @endphp
@@ -8,10 +8,10 @@ $heads = json_decode($data, true);
     <div class="col-md-12 col-sm-12 col-xs-12">
         <div class="card">
             <div class="header">
-                <h2><strong>Bulk Edit</strong> Cost Categorys</h2>
+                <h2><strong>Bulk Edit</strong> Cost Categories</h2>
             </div>
             <div class="body">
-                @if(checkmodulepermission(2,'can_edit') == 1)
+                @if(checkmodulepermission(12,'can_edit') == 1)
                 <form method="post" action="{{url('/update_bulk_head')}}">
                     @csrf
                     <div class="table-responsive">
@@ -42,7 +42,7 @@ $heads = json_decode($data, true);
                         <div class="col-md-12 text-right">
                             <hr>
                              <button type="submit" class="btn btn-warning btn-round waves-effect"><a>Update All</a></button>
-                            <a href="{{url('/expense_head')}}" class="btn btn-default btn-round waves-effect">Cancel</a>
+                            <a href="{{url('/cost_category')}}" class="btn btn-default btn-round waves-effect">Cancel</a>
                         </div>
                     </div>
                 </form>

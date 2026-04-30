@@ -757,14 +757,16 @@ class ApiManagementController extends Controller
 
             $query = DB::connection($conn)->table('expense_party')
                 ->leftJoin('sites', 'expense_party.site_id', '=', 'sites.id')
-                ->select('expense_party.*', 'sites.name as site_name');
+                ->leftJoin('expense_head', 'expense_party.cost_category_id', '=', 'expense_head.id')
+                ->select('expense_party.*', 'sites.name as site_name', 'expense_head.name as category_name');
 
             if ($search) {
                 $query->where(function($q) use ($search) {
                     $q->where('expense_party.name', 'like', "%$search%")
                       ->orWhere('expense_party.address', 'like', "%$search%")
                       ->orWhere('expense_party.pan_no', 'like', "%$search%")
-                      ->orWhere('sites.name', 'like', "%$search%");
+                      ->orWhere('sites.name', 'like', "%$search%")
+                      ->orWhere('expense_head.name', 'like', "%$search%");
                 });
             }
 
@@ -1313,9 +1315,9 @@ class ApiManagementController extends Controller
         try {
             $conn = config('database.default');
             $site_id = $request->site_id;
-            $from_date = $request->start_date ?? $request->from_date;
-            $to_date = $request->end_date ?? $request->to_date;
-            $format = $request->format ?? 'json'; // json or pdf
+            $start_date = $request->start_date ?? $request->from_date;
+            $end_date = $request->end_date ?? $request->to_date;
+            $format = $request->format ?? 'json'; // json or pdf or excel or csv
 
             if (!$site_id) return response()->json(['status' => 'Error', 'message' => 'site_id is required'], 400);
 
@@ -1329,44 +1331,58 @@ class ApiManagementController extends Controller
 
             $allData = [];
             foreach ($transactions as $t) {
-                $row = ['date' => null, 'type' => $t->type, 'ref' => '', 'amount' => 0, 'remark' => ''];
+                $row = ['date' => null, 'type' => $t->type, 'ref' => '', 'ref_no' => '', 'user_name' => '', 'site_name' => '', 'amount' => 0, 'particular' => '', 'image' => ''];
                 
                 if ($t->payment_id) {
                     $p = DB::connection($conn)->table('site_payments')->where('id', $t->payment_id)->first();
                     if ($p) {
                         $row['date'] = $p->date;
-                        $row['ref'] = 'Payment';
-                        $row['amount'] = $p->amount;
-                        $row['remark'] = $p->remark;
+                        $row['ref'] = ($t->type == 'Credit' ? 'Payment Credit' : 'Payment Debit');
+                        $row['amount'] = (float)$p->amount;
+                        $row['particular'] = $p->remark;
                     }
                 } elseif ($t->payment_voucher_id) {
                     $pv = DB::connection($conn)->table('payment_vouchers')->where('id', $t->payment_voucher_id)->first();
                     if ($pv) {
                         $row['date'] = $pv->date;
-                        $row['ref'] = 'Voucher (' . $pv->voucher_no . ')';
-                        $row['amount'] = $pv->amount;
-                        $row['remark'] = $pv->remark;
+                        $row['ref'] = 'Payment Vouchers';
+                        $row['ref_no'] = $pv->voucher_no;
+                        $row['amount'] = (float)$pv->amount;
+                        $row['particular'] = $pv->remark;
+                        $row['image'] = $pv->image;
+                        $row['user_name'] = getUserDetailsById($pv->created_by)->name ?? '';
                     }
                 } elseif ($t->expense_id) {
                     $e = DB::connection($conn)->table('expenses')->where('id', $t->expense_id)->first();
                     if ($e) {
                         $row['date'] = $e->date;
                         $row['ref'] = 'Expense';
-                        $row['amount'] = $e->amount;
-                        $row['remark'] = $e->particular;
+                        $row['amount'] = (float)$e->amount;
+                        $row['particular'] = $e->particular;
+                        $row['image'] = $e->image;
+                        $row['user_name'] = getUserDetailsById($e->user_id)->name ?? '';
                     }
                 }
                 
                 if ($row['date']) $allData[] = $row;
             }
 
+            // Sort by Date (matching website usort)
+            usort($allData, function ($a, $b) {
+                return strtotime($a['date']) - strtotime($b['date']);
+            });
+
             // Calculate Opening Balance and Filter Data
             $openingBalance = 0;
             $filteredData = [];
+            $start = $start_date ? new \DateTime($start_date) : null;
+            $end = $end_date ? (new \DateTime($end_date))->modify('+1 day') : null;
+
             foreach ($allData as $row) {
-                if ($from_date && $row['date'] < $from_date) {
+                $rowDate = new \DateTime($row['date']);
+                if ($start && $rowDate < $start) {
                     $openingBalance += ($row['type'] == 'Credit' ? $row['amount'] : -$row['amount']);
-                } elseif ((!$from_date || $row['date'] >= $from_date) && (!$to_date || $row['date'] <= $to_date)) {
+                } elseif ((!$start || $rowDate >= $start) && (!$end || $rowDate < $end)) {
                     $filteredData[] = $row;
                 }
             }
@@ -1376,24 +1392,234 @@ class ApiManagementController extends Controller
                     'status' => 'Ok',
                     'site_name' => $site->name,
                     'opening_balance' => $openingBalance,
-                    'statement' => $filteredData,
+                    'statement' => array_values($filteredData),
                     'current_balance' => getSiteBalance($site_id, $conn)
                 ]);
             }
 
-            // Simple PDF Generation (using PDF facade)
-            $pdfData = [
-                'site_name' => $site->name,
-                'openingBalance' => $openingBalance,
-                'filteredData' => $filteredData,
-                'start_date' => $from_date,
-                'end_date' => $to_date,
-                'sitebalance' => getSiteBalance($site_id, $conn)
-            ];
+            // PDF/Excel/CSV Export Logic
+            if ($format == 'pdf') {
+                $pdfData = [
+                    'site_name' => $site->name,
+                    'openingBalance' => $openingBalance,
+                    'filteredData' => $filteredData,
+                    'start_date' => $start_date,
+                    'end_date' => $end_date,
+                    'sitebalance' => getSiteBalance($site_id, $conn)
+                ];
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.users.pdfs.siteStatement', $pdfData);
+                return $pdf->download("Statement_{$site->name}.pdf");
+            }
 
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.users.pdfs.siteStatement', $pdfData);
-            return $pdf->download("Statement_{$site->name}.pdf");
+            return response()->json(['status' => 'Error', 'message' => 'Format not supported yet via API'], 400);
 
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function getSitePayments(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $site = DB::connection($conn)->table('sites')->where('id', $id)->first();
+            if (!$site) return response()->json(['status' => 'Error', 'message' => 'Site not found'], 404);
+
+            $data = DB::connection($conn)->table('site_payments')->where('site_id', $id)->orderBy('id', 'desc')->get();
+            return response()->json(['status' => 'Ok', 'site_name' => $site->name, 'data' => $data]);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function exportSitePayments(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $format = $request->format ?? 'pdf';
+            $site = DB::connection($conn)->table('sites')->where('id', $id)->first();
+            if (!$site) return response()->json(['status' => 'Error', 'message' => 'Site not found'], 404);
+
+            $data = DB::connection($conn)->table('site_payments')->where('site_id', $id)->orderBy('date', 'desc')->get();
+
+            if ($format == 'pdf') {
+                $html = "<h1>Payments for {$site->name}</h1><table border='1' width='100%'><thead><tr><th>Date</th><th>Amount</th><th>Remark</th></tr></thead><tbody>";
+                foreach($data as $p) $html .= "<tr><td>{$p->date}</td><td>{$p->amount}</td><td>{$p->remark}</td></tr>";
+                $html .= "</tbody></table>";
+                return \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->download("Payments_{$site->name}.pdf");
+            } elseif ($format == 'csv') {
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=payments_{$id}.csv"];
+                return response()->stream(function() use($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['Date', 'Amount', 'Remark']);
+                    foreach ($data as $p) fputcsv($file, [$p->date, $p->amount, $p->remark]);
+                    fclose($file);
+                }, 200, $headers);
+            }
+
+            return response()->json(['status' => 'Error', 'message' => 'Format not supported via API'], 400);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    // ==========================================
+    // COST CATEGORY MANAGEMENT
+    // ==========================================
+
+    public function listCostCategories(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            
+            $query = DB::connection($conn)->table('expense_head');
+
+            if (!empty($search)) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
+            $data = $query->orderBy('id', 'desc')->paginate(10);
+            return response()->json(['status' => 'Ok', 'data' => $data, 'applied_search' => $search]);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function storeCostCategory(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            $name = $request->input('name');
+
+            if (!$name) return response()->json(['status' => 'Error', 'message' => 'Name is required'], 400);
+
+            $id = DB::connection($conn)->table('expense_head')->insertGetId([
+                'name' => $name
+            ]);
+
+            addActivity($id, 'expense_head', "New Cost Category Created: $name", 12, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Cost Category created successfully', 'id' => $id]);
+        } catch (\Exception $e) { 
+            if ($e->getCode() == 23000) return response()->json(['status' => 'Error', 'message' => 'Cost Category already exists'], 400);
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); 
+        }
+    }
+
+    public function updateCostCategory(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            $name = $request->input('name');
+
+            if (!$name) return response()->json(['status' => 'Error', 'message' => 'Name is required'], 400);
+
+            DB::connection($conn)->table('expense_head')->where('id', $id)->update(['name' => $name]);
+            addActivity($id, 'expense_head', "Cost Category Updated: $name", 12, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Cost Category updated successfully']);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function deleteCostCategory(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+
+            // Handle bulk delete if comma separated
+            $ids = explode(',', $id);
+            $deleted = 0; $skipped = 0;
+
+            foreach($ids as $cid) {
+                // Check if in use
+                $inUse = DB::connection($conn)->table('expenses')->where('head_id', $cid)->exists();
+                if ($inUse) {
+                    $skipped++;
+                    continue;
+                }
+                
+                $head = DB::connection($conn)->table('expense_head')->where('id', $cid)->first();
+                if ($head) {
+                    DB::connection($conn)->table('expense_head')->where('id', $cid)->delete();
+                    addActivity(0, 'expense_head', "Cost Category Deleted: " . $head->name, 12, $user->id, $conn);
+                    $deleted++;
+                }
+            }
+
+            return response()->json([
+                'status' => 'Ok', 
+                'message' => "$deleted Cost Categories deleted successfully. $skipped skipped (in use)."
+            ]);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function bulkUpdateCostCategories(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            $updates = $request->input('updates'); // Array of {id, name}
+
+            if (!is_array($updates)) return response()->json(['status' => 'Error', 'message' => 'Updates array required'], 400);
+
+            return DB::transaction(function() use ($updates, $conn, $user) {
+                foreach ($updates as $upd) {
+                    DB::connection($conn)->table('expense_head')->where('id', $upd['id'])->update(['name' => $upd['name']]);
+                    addActivity($upd['id'], 'expense_head', "Cost Category Updated via Bulk API", 12, $user->id, $conn);
+                }
+                return response()->json(['status' => 'Ok', 'message' => count($updates) . ' Cost Categories updated successfully']);
+            });
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function bulkDeleteCostCategories(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            $ids = $request->input('ids');
+
+            if (!is_array($ids)) return response()->json(['status' => 'Error', 'message' => 'IDs array required'], 400);
+
+            $deleted = 0; $skipped = 0;
+            foreach($ids as $cid) {
+                $inUse = DB::connection($conn)->table('expenses')->where('head_id', $cid)->exists();
+                if ($inUse) { $skipped++; continue; }
+                
+                $head = DB::connection($conn)->table('expense_head')->where('id', $cid)->first();
+                if ($head) {
+                    DB::connection($conn)->table('expense_head')->where('id', $cid)->delete();
+                    addActivity(0, 'expense_head', "Cost Category Deleted via Bulk API: " . $head->name, 12, $user->id, $conn);
+                    $deleted++;
+                }
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "$deleted Cost Categories deleted. $skipped skipped (in use)."]);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    public function exportCostCategories(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $format = $request->format ?? 'pdf';
+            $data = DB::connection($conn)->table('expense_head')->orderBy('name', 'asc')->get();
+
+            if ($format == 'pdf') {
+                $html = "<h1>Cost Categories</h1><table border='1' width='100%'><thead><tr><th>ID</th><th>Name</th></tr></thead><tbody>";
+                foreach($data as $r) $html .= "<tr><td>{$r->id}</td><td>{$r->name}</td></tr>";
+                $html .= "</tbody></table>";
+                return \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->download("Cost_Categories.pdf");
+            } elseif ($format == 'csv') {
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=cost_categories.csv"];
+                return response()->stream(function() use($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name']);
+                    foreach ($data as $r) fputcsv($file, [$r->id, $r->name]);
+                    fclose($file);
+                }, 200, $headers);
+            } elseif ($format == 'excel' || $format == 'xlsx') {
+                $headings = ['ID', 'Name'];
+                $query = "SELECT id, name FROM expense_head ORDER BY name ASC";
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\TableSheetExport($conn, $headings, $query, 'Cost_Categories'), 'Cost_Categories.xlsx');
+            }
+
+            return response()->json(['status' => 'Error', 'message' => 'Format not supported via API'], 400);
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }
 }

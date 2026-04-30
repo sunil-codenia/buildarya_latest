@@ -85,6 +85,7 @@ Route::group(['middleware' => ['auth']], function () {
         Route::post('/expense_head_report', [CostCategoryController::class, 'pdf_csv']);
         Route::post('/bulk_edit_head', [CostCategoryController::class, 'bulk_edit_head']);
         Route::post('/update_bulk_head', [CostCategoryController::class, 'update_bulk_head']);
+        Route::post('/bulk_delete_head', [CostCategoryController::class, 'bulk_delete_head']);
         Route::post('/expenseHeadReport', [CostCategoryController::class, 'expenseHeadReport']);
     });
 
@@ -99,6 +100,7 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/update_expense_party_status', [ExpensePartyController::class, 'update_expense_party_status']);
         Route::post('/bulk_edit_party', [ExpensePartyController::class, 'bulk_edit_party']);
         Route::post('/update_bulk_party', [ExpensePartyController::class, 'update_bulk_party']);
+        Route::post('/bulk_delete_party', [ExpensePartyController::class, 'bulk_delete_party']);
         Route::post('/update_bulk_party_status', [ExpensePartyController::class, 'update_bulk_party_status']);
         Route::post('/expensespartyreport', [ExpensePartyController::class, 'expensespertyreports']);
 

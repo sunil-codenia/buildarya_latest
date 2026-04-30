@@ -10,6 +10,23 @@ $dataarray = json_decode($data, true);
                             $dataarray = $dataarray['data'];
                             }
 @endphp
+<style>
+    .btn-icon i {
+        line-height: inherit !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+    .btn-icon {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        padding: 0 !important;
+        vertical-align: middle;
+    }
+</style>
 <div class="row clearfix">
 @if($edit)
 @if(checkmodulepermission(2,'can_edit') == 1)
@@ -88,6 +105,12 @@ $dataarray = json_decode($data, true);
                                 <button class="btn btn-danger btn-icon btn-round hidden-sm-down float-right m-l-10"
                                     title="Bulk Deactivate" type="button" onclick="submitBulkStatus('Deactive')">
                                     <i class="zmdi zmdi-close" style="color: white;"></i>
+                                </button>
+                            @endif
+                            @if (checkmodulepermission(2, 'can_delete') == 1)
+                                <button class="btn btn-danger btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                    title="Bulk Delete" type="button" onclick="submitBulkDelete()">
+                                    <i class="zmdi zmdi-delete" style="color: white;"></i>
                                 </button>
                             @endif
                    </li>
@@ -237,7 +260,7 @@ $dataarray = json_decode($data, true);
             },
         }).then((result) => {
             if (result.isConfirmed) {
-                var url = "{{url('/delete_expense_party?id=')}}" + id;
+                var url = "{{url('/delete_expense_party')}}?id=" + id;
                 window.location.href = url;
             }
         });
@@ -262,7 +285,7 @@ $dataarray = json_decode($data, true);
             },
         }).then((result) => {
             if (result.isConfirmed) {
-                var url = "{{url('/update_expense_party_status?id=')}}" + id + "&status="+status;
+                var url = "{{url('/update_expense_party_status')}}?id=" + id + "&status="+status;
                 window.location.href = url;
             }
         });
@@ -287,7 +310,7 @@ $dataarray = json_decode($data, true);
             },
         }).then((result) => {
             if (result.isConfirmed) {
-                var url = "{{url('/edit_expense_party?id=')}}" + id;
+                var url = "{{url('/edit_expense_party')}}?id=" + id;
                 window.location.href = url;
             }
         });
@@ -319,6 +342,23 @@ $dataarray = json_decode($data, true);
         function submitBulkEdit() {
             $("#bulkEditForm").attr('action', "{{ url('/bulk_edit_party') }}");
             $("#bulkEditForm").submit();
+        }
+
+        function submitBulkDelete() {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You want to delete selected Expense Parties?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete them!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $("#bulkEditForm").attr('action', "{{ url('/bulk_delete_party') }}");
+                    $("#bulkEditForm").submit();
+                }
+            });
         }
 
         function submitBulkStatus(status) {
