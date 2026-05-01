@@ -686,7 +686,19 @@ class ApiManagementController extends Controller
             $plan = DB::connection('mysql')->table('subscription_plans')->where('plan_name', $company->plan_name)->first();
             if (!$plan) return response()->json(['status' => 'Error', 'message' => 'Plan not found for: ' . $company->plan_name], 404);
 
-            $allowedModuleIds = json_decode($plan->modules);
+            $rawModules = $plan->modules;
+            $allowedModuleIds = [];
+            if (is_array($rawModules)) {
+                $allowedModuleIds = $rawModules;
+            } elseif (is_string($rawModules)) {
+                $decoded = json_decode($rawModules, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $allowedModuleIds = $decoded;
+                } else {
+                    $allowedModuleIds = explode(',', str_replace(['[', ']', '"', ' '], '', $rawModules));
+                }
+            }
+
             $modules = DB::connection('mysql')->table('modules')->whereIn('id', $allowedModuleIds)->get();
 
             $permissions = DB::connection($conn)->table('role_permission')->where('role_id', $id)->get()->keyBy('module_id');
@@ -1171,16 +1183,64 @@ class ApiManagementController extends Controller
     // PERMISSIONS MANAGEMENT
     // ==========================================
 
-    public function listUserPermissions(Request $request, $userId)
+    public function listUserPermissions(Request $request, $id)
     {
         try {
-            $permissions = DB::table('user_permission')
-                ->join('modules', 'modules.id', '=', 'user_permission.module_id')
-                ->where('user_id', $userId)
-                ->select('user_permission.*', 'modules.name as module_name')
-                ->get();
+            $conn = config('database.default');
             
-            return response()->json(['status' => 'Ok', 'data' => $permissions]);
+            // Detect Company
+            $company = DB::connection('mysql')->table('companies')
+                ->where('db_conn_name', $conn)
+                ->orWhere('db_name', $conn)
+                ->orWhere('uid', str_replace('company_', '', $conn))
+                ->first();
+
+            if (!$company || !$company->plan_name) {
+                return response()->json(['status' => 'Error', 'message' => 'Subscription not found for connection: ' . $conn], 404);
+            }
+
+            $plan = DB::connection('mysql')->table('subscription_plans')->where('plan_name', $company->plan_name)->first();
+            if (!$plan) return response()->json(['status' => 'Error', 'message' => 'Plan not found for: ' . $company->plan_name], 404);
+
+            $rawModules = $plan->modules;
+            $allowedModuleIds = [];
+            if (is_array($rawModules)) {
+                $allowedModuleIds = $rawModules;
+            } elseif (is_string($rawModules)) {
+                $decoded = json_decode($rawModules, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $allowedModuleIds = $decoded;
+                } else {
+                    $allowedModuleIds = explode(',', str_replace(['[', ']', '"', ' '], '', $rawModules));
+                }
+            }
+
+            $modules = DB::connection('mysql')->table('modules')->whereIn('id', $allowedModuleIds)->get();
+            $permissions = DB::connection($conn)->table('user_permission')->where('user_id', $id)->get()->keyBy('module_id');
+
+            $data = [];
+            foreach ($modules as $m) {
+                $p = $permissions->get($m->id);
+                $data[] = [
+                    'user_id' => (int)$id,
+                    'module_id' => $m->id,
+                    'module_name' => $m->name,
+                    'can_view' => $p ? (int)$p->can_view : 0,
+                    'can_add' => $p ? (int)$p->can_add : 0,
+                    'can_edit' => $p ? (int)$p->can_edit : 0,
+                    'can_delete' => $p ? (int)$p->can_delete : 0,
+                    'can_pay' => $p ? (int)$p->can_pay : 0,
+                    'can_certify' => $p ? (int)$p->can_certify : 0,
+                    'can_report' => $p ? (int)$p->can_report : 0
+                ];
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'user_id' => $id,
+                'user_name' => DB::connection($conn)->table('users')->where('id', $id)->value('name'),
+                'permissions' => $data
+            ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
@@ -1456,8 +1516,13 @@ class ApiManagementController extends Controller
     {
         try {
             $conn = config('database.default');
-            $companyUID = str_replace('company_', '', $conn);
-            $company = DB::connection('mysql')->table('companies')->where('uid', $companyUID)->first();
+            
+            // Detect Company by checking db_conn_name, db_name, or UID
+            $company = DB::connection('mysql')->table('companies')
+                ->where('db_conn_name', $conn)
+                ->orWhere('db_name', $conn)
+                ->orWhere('uid', str_replace('company_', '', $conn))
+                ->first();
             
             $site_id = $request->site_id;
             $start_date = $request->start_date ?? $request->from_date;
@@ -1558,10 +1623,10 @@ class ApiManagementController extends Controller
                     'sitebalance' => getSiteBalance($site_id, $conn),
                     'primary_color' => $request->session()->get('primary_color')[0] ?? '#34495e',
                     'secondry_color' => $request->session()->get('secondry_color')[0] ?? '#2c3e50',
-                    'comp_name' => $company->name,
-                    'comp_add' => $company->address,
-                    'comp_mobile' => $company->mobile,
-                    'comp_email' => $company->email,
+                    'comp_name' => $company->name ?? 'N/A',
+                    'comp_add' => $company->address ?? 'N/A',
+                    'comp_mobile' => $company->mobile ?? 'N/A',
+                    'comp_email' => $company->email ?? 'N/A',
                     'generator_name' => $user->name ?? 'API User'
                 ];
                 $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.users.pdfs.siteStatement', $pdfData);
