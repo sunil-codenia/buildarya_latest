@@ -74,13 +74,20 @@ class ApiManagementController extends Controller
 
     public function storeUser(Request $request)
     {
-        $request->validate([
+        $rules = [
             'name' => 'required|min:3',
             'username' => 'required|min:5|unique:users,username',
-            'pass' => 'required|min:5',
             'role_id' => 'required',
             'contact_no' => 'required|digits:10',
-        ]);
+        ];
+
+        if ($request->has('password')) {
+            $rules['password'] = 'required|min:5';
+        } else {
+            $rules['pass'] = 'required|min:5';
+        }
+
+        $request->validate($rules);
 
         try {
             $user = $request->user();
@@ -92,12 +99,17 @@ class ApiManagementController extends Controller
                 $data = [
                     'name' => $request->name,
                     'username' => $request->username,
-                    'pass' => $request->pass,
+                    'pass' => $request->pass ?? $request->password,
                     'site_id' => $site_id,
                     'role_id' => $request->role_id,
                     'contact_no' => $request->contact_no,
                     'pan_no' => $request->pan_no,
-                    'status' => 'Active',
+                    'status' => $request->status ?? 'Active',
+                    'mobile_only' => $request->mobile_only ?? 'yes',
+                    'subscription_plan_id' => $request->subscription_plan_id ?? $request->company_id,
+                    'view_duration' => $request->view_duration,
+                    'add_duration' => $request->add_duration,
+                    'fcm_id' => $request->fcm_id,
                     'image' => 'images/noprofile.jpg',
                     'create_datetime' => Carbon::now()
                 ];
@@ -151,7 +163,21 @@ class ApiManagementController extends Controller
 
             if (!$staff) return response()->json(['status' => 'Failed', 'message' => 'Staff member not found'], 404);
 
-            $updateData = $request->only(['name', 'username', 'pass', 'role_id', 'contact_no', 'pan_no', 'status', 'view_duration', 'site_id']);
+            $updateData = $request->only([
+                'name', 'username', 'pass', 'password', 'role_id', 'contact_no', 
+                'pan_no', 'status', 'view_duration', 'add_duration', 'site_id', 
+                'mobile_only', 'subscription_plan_id', 'company_id', 'fcm_id'
+            ]);
+            
+            // Map aliases
+            if (isset($updateData['password'])) {
+                $updateData['pass'] = $updateData['password'];
+                unset($updateData['password']);
+            }
+            if (isset($updateData['company_id'])) {
+                $updateData['subscription_plan_id'] = $updateData['company_id'];
+                unset($updateData['company_id']);
+            }
             
             if (empty($updateData)) {
                 return response()->json(['status' => 'Failed', 'message' => 'No fields provided for update'], 400);
