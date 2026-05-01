@@ -671,17 +671,17 @@ class ApiManagementController extends Controller
     {
         try {
             $conn = config('database.default');
-            // Detect Company UID from the connection name (e.g., "company_new_buildarya" -> "new_buildarya")
-            $companyUID = str_replace('company_', '', $conn);
             
-            $company = DB::connection('mysql')->table('companies')->where('uid', $companyUID)->first();
-            if (!$company) {
-                // Fallback: try session if connection name didn't work
-                $companyUID = session('session_comp_id');
-                $company = DB::connection('mysql')->table('companies')->where('uid', $companyUID)->first();
-            }
+            // Detect Company by checking db_conn_name, db_name, or UID
+            $company = DB::connection('mysql')->table('companies')
+                ->where('db_conn_name', $conn)
+                ->orWhere('db_name', $conn)
+                ->orWhere('uid', str_replace('company_', '', $conn))
+                ->first();
 
-            if (!$company || !$company->plan_name) return response()->json(['status' => 'Error', 'message' => 'Subscription not found for Company: ' . $companyUID], 404);
+            if (!$company || !$company->plan_name) {
+                return response()->json(['status' => 'Error', 'message' => 'Subscription not found for connection: ' . $conn], 404);
+            }
 
             $plan = DB::connection('mysql')->table('subscription_plans')->where('plan_name', $company->plan_name)->first();
             if (!$plan) return response()->json(['status' => 'Error', 'message' => 'Plan not found for: ' . $company->plan_name], 404);
@@ -695,28 +695,24 @@ class ApiManagementController extends Controller
             foreach ($modules as $m) {
                 $p = $permissions->get($m->id);
                 $data[] = [
+                    'role_id' => (int)$id,
                     'module_id' => $m->id,
                     'module_name' => $m->name,
-                    'permissions' => [
-                        'can_view' => $p ? (int)$p->can_view : 0,
-                        'can_add' => $p ? (int)$p->can_add : 0,
-                        'can_edit' => $p ? (int)$p->can_edit : 0,
-                        'can_delete' => $p ? (int)$p->can_delete : 0,
-                        'can_pay' => $p ? (int)$p->can_pay : 0,
-                        'can_certify' => $p ? (int)$p->can_certify : 0,
-                        'can_report' => $p ? (int)$p->can_report : 0
-                    ]
+                    'can_view' => $p ? (int)$p->can_view : 0,
+                    'can_add' => $p ? (int)$p->can_add : 0,
+                    'can_edit' => $p ? (int)$p->can_edit : 0,
+                    'can_delete' => $p ? (int)$p->can_delete : 0,
+                    'can_pay' => $p ? (int)$p->can_pay : 0,
+                    'can_certify' => $p ? (int)$p->can_certify : 0,
+                    'can_report' => $p ? (int)$p->can_report : 0
                 ];
             }
 
-            $connName = config('database.default');
-            $dbName = DB::connection($connName)->getDatabaseName();
-
             return response()->json([
-                'status' => 'Ok', 
-                'database' => $dbName,
+                'status' => 'Ok',
                 'role_id' => $id,
-                'data' => $data
+                'role_name' => DB::connection($conn)->table('roles')->where('id', $id)->value('name'),
+                'permissions' => $data
             ]);
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }
