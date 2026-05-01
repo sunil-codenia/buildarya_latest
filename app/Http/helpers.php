@@ -298,7 +298,20 @@ function isSuperAdmin()
     // Try API Auth first
     if (auth('sanctum')->check()) {
         $user = auth('sanctum')->user();
-        return $user->is_superadmin === 'yes' || $user->is_superadmin == '1' || $user->role_id == 1;
+        $conn = config('database.default');
+        
+        // Check User directly
+        if ($user->is_superadmin === 'yes' || $user->is_superadmin == '1' || $user->role_id == 1) return true;
+        
+        // Check if the assigned role is marked as superadmin in the tenant DB
+        try {
+            $role = DB::connection($conn)->table('roles')->where('id', $user->role_id)->first();
+            if ($role && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1' || strtolower($role->name) == 'admin' || strtolower($role->name) == 'superadmin')) {
+                return true;
+            }
+        } catch (\Exception $e) {}
+        
+        return false;
     }
 
     // Fallback to Session for Website

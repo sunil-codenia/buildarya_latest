@@ -670,50 +670,68 @@ class ApiManagementController extends Controller
     public function listRolePermissions(Request $request, $id)
     {
         try {
+            $user = $request->user('sanctum');
             $conn = config('database.default');
             
-            // Detect Company by checking db_conn_name, db_name, or UID
+            // Detect Company
             $company = DB::connection('mysql')->table('companies')
                 ->where('db_conn_name', $conn)
                 ->orWhere('db_name', $conn)
                 ->orWhere('uid', str_replace('company_', '', $conn))
                 ->first();
 
-            if (!$company || !$company->plan_name) {
-                return response()->json(['status' => 'Error', 'message' => 'Subscription not found for connection: ' . $conn], 404);
+            if (!$company) return response()->json(['status' => 'Error', 'message' => 'Company not found'], 404);
+
+            // Priority: Use subscription_plan_id from user if available, otherwise company plan_name
+            $planId = $user->subscription_plan_id ?? $company->subscription_plan_id ?? null;
+            $plan = null;
+            
+            if ($planId) {
+                $plan = DB::connection('mysql')->table('subscription_plans')->where('id', $planId)->first();
             }
-
-            $planName = $company->plan_name;
-            $plan = DB::connection('mysql')->table('subscription_plans')
-                ->where('plan_name', $planName)
-                ->orWhere('plan_name', 'LIKE', $planName)
-                ->first();
-
+            
             if (!$plan) {
-                // Fallback: If no specific plan found, get the latest plan for this company or any active plan
-                $plan = DB::connection('mysql')->table('subscription_plans')
-                    ->where('status', 'Active')
-                    ->orderBy('id', 'desc')
-                    ->first();
+                $plan = DB::connection('mysql')->table('subscription_plans')->where('plan_name', $company->plan_name)->first();
             }
 
-            if (!$plan) return response()->json(['status' => 'Error', 'message' => 'No active plan found for subscription: ' . $planName], 404);
-
+            if (!$plan) return response()->json(['status' => 'Error', 'message' => 'Active subscription plan not found'], 404);
 
             $rawModules = $plan->modules;
             $allowedModuleIds = [];
-            if (is_array($rawModules)) {
-                $allowedModuleIds = $rawModules;
-            } elseif (is_string($rawModules)) {
+            if (is_array($rawModules)) $allowedModuleIds = $rawModules;
+            elseif (is_string($rawModules)) {
                 $decoded = json_decode($rawModules, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $allowedModuleIds = $decoded;
-                } else {
-                    $allowedModuleIds = explode(',', str_replace(['[', ']', '"', ' '], '', $rawModules));
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) $allowedModuleIds = $decoded;
+                else $allowedModuleIds = explode(',', str_replace(['[', ']', '"', ' '], '', $rawModules));
+            }
+
+            $raw_modules = DB::connection('mysql')->table('modules')->whereIn('id', $allowedModuleIds)->get();
+            
+            // Sidebar Map from RoleController
+            $sidebar_map = [
+                1 => 'Sites & Users',
+                2 => 'Expenses',
+                3 => 'Material Purchase & Manage Stock',
+                4 => 'Site Bills',
+                6 => 'Machinery',
+                5 => 'Assets',
+                7 => 'Sales',
+                8 => 'Payment Vouchers',
+                11 => 'Document Management',
+                10 => 'Contact Management',
+                9 => 'Management'
+            ];
+
+            $modules = [];
+            foreach ($sidebar_map as $sid => $sname) {
+                foreach ($raw_modules as $rm) {
+                    if ($rm->id == $sid) {
+                        $modules[] = (object)['id' => $sid, 'name' => $sname];
+                        break;
+                    }
                 }
             }
 
-            $modules = DB::connection('mysql')->table('modules')->whereIn('id', $allowedModuleIds)->get();
             $permissions = DB::connection($conn)->table('role_permission')->where('role_id', $id)->get()->keyBy('module_id');
 
             $data = [];
