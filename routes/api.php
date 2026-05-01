@@ -185,9 +185,10 @@ Route::prefix('v1')->group(function () {
         // Site Finances (Must be above generic {id} routes to avoid collisions)
         Route::get('/sites/{id}/payments', [ApiManagementController::class, 'getSitePayments']);
         Route::get('/sites/{id}/payments/export', [ApiManagementController::class, 'exportSitePayments']);
-        Route::post('/sites/payments', [ApiManagementController::class, 'recordSitePayment']);
+        Route::match(['get', 'post'], '/sites/payments', [ApiManagementController::class, 'listSitePayments']);
         Route::post('/sites/transfers', [ApiManagementController::class, 'transferSiteCash']);
         Route::match(['get', 'post'], '/sites/statement', [ApiManagementController::class, 'siteStatement']);
+
 
         // Sites (Management)
         Route::get('/sites', [ApiManagementController::class, 'listSites']);
@@ -195,6 +196,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/sites/export/excel', [ApiManagementController::class, 'exportSitesExcel']);
         Route::get('/sites/export/pdf', [ApiManagementController::class, 'exportSitesPdf']);
         Route::post('/sites', [ApiManagementController::class, 'storeSite']);
+        Route::post('/sites/bulk-status', [ApiManagementController::class, 'bulkUpdateSitesStatus']);
+        Route::post('/sites/bulk-delete', [ApiManagementController::class, 'bulkDeleteSites']);
         Route::post('/sites/{id}', [ApiManagementController::class, 'updateSite']);
         Route::delete('/sites/{id}', [ApiManagementController::class, 'deleteSite']);
 

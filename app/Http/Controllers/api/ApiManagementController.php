@@ -104,9 +104,9 @@ class ApiManagementController extends Controller
                 // Handle Image Upload
                 if ($request->hasFile('image')) {
                     $file = $request->file('image');
-                    $filename = time() . '_' . $file->getClientOriginalName();
-                    $file->move(public_path('images'), $filename);
-                    $data['image'] = 'images/' . $filename;
+                    $filename = time() . '.' . $file->getClientOriginalExtension();
+                    $file->move(public_path('images/app_images/' . $conn . '/users'), $filename);
+                    $data['image'] = 'images/app_images/' . $conn . '/users/' . $filename;
                 }
 
                 $newUserId = DB::connection($conn)->table('users')->insertGetId($data);
@@ -161,9 +161,9 @@ class ApiManagementController extends Controller
             // Handle Image Upload during Update
             if ($request->hasFile('image')) {
                 $file = $request->file('image');
-                $filename = time() . '_' . $file->getClientOriginalName();
-                $file->move(public_path('images'), $filename);
-                $updateData['image'] = 'images/' . $filename;
+                $filename = time() . '.' . $file->getClientOriginalExtension();
+                $file->move(public_path('images/app_images/' . $conn . '/users'), $filename);
+                $updateData['image'] = 'images/app_images/' . $conn . '/users/' . $filename;
             }
 
             DB::connection($conn)->table('users')->where('id', $id)->update($updateData);
@@ -367,6 +367,17 @@ class ApiManagementController extends Controller
         try {
             $user = $request->user('sanctum');
             $conn = config('database.default');
+
+            // --- HELPER: Delegate to bulk actions if 'ids' is present ---
+            // This handles cases where user hits /api/v1/sites with bulk data
+            if ($request->has('ids')) {
+                if ($request->has('status')) {
+                    return $this->bulkUpdateSitesStatus($request);
+                } else {
+                    return $this->bulkDeleteSites($request);
+                }
+            }
+            // ------------------------------------------------------------
             
             $id = DB::connection($conn)->table('sites')->insertGetId([
                 'name' => $request->name,
@@ -406,6 +417,20 @@ class ApiManagementController extends Controller
             $user = $request->user('sanctum');
             $conn = config('database.default');
 
+            // Handle comma-separated IDs for bulk deletion via single route
+            $ids = explode(',', $id);
+            $ids = array_map('trim', $ids);
+            $ids = array_filter($ids);
+
+            if (count($ids) > 1) {
+                return $this->processBulkSiteDelete($ids, $conn, $user);
+            }
+
+            // Single Deletion
+            if (!isSiteDeletable($id)) {
+                return response()->json(['status' => 'Failed', 'message' => 'This site cannot be deleted.'], 400);
+            }
+
             DB::connection($conn)->table('sites')->where('id', $id)->delete();
             addActivity($id, 'sites', "Site Deleted via API", 1, $user->id, $conn);
 
@@ -413,6 +438,142 @@ class ApiManagementController extends Controller
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
+    }
+
+    public function bulkDeleteSites(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user('sanctum');
+            $ids = $request->input('ids');
+
+            if (is_string($ids)) $ids = explode(',', $ids);
+            if (empty($ids)) return response()->json(['status' => 'Error', 'message' => 'No Site IDs provided'], 400);
+
+            return $this->processBulkSiteDelete($ids, $conn, $user);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+
+    private function processBulkSiteDelete($ids, $conn, $user)
+    {
+        $deletableIds = [];
+        $skippedIds = [];
+        foreach ($ids as $sid) {
+            if (isSiteDeletable($sid)) {
+                $deletableIds[] = $sid;
+            } else {
+                $skippedIds[] = $sid;
+            }
+        }
+
+        if (empty($deletableIds)) {
+            return response()->json([
+                'status' => 'Failed',
+                'message' => 'Selected sites cannot be deleted.',
+                'skipped_ids' => $skippedIds
+            ], 400);
+        }
+
+        DB::connection($conn)->table('sites')->whereIn('id', $deletableIds)->delete();
+        foreach ($deletableIds as $sid) {
+            addActivity($sid, 'sites', "Site Deleted via Bulk API", 1, $user->id, $conn);
+        }
+
+        return response()->json([
+            'status' => 'Ok',
+            'message' => count($deletableIds) . ' Sites deleted successfully.',
+            'skipped_count' => count($skippedIds),
+            'skipped_ids' => $skippedIds
+        ]);
+    }
+
+    public function bulkUpdateSitesStatus(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $ids = $request->input('ids');
+            $status = $request->input('status');
+
+            if (empty($ids) || !$status) {
+                return response()->json(['status' => 'Error', 'message' => 'IDs and Status are required'], 400);
+            }
+
+            DB::connection($conn)->table('sites')->whereIn('id', $ids)->update(['status' => $status]);
+            
+            foreach ($ids as $id) {
+                addActivity($id, 'sites', "Site status updated to $status via Bulk API", 1, $user->id, $conn);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "Sites updated to $status successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function listSitePayments(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user('sanctum');
+
+            // If POST and has amount, user probably wants to RECORD a payment
+            if ($request->isMethod('post') && $request->has('amount')) {
+                return $this->recordSitePayment($request);
+            }
+
+            $site_id = $request->site_id ?? $request->id;
+            $format = $request->format ?? 'json';
+            $start_date = $request->start_date ?? $request->from_date;
+            $end_date = $request->end_date ?? $request->to_date;
+
+            if (!$site_id) return response()->json(['status' => 'Error', 'message' => 'site_id is required'], 400);
+
+            $query = DB::connection($conn)->table('site_payments')
+                ->where('site_id', $site_id);
+
+            $search = $request->search;
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->where('remark', 'like', "%$search%")
+                      ->orWhere('amount', 'like', "%$search%")
+                      ->orWhere('date', 'like', "%$search%");
+                });
+            }
+
+            if ($format == 'json') {
+                $payments = $query->orderBy('date', 'desc')->paginate($request->per_page ?? 10);
+                return response()->json([
+                    'status' => 'Ok',
+                    'site_name' => DB::connection($conn)->table('sites')->where('id', $site_id)->value('name'),
+                    'payments' => $payments
+                ]);
+            }
+
+            // For Exports, we get all records
+            $payments = $query->orderBy('date', 'desc')->get();
+            $site_name = DB::connection($conn)->table('sites')->where('id', $site_id)->value('name');
+            if ($format == 'pdf') {
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.users.pdfs.sitePayments', [
+                    'data' => $payments,
+                    'site_name' => $site_name,
+                    'start_date' => $start_date,
+                    'end_date' => $end_date
+                ]);
+                return $pdf->download("Payments_{$site_name}.pdf");
+            } elseif ($format == 'csv') {
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=payments_{$site_id}.csv"];
+                return response()->stream(function() use($payments) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['Date', 'Remark', 'Amount']);
+                    foreach ($payments as $p) fputcsv($file, [$p->date, $p->remark, $p->amount]);
+                    fclose($file);
+                }, 200, $headers);
+            }
+
+            return response()->json(['status' => 'Error', 'message' => 'Format not supported via API'], 400);
+        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }
 
     // ==========================================
@@ -1207,22 +1368,7 @@ class ApiManagementController extends Controller
     // SITE PAYMENTS & TRANSFERS
     // ==========================================
 
-    public function listSitePayments(Request $request)
-    {
-        try {
-            $conn = config('database.default');
-            $query = DB::connection($conn)->table('site_payments')
-                ->leftJoin('sites', 'sites.id', '=', 'site_payments.site_id')
-                ->select('site_payments.*', 'sites.name as site_name');
 
-            if ($request->has('site_id')) {
-                $query->where('site_id', $request->site_id);
-            }
-
-            $payments = $query->orderBy('site_payments.id', 'desc')->paginate(10);
-            return response()->json(['status' => 'Ok', 'data' => $payments]);
-        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
-    }
 
     public function recordSitePayment(Request $request)
     {
@@ -1314,6 +1460,9 @@ class ApiManagementController extends Controller
     {
         try {
             $conn = config('database.default');
+            $companyUID = str_replace('company_', '', $conn);
+            $company = DB::connection('mysql')->table('companies')->where('uid', $companyUID)->first();
+            
             $site_id = $request->site_id;
             $start_date = $request->start_date ?? $request->from_date;
             $end_date = $request->end_date ?? $request->to_date;
@@ -1364,7 +1513,11 @@ class ApiManagementController extends Controller
                     }
                 }
                 
-                if ($row['date']) $allData[] = $row;
+                if ($row['date']) {
+                    $row['credit'] = ($t->type == 'Credit' ? $row['amount'] : '');
+                    $row['debit'] = ($t->type == 'Debit' ? $row['amount'] : '');
+                    $allData[] = $row;
+                }
             }
 
             // Sort by Date (matching website usort)
@@ -1399,19 +1552,33 @@ class ApiManagementController extends Controller
 
             // PDF/Excel/CSV Export Logic
             if ($format == 'pdf') {
+                $user = $request->user('sanctum');
                 $pdfData = [
                     'site_name' => $site->name,
                     'openingBalance' => $openingBalance,
                     'filteredData' => $filteredData,
                     'start_date' => $start_date,
                     'end_date' => $end_date,
-                    'sitebalance' => getSiteBalance($site_id, $conn)
+                    'sitebalance' => getSiteBalance($site_id, $conn),
+                    'primary_color' => $request->session()->get('primary_color')[0] ?? '#34495e',
+                    'secondry_color' => $request->session()->get('secondry_color')[0] ?? '#2c3e50',
+                    'comp_name' => $company->name,
+                    'comp_add' => $company->address,
+                    'comp_mobile' => $company->mobile,
+                    'comp_email' => $company->email,
+                    'generator_name' => $user->name ?? 'API User'
                 ];
                 $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.users.pdfs.siteStatement', $pdfData);
                 return $pdf->download("Statement_{$site->name}.pdf");
+            } elseif ($format == 'excel' || $format == 'xlsx') {
+                $file_name = "Statement_{$site->name}.xlsx";
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\PaymentExport($conn, $start_date, $end_date, 5, $site_id), $file_name);
+            } elseif ($format == 'csv') {
+                $file_name = "Statement_{$site->name}.csv";
+                return \Maatwebsite\Excel\Facades\Excel::download(new \App\Exports\PaymentExport($conn, $start_date, $end_date, 5, $site_id), $file_name);
             }
 
-            return response()->json(['status' => 'Error', 'message' => 'Format not supported yet via API'], 400);
+            return response()->json(['status' => 'Error', 'message' => 'Format not supported via API'], 400);
 
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }

@@ -72,8 +72,8 @@ class PaymentExport implements Fromview
                     ->orderBy('pv.date', 'desc')->get(),
                 'start_date' => $this->start_date,
                 'end_date' => $this->end_date,
-                'color' => session()->get('primary_color')[0],
-                'sec_color' => session()->get('secondry_color')[0],
+                'color' => session()->get('primary_color')[0] ?? '#000000',
+                'sec_color' => session()->get('secondry_color')[0] ?? '#ffffff',
             ]);
         } else  if ($this->report_code == 2) {
             return view('layouts.paymentvoucher.exports.accToParty', [
@@ -107,8 +107,8 @@ class PaymentExport implements Fromview
                     ->orderBy('pv.date', 'desc')->get(),
                 'start_date' => $this->start_date,
                 'end_date' => $this->end_date,
-                'color' => session()->get('primary_color')[0],
-                'sec_color' => session()->get('secondry_color')[0],
+                'color' => session()->get('primary_color')[0] ?? '#000000',
+                'sec_color' => session()->get('secondry_color')[0] ?? '#ffffff',
                 'partyname' => getPaymentVoucherPartyInfo($this->partyname, $this->partytype)
             ]);
         }else  if ($this->report_code == 3) {
@@ -142,8 +142,8 @@ class PaymentExport implements Fromview
                     ->orderBy('pv.date', 'desc')->get(),
                 'start_date' => $this->start_date,
                 'end_date' => $this->end_date,
-                'color' => session()->get('primary_color')[0],
-                'sec_color' => session()->get('secondry_color')[0],
+                'color' => session()->get('primary_color')[0] ?? '#000000',
+                'sec_color' => session()->get('secondry_color')[0] ?? '#ffffff',
                 'sitename' => getSiteDetailsById($this->sitename)->name
             ]);
         }else  if ($this->report_code == 4) {
@@ -179,8 +179,8 @@ class PaymentExport implements Fromview
                     ->orderBy('pv.date', 'desc')->get(),
                 'start_date' => $this->start_date,
                 'end_date' => $this->end_date,
-                'color' => session()->get('primary_color')[0],
-                'sec_color' => session()->get('secondry_color')[0],
+                'color' => session()->get('primary_color')[0] ?? '#000000',
+                'sec_color' => session()->get('secondry_color')[0] ?? '#ffffff',
                 'partyname' => getPaymentVoucherPartyInfo($this->partyname, $this->partytype),
                 'sitename' => getSiteDetailsById($this->sitename)->name
 
@@ -238,8 +238,8 @@ class PaymentExport implements Fromview
 
             return view('layouts.users.exports.siteStatement', [
                 'data' => $data,
-                'color' => session()->get('primary_color')[0],
-                'sec_color' => session()->get('secondry_color')[0],             
+                'color' => session()->get('primary_color')[0] ?? '#000000',
+                'sec_color' => session()->get('secondry_color')[0] ?? '#ffffff',             
                 'site_name' => $site_name,
                 'total_credit'=>$total_credit,
                 'total_debit'=>$total_debit,
