@@ -357,8 +357,12 @@ class ApiManagementController extends Controller
 
             $sites = $query->orderBy('id', 'desc')->paginate(10);
 
-            // Calculate balance for each site in the current page
+            // Calculate balance and fetch Project names
             foreach ($sites as $site) {
+                // 1. Fetch Project Name
+                $site->project_name = DB::connection('mysql')->table('sales_project')->where('id', $site->project_id)->value('name') ?? 'NO PROJECT';
+
+                // 2. Calculate current balance
                 $balance = 0;
                 $transactions = DB::connection($conn)->table('sites_transaction')->where('site_id', $site->id)->get();
                 
@@ -403,10 +407,31 @@ class ApiManagementController extends Controller
             
             $id = DB::connection($conn)->table('sites')->insertGetId([
                 'name' => $request->name,
-                'address' => $request->address ?? '', // Added address
+                'address' => $request->address ?? '',
                 'status' => 'Active',
+                'project_id' => $request->project_id ?? 0,
+                'sites_type' => $request->sites_type ?? 'Construction',
                 'create_datetime' => Carbon::now()
             ]);
+
+            // Handle Opening Balance (Matches SiteController.php logic)
+            if ($request->has('opening_balance') && (float)$request->opening_balance > 0) {
+                $pay_id = DB::connection($conn)->table('site_payments')->insertGetId([
+                    'site_id' => $id,
+                    'amount' => $request->opening_balance,
+                    'remark' => "Opening Balance",
+                    'date' => Carbon::now()->format('Y-m-d')
+                ]);
+                
+                DB::connection($conn)->table('sites_transaction')->insert([
+                    'site_id' => $id,
+                    'type' => 'Credit',
+                    'payment_id' => $pay_id,
+                    'create_datetime' => Carbon::now()
+                ]);
+                
+                addActivity($pay_id, 'site_payments', "Opening Balance Transfer To Site. Amount - " . $request->opening_balance, 1, $user->id, $conn);
+            }
 
             addActivity($id, 'sites', "New Site Created via API: " . $request->name, 1, $user->id, $conn);
             return response()->json(['status' => 'Ok', 'message' => 'Site created successfully', 'id' => $id]);
@@ -421,7 +446,7 @@ class ApiManagementController extends Controller
             $user = $request->user('sanctum');
             $conn = config('database.default');
 
-            $data = $request->only(['name', 'status', 'address']); // Added address
+            $data = $request->only(['name', 'status', 'address', 'project_id', 'sites_type']); // Added project_id and sites_type
             if (empty($data)) return response()->json(['status' => 'Error', 'message' => 'No data provided'], 400);
 
             DB::connection($conn)->table('sites')->where('id', $id)->update($data);

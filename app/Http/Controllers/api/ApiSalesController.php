@@ -17,9 +17,15 @@ class ApiSalesController extends Controller
     public function listProjects(Request $request)
     {
         try {
+            $search = trim($request->get('search'));
             $query = DB::table('sales_project')->orderBy('id', 'desc');
+
+            if (!empty($search)) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
             $projects = $query->paginate(20);
-            return response()->json(['status' => 'Ok', 'data' => $projects]);
+            return response()->json(['status' => 'Ok', 'data' => $projects, 'applied_search' => $search]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
