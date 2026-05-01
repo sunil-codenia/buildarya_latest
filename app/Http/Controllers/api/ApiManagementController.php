@@ -721,16 +721,17 @@ class ApiManagementController extends Controller
             foreach ($modules as $m) {
                 $p = $permissions->get($m->id);
                 $data[] = [
-                    'role_id' => (int)$id,
                     'module_id' => $m->id,
                     'module_name' => $m->name,
-                    'can_view' => $p ? (int)$p->can_view : 0,
-                    'can_add' => $p ? (int)$p->can_add : 0,
-                    'can_edit' => $p ? (int)$p->can_edit : 0,
-                    'can_delete' => $p ? (int)$p->can_delete : 0,
-                    'can_pay' => $p ? (int)$p->can_pay : 0,
-                    'can_certify' => $p ? (int)$p->can_certify : 0,
-                    'can_report' => $p ? (int)$p->can_report : 0
+                    'permissions' => [
+                        'can_view' => $p ? (int)$p->can_view : 0,
+                        'can_add' => $p ? (int)$p->can_add : 0,
+                        'can_edit' => $p ? (int)$p->can_edit : 0,
+                        'can_delete' => $p ? (int)$p->can_delete : 0,
+                        'can_pay' => $p ? (int)$p->can_pay : 0,
+                        'can_certify' => $p ? (int)$p->can_certify : 0,
+                        'can_report' => $p ? (int)$p->can_report : 0
+                    ]
                 ];
             }
 
@@ -739,7 +740,7 @@ class ApiManagementController extends Controller
                 'role_id' => $id,
                 'role_name' => DB::connection($conn)->table('roles')->where('id', $id)->value('name'),
                 'plan_name' => $plan->plan_name ?? 'Unknown',
-                'permissions' => $data
+                'data' => $data
             ]);
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }
@@ -821,15 +822,7 @@ class ApiManagementController extends Controller
             }
 
             addActivity($id, 'roles', "Permissions Hard-Updated via API", 1, $user->id, $connName);
-            
-            return response()->json([
-                'status' => 'Ok', 
-                'message' => 'Permissions saved successfully', 
-                'database' => $dbName,
-                'role_id' => $id,
-                'verification' => $insertedData,
-                'timestamp' => Carbon::now()->toDateTimeString()
-            ]);
+            return $this->listRolePermissions($request, $id);
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
     }
 
@@ -1237,16 +1230,17 @@ class ApiManagementController extends Controller
             foreach ($modules as $m) {
                 $p = $permissions->get($m->id);
                 $data[] = [
-                    'user_id' => (int)$id,
                     'module_id' => $m->id,
                     'module_name' => $m->name,
-                    'can_view' => $p ? (int)$p->can_view : 0,
-                    'can_add' => $p ? (int)$p->can_add : 0,
-                    'can_edit' => $p ? (int)$p->can_edit : 0,
-                    'can_delete' => $p ? (int)$p->can_delete : 0,
-                    'can_pay' => $p ? (int)$p->can_pay : 0,
-                    'can_certify' => $p ? (int)$p->can_certify : 0,
-                    'can_report' => $p ? (int)$p->can_report : 0
+                    'permissions' => [
+                        'can_view' => $p ? (int)$p->can_view : 0,
+                        'can_add' => $p ? (int)$p->can_add : 0,
+                        'can_edit' => $p ? (int)$p->can_edit : 0,
+                        'can_delete' => $p ? (int)$p->can_delete : 0,
+                        'can_pay' => $p ? (int)$p->can_pay : 0,
+                        'can_certify' => $p ? (int)$p->can_certify : 0,
+                        'can_report' => $p ? (int)$p->can_report : 0
+                    ]
                 ];
             }
 
@@ -1254,43 +1248,65 @@ class ApiManagementController extends Controller
                 'status' => 'Ok',
                 'user_id' => $id,
                 'user_name' => DB::connection($conn)->table('users')->where('id', $id)->value('name'),
-                'permissions' => $data
+                'plan_name' => $plan->plan_name ?? 'Unknown',
+                'data' => $data
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
 
-    public function updateUserPermissions(Request $request, $userId)
+    public function updateUserPermissions(Request $request, $id)
     {
-        $request->validate([
-            'permissions' => 'required|array',
-            'permissions.*.module_id' => 'required',
-        ]);
-
         try {
             $user = $request->user('sanctum');
-            $conn = config('database.default');
+            if (!isSuperAdmin()) {
+                return response()->json(['status' => 'Error', 'message' => 'Only SuperAdmins can edit permissions.'], 403);
+            }
 
-            DB::transaction(function () use ($request, $userId, $user, $conn) {
-                foreach ($request->permissions as $p) {
-                    DB::table('user_permission')
-                        ->where('user_id', $userId)
-                        ->where('module_id', $p['module_id'])
-                        ->update([
-                            'can_view' => $p['can_view'] ?? 0,
-                            'can_add' => $p['can_add'] ?? 0,
-                            'can_edit' => $p['can_edit'] ?? 0,
-                            'can_delete' => $p['can_delete'] ?? 0,
-                            'can_certify' => $p['can_certify'] ?? 0,
-                            'can_pay' => $p['can_pay'] ?? 0,
-                            'can_report' => $p['can_report'] ?? 0,
-                        ]);
-                }
-            });
+            $permissionsList = $request->input('permissions') ?? $request->input('data') ?? $request->all();
+            
+            if (isset($permissionsList['data'])) $permissionsList = $permissionsList['data'];
+            elseif (isset($permissionsList['permissions'])) $permissionsList = $permissionsList['permissions'];
 
-            addActivity($userId, 'user_permission', "User permissions updated via API", 1, $user->id, $conn);
-            return response()->json(['status' => 'Ok', 'message' => 'Permissions updated successfully']);
+            if (!is_array($permissionsList) || count($permissionsList) == 0) {
+                return response()->json(['status' => 'Error', 'message' => 'No permission data found in your request.'], 400);
+            }
+
+            $connName = config('database.default');
+            $now = Carbon::now()->toDateTimeString();
+
+            foreach ($permissionsList as $p) {
+                if (!isset($p['module_id'])) continue;
+                
+                $m_id = (int)$p['module_id'];
+                $u_id = (int)$id; 
+                $perms = isset($p['permissions']) ? $p['permissions'] : $p;
+
+                $v = (isset($perms['can_view']) && ($perms['can_view'] == 1 || $perms['can_view'] === true)) ? 1 : 0;
+                $a = (isset($perms['can_add']) && ($perms['can_add'] == 1 || $perms['can_add'] === true)) ? 1 : 0;
+                $e = (isset($perms['can_edit']) && ($perms['can_edit'] == 1 || $perms['can_edit'] === true)) ? 1 : 0;
+                $d = (isset($perms['can_delete']) && ($perms['can_delete'] == 1 || $perms['can_delete'] === true)) ? 1 : 0;
+                $py = (isset($perms['can_pay']) && ($perms['can_pay'] == 1 || $perms['can_pay'] === true)) ? 1 : 0;
+                $c = (isset($perms['can_certify']) && ($perms['can_certify'] == 1 || $perms['can_certify'] === true)) ? 1 : 0;
+                $rp = (isset($perms['can_report']) && ($perms['can_report'] == 1 || $perms['can_report'] === true)) ? 1 : 0;
+
+                DB::connection($connName)->table('user_permission')->updateOrInsert(
+                    ['user_id' => $u_id, 'module_id' => $m_id],
+                    [
+                        'can_view' => $v, 
+                        'can_add' => $a, 
+                        'can_edit' => $e, 
+                        'can_delete' => $d, 
+                        'can_pay' => $py, 
+                        'can_certify' => $c, 
+                        'can_report' => $rp
+                    ]
+                );
+            }
+
+            addActivity($id, 'user_permission', "User permissions updated via API", 1, $user->id, $connName);
+            return $this->listUserPermissions($request, $id);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
