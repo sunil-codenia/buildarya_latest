@@ -714,12 +714,12 @@ class ApiManagementController extends Controller
             }
 
             $modules = DB::connection('mysql')->table('modules')->whereIn('id', $allowedModuleIds)->get();
-
             $permissions = DB::connection($conn)->table('role_permission')->where('role_id', $id)->get()->keyBy('module_id');
 
             $data = [];
             foreach ($modules as $m) {
                 $p = $permissions->get($m->id);
+                
                 $data[] = [
                     'module_id' => $m->id,
                     'module_name' => $m->name,
@@ -1229,6 +1229,7 @@ class ApiManagementController extends Controller
             $data = [];
             foreach ($modules as $m) {
                 $p = $permissions->get($m->id);
+
                 $data[] = [
                     'module_id' => $m->id,
                     'module_name' => $m->name,
