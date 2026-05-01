@@ -356,6 +356,28 @@ class ApiManagementController extends Controller
             }
 
             $sites = $query->orderBy('id', 'desc')->paginate(10);
+
+            // Calculate balance for each site in the current page
+            foreach ($sites as $site) {
+                $balance = 0;
+                $transactions = DB::connection($conn)->table('sites_transaction')->where('site_id', $site->id)->get();
+                
+                foreach ($transactions as $t) {
+                    $amt = 0;
+                    if ($t->payment_id) {
+                        $amt = (float)DB::connection($conn)->table('site_payments')->where('id', $t->payment_id)->value('amount');
+                    } elseif ($t->payment_voucher_id) {
+                        $amt = (float)DB::connection($conn)->table('payment_vouchers')->where('id', $t->payment_voucher_id)->value('amount');
+                    } elseif ($t->expense_id) {
+                        $amt = (float)DB::connection($conn)->table('expenses')->where('id', $t->expense_id)->value('amount');
+                    }
+
+                    if ($t->type == 'Credit') $balance += $amt;
+                    else $balance -= $amt;
+                }
+                $site->balance = number_format($balance, 2, '.', '');
+            }
+
             return response()->json(['status' => 'Ok', 'data' => $sites, 'applied_search' => $search]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
@@ -676,25 +698,34 @@ class ApiManagementController extends Controller
             // Detect Company
             $company = DB::connection('mysql')->table('companies')
                 ->where('db_conn_name', $conn)
-                ->orWhere('db_name', $conn)
-                ->orWhere('uid', str_replace('company_', '', $conn))
                 ->first();
 
             if (!$company) return response()->json(['status' => 'Error', 'message' => 'Company not found'], 404);
 
-            // Priority: Use subscription_plan_id from user if available, otherwise company plan_name
-            $planId = $user->subscription_plan_id ?? $company->subscription_plan_id ?? null;
+            // Priority 1: User's specific plan
+            $planId = $user->subscription_plan_id;
             $plan = null;
             
             if ($planId) {
                 $plan = DB::connection('mysql')->table('subscription_plans')->where('id', $planId)->first();
             }
+
+            // Priority 2: Company's assigned plan ID
+            if (!$plan && !empty($company->subscription_plan_id)) {
+                $plan = DB::connection('mysql')->table('subscription_plans')->where('id', $company->subscription_plan_id)->first();
+            }
             
-            if (!$plan) {
-                $plan = DB::connection('mysql')->table('subscription_plans')->where('plan_name', $company->plan_name)->first();
+            // Priority 3: Company's plan name (Get the LATEST one to be accurate)
+            if (!$plan && !empty($company->plan_name)) {
+                $plan = DB::connection('mysql')->table('subscription_plans')
+                    ->where('plan_name', $company->plan_name)
+                    ->orderBy('id', 'desc')
+                    ->first();
             }
 
-            if (!$plan) return response()->json(['status' => 'Error', 'message' => 'Active subscription plan not found'], 404);
+            if (!$plan) {
+                return response()->json(['status' => 'Error', 'message' => 'No active subscription plan found.'], 404);
+            }
 
             $rawModules = $plan->modules;
             $allowedModuleIds = [];
@@ -758,6 +789,7 @@ class ApiManagementController extends Controller
                 'role_id' => $id,
                 'role_name' => DB::connection($conn)->table('roles')->where('id', $id)->value('name'),
                 'plan_name' => $plan->plan_name ?? 'Unknown',
+                'debug_subscription_plan_id' => $plan->id ?? null,
                 'data' => $data
             ]);
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
