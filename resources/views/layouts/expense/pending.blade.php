@@ -28,8 +28,10 @@
                                     @if (checkmodulepermission(2, 'can_edit') == 1)
                                         <button type="submit" formaction="{{ url('/pending_expense/bulk_edit_expense') }}"
                                             class="btn btn-warning btn-simple btn-round waves-effect"><a>Edit</a></button>
-                                        <button type="button" onclick="openReturnModal()"
-                                            class="btn btn-info btn-simple btn-round waves-effect"><a>Return</a></button>
+                                        @if(session()->get('role') == 1 || session()->get('role') == 2)
+                                            <button type="button" onclick="openReturnModal()"
+                                                class="btn btn-info btn-simple btn-round waves-effect"><a>Return</a></button>
+                                        @endif
                                     @endif
                                 </div>
                                 <table id="pendingExpenseTable" class="table table-hover">
@@ -154,7 +156,7 @@
             </div>
         </div>
     @endif
-    @if (checkmodulepermission(2, 'can_certify') == 1)
+    @if (checkmodulepermission(2, 'can_certify') == 1 && (session()->get('role') == 1 || session()->get('role') == 2))
         <div class="modal fade" id="returnexpensemodal" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-md" role="document">
                 <div class="modal-content">

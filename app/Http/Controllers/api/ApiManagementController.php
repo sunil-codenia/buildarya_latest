@@ -5,6 +5,7 @@ namespace App\Http\Controllers\api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Carbon\Carbon;
 use PDF;
 
@@ -104,8 +105,10 @@ class ApiManagementController extends Controller
                 // Handle Image Upload
                 if ($request->hasFile('image')) {
                     $file = $request->file('image');
-                    $filename = time() . '.' . $file->getClientOriginalExtension();
-                    $file->move(public_path('images/app_images/' . $conn . '/users'), $filename);
+                    $dir = public_path('images/app_images/' . $conn . '/users');
+                    if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                    $filename = time() . rand(10000, 1000000) . '.' . $file->getClientOriginalExtension();
+                    $file->move($dir, $filename);
                     $data['image'] = 'images/app_images/' . $conn . '/users/' . $filename;
                 }
 
@@ -161,8 +164,10 @@ class ApiManagementController extends Controller
             // Handle Image Upload during Update
             if ($request->hasFile('image')) {
                 $file = $request->file('image');
-                $filename = time() . '.' . $file->getClientOriginalExtension();
-                $file->move(public_path('images/app_images/' . $conn . '/users'), $filename);
+                $dir = public_path('images/app_images/' . $conn . '/users');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $filename = time() . rand(10000, 1000000) . '.' . $file->getClientOriginalExtension();
+                $file->move($dir, $filename);
                 $updateData['image'] = 'images/app_images/' . $conn . '/users/' . $filename;
             }
 
@@ -673,6 +678,58 @@ class ApiManagementController extends Controller
         }
     }
 
+    public function getRoleSetting(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $role = DB::connection($conn)->table('roles')->where('id', $id)->first();
+
+            if (!$role) {
+                return response()->json(['status' => 'Error', 'message' => 'Role not found'], 404);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'data_access' => $role->data_access,
+                    'add_duration' => $role->add_duration,
+                    'view_duration' => $role->view_duration,
+                    'initial_entry_status' => $role->initial_entry_status,
+                    'entry_at_site' => $role->entry_at_site,
+                    'visiblity_at_site' => $role->visiblity_at_site,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateRoleSetting(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+
+            $data = $request->only([
+                'data_access', 'add_duration', 'view_duration', 
+                'initial_entry_status', 'entry_at_site', 'visiblity_at_site'
+            ]);
+            
+            if (empty($data)) {
+                return response()->json(['status' => 'Error', 'message' => 'No settings provided'], 400);
+            }
+
+            DB::connection($conn)->table('roles')->where('id', $id)->update($data);
+            addActivity($id, 'roles', "Role settings updated via API", 1, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Role settings updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function updateRole(Request $request, $id)
     {
         try {
@@ -924,66 +981,85 @@ class ApiManagementController extends Controller
         try {
             $conn = config('database.default');
             $user = $request->user('sanctum');
-            
             $role_id = $user->role_id;
             $user_id = $user->id;
 
-            // Determine Status (Match Web Logic)
+            // Status
             $status = getInitialEntryStatusByRole($role_id);
+            if ($request->has('status') && $request->status != '') {
+                $status = ucfirst(strtolower($request->status));
+            }
             $head_id = $request->input('head_id');
-            if (is_machinery_head($head_id) || is_asset_head($head_id)) {
+            if (!$request->has('status') && (is_machinery_head($head_id) || is_asset_head($head_id))) {
                 $status = 'Pending';
             }
 
-            // Image Upload
+            // Image - try file upload first, then base64
             $imagePath = "images/expense.png";
+            $dir = public_path('images/app_images/' . $conn . '/expense');
+
+            // Method 1: Direct file upload
             if ($request->hasFile('image')) {
                 $file = $request->file('image');
+                if (is_array($file)) { $file = $file[0]; }
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
                 $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
-                $path = "images/app_images/{$conn}/expense";
-                if (!File::isDirectory(public_path($path))) {
-                    File::makeDirectory(public_path($path), 0777, true, true);
+                $file->move($dir, $imageName);
+                $imagePath = "images/app_images/" . $conn . "/expense/" . $imageName;
+            }
+            // Method 2: Base64 string (send image as text field "image_data")
+            elseif ($request->has('image_data') && strlen($request->image_data) > 100) {
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64 = $request->image_data;
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $b64);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $b64, $m)) { $ext = $m[1]; }
+                    $imageName = time() . rand(10000, 1000000) . '.' . $ext;
+                    file_put_contents($dir . '/' . $imageName, $decoded);
+                    $imagePath = "images/app_images/" . $conn . "/expense/" . $imageName;
                 }
-                $file->move(public_path($path), $imageName);
-                $imagePath = "{$path}/{$imageName}";
             }
 
-            // Party Logic (ID||Type)
-            $party_input = $request->input('party_id'); // Format: "1||expense"
-            $party = explode("||", $party_input);
+            // Party
+            $party_input = $request->input('party_id', '0||expense');
+            $party = explode("||", (string)$party_input);
             $p_id = $party[0] ?? 0;
             $p_type = $party[1] ?? 'expense';
 
-            $data = [
+            // Insert
+            $expense_id = DB::connection($conn)->table('expenses')->insertGetId([
                 'site_id' => $request->input('site_id'),
                 'user_id' => $user_id,
                 'party_id' => $p_id,
                 'party_type' => $p_type,
                 'head_id' => $head_id,
-                'particular' => $request->input('particular'),
-                'amount' => $request->input('amount'),
-                'remark' => $request->input('remark'),
+                'particular' => $request->input('particular', ''),
+                'amount' => $request->input('amount', 0),
+                'remark' => $request->input('remark', ''),
                 'image' => $imagePath,
                 'status' => $status,
                 'date' => $request->input('date', date('Y-m-d')),
                 'create_datetime' => Carbon::now()
-            ];
+            ]);
 
-            $expense_id = DB::connection($conn)->table('expenses')->insertGetId($data);
             addActivity($expense_id, 'expenses', "New Expense Created via API", 1, $user_id, $conn);
 
-            // Handle Immediate Approval logic if status is Approved
             if ($status == 'Approved') {
-                $this->handleExpenseApprovalInternal($expense_id, $conn, $p_id, $p_type);
+                $this->approveExpenseLogic($expense_id, $conn, $user_id, [$p_id, $p_type]);
             }
 
             return response()->json([
-                'status' => 'Ok', 
-                'message' => 'Expense created successfully', 
-                'id' => $expense_id, 
+                'status' => 'Ok',
+                'message' => 'Expense created successfully',
+                'id' => $expense_id,
+                'image_path' => $imagePath,
                 'applied_status' => $status
             ]);
-        } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -1956,5 +2032,164 @@ class ApiManagementController extends Controller
 
             return response()->json(['status' => 'Error', 'message' => 'Format not supported via API'], 400);
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
+    }
+    public function bulkStoreExpenses(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            $role_id = $user->role_id;
+            $default_status = getInitialEntryStatusByRole($role_id);
+
+            // Accept TWO formats:
+            // Format 1 (JSON array): { "expenses": [ {site_id, party_id, ...}, {site_id, party_id, ...} ] }
+            // Format 2 (flat form-data): site_id[], party_id[], etc.
+            
+            $expenses = $request->input('expenses');
+            
+            if ($expenses && is_array($expenses)) {
+                // JSON array format
+                $expenseList = $expenses;
+            } else {
+                // Flat form-data format (backward compatible)
+                $data = $request->all();
+                if (!isset($data['site_id'])) {
+                    return response()->json(['status' => 'Error', 'message' => 'Send expenses as JSON array: { "expenses": [ {...}, {...} ] }'], 400);
+                }
+                // Convert flat arrays to list of objects
+                $siteIds = is_array($data['site_id']) ? $data['site_id'] : [$data['site_id']];
+                $expenseList = [];
+                for ($i = 0; $i < count($siteIds); $i++) {
+                    $expenseList[] = [
+                        'site_id' => $siteIds[$i],
+                        'party_id' => is_array($data['party_id'] ?? null) ? ($data['party_id'][$i] ?? '') : ($data['party_id'] ?? ''),
+                        'head_id' => is_array($data['head_id'] ?? null) ? ($data['head_id'][$i] ?? '') : ($data['head_id'] ?? ''),
+                        'particular' => is_array($data['particular'] ?? null) ? ($data['particular'][$i] ?? '') : ($data['particular'] ?? ''),
+                        'amount' => is_array($data['amount'] ?? null) ? ($data['amount'][$i] ?? 0) : ($data['amount'] ?? 0),
+                        'remark' => is_array($data['remark'] ?? null) ? ($data['remark'][$i] ?? '') : ($data['remark'] ?? ''),
+                        'date' => is_array($data['date'] ?? null) ? ($data['date'][$i] ?? date('Y-m-d')) : ($data['date'] ?? date('Y-m-d')),
+                        'status' => is_array($data['status'] ?? null) ? ($data['status'][$i] ?? null) : ($data['status'] ?? null),
+                        'image' => is_array($data['image'] ?? null) ? ($data['image'][$i] ?? null) : ($data['image'] ?? null),
+                    ];
+                }
+            }
+
+            $inserted_ids = [];
+            $savedPaths = [];
+            $connName = config('database.default');
+            $dir = public_path('images/app_images/' . $connName . '/expense');
+
+            foreach ($expenseList as $idx => $exp) {
+                // --- IMAGE HANDLING ---
+                $imagePath = "images/expense.png";
+                $imageData = $exp['image'] ?? ($exp['image_data'] ?? null);
+                
+                if ($imageData && is_string($imageData) && strlen($imageData) > 100) {
+                    // Base64 image
+                    if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                    
+                    $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $imageData);
+                    $decoded = base64_decode($b64Clean);
+                    
+                    if ($decoded) {
+                        $ext = 'png';
+                        if (preg_match('/^data:image\/(\w+);/', $imageData, $m)) { $ext = $m[1]; }
+                        $imageName = time() . rand(10000, 1000000) . '.' . $ext;
+                        file_put_contents($dir . '/' . $imageName, $decoded);
+                        $imagePath = "images/app_images/" . $connName . "/expense/" . $imageName;
+                    }
+                }
+                
+                // Also try file upload (multipart)
+                if ($imagePath == "images/expense.png" && $request->hasFile("image")) {
+                    $files = $request->file("image");
+                    $file = is_array($files) ? ($files[$idx] ?? null) : ($idx == 0 ? $files : null);
+                    if ($file) {
+                        if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                        $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                        $file->move($dir, $imageName);
+                        $imagePath = "images/app_images/" . $connName . "/expense/" . $imageName;
+                    }
+                }
+                
+                $savedPaths[] = $imagePath;
+
+                // --- PARTY ---
+                $party_raw = $exp['party_id'] ?? '0||expense';
+                $party = explode("||", (string)$party_raw);
+                $party_id_val = $party[0];
+                $party_type_val = $party[1] ?? 'expense';
+
+                // --- STATUS ---
+                $current_status = $default_status;
+                if (!empty($exp['status'])) {
+                    $current_status = ucfirst(strtolower($exp['status']));
+                }
+                if (empty($exp['status']) && (is_machinery_head($exp['head_id']) || is_asset_head($exp['head_id']))) {
+                    $current_status = 'Pending';
+                }
+
+                // --- INSERT ---
+                $expense_id = DB::connection($conn)->table('expenses')->insertGetId([
+                    'site_id' => $exp['site_id'],
+                    'user_id' => $user->id,
+                    'party_id' => $party_id_val,
+                    'party_type' => $party_type_val,
+                    'head_id' => $exp['head_id'],
+                    'particular' => $exp['particular'] ?? '',
+                    'amount' => $exp['amount'] ?? 0,
+                    'remark' => $exp['remark'] ?? '',
+                    'image' => $imagePath,
+                    'status' => $current_status,
+                    'date' => $exp['date'] ?? date('Y-m-d'),
+                    'create_datetime' => Carbon::now()
+                ]);
+
+                // Auto-approve if status is Approved
+                if ($current_status == 'Approved') {
+                    $this->approveExpenseLogic($expense_id, $conn, $user->id, [$party_id_val, $party_type_val]);
+                }
+
+                $inserted_ids[] = $expense_id;
+                addActivity($expense_id, 'expenses', "New Expense Created via API", 2, $user->id, $conn);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => count($inserted_ids) . ' Expenses created successfully',
+                'ids' => $inserted_ids,
+                'image_paths' => $savedPaths,
+                'redirect_url' => ($default_status == 'Approved') ? '/verified_expense' : '/pending_expense'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function approveExpenseLogic($id, $conn, $user_id, $party)
+    {
+        $expense = DB::connection($conn)->table('expenses')->where('id', '=', $id)->first();
+        
+        // 1. Site Transaction (Debit)
+        DB::connection($conn)->table('sites_transaction')->insert([
+            'site_id' => $expense->site_id,
+            'type' => 'Debit',
+            'expense_id' => $id,
+            'create_datetime' => $expense->create_datetime
+        ]);
+
+        // 2. Bill Party Statement (Credit)
+        if ($party[1] == 'bill') {
+            DB::connection($conn)->table('bill_party_statement')->insert([
+                'party_id' => $expense->party_id,
+                'type' => 'Credit',
+                'particular' => $expense->particular,
+                'expense_id' => $id,
+                'create_datetime' => $expense->create_datetime
+            ]);
+        }
+        
+        addActivity($id, 'expenses', "Expense Automatically Approved via API", 2, $user_id, $conn);
     }
 }

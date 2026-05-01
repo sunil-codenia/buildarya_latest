@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 
 class UserController extends Controller
 {
@@ -250,8 +251,10 @@ class UserController extends Controller
         $user_id = $request->post('user_id');
         $imagePath = "images/noprofile.jpg";
         try {
+            $dir = public_path('images/app_images/'.$conn.'/users');
+            if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
             $imageName = time() . rand(10000, 1000000) . '.' . $request->image->extension();
-            $request->image->move(public_path('images/app_images/'.$conn.'/users'), $imageName);
+            $request->image->move($dir, $imageName);
             $imagePath = "images/app_images/".$conn."/users/" . $imageName;
             DB::connection($conn)->table('users')->where('id', '=', $user_id)->update(['image' => $imagePath]);
             $data = [
@@ -301,8 +304,10 @@ class UserController extends Controller
             if ($request->has('pan_no')) $updateData['pan_no'] = $request->post('pan_no');
 
             if ($request->hasFile('image')) {
+                $dir = public_path('images/app_images/'.$conn.'/users');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
                 $imageName = time() . rand(10000, 1000000) . '.' . $request->image->extension();
-                $request->image->move(public_path('images/app_images/'.$conn.'/users'), $imageName);
+                $request->image->move($dir, $imageName);
                 $updateData['image'] = "images/app_images/".$conn."/users/" . $imageName;
             }
 
@@ -448,8 +453,10 @@ class UserController extends Controller
         $imagePath = "images/expense.png";
         try {
             if (isset($request->image)) {
+                $dir = public_path('images/app_images/'.$user_db_conn_name.'/documents');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
                 $imageName = time() . rand(10000, 1000000) . '.' . $request->image->extension();
-                $request->image->move(public_path('images/app_images/'.$user_db_conn_name.'/documents'), $imageName);
+                $request->image->move($dir, $imageName);
                 $imagePath = "images/app_images/".$user_db_conn_name."/documents/" . $imageName;
             } else {
                 $result['status'] = 'Failed';

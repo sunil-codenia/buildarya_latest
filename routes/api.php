@@ -136,7 +136,7 @@ Route::prefix('v1')->group(function () {
         // Expenses
         Route::get('/expenses/summary', [ApiExpenseController::class, 'summary']);
         Route::get('/expenses', [ApiExpenseController::class, 'index']);
-        Route::post('/expenses', [ApiExpenseController::class, 'store']);
+        Route::post('/expenses/bulk', [ApiManagementController::class, 'bulkStoreExpenses']);
         Route::post('/expenses/{id}', [ApiExpenseController::class, 'update']);
         Route::delete('/expenses/{id}', [ApiExpenseController::class, 'destroy']);
 
@@ -208,6 +208,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/roles/export/pdf', [ApiManagementController::class, 'exportRolesPdf']);
         Route::post('/roles', [ApiManagementController::class, 'storeRole']);
         Route::post('/roles/{id}', [ApiManagementController::class, 'updateRole']);
+        
+        // Role Settings (Separate API)
+        Route::get('/role_setting/{id}', [ApiManagementController::class, 'getRoleSetting']);
+        Route::post('/role_setting/{id}', [ApiManagementController::class, 'updateRoleSetting']);
                 Route::delete('/roles/{id}', [ApiManagementController::class, 'deleteRole']);
         
         // Permissions (Management)
@@ -221,7 +225,7 @@ Route::prefix('v1')->group(function () {
 
         // Expenses
         Route::get('expense-heads', [ApiManagementController::class, 'listExpenseHeads']);
-                Route::get('bills-parties', [ApiManagementController::class, 'listBillsParties']);
+        Route::get('bills-parties', [ApiManagementController::class, 'listBillsParties']);
         Route::post('expenses', [ApiManagementController::class, 'storeExpense']);
 
         // Expense Parties

@@ -890,11 +890,13 @@ class ExpenseController extends Controller
             }
         }
         if ($res) {
-            return redirect('/verified_expense')
+            $redirectUrl = ($status == 'Approved') ? '/verified_expense' : '/pending_expense';
+            return redirect($redirectUrl)
                 ->with('success', 'Expenses Created successfully!');
         } else {
-            return redirect('/verified_expense')
-                ->with('error', $e . 'Error While Creating Expense. Please Try Again After Reconciling The Statement.!');
+            $redirectUrl = ($status == 'Approved') ? '/verified_expense' : '/pending_expense';
+            return redirect($redirectUrl)
+                ->with('error', 'Error While Creating Expense. Please Try Again After Reconciling The Statement!');
         }
     }
     public function updateExpenses(Request $request)
