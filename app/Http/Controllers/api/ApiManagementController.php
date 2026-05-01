@@ -683,8 +683,22 @@ class ApiManagementController extends Controller
                 return response()->json(['status' => 'Error', 'message' => 'Subscription not found for connection: ' . $conn], 404);
             }
 
-            $plan = DB::connection('mysql')->table('subscription_plans')->where('plan_name', $company->plan_name)->first();
-            if (!$plan) return response()->json(['status' => 'Error', 'message' => 'Plan not found for: ' . $company->plan_name], 404);
+            $planName = $company->plan_name;
+            $plan = DB::connection('mysql')->table('subscription_plans')
+                ->where('plan_name', $planName)
+                ->orWhere('plan_name', 'LIKE', $planName)
+                ->first();
+
+            if (!$plan) {
+                // Fallback: If no specific plan found, get the latest plan for this company or any active plan
+                $plan = DB::connection('mysql')->table('subscription_plans')
+                    ->where('status', 'Active')
+                    ->orderBy('id', 'desc')
+                    ->first();
+            }
+
+            if (!$plan) return response()->json(['status' => 'Error', 'message' => 'No active plan found for subscription: ' . $planName], 404);
+
 
             $rawModules = $plan->modules;
             $allowedModuleIds = [];
@@ -724,6 +738,7 @@ class ApiManagementController extends Controller
                 'status' => 'Ok',
                 'role_id' => $id,
                 'role_name' => DB::connection($conn)->table('roles')->where('id', $id)->value('name'),
+                'plan_name' => $plan->plan_name ?? 'Unknown',
                 'permissions' => $data
             ]);
         } catch (\Exception $e) { return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500); }
