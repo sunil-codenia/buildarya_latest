@@ -114,6 +114,14 @@ class ApiManagementController extends Controller
                     'create_datetime' => Carbon::now()
                 ];
 
+                // Process Duration Ranges
+                if ($request->has('view_from') || $request->has('view_to')) {
+                    $data['view_duration'] = ($request->view_from ?? '') . ',' . ($request->view_to ?? '');
+                }
+                if ($request->has('add_from') || $request->has('add_to')) {
+                    $data['add_duration'] = ($request->add_from ?? '') . ',' . ($request->add_to ?? '');
+                }
+
                 // Handle Image Upload
                 if ($request->hasFile('image')) {
                     $file = $request->file('image');
@@ -177,6 +185,14 @@ class ApiManagementController extends Controller
             if (isset($updateData['company_id'])) {
                 $updateData['subscription_plan_id'] = $updateData['company_id'];
                 unset($updateData['company_id']);
+            }
+
+            // Process Duration Ranges
+            if ($request->has('view_from') || $request->has('view_to')) {
+                $updateData['view_duration'] = ($request->view_from ?? '') . ',' . ($request->view_to ?? '');
+            }
+            if ($request->has('add_from') || $request->has('add_to')) {
+                $updateData['add_duration'] = ($request->add_from ?? '') . ',' . ($request->add_to ?? '');
             }
             
             if (empty($updateData)) {
@@ -743,6 +759,14 @@ class ApiManagementController extends Controller
                 'initial_entry_status', 'entry_at_site', 'visiblity_at_site'
             ]);
             
+            // Process Duration Ranges
+            if ($request->has('view_from') || $request->has('view_to')) {
+                $data['view_duration'] = ($request->view_from ?? '') . ',' . ($request->view_to ?? '');
+            }
+            if ($request->has('add_from') || $request->has('add_to')) {
+                $data['add_duration'] = ($request->add_from ?? '') . ',' . ($request->add_to ?? '');
+            }
+
             if (empty($data)) {
                 return response()->json(['status' => 'Error', 'message' => 'No settings provided'], 400);
             }
