@@ -215,6 +215,71 @@ class ApiExpenseController extends Controller
     }
 
     /**
+     * Expense Report API
+     */
+    public function report(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            $report_code = $request->get('report_code', 1);
+            $start_date = $request->get('start_date');
+            $end_date = $request->get('end_date');
+            $site_id = $request->get('site_id');
+            $party_id_raw = $request->get('party_id');
+            $head_id = $request->get('head_id');
+
+            $query = DB::table('expenses')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
+                ->leftJoin('sites', 'sites.id', '=', 'expenses.site_id')
+                ->leftJoin('users', 'users.id', '=', 'expenses.user_id')
+                ->leftJoin('expense_party', function ($join) {
+                    $join->on('expense_party.id', '=', 'expenses.party_id')
+                         ->where('expenses.party_type', '=', 'expense');
+                })
+                ->leftJoin('bills_party', function ($join) {
+                    $join->on('bills_party.id', '=', 'expenses.party_id')
+                         ->where('expenses.party_type', '=', 'bill');
+                })
+                ->select(
+                    'expenses.*', 
+                    'sites.name as site_name', 
+                    'users.name as user_name', 
+                    'expense_head.name as head_name',
+                    DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END AS party_name')
+                );
+
+            // Apply Filters based on report_code
+            if ($start_date && $end_date) {
+                $query->whereBetween('expenses.date', [$start_date, $end_date]);
+            }
+
+            if ($report_code == 2 || $report_code == 4 || $report_code == 6) {
+                if ($site_id) $query->where('expenses.site_id', $site_id);
+            }
+
+            if ($report_code == 3 || $report_code == 4) {
+                if ($party_id_raw) {
+                    $party = explode("||", $party_id_raw);
+                    $query->where('expenses.party_id', $party[0])
+                          ->where('expenses.party_type', $party[1] ?? 'expense');
+                }
+            }
+
+            if ($report_code == 5 || $report_code == 6) {
+                if ($head_id) $query->where('expenses.head_id', $head_id);
+            }
+
+            $data = $query->orderBy('expenses.date', 'desc')->get();
+
+            return response()->json(['status' => 'Ok', 'count' => count($data), 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Get single Expense Details
      */
     public function show(Request $request, $id)
