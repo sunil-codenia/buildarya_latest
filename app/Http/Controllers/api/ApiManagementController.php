@@ -1028,6 +1028,11 @@ class ApiManagementController extends Controller
 
     public function storeExpense(Request $request)
     {
+        // Automatically handle bulk if 'expenses' array or 'site_id[]' array is detected
+        if (($request->has('expenses') && is_array($request->expenses)) || is_array($request->site_id)) {
+            return $this->bulkStoreExpenses($request);
+        }
+
         try {
             $conn = config('database.default');
             $user = $request->user('sanctum');
@@ -2241,5 +2246,91 @@ class ApiManagementController extends Controller
         }
         
         addActivity($id, 'expenses', "Expense Automatically Approved via API", 2, $user_id, $conn);
+    }
+
+    public function bulkUpdateExpenseStatus(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? null;
+            $status = $input['status'] ?? null; 
+            $remark = $input['remark'] ?? null;
+
+            if (empty($ids) || !$status) {
+                return response()->json(['status' => 'Error', 'message' => 'IDs and Status are required'], 400);
+            }
+
+            if (!is_array($ids)) {
+                $ids = explode(',', $ids);
+            }
+            $ids = array_map('trim', $ids);
+
+            $updateData = ['status' => $status];
+            if ($remark) {
+                $updateData['remark'] = $remark;
+            }
+
+            DB::connection($conn)->table('expenses')->whereIn('id', $ids)->update($updateData);
+            
+            foreach ($ids as $id) {
+                addActivity($id, 'expenses', "Expense status updated to $status via Bulk API", 2, $user->id, $conn);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "Expenses updated to $status successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateExpense(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            $expense = DB::connection($conn)->table('expenses')->where('id', $id)->first();
+
+            if (!$expense) return response()->json(['status' => 'Failed', 'message' => 'Expense not found'], 404);
+
+            $updateData = $request->only(['site_id', 'party_id', 'party_type', 'head_id', 'particular', 'amount', 'remark', 'location', 'date', 'status']);
+            
+            // Handle dual party input (id||type) if provided
+            if ($request->has('party_id_with_type')) {
+                $party = explode("||", (string)$request->party_id_with_type);
+                $updateData['party_id'] = $party[0] ?? 0;
+                $updateData['party_type'] = $party[1] ?? 'expense';
+            }
+
+            // Image handling (File or Base64)
+            if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $dir = public_path('images/app_images/' . $conn . '/expense');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                $file->move($dir, $imageName);
+                $updateData['image'] = "images/app_images/" . $conn . "/expense/" . $imageName;
+            } elseif ($request->has('image_data') && strlen($request->image_data) > 100) {
+                $dir = public_path('images/app_images/' . $conn . '/expense');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $request->image_data);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $request->image_data, $m)) { $ext = $m[1]; }
+                    $imageName = time() . rand(10000, 1000000) . '.' . $ext;
+                    file_put_contents($dir . '/' . $imageName, $decoded);
+                    $updateData['image'] = "images/app_images/" . $conn . "/expense/" . $imageName;
+                }
+            }
+
+            DB::connection($conn)->table('expenses')->where('id', $id)->update($updateData);
+            addActivity($id, 'expenses', "Expense Updated via API", 2, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Expense updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
     }
 }

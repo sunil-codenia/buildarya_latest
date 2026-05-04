@@ -460,7 +460,7 @@ function getsiteEntryAccess($id = null)
         'all' => 'All Sites',
     ];
     if ($id != null) {
-        return $data[$id];
+        return $data[$id] ?? $id;
     } else {
         return $data;
     }

@@ -136,8 +136,10 @@ Route::prefix('v1')->group(function () {
         // Expenses
         Route::get('/expenses/summary', [ApiExpenseController::class, 'summary']);
         Route::get('/expenses', [ApiExpenseController::class, 'index']);
-        Route::post('/expenses/bulk', [ApiManagementController::class, 'bulkStoreExpenses']);
-        Route::post('/expenses/{id}', [ApiExpenseController::class, 'update']);
+        Route::get('/expenses/export', [ApiExpenseController::class, 'export']);
+        Route::post('/expenses', [ApiManagementController::class, 'storeExpense']);
+        Route::post('/expenses/bulk-status', [ApiManagementController::class, 'bulkUpdateExpenseStatus']);
+        Route::post('/expenses/{id}', [ApiManagementController::class, 'updateExpense']);
         Route::delete('/expenses/{id}', [ApiExpenseController::class, 'destroy']);
 
         // Materials
@@ -223,10 +225,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/users/{id}/permissions', [ApiManagementController::class, 'listUserPermissions']);
         Route::post('/users/{id}/permissions', [ApiManagementController::class, 'updateUserPermissions']);
 
-        // Expenses
+        // Expenses (Consolidated above)
         Route::get('expense-heads', [ApiManagementController::class, 'listExpenseHeads']);
         Route::get('bills-parties', [ApiManagementController::class, 'listBillsParties']);
-        Route::post('expenses', [ApiManagementController::class, 'storeExpense']);
 
         // Expense Parties
         Route::get('expense-parties', [ApiManagementController::class, 'listExpenseParties']);
