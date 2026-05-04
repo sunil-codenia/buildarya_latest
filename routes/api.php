@@ -139,6 +139,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/expenses/export', [ApiExpenseController::class, 'export']);
         Route::post('/expenses', [ApiManagementController::class, 'storeExpense']);
         Route::post('/expenses/bulk-status', [ApiManagementController::class, 'bulkUpdateExpenseStatus']);
+        Route::post('/expenses/bulk', [ApiManagementController::class, 'bulkStoreExpenses']);
         Route::post('/expenses/{id}', [ApiManagementController::class, 'updateExpense']);
         Route::delete('/expenses/{id}', [ApiExpenseController::class, 'destroy']);
 

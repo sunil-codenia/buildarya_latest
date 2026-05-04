@@ -115,6 +115,13 @@ class CompanyRegistrationController extends Controller
                     // Step 4: Import the template schema into the new database
                     $this->importTemplateSchema($dbName, $dbUser, $dbPass, $dbHost, $dbPort);
 
+                    // Step 4.1: Ensure return_comment exists (in case template is old)
+                    try {
+                        DB::connection($connName)->statement("ALTER TABLE expenses ADD COLUMN return_comment TEXT DEFAULT NULL");
+                    } catch (\Exception $e) {
+                        // Column might already exist if template was updated
+                    }
+
                     $isNewCompany = true;
 
                     // =========================

@@ -206,6 +206,7 @@ CREATE TABLE `expenses` (
   `date` date DEFAULT NULL,
   `asset_head` int(11) DEFAULT NULL,
   `machinery_head` int(11) DEFAULT NULL,
+  `return_comment` text DEFAULT NULL,
   `create_datetime` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
