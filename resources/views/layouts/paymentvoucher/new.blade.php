@@ -81,7 +81,7 @@
                                                         </optgroup>
                                                         <optgroup label="Sites">
                                                             @foreach ($sites as $site)
-                                                                <option value = "{{ $site['id'] }}||site||{{$site['sites_type'][0]}}">
+                                                                <option value = "{{ $site['id'] }}||site||{{ $site['sites_type'][0] ?? '' }}">
                                                                     {{ $site['name'] }}</option>
                                                             @endforeach
                                                         </optgroup>
@@ -192,7 +192,7 @@
             var site_html = '<select name="site_id[]" id="site_id_' + count +
                 '" class="form-control show-tick"  data-live-search="true"   required><option selected disabled value="">Select Voucher Party First</option></select>';
             var party_html = '<select name="party_id[]" onchange="update_sitesoption('+count+')" id="party_id_' + count +
-                '"  class="form-control show-tick"    data-live-search="true" required><option value="" selected disabled >--Select Party--</option><optgroup label="Material Supplier">@foreach ($material_suppliers as $party)<option value = "{{ $party['id'] }}||material">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Bill Parties">@foreach ($bill_parties as $party)<option value = "{{ $party['id'] }}||bill">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Other Parties">@foreach ($other_parties as $party)<option value = "{{ $party['id'] }}||other">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Sites">@foreach ($sites as $site)<option value = "{{ $site['id'] }}||site||{{$site['sites_type'][0]}}">{{ $site['name'] }}</option>@endforeach</optgroup></select>';
+                '"  class="form-control show-tick"    data-live-search="true" required><option value="" selected disabled >--Select Party--</option><optgroup label="Material Supplier">@foreach ($material_suppliers as $party)<option value = "{{ $party['id'] }}||material">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Bill Parties">@foreach ($bill_parties as $party)<option value = "{{ $party['id'] }}||bill">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Other Parties">@foreach ($other_parties as $party)<option value = "{{ $party['id'] }}||other">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Sites">@foreach ($sites as $site)<option value = "{{ $site['id'] }}||site||{{ $site['sites_type'][0] ?? '' }}">{{ $site['name'] }}</option>@endforeach</optgroup></select>';
             var company_html = '<select name="company_id[]" id="company_id_' + count +
                 '"  class="form-control show-tick"    data-live-search="true" required><option value="" selected disabled >--Select Company--</option>@foreach ($companies as $company)<option value = "{{ $company['id'] }}">{{ $company['name'] }}</option>@endforeach</select>';
 

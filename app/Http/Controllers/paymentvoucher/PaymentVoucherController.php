@@ -20,6 +20,7 @@ class PaymentVoucherController extends Controller
         $data = array();
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
         $role_details = getRoleDetailsById($role_id);
 
@@ -58,6 +59,7 @@ class PaymentVoucherController extends Controller
         $data = array();
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $role_details = getRoleDetailsById($role_id);
         $view_duration = $request->session()->get('view_duration');
         $visiblity_at_site = $role_details->visiblity_at_site;
@@ -96,6 +98,7 @@ class PaymentVoucherController extends Controller
         $data = array();
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
         $role_details = getRoleDetailsById($role_id);
 

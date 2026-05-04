@@ -215,6 +215,48 @@ class ApiExpenseController extends Controller
     }
 
     /**
+     * Get single Expense Details
+     */
+    public function show(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            $expense = DB::table('expenses')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
+                ->leftJoin('sites', 'sites.id', '=', 'expenses.site_id')
+                ->leftJoin('users', 'users.id', '=', 'expenses.user_id')
+                ->leftJoin('expense_party', function ($join) {
+                    $join->on('expense_party.id', '=', 'expenses.party_id')
+                         ->where('expenses.party_type', '=', 'expense');
+                })
+                ->leftJoin('bills_party', function ($join) {
+                    $join->on('bills_party.id', '=', 'expenses.party_id')
+                         ->where('expenses.party_type', '=', 'bill');
+                })
+                ->select(
+                    'expenses.*', 
+                    'sites.name as site_name', 
+                    'users.name as user_name', 
+                    'expense_head.name as head_name',
+                    DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END AS party_name'),
+                    DB::raw('CONCAT(expenses.party_id, "||", expenses.party_type) as party_id_with_type')
+                )
+                ->where('expenses.id', $id)
+                ->first();
+
+            if (!$expense) {
+                return response()->json(['status' => 'Failed', 'message' => 'Expense not found'], 404);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $expense]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Store Expense
      */
     public function store(Request $request)

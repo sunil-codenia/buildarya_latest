@@ -2294,7 +2294,7 @@ class ApiManagementController extends Controller
 
             if (!$expense) return response()->json(['status' => 'Failed', 'message' => 'Expense not found'], 404);
 
-            $updateData = $request->only(['site_id', 'party_id', 'party_type', 'head_id', 'particular', 'amount', 'remark', 'location', 'date', 'status']);
+            $updateData = $request->only(['site_id', 'party_id', 'party_type', 'head_id', 'particular', 'amount', 'remark', 'location', 'date', 'status', 'return_comment']);
             
             // Handle dual party input (id||type) if provided
             if ($request->has('party_id_with_type')) {
@@ -2323,6 +2323,10 @@ class ApiManagementController extends Controller
                     file_put_contents($dir . '/' . $imageName, $decoded);
                     $updateData['image'] = "images/app_images/" . $conn . "/expense/" . $imageName;
                 }
+            }
+
+            if (empty($updateData)) {
+                return response()->json(['status' => 'Failed', 'message' => 'No data provided for update'], 400);
             }
 
             DB::connection($conn)->table('expenses')->where('id', $id)->update($updateData);
