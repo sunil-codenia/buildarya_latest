@@ -715,7 +715,10 @@ class ExpenseController extends Controller
         $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
-        if ($entry_at_site == "current" && $site_id != $data['expense']->site_id) {
+        $role_id = session()->get('role');
+        $is_admin = ($role_id == 1 || $role_id == 2);
+
+        if (!$is_admin && $entry_at_site == "current" && $site_id != $data['expense']->site_id) {
             return redirect('/pending_expense')
                 ->with('error', "You don't have permission to edit entries at site - " . getSiteDetailsById($data['expense']->site_id)->name . "!");
         }
@@ -1015,7 +1018,7 @@ class ExpenseController extends Controller
 
 
         try {
-            DB::connection($user_db_conn_name)->table('expenses')->upsert($rawd, 'id');
+            DB::connection($user_db_conn_name)->table('expenses')->where('id', $id)->update($rawd);
             addActivity($id,'expenses',"Expense Data Updated",2);
             if ($status == 'Approved') {
                 if ($party[1] == 'bill') {
