@@ -9,9 +9,60 @@ use Illuminate\Http\Request;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 
+use Illuminate\Support\Facades\File;
+
 class DashboardController extends Controller
 {
+    /**
+     * APK Upload Page
+     */
+    public function uploadApkPage()
+    {
+        return view('layouts.apk_upload');
+    }
 
+    /**
+     * Store Uploaded APK
+     */
+    public function storeApk(Request $request)
+    {
+        $request->validate([
+            'apk_file' => 'required|file',
+        ]);
+
+        if ($request->hasFile('apk_file')) {
+            $file = $request->file('apk_file');
+            
+            // Validate extension manually if mimes fails
+            if ($file->getClientOriginalExtension() != 'apk') {
+                return back()->with('error', 'Only .apk files are allowed.');
+            }
+
+            $path = public_path('uploads/apk');
+            if (!File::exists($path)) {
+                File::makeDirectory($path, 0777, true, true);
+            }
+
+            $filename = 'buildarya_latest.apk';
+            $file->move($path, $filename);
+
+            return back()->with('success', 'Latest APK uploaded successfully! Users can now download it.');
+        }
+
+        return back()->with('error', 'Failed to upload APK.');
+    }
+
+    /**
+     * Download Latest APK
+     */
+    public function downloadApk()
+    {
+        $path = public_path('uploads/apk/buildarya_latest.apk');
+        if (file_exists($path)) {
+            return response()->download($path);
+        }
+        return back()->with('error', 'No APK file available for download.');
+    }
 
 
     public function getCompanyDashboard(Request $request)

@@ -163,7 +163,7 @@
 
                                                 @if ($dd['status'] == 'Approved')
                                                     @if (checkmodulepermission(2, 'can_certify') == 1)
-                                                        <button title="Reject"
+                                                        <button title="Reject" type="button"
                                                             onclick="rejectexpense('{{ $ddid }}')"
                                                             style="all:unset"><i class="zmdi zmdi-block"></i> </button>
                                                     @endif
@@ -196,14 +196,14 @@
 
 
                                                     @if (checkmodulepermission(2, 'can_certify') == 1)
-                                                        <button title="Aprovel"
+                                                        <button title="Aprovel" type="button"
                                                             onclick="approveexpense('{{ $ddid }}')"
                                                             style="all:unset"><i class="zmdi zmdi-check-circle"></i>
                                                         </button>
                                                     @endif
                                                     &nbsp;
                                                     @if (checkmodulepermission(2, 'can_edit') == 1)
-                                                        <button title="Edit" onclick="editexpense('{{ $ddid }}')"
+                                                        <button title="Edit" type="button" onclick="editexpense('{{ $ddid }}')"
                                                             style="all:unset"><i class="zmdi zmdi-edit"></i> </button>
                                                     @endif
                                                 @endif

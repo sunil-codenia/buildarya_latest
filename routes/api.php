@@ -132,7 +132,12 @@ Route::prefix('v1')->group(function () {
     Route::middleware(['api-tenant-bootstrap', 'auth:sanctum', 'tenant'])->group(function () {
         Route::post('/logout', [ApiAuthController::class, 'logout']);
         Route::get('/dashboard', [ApiDashboardController::class, 'index']);
-
+        Route::get('/dashboard/sales-invoices', [ApiDashboardController::class, 'salesInvoices']);
+        Route::get('/dashboard/payment-vouchers', [ApiDashboardController::class, 'paymentVouchers']);
+        Route::get('/dashboard/expenses', [ApiDashboardController::class, 'expenses']);
+        Route::get('/dashboard/bills', [ApiDashboardController::class, 'bills']);
+        Route::get('/dashboard/assets', [ApiDashboardController::class, 'assets']);
+        Route::get('/dashboard/machinery', [ApiDashboardController::class, 'machinery']);
         // Expenses
         Route::get('/expenses/summary', [ApiExpenseController::class, 'summary']);
         Route::get('/expenses', [ApiExpenseController::class, 'index']);

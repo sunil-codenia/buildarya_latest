@@ -39,7 +39,7 @@ class ApiDashboardController extends Controller
             if ($visiblity_at_site == 'current') {
                 $site_id = $user->site_id;
             } else if ($req_site_id && $req_site_id != 'all') {
-                $site_id = $req_site_id;
+                $site_id = $site_id = $req_site_id;
             }
 
             $stats = [];
@@ -100,12 +100,127 @@ class ApiDashboardController extends Controller
     }
 
     /**
+     * Get Sales Invoices Data
+     */
+    public function salesInvoices(Request $request)
+    {
+        $user = $request->user();
+        $filter_type = $request->get('date_filter', 'this_year');
+        $site_id = $request->get('site_id', 'all');
+        $filter_dates = get_dashboard_filter_dates($filter_type, $request->get('from_date'), $request->get('to_date'));
+        
+        if ($site_id == 'all') {
+            $data = get_company_sales_invoices_chart_widget($filter_dates['start'], $filter_dates['end']);
+        } else {
+            $data = get_site_sales_invoices_chart_widget($site_id, $filter_dates['start'], $filter_dates['end']);
+        }
+
+        return response()->json(['status' => 'Ok', 'data' => $data]);
+    }
+
+    /**
+     * Get Payment Vouchers Summary & Trend
+     */
+    public function paymentVouchers(Request $request)
+    {
+        $user = $request->user();
+        $filter_type = $request->get('date_filter', 'this_year');
+        $site_id = $request->get('site_id', 'all');
+        $filter_dates = get_dashboard_filter_dates($filter_type, $request->get('from_date'), $request->get('to_date'));
+        
+        if ($site_id == 'all') {
+            $flags = get_company_pending_flags_data_widget($filter_dates['start'], $filter_dates['end']);
+            $trend = get_company_payment_voucher_chart_widget($filter_dates['start'], $filter_dates['end']);
+        } else {
+            $flags = get_pending_flags_data_widget($site_id, $filter_dates['start'], $filter_dates['end']);
+            $trend = get_site_payment_voucher_chart_widget($site_id, $filter_dates['start'], $filter_dates['end']);
+        }
+
+        return response()->json([
+            'status' => 'Ok', 
+            'data' => [
+                'pending_vouchers' => $flags['pending_pv'] ?? 0,
+                'unpaid_vouchers' => $flags['unpaid_pv'] ?? 0,
+                'trend' => $trend
+            ]
+        ]);
+    }
+
+    /**
+     * Get Detailed Expenses Breakdown
+     */
+    public function expenses(Request $request)
+    {
+        $user = $request->user();
+        $filter_type = $request->get('date_filter', 'this_year');
+        $site_id = $request->get('site_id', 'all');
+        $filter_dates = get_dashboard_filter_dates($filter_type, $request->get('from_date'), $request->get('to_date'));
+        
+        if ($site_id == 'all') {
+            $trend = get_company_monthlyExpensesFormatted_chart_widget($filter_dates['start'], $filter_dates['end']);
+            $heads = get_company_monthlyExpenses_chart_head_table($filter_dates['start'], $filter_dates['end']);
+        } else {
+            $trend = get_monthlyExpensesFormatted_chart_widget($site_id, $filter_dates['start'], $filter_dates['end']);
+            $heads = get_monthlyExpenses_chart_head_table($site_id, $filter_dates['start'], $filter_dates['end']);
+        }
+
+        return response()->json(['status' => 'Ok', 'data' => ['trend' => $trend, 'heads' => $heads]]);
+    }
+
+    /**
+     * Get Site Bills Data
+     */
+    public function bills(Request $request)
+    {
+        $user = $request->user();
+        $filter_type = $request->get('date_filter', 'this_year');
+        $site_id = $request->get('site_id', 'all');
+        $filter_dates = get_dashboard_filter_dates($filter_type, $request->get('from_date'), $request->get('to_date'));
+        
+        if ($site_id == 'all') {
+            $trend = get_company_site_bills_area_chart($filter_dates['start'], $filter_dates['end']);
+            $work = get_company_site_bills_area_chart_work_table($filter_dates['start'], $filter_dates['end']);
+        } else {
+            $trend = get_site_bills_area_chart($site_id, $filter_dates['start'], $filter_dates['end']);
+            $work = get_site_bills_area_chart_work_table($site_id, $filter_dates['start'], $filter_dates['end']);
+        }
+
+        return response()->json(['status' => 'Ok', 'data' => ['trend' => $trend, 'work_breakdown' => $work]]);
+    }
+
+    /**
+     * Get Assets List
+     */
+    public function assets(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $assets = DB::connection($user_db_conn_name)->table('assets')->get();
+
+        return response()->json([
+            'status' => 'Ok', 
+            'data' => $assets
+        ]);
+    }
+
+    /**
+     * Get Machinery List
+     */
+    public function machinery(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $machinery = DB::connection($user_db_conn_name)->table('machinery_details')->get();
+
+        return response()->json([
+            'status' => 'Ok', 
+            'data' => $machinery
+        ]);
+    }
+
+    /**
      * Export Dashboard CSV
      */
     public function export(Request $request)
     {
-        // Re-use the existing CSV export logic from DashboardController
-        // Since it's identical, we can just call it or mirror it.
         $web_dashboard = new \App\Http\Controllers\DashboardController();
         return $web_dashboard->exportCsv($request);
     }

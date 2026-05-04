@@ -65,6 +65,9 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/switch_site/{id}', [DashboardController::class, 'switch_active_site']);
     Route::get('/dashboard/export', [DashboardController::class, 'exportCsv']);
     Route::post('/siteDashboard', [DashboardController::class, 'getSiteDashboardData']);
+    Route::get('/dashboard/upload_apk', [DashboardController::class, 'uploadApkPage']);
+    Route::post('/dashboard/upload_apk', [DashboardController::class, 'storeApk']);
+    Route::get('/download-apk', [DashboardController::class, 'downloadApk']);
 
 
     Route::get('/pie', [ChartController::class, 'pieChart']);
