@@ -194,7 +194,11 @@ class ApiDashboardController extends Controller
     public function assets(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $assets = DB::connection($user_db_conn_name)->table('assets')->get();
+        $assets = DB::connection($user_db_conn_name)->table('assets')
+            ->leftJoin('asset_head', 'asset_head.id', '=', 'assets.head_id')
+            ->leftJoin('sites', 'sites.id', '=', 'assets.site_id')
+            ->select('assets.*', 'asset_head.name as head_name', 'sites.name as site_name')
+            ->get();
 
         return response()->json([
             'status' => 'Ok', 
@@ -208,7 +212,11 @@ class ApiDashboardController extends Controller
     public function machinery(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $machinery = DB::connection($user_db_conn_name)->table('machinery_details')->get();
+        $machinery = DB::connection($user_db_conn_name)->table('machinery_details')
+            ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
+            ->leftJoin('sites', 'sites.id', '=', 'machinery_details.site_id')
+            ->select('machinery_details.*', 'machinery_head.name as head_name', 'sites.name as site_name')
+            ->get();
 
         return response()->json([
             'status' => 'Ok', 

@@ -150,6 +150,15 @@ Route::prefix('v1')->group(function () {
         Route::post('/expenses/{id}', [ApiManagementController::class, 'updateExpense']);
         Route::delete('/expenses/{id}', [ApiExpenseController::class, 'destroy']);
 
+        // Material Suppliers (Management) - MUST be above generic {id} routes to avoid collisions
+        Route::get('/materials/suppliers', [ApiManagementController::class, 'listMaterialSuppliers']);
+        Route::get('/materials/suppliers/{id}', [ApiManagementController::class, 'getMaterialSupplier']);
+        Route::post('/materials/suppliers', [ApiManagementController::class, 'storeMaterialSupplier']);
+        Route::post('/materials/suppliers/bulk-status', [ApiManagementController::class, 'bulkUpdateMaterialSuppliersStatus']);
+        Route::get('/materials/suppliers/export/csv', [ApiManagementController::class, 'exportMaterialSuppliersCsv']);
+        Route::post('/materials/suppliers/{id}', [ApiManagementController::class, 'updateMaterialSupplier']);
+        Route::delete('/materials/suppliers/{id}', [ApiManagementController::class, 'deleteMaterialSupplier'])->where('id', '[0-9,]+');
+
         // Materials
         Route::get('/materials/summary', [ApiMaterialController::class, 'summary']);
         Route::get('/materials', [ApiMaterialController::class, 'index']);

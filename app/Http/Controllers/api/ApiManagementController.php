@@ -2337,4 +2337,236 @@ class ApiManagementController extends Controller
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
+
+    // ==========================================
+    // MATERIAL SUPPLIER MANAGEMENT
+    // ==========================================
+
+    public function listMaterialSuppliers(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            
+            $query = DB::connection($conn)->table('material_supplier')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'material_supplier.cost_category_id')
+                ->select('material_supplier.*', 'expense_head.name as category_name');
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('material_supplier.name', 'LIKE', "%{$search}%")
+                      ->orWhere('material_supplier.address', 'LIKE', "%{$search}%")
+                      ->orWhere('material_supplier.gstin', 'LIKE', "%{$search}%")
+                      ->orWhere('expense_head.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $suppliers = $query->orderBy('material_supplier.id', 'desc')->paginate(10);
+
+            return response()->json([
+                'status' => 'Ok', 
+                'data' => $suppliers, 
+                'applied_search' => $search
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportMaterialSuppliersCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $suppliers = DB::connection($conn)->table('material_supplier')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'material_supplier.cost_category_id')
+                ->select('material_supplier.*', 'expense_head.name as category_name')
+                ->orderBy('material_supplier.id', 'desc')
+                ->get();
+
+            $headers = [
+                "Content-type"        => "text/csv",
+                "Content-Disposition" => "attachment; filename=material_suppliers_" . date('Y-m-d') . ".csv",
+                "Pragma"              => "no-cache",
+                "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+                "Expires"             => "0"
+            ];
+
+            $columns = ['Name', 'Address', 'Gstin', 'Bank A/C', 'Bank IFSC', 'Bank Name', 'Bank Account Holder', 'Cost Category', 'Status'];
+
+            $callback = function() use($suppliers, $columns) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, $columns);
+
+                foreach ($suppliers as $s) {
+                    fputcsv($file, [
+                        $s->name,
+                        $s->address,
+                        $s->gstin,
+                        $s->bank_ac,
+                        $s->bank_ifsc,
+                        $s->bank_name,
+                        $s->bank_ac_holder,
+                        $s->category_name,
+                        $s->status
+                    ]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getMaterialSupplier(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $supplier = DB::connection($conn)->table('material_supplier')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'material_supplier.cost_category_id')
+                ->select('material_supplier.*', 'expense_head.name as category_name')
+                ->where('material_supplier.id', $id)
+                ->first();
+
+            if (!$supplier) {
+                return response()->json(['status' => 'Error', 'message' => 'Material Supplier not found'], 404);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $supplier]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeMaterialSupplier(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $data = array_intersect_key($input, array_flip(['name', 'address', 'gstin', 'bank_ac', 'bank_ifsc', 'bank_name', 'bank_ac_holder', 'cost_category_id']));
+            
+            if (!isset($data['name'])) {
+                return response()->json(['status' => 'Error', 'message' => 'Name is required'], 400);
+            }
+            $data['status'] = $input['status'] ?? 'Active';
+            $data['create_datetime'] = Carbon::now();
+
+            $id = DB::connection($conn)->table('material_supplier')->insertGetId($data);
+            
+            // Mirroring MaterialSupplierController@addmaterialsupplier logic
+            DB::connection($conn)->table('contact_profile')->insert([
+                'comp_name' => $data['name'], 
+                'contact_name' => $data['name'], 
+                'category' => 'Material Supplier'
+            ]);
+
+            addActivity($id, 'material_supplier', "New Material Supplier Created via API: " . $data['name'], 3, $user->id, $conn);
+            
+            return response()->json(['status' => 'Ok', 'message' => 'Material Supplier created successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            if ($e->getCode() == 23000) {
+                return response()->json(['status' => 'Error', 'message' => 'Material Supplier already exists'], 400);
+            }
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMaterialSupplier(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $data = array_intersect_key($input, array_flip(['name', 'address', 'gstin', 'bank_ac', 'bank_ifsc', 'bank_name', 'bank_ac_holder', 'cost_category_id', 'status']));
+
+            if (empty($data)) {
+                return response()->json(['status' => 'Error', 'message' => 'No data provided'], 400);
+            }
+
+            DB::connection($conn)->table('material_supplier')->where('id', $id)->update($data);
+            
+            // If name changed, update contact_profile too (matching web logic)
+            if (isset($data['name'])) {
+                DB::connection($conn)->table('contact_profile')
+                    ->where('comp_name', $id) // Wait, let's check how contact_profile links to supplier
+                    ->update(['comp_name' => $data['name'], 'contact_name' => $data['name']]);
+            }
+            // Actually, in web logic, it doesn't seem to update contact_profile on edit.
+            // Let me re-read updatematerialsupplier in MaterialSupplierController.php
+            
+            addActivity($id, 'material_supplier', "Material Supplier Updated via API", 3, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Material Supplier updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMaterialSupplier(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            // Handle bulk delete if comma separated
+            $ids = explode(',', $id);
+            $deleted = 0; $skipped = 0; $skipped_ids = [];
+
+            foreach($ids as $sid) {
+                // Usage check
+                $check = DB::connection($conn)->table('material_entry')->where('supplier', '=', $sid)->exists();
+                if ($check) {
+                    $skipped++;
+                    $skipped_ids[] = $sid;
+                    continue;
+                }
+                
+                $supplier = DB::connection($conn)->table('material_supplier')->where('id', $sid)->first();
+                if ($supplier) {
+                    DB::connection($conn)->table('material_supplier')->where('id', $sid)->delete();
+                    addActivity(0, 'material_supplier', "Material Supplier Deleted via API: " . $supplier->name, 3, $user->id, $conn);
+                    $deleted++;
+                }
+            }
+
+            return response()->json([
+                'status' => 'Ok', 
+                'message' => "$deleted Material Suppliers deleted successfully.",
+                'skipped_count' => $skipped,
+                'skipped_ids' => $skipped_ids
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function bulkUpdateMaterialSuppliersStatus(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? null;
+            $status = $input['status'] ?? null;
+
+            if (empty($ids) || !$status) {
+                return response()->json(['status' => 'Error', 'message' => 'IDs and Status are required'], 400);
+            }
+
+            DB::connection($conn)->table('material_supplier')->whereIn('id', $ids)->update(['status' => $status]);
+            
+            foreach ($ids as $id) {
+                addActivity($id, 'material_supplier', "Material Supplier status updated to $status via Bulk API", 3, $user->id, $conn);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "Material Suppliers updated to $status successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }

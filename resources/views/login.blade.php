@@ -50,7 +50,7 @@ exit();
 
                     <div class="header">
                         <div class="logo-container" style="width: 320px; margin: 0 auto 30px;">
-                            <img src="{{asset('images/buildarya.png')}}" alt="Buildarya Logo" style="width: 100%;">
+                            <img src="{{asset('images/logoblackhori.png')}}" alt="Buildarya Logo" style="width: 100%;">
                         </div>
                         <h5>Log in</h5>
                     </div>

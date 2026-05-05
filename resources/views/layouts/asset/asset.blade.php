@@ -8,7 +8,6 @@
     if (isset(json_decode($data, true)['edit_data'])) {
         $editdata = $dataarray['edit_data'][0];
         $edit = true;
-        $dataarray = $dataarray['data'];
     }
 @endphp
 

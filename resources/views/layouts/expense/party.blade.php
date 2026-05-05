@@ -7,7 +7,6 @@ $dataarray = json_decode($data, true);
                             if(isset($dataarray['edit_data']) && count($dataarray['edit_data']) > 0){
                             $editdata = $dataarray['edit_data'][0];
                             $edit=true;
-                            $dataarray = $dataarray['data'];
                             }
 @endphp
 <style>

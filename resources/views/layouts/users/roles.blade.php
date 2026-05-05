@@ -8,12 +8,10 @@
         if (isset(json_decode($data, true)['edit_data'])) {
             $editdata = $dataarray['edit_data'][0];
             $roleedit = true;
-            $dataarray = $dataarray['data'];
         }
         if (isset(json_decode($data, true)['edit_setting'])) {
             $editdata = $dataarray['edit_setting'][0];
             $settingedit = true;
-            $dataarray = $dataarray['data'];
         }
     @endphp
     <style>
