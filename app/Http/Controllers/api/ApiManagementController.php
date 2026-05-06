@@ -2506,38 +2506,68 @@ class ApiManagementController extends Controller
         }
     }
 
+    public function bulkDeleteMaterialSuppliers(Request $request)
+    {
+        try {
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? [];
+            
+            if (empty($ids)) {
+                return response()->json(['status' => 'Error', 'message' => 'No IDs provided'], 400);
+            }
+
+            return $this->processMaterialSupplierDeletion($ids, $request->user('sanctum'));
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function deleteMaterialSupplier(Request $request, $id)
     {
         try {
-            $user = $request->user('sanctum');
-            $conn = config('database.default');
-            
-            // Handle bulk delete if comma separated
             $ids = explode(',', $id);
-            $deleted = 0; $skipped = 0; $skipped_ids = [];
+            return $this->processMaterialSupplierDeletion($ids, $request->user('sanctum'));
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
 
-            foreach($ids as $sid) {
+    private function processMaterialSupplierDeletion($ids, $user)
+    {
+        try {
+            $conn = config('database.default');
+            $deletedCount = 0;
+            $skippedCount = 0;
+            $messages = [];
+
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+
                 // Usage check
-                $check = DB::connection($conn)->table('material_entry')->where('supplier', '=', $sid)->exists();
+                $check = DB::connection($conn)->table('material_entry')->where('supplier', '=', $singleId)->exists();
                 if ($check) {
-                    $skipped++;
-                    $skipped_ids[] = $sid;
+                    $skippedCount++;
+                    $supplierName = DB::connection($conn)->table('material_supplier')->where('id', $singleId)->value('name') ?? $singleId;
+                    $messages[] = "Supplier '$supplierName' (ID: $singleId) is in use and cannot be deleted.";
                     continue;
                 }
                 
-                $supplier = DB::connection($conn)->table('material_supplier')->where('id', $sid)->first();
-                if ($supplier) {
-                    DB::connection($conn)->table('material_supplier')->where('id', $sid)->delete();
-                    addActivity(0, 'material_supplier', "Material Supplier Deleted via API: " . $supplier->name, 3, $user->id, $conn);
-                    $deleted++;
+                $supplier = DB::connection($conn)->table('material_supplier')->where('id', $singleId)->first();
+                if (!$supplier) {
+                    $skippedCount++;
+                    continue;
                 }
+
+                DB::connection($conn)->table('material_supplier')->where('id', $singleId)->delete();
+                addActivity(0, 'material_supplier', "Material Supplier Deleted via API: " . $supplier->name, 3, $user->id, $conn);
+                $deletedCount++;
             }
 
             return response()->json([
                 'status' => 'Ok', 
-                'message' => "$deleted Material Suppliers deleted successfully.",
-                'skipped_count' => $skipped,
-                'skipped_ids' => $skipped_ids
+                'message' => "Deleted $deletedCount suppliers. Skipped $skippedCount.",
+                'details' => $messages
             ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
@@ -2565,6 +2595,349 @@ class ApiManagementController extends Controller
             }
 
             return response()->json(['status' => 'Ok', 'message' => "Material Suppliers updated to $status successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    // ==========================================
+    // MATERIAL MASTER MANAGEMENT
+    // ==========================================
+
+    public function listMaterialsMaster(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            
+            $query = DB::connection($conn)->table('materials');
+
+            if (!empty($search)) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
+            $materials = $query->orderBy('name', 'asc')->paginate(10);
+            
+            return response()->json([
+                'status' => 'Ok', 
+                'data' => $materials, 
+                'applied_search' => $search
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportMaterialsMasterCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $materials = DB::connection($conn)->table('materials')->orderBy('name', 'asc')->get();
+
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="materials_master.csv"',
+            ];
+
+            $callback = function() use ($materials) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['ID', 'Material Name']);
+
+                foreach ($materials as $m) {
+                    fputcsv($file, [$m->id, $m->name]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getMaterialMaster(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $material = DB::connection($conn)->table('materials')->where('id', $id)->first();
+
+            if (!$material) {
+                return response()->json(['status' => 'Error', 'message' => 'Material not found'], 404);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $material]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeMaterialMaster(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $name = $input['name'] ?? null;
+
+            if (!$name) {
+                return response()->json(['status' => 'Error', 'message' => 'Material name is required'], 400);
+            }
+
+            $id = DB::connection($conn)->table('materials')->insertGetId(['name' => $name]);
+            addActivity($id, 'materials', "New Material SKU Created via API: " . $name, 3, $user->id, $conn);
+            
+            return response()->json(['status' => 'Ok', 'message' => 'Material created successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            if ($e->getCode() == 23000) {
+                return response()->json(['status' => 'Error', 'message' => 'Material already exists'], 400);
+            }
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMaterialMaster(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $name = $input['name'] ?? null;
+
+            if (!$name) {
+                return response()->json(['status' => 'Error', 'message' => 'Material name is required'], 400);
+            }
+
+            DB::connection($conn)->table('materials')->where('id', $id)->update(['name' => $name]);
+            addActivity($id, 'materials', "Material SKU Updated via API: " . $name, 3, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Material updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function bulkDeleteMaterialsMaster(Request $request)
+    {
+        try {
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? [];
+            
+            if (empty($ids)) {
+                return response()->json(['status' => 'Error', 'message' => 'No IDs provided'], 400);
+            }
+
+            return $this->processMaterialDeletion($ids, $request->user('sanctum'));
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMaterialMaster(Request $request, $id)
+    {
+        try {
+            $ids = explode(',', $id);
+            return $this->processMaterialDeletion($ids, $request->user('sanctum'));
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function processMaterialDeletion($ids, $user)
+    {
+        try {
+            $conn = config('database.default');
+            $deletedCount = 0;
+            $skippedCount = 0;
+            $messages = [];
+
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+
+                // Check usage
+                $check = DB::connection($conn)->table('material_entry')->where('material_id', '=', $singleId)->exists();
+                if ($check) {
+                    $skippedCount++;
+                    $materialName = DB::connection($conn)->table('materials')->where('id', $singleId)->value('name') ?? $singleId;
+                    $messages[] = "Material '$materialName' (ID: $singleId) is in use and cannot be deleted.";
+                    continue;
+                }
+                
+                $material = DB::connection($conn)->table('materials')->where('id', $singleId)->first();
+                if (!$material) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                DB::connection($conn)->table('materials')->where('id', $singleId)->delete();
+                addActivity(0, 'materials', "Material SKU Deleted via API: " . $material->name, 3, $user->id, $conn);
+                $deletedCount++;
+            }
+
+            return response()->json([
+                'status' => 'Ok', 
+                'message' => "Deleted $deletedCount materials. Skipped $skippedCount.",
+                'details' => $messages
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    // ==========================================
+    // MATERIAL UNIT CONVERSION MANAGEMENT
+    // ==========================================
+
+    public function listMaterialConversions(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            
+            $query = DB::connection($conn)
+                ->table('material_conversion_rules')
+                ->join('units as f_unit', 'f_unit.id', '=', 'material_conversion_rules.from_unit')
+                ->join('units as t_unit', 't_unit.id', '=', 'material_conversion_rules.to_unit')
+                ->where('material_id', '=', $id)
+                ->select(
+                    'material_conversion_rules.id as id', 
+                    'material_conversion_rules.conversion_factor', 
+                    'f_unit.name as from_unit_name', 
+                    't_unit.name as to_unit_name',
+                    'material_conversion_rules.from_unit as from_unit_id',
+                    'material_conversion_rules.to_unit as to_unit_id'
+                );
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('f_unit.name', 'LIKE', "%{$search}%")
+                      ->orWhere('t_unit.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $conversions = $query->paginate(10);
+
+            $material = DB::connection($conn)->table('materials')->where('id', $id)->first();
+            
+            return response()->json([
+                'status' => 'Ok', 
+                'material' => $material,
+                'data' => $conversions,
+                'applied_search' => $search
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportMaterialConversionsCsv(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $conversions = DB::connection($conn)
+                ->table('material_conversion_rules')
+                ->join('units as f_unit', 'f_unit.id', '=', 'material_conversion_rules.from_unit')
+                ->join('units as t_unit', 't_unit.id', '=', 'material_conversion_rules.to_unit')
+                ->where('material_id', '=', $id)
+                ->select(
+                    'material_conversion_rules.id', 
+                    'material_conversion_rules.conversion_factor', 
+                    'f_unit.name as from_unit', 
+                    't_unit.name as to_unit'
+                )
+                ->get();
+
+            $material = DB::connection($conn)->table('materials')->where('id', $id)->first();
+            $filename = "conversions_" . ($material->name ?? $id) . ".csv";
+
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"$filename\"",
+            ];
+
+            $callback = function() use ($conversions) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['ID', 'From Unit', 'To Unit', 'Conversion Factor']);
+
+                foreach ($conversions as $c) {
+                    fputcsv($file, [$c->id, $c->from_unit, $c->to_unit, $c->conversion_factor]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeMaterialConversion(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $from_unit = $input['from_unit'] ?? null;
+            $to_unit = $input['to_unit'] ?? null;
+            $conversion_factor = $input['conversion_factor'] ?? null;
+
+            if (!$from_unit || !$to_unit || !$conversion_factor) {
+                return response()->json(['status' => 'Error', 'message' => 'From Unit, To Unit, and Conversion Factor are required'], 400);
+            }
+
+            if ($from_unit == $to_unit) {
+                return response()->json(['status' => 'Error', 'message' => 'Source and Target units cannot be the same'], 400);
+            }
+
+            // Check if already exists
+            $exists = DB::connection($conn)->table('material_conversion_rules')
+                ->where('material_id', $id)
+                ->where('from_unit', $from_unit)
+                ->where('to_unit', $to_unit)
+                ->exists();
+
+            if ($exists) {
+                return response()->json(['status' => 'Error', 'message' => 'Conversion rule already exists'], 400);
+            }
+
+            $ruleId = DB::connection($conn)->table('material_conversion_rules')->insertGetId([
+                'material_id' => $id,
+                'from_unit' => $from_unit,
+                'to_unit' => $to_unit,
+                'conversion_factor' => $conversion_factor,
+                'created_by' => $user->id
+            ]);
+
+            addActivity($id, 'material_conversion_rules', "New Unit Conversion Rule Created via API (Rule ID: $ruleId)", 3, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Conversion rule created successfully', 'id' => $ruleId]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMaterialConversion(Request $request, $id, $rule_id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $rule = DB::connection($conn)->table('material_conversion_rules')
+                ->where('id', $rule_id)
+                ->where('material_id', $id)
+                ->first();
+
+            if (!$rule) {
+                return response()->json(['status' => 'Error', 'message' => 'Conversion rule not found for this material'], 404);
+            }
+
+            DB::connection($conn)->table('material_conversion_rules')->where('id', $rule_id)->delete();
+            addActivity($id, 'material_conversion_rules', "Unit Conversion Rule Deleted via API (Rule ID: $rule_id)", 3, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Conversion rule deleted successfully']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }

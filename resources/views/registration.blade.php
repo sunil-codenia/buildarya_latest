@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=Edge">
 <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
 <meta name="description" content="Responsive Bootstrap 4 and web Application ui kit.">
-<title>:: Construction Munshi ::</title>
+<title>:: Build Arya ::</title>
 <link rel="icon" href="favicon.ico" type="image/x-icon">
 <link rel="stylesheet" href="{{ asset('/plugins/bootstrap/css/bootstrap.min.css') }}"/>
 <link rel="stylesheet" href="{{ asset('/plugins/jvectormap/jquery-jvectormap-2.0.3.min.css') }}"/>
@@ -49,8 +49,8 @@ exit();
                     @csrf
 
                     <div class="header">
-                        <div class="logo-container">
-                        
+                        <div class="logo-container" style="width: 320px; margin: 0 auto 30px;">
+                            <img src="{{asset('images/buildarya.png')}}" alt="Buildarya Logo" style="width: 100%;">
                         </div>
                         <h5>Register Yourself</h5>
                     </div>

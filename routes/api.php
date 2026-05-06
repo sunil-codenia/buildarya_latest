@@ -156,8 +156,24 @@ Route::prefix('v1')->group(function () {
         Route::post('/materials/suppliers', [ApiManagementController::class, 'storeMaterialSupplier']);
         Route::post('/materials/suppliers/bulk-status', [ApiManagementController::class, 'bulkUpdateMaterialSuppliersStatus']);
         Route::get('/materials/suppliers/export/csv', [ApiManagementController::class, 'exportMaterialSuppliersCsv']);
+        Route::post('/materials/suppliers/bulk-delete', [ApiManagementController::class, 'bulkDeleteMaterialSuppliers']);
         Route::post('/materials/suppliers/{id}', [ApiManagementController::class, 'updateMaterialSupplier']);
         Route::delete('/materials/suppliers/{id}', [ApiManagementController::class, 'deleteMaterialSupplier'])->where('id', '[0-9,]+');
+        
+        // Material Master (SKUs)
+        Route::get('/materials-master', [ApiManagementController::class, 'listMaterialsMaster']);
+        Route::get('/materials-master/export/csv', [ApiManagementController::class, 'exportMaterialsMasterCsv']);
+        Route::get('/materials-master/{id}', [ApiManagementController::class, 'getMaterialMaster']);
+        Route::post('/materials-master', [ApiManagementController::class, 'storeMaterialMaster']);
+        Route::post('/materials-master/bulk-delete', [ApiManagementController::class, 'bulkDeleteMaterialsMaster']);
+        Route::post('/materials-master/{id}', [ApiManagementController::class, 'updateMaterialMaster']);
+        Route::delete('/materials-master/{id}', [ApiManagementController::class, 'deleteMaterialMaster'])->where('id', '[0-9,]+');
+        
+        // Material Conversions
+        Route::get('/materials-master/{id}/conversions', [ApiManagementController::class, 'listMaterialConversions']);
+        Route::get('/materials-master/{id}/conversions/export/csv', [ApiManagementController::class, 'exportMaterialConversionsCsv']);
+        Route::post('/materials-master/{id}/conversions', [ApiManagementController::class, 'storeMaterialConversion']);
+        Route::delete('/materials-master/{id}/conversions/{rule_id}', [ApiManagementController::class, 'deleteMaterialConversion']);
 
         // Materials
         Route::get('/materials/summary', [ApiMaterialController::class, 'summary']);
