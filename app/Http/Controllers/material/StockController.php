@@ -294,7 +294,7 @@ class StockController extends Controller
         $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
-        if ($entry_at_site == "current" && $site_id != $consumption->site_id) {
+        if (!isSuperAdmin() && $entry_at_site == "current" && $site_id != $consumption->site_id) {
             return redirect('/pending_consumption')->with('error', "You don't have permission to edit entries at site - " . getSiteDetailsById($consumption->site_id)->name . "!");
         }
         if ($consumption->date < $min_date) {
@@ -320,7 +320,7 @@ class StockController extends Controller
         $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
-        if ($entry_at_site == "current" && $site_id != $wastage->site_id) {
+        if (!isSuperAdmin() && $entry_at_site == "current" && $site_id != $wastage->site_id) {
             return redirect('/pending_consumption')->with('error', "You don't have permission to edit entries at site - " . getSiteDetailsById($wastage->site_id)->name . "!");
         }
         if ($wastage->date < $min_date) {

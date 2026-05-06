@@ -208,6 +208,13 @@ Route::prefix('v1')->group(function () {
 
         // Material Stock
         Route::get('/materials/stock/dashboard', [ApiManagementController::class, 'getStockDashboard']);
+        Route::post('/materials/consumption', [ApiManagementController::class, 'storeMaterialConsumption']);
+        Route::get('/materials/consumption/pending', [ApiManagementController::class, 'getPendingConsumption']);
+        Route::get('/materials/consumption/verified', [ApiManagementController::class, 'getVerifiedConsumption']);
+        Route::post('/materials/consumption/bulk/approve', [ApiManagementController::class, 'bulkApproveConsumption']);
+        Route::post('/materials/consumption/bulk/reject', [ApiManagementController::class, 'bulkRejectConsumption']);
+        Route::patch('/materials/consumption/{id}', [ApiManagementController::class, 'updateMaterialConsumption']);
+        Route::post('/materials/consumption/update/{id}', [ApiManagementController::class, 'updateConsumption']);
 
         // Materials
         Route::get('/materials/summary', [ApiMaterialController::class, 'summary']);

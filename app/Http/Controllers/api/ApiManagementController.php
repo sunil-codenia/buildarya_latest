@@ -3223,84 +3223,395 @@ class ApiManagementController extends Controller
 
     public function getStockDashboard(Request $request)
     {
+        // ... (existing method code)
+    }
+
+    public function storeMaterialConsumption(Request $request)
+    {
+        // Support both single and bulk entries
+        $material_ids = $request->get('material_id');
+        
+        if (!is_array($material_ids)) {
+            // Convert single request to array format for unified processing
+            $count = 1;
+        } else {
+            $count = count($material_ids);
+        }
+
         try {
             $conn = config('database.default');
-            $site_id = $request->get('site_id');
-            $material_id = $request->get('material_id');
-            $search = $request->get('search'); // Site name search
-            $per_page = $request->get('per_page', 20);
-            $export = $request->get('export');
+            $user = $request->user();
+            $status = getAppInitialEntryStatusByRole($user->role_id, $conn);
+            $responses = [];
 
-            $query = DB::connection($conn)->table('material_stock_record')
-                ->join('materials', 'materials.id', '=', 'material_stock_record.material_id')
-                ->join('units', 'units.id', '=', 'material_stock_record.unit')
-                ->join('sites', 'sites.id', '=', 'material_stock_record.site_id')
-                ->where('sites.status', '=', 'Active')
-                ->select(
-                    'material_stock_record.*', 
-                    'materials.name as material_name', 
-                    'units.name as unit_name', 
-                    'sites.name as site_name'
-                )
-                ->orderBy('sites.name')
-                ->orderBy('materials.name');
+            for ($i = 0; $i < $count; $i++) {
+                $material_id = is_array($request->material_id) ? $request->material_id[$i] : $request->material_id;
+                $site_id = is_array($request->site_id) ? $request->site_id[$i] : $request->site_id;
+                $unit = is_array($request->unit) ? $request->unit[$i] : $request->unit;
+                $qty = is_array($request->qty) ? $request->qty[$i] : $request->qty;
+                $date = is_array($request->date) ? $request->date[$i] : $request->date;
+                $remark = is_array($request->remark) ? $request->remark[$i] : $request->remark;
+                $entry_type = is_array($request->entry_type) ? $request->entry_type[$i] : $request->get('entry_type', 'Consumption');
+                $reason = is_array($request->reason) ? $request->reason[$i] : $request->reason;
 
-            if ($site_id) {
-                $query->where('material_stock_record.site_id', $site_id);
-            }
+                if (!$material_id || !$site_id || !$qty) continue;
 
-            if ($material_id) {
-                $query->where('material_stock_record.material_id', $material_id);
-            }
+                $imagePath = "images/expense.png";
+                if ($request->hasFile('image')) {
+                    $images = $request->file('image');
+                    $file = is_array($images) ? ($images[$i] ?? null) : $images;
+                    
+                    if ($file) {
+                        $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                        $file->move(public_path('images/app_images/' . $conn . '/consumption'), $imageName);
+                        $imagePath = "images/app_images/" . $conn . "/consumption/" . $imageName;
+                    }
+                }
 
-            if ($search) {
-                $query->where('sites.name', 'like', "%$search%");
-            }
-
-            if ($export == 'csv') {
-                $data = $query->get();
-                $filename = "stock_dashboard_" . date('Y-m-d') . ".csv";
-                $headers = [
-                    "Content-type"        => "text/csv",
-                    "Content-Disposition" => "attachment; filename=$filename",
+                $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
+                
+                $data = [
+                    'material_id' => $material_id,
+                    'site_id' => $site_id,
+                    'unit' => $unit,
+                    'qty' => $qty,
+                    'user_id' => $user->id,
+                    'image' => $imagePath,
+                    'remark' => $remark,
+                    'date' => $date,
+                    'status' => $status,
+                    'create_datetime' => Carbon::now()
                 ];
 
-                $callback = function() use ($data) {
-                    $file = fopen('php://output', 'w');
-                    fputcsv($file, ['ID', 'Site', 'Material', 'Unit', 'Qty']);
-                    foreach ($data as $e) {
-                        fputcsv($file, [$e->id, $e->site_name, $e->material_name, $e->unit_name, $e->qty]);
+                if ($entry_type == 'Wastage') {
+                    $data['reason'] = $reason;
+                }
+
+                $id = DB::connection($conn)->table($table)->insertGetId($data);
+                addActivity($id, $table, "New Entry Created via API (Bulk Support)", 3, $user->id, $conn);
+
+                if ($status == 'Approved') {
+                    if ($entry_type == 'Wastage') {
+                        $this->adjustStockForWastage($id, $conn, 'approve');
+                    } else {
+                        $this->adjustStockForConsumption($id, $conn, 'approve');
                     }
-                    fclose($file);
-                };
-                return response()->stream($callback, 200, $headers);
+                }
+
+                $responses[] = ['id' => $id, 'type' => $entry_type, 'status' => 'Ok'];
             }
 
-            $data = $query->paginate($per_page);
-
-            // Also provide sites and materials list for filters if needed (optional for UI)
-            $sites = DB::connection($conn)->table('sites')->where('status', 'Active')->select('id', 'name')->get();
-            $materials = DB::connection($conn)->table('materials')->select('id', 'name')->get();
-
             return response()->json([
-                'status' => 'Ok',
-                'data' => $data,
-                'sites' => $sites,
-                'materials' => $materials
+                'status' => 'Ok', 
+                'message' => count($responses) . ' entries processed successfully', 
+                'processed' => $responses,
+                'status_assigned' => $status
             ]);
+
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
 
-    public function exportPendingMaterialEntriesCsv(Request $request)
+    public function bulkApproveConsumption(Request $request)
     {
-        return $this->exportMaterialEntriesCsvByStatus($request, 'Pending');
+        try {
+            $conn = config('database.default');
+            $ids = $request->get('ids');
+            if (!is_array($ids)) $ids = explode(',', $ids);
+            $entry_type = $request->get('entry_type', 'Consumption'); // Default to Consumption
+
+            $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
+
+            foreach ($ids as $id) {
+                if ($entry_type == 'Wastage') {
+                    $this->adjustStockForWastage($id, $conn, 'approve');
+                } else {
+                    $this->adjustStockForConsumption($id, $conn, 'approve');
+                }
+                DB::connection($conn)->table($table)->where('id', $id)->update(['status' => 'Approved']);
+                addActivity($id, $table, "Bulk Approved via API", 3);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => 'Selected entries approved successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
     }
 
-    public function exportVerifiedMaterialEntriesCsv(Request $request)
+    public function bulkRejectConsumption(Request $request)
     {
-        return $this->exportMaterialEntriesCsvByStatus($request, 'Verified');
+        try {
+            $conn = config('database.default');
+            $ids = $request->get('ids');
+            if (!is_array($ids)) $ids = explode(',', $ids);
+            $entry_type = $request->get('entry_type', 'Consumption');
+
+            $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
+
+            foreach ($ids as $id) {
+                if ($entry_type == 'Wastage') {
+                    $this->adjustStockForWastage($id, $conn, 'reject');
+                } else {
+                    $this->adjustStockForConsumption($id, $conn, 'reject');
+                }
+                DB::connection($conn)->table($table)->where('id', $id)->update(['status' => 'Rejected']);
+                addActivity($id, $table, "Bulk Rejected via API", 3);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => 'Selected entries rejected successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMaterialConsumption(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $entry_type = $request->get('entry_type', 'Consumption');
+            $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
+
+            $entry = DB::connection($conn)->table($table)->where('id', $id)->first();
+            if (!$entry) return response()->json(['status' => 'Error', 'message' => 'Entry not found'], 404);
+
+            // Verified logic: Only allow edit if Pending or Rejected
+            if ($entry->status == 'Approved' || $entry->status == 'Verified') {
+                 // Website only shows edit if rejected in verified list.
+                 if ($entry->status != 'Rejected') {
+                     return response()->json(['status' => 'Error', 'message' => 'Only rejected or pending entries can be edited'], 403);
+                 }
+            }
+
+            $updateData = $request->only(['material_id', 'site_id', 'unit', 'qty', 'date', 'remark']);
+            if ($entry_type == 'Wastage') {
+                $updateData['reason'] = $request->get('reason');
+            }
+            
+            // If it was rejected, we reset it to Pending
+            $updateData['status'] = 'Pending';
+
+            DB::connection($conn)->table($table)->where('id', $id)->update($updateData);
+            addActivity($id, $table, "Updated via API", 3);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Entry updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function adjustStockForConsumption($id, $conn, $action = 'approve')
+    {
+        $consumption = DB::connection($conn)->table('material_consumption')->where('id', $id)->first();
+        if (!$consumption) return;
+
+        if ($action == 'approve') {
+            // Check if already approved to avoid double deduction
+            $already_processed = DB::connection($conn)->table('material_stock_transactions')
+                ->where('refrence_id', $id)
+                ->where('refrence', 'Consumption')
+                ->exists();
+            if ($already_processed) return;
+
+            $stock_data = [
+                'site_id' => $consumption->site_id, 
+                'material_id' => $consumption->material_id, 
+                'qty' => $consumption->qty, 
+                'unit' => $consumption->unit, 
+                'type' => 'OUT', 
+                'refrence' => 'Consumption', 
+                'refrence_id' => $consumption->id,
+                'create_datetime' => Carbon::now()
+            ];
+
+            $check_current_stock = DB::connection($conn)->table('material_stock_record')
+                ->where('site_id', $consumption->site_id)
+                ->where('material_id', $consumption->material_id)
+                ->where('unit', $consumption->unit)
+                ->first();
+
+            if ($check_current_stock) {
+                $new_qty = $check_current_stock->qty - $consumption->qty;
+                DB::connection($conn)->table('material_stock_record')->where('id', $check_current_stock->id)->update(['qty' => $new_qty]);
+            } else {
+                DB::connection($conn)->table('material_stock_record')->insert([
+                    'material_id' => $consumption->material_id, 
+                    'site_id' => $consumption->site_id, 
+                    'qty' => -$consumption->qty, 
+                    'unit' => $consumption->unit
+                ]);
+            }
+            DB::connection($conn)->table('material_stock_transactions')->insert($stock_data);
+        } else if ($action == 'reject') {
+            // If it was previously approved, we need to reverse it
+            $transaction = DB::connection($conn)->table('material_stock_transactions')
+                ->where('refrence_id', $id)
+                ->where('refrence', 'Consumption')
+                ->first();
+            
+            if ($transaction) {
+                $check_current_stock = DB::connection($conn)->table('material_stock_record')
+                    ->where('site_id', $consumption->site_id)
+                    ->where('material_id', $consumption->material_id)
+                    ->where('unit', $consumption->unit)
+                    ->first();
+                
+                if ($check_current_stock) {
+                    $new_qty = $check_current_stock->qty + $consumption->qty;
+                    DB::connection($conn)->table('material_stock_record')->where('id', $check_current_stock->id)->update(['qty' => $new_qty]);
+                }
+                DB::connection($conn)->table('material_stock_transactions')->where('id', $transaction->id)->delete();
+            }
+        }
+    }
+
+    private function adjustStockForWastage($id, $conn, $action = 'approve')
+    {
+        $wastage = DB::connection($conn)->table('material_wastage')->where('id', $id)->first();
+        if (!$wastage) return;
+
+        if ($action == 'approve') {
+            $already_processed = DB::connection($conn)->table('material_stock_transactions')
+                ->where('refrence_id', $id)
+                ->where('refrence', 'Wastage')
+                ->exists();
+            if ($already_processed) return;
+
+            $stock_data = [
+                'site_id' => $wastage->site_id, 
+                'material_id' => $wastage->material_id, 
+                'qty' => $wastage->qty, 
+                'unit' => $wastage->unit, 
+                'type' => 'OUT', 
+                'refrence' => 'Wastage', 
+                'refrence_id' => $wastage->id,
+                'create_datetime' => Carbon::now()
+            ];
+
+            $check_current_stock = DB::connection($conn)->table('material_stock_record')
+                ->where('site_id', $wastage->site_id)
+                ->where('material_id', $wastage->material_id)
+                ->where('unit', $wastage->unit)
+                ->first();
+
+            if ($check_current_stock) {
+                $new_qty = $check_current_stock->qty - $wastage->qty;
+                DB::connection($conn)->table('material_stock_record')->where('id', $check_current_stock->id)->update(['qty' => $new_qty]);
+            } else {
+                DB::connection($conn)->table('material_stock_record')->insert([
+                    'material_id' => $wastage->material_id, 
+                    'site_id' => $wastage->site_id, 
+                    'qty' => -$wastage->qty, 
+                    'unit' => $wastage->unit
+                ]);
+            }
+            DB::connection($conn)->table('material_stock_transactions')->insert($stock_data);
+        } else if ($action == 'reject') {
+            $transaction = DB::connection($conn)->table('material_stock_transactions')
+                ->where('refrence_id', $id)
+                ->where('refrence', 'Wastage')
+                ->first();
+            
+            if ($transaction) {
+                $check_current_stock = DB::connection($conn)->table('material_stock_record')
+                    ->where('site_id', $wastage->site_id)
+                    ->where('material_id', $wastage->material_id)
+                    ->where('unit', $wastage->unit)
+                    ->first();
+                
+                if ($check_current_stock) {
+                    $new_qty = $check_current_stock->qty + $wastage->qty;
+                    DB::connection($conn)->table('material_stock_record')->where('id', $check_current_stock->id)->update(['qty' => $new_qty]);
+                }
+                DB::connection($conn)->table('material_stock_transactions')->where('id', $transaction->id)->delete();
+            }
+        }
+    }
+
+    public function getPendingConsumption(Request $request)
+    {
+        return $this->listConsumptionByStatus($request, 'Pending');
+    }
+
+    public function getVerifiedConsumption(Request $request)
+    {
+        return $this->listConsumptionByStatus($request, 'Verified');
+    }
+
+    private function listConsumptionByStatus(Request $request, $status)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            
+            $per_page = $request->get('per_page', 20);
+            $site_id = $request->get('site_id');
+            $material_id = $request->get('material_id');
+            $start_date = $request->get('start_date', $request->get('from_date'));
+            $end_date = $request->get('end_date', $request->get('to_date'));
+
+            // Consumption Query
+            $consumption_query = DB::connection($conn)->table('material_consumption')
+                ->leftJoin('materials', 'materials.id', '=', 'material_consumption.material_id')
+                ->leftJoin('sites', 'sites.id', '=', 'material_consumption.site_id')
+                ->leftJoin('units', 'units.id', '=', 'material_consumption.unit')
+                ->leftJoin('users', 'users.id', '=', 'material_consumption.user_id')
+                ->select(
+                    'material_consumption.*', 
+                    'materials.name as material_name', 
+                    'units.name as unit_name', 
+                    'sites.name as site_name', 
+                    'users.name as user_name',
+                    DB::raw("'Consumption' as entry_type")
+                );
+
+            // Wastage Query
+            $wastage_query = DB::connection($conn)->table('material_wastage')
+                ->leftJoin('materials', 'materials.id', '=', 'material_wastage.material_id')
+                ->leftJoin('sites', 'sites.id', '=', 'material_wastage.site_id')
+                ->leftJoin('units', 'units.id', '=', 'material_wastage.unit')
+                ->leftJoin('users', 'users.id', '=', 'material_wastage.user_id')
+                ->select(
+                    'material_wastage.*', 
+                    'materials.name as material_name', 
+                    'units.name as unit_name', 
+                    'sites.name as site_name', 
+                    'users.name as user_name',
+                    DB::raw("'Wastage' as entry_type")
+                );
+
+            if ($status == 'Pending') {
+                $consumption_query->where('material_consumption.status', 'Pending');
+                $wastage_query->where('material_wastage.status', 'Pending');
+            } else {
+                $consumption_query->where('material_consumption.status', '!=', 'Pending');
+                $wastage_query->where('material_wastage.status', '!=', 'Pending');
+            }
+
+            // Apply Common Filters
+            $queries = [$consumption_query, $wastage_query];
+            foreach ($queries as $q) {
+                if ($site_id) $q->where('site_id', $site_id);
+                if ($material_id) $q->where('material_id', $material_id);
+                if ($start_date && $end_date) {
+                    $q->whereBetween('date', [$start_date, $end_date]);
+                }
+            }
+
+            // Combine using Union
+            $final_query = $consumption_query->union($wastage_query)->orderBy('date', 'desc')->orderBy('id', 'desc');
+            
+            $data = $final_query->paginate($per_page);
+
+            return response()->json([
+                'status' => 'Ok',
+                'status_type' => $status,
+                'data' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
     }
 
     private function listMaterialEntriesByStatus(Request $request, $statusType)

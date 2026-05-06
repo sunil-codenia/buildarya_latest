@@ -457,7 +457,7 @@ class MaterialEntryController extends Controller
         $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
-        if ($entry_at_site == "current" && $site_id != $data['materialentry']->site_id) {
+        if (!isSuperAdmin() && $entry_at_site == "current" && $site_id != $data['materialentry']->site_id) {
             return redirect('/pending_material')->with('error', "You don't have permission to edit entries at site - " . getSiteDetailsById($data['materialentry']->site_id)->name . "!");
         }
         if ($data['materialentry']->date < $min_date) {
