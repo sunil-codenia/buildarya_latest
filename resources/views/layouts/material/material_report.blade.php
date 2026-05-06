@@ -2,7 +2,6 @@
 @section('content')
     @include('templates.blockheader', ['pagename' => 'Material Report'])
     @php
-
         $site_id = session()->get('site_id');
         $role_details = getRoleDetailsById(session()->get('role'));
         $entry_at_site = $role_details->entry_at_site;
@@ -11,635 +10,225 @@
         $today = substr($duration['today'], 0, 10);
         $min_date = substr($duration['min'], 0, 10);
         $max_date = substr($duration['max'], 0, 10);
-
     @endphp
+
     @if (checkmodulepermission(3, 'can_report') == 1)
         <div class="row clearfix">
             <div class="col-md-12 col-sm-12 col-xs-12">
                 <div class="card project_list">
-                    <p class="header"><strong>Material Report According To Date</strong></p>
-                    <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="col-lg-12 col-md-12 col-sm-12">
+                    <div class="header">
+                        <h2><strong>Generate Material Report</strong></h2>
+                    </div>
+                    <div class="body">
+                        <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
+                            @csrf
                             <div class="row clearfix">
+                                <!-- Report Type Selection -->
+                                <div class="col-lg-4 col-md-4 col-sm-12">
+                                    <div class="form-group">
+                                        <label>Report For</label>
+                                        <select name="type" id="report_category" class="form-control show-tick" required onchange="updateFields()">
+                                            <option value="" selected disabled>--Select Report Category--</option>
+                                            <option value="1">Material According To Date</option>
+                                            <option value="2">Material According To Site</option>
+                                            <option value="3">Material According To Supplier</option>
+                                            <option value="4">Material According To Supplier At Particular Site</option>
+                                            <option value="5">Material According To Specific Material</option>
+                                            <option value="6">Material According To Specific Material At Particular Site</option>
+                                            <option value="7">Material Supplier Statement</option>
+                                        </select>
+                                    </div>
+                                </div>
 
-                                <div class="col-lg-3 col-md-3 col-sm-3">
+                                <!-- Dynamic Site Selection -->
+                                <div class="col-lg-4 col-md-4 col-sm-12 dynamic-field site-field" style="display:none;">
+                                    <div class="form-group">
+                                        <label>Site Name</label>
+                                        <select name="site_id" id="site_id_select" class="form-control show-tick" data-live-search="true">
+                                            <option value="" selected disabled>--Select Site--</option>
+                                            @php $sites = getallsites(); @endphp
+                                            @foreach ($sites as $site)
+                                                <option value="{{ $site->id }}">{{ $site->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Supplier Selection -->
+                                <div class="col-lg-4 col-md-4 col-sm-12 dynamic-field supplier-field" style="display:none;">
+                                    <div class="form-group">
+                                        <label>Supplier Name</label>
+                                        <select name="supplier_id" id="supplier_id_select" class="form-control show-tick" data-live-search="true">
+                                            <option value="" selected disabled>--Select Supplier--</option>
+                                            @php $suppliers = getallmaterialsupplier(); @endphp
+                                            @foreach ($suppliers as $party)
+                                                <option value="{{ $party->id }}">{{ $party->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Material Selection -->
+                                <div class="col-lg-4 col-md-4 col-sm-12 dynamic-field material-field" style="display:none;">
+                                    <div class="form-group">
+                                        <label>Material Name</label>
+                                        <select name="material_id" id="material_id_select" class="form-control show-tick" data-live-search="true">
+                                            <option value="" selected disabled>--Select Material--</option>
+                                            @php $materials = getallmaterial(); @endphp
+                                            @foreach ($materials as $head)
+                                                <option value="{{ $head->id }}">{{ $head->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row clearfix date-range-fields">
+                                <!-- From Date -->
+                                <div class="col-lg-3 col-md-3 col-sm-6">
                                     <div class="form-group">
                                         <label>From Date</label>
                                         <input type="date" required class="form-control" min="{{ $min_date }}"
                                             max="{{ $max_date }}" value="{{ $today }}" id="start_date"
-                                            name="start_date" onchange="updateMaxDate()">
+                                            name="start_date">
                                     </div>
-                                    <input type="hidden" name="type" value="1">
                                 </div>
-                                <div class="col-lg-3 col-md-3 col-sm-3">
+
+                                <!-- To Date -->
+                                <div class="col-lg-3 col-md-3 col-sm-6">
                                     <div class="form-group">
                                         <label>To Date</label>
                                         <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="end_date"
-                                            name="end_date" onchange="updateMinDate()">
+                                            max="{{ $max_date }}" value="{{ $today }}" id="end_date" 
+                                            name="end_date">
                                     </div>
                                 </div>
-                                <div class="col-lg-3 col-md-3 col-sm-3">
+
+                                <!-- Export Format -->
+                                <div class="col-lg-3 col-md-3 col-sm-6">
                                     <div class="form-group">
-                                        <label>Report Type</label>
+                                        <label>Report Format</label>
                                         <select name="Report_Type" class="form-control show-tick" required>
-                                            <option value="" selected disabled>--Select Type--</option>
+                                            <option value="" selected disabled>--Select Format--</option>
                                             <option value="0">PDF Format</option>
                                             <option value="1">Excel Format</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div class="col-lg-3 col-md-3 col-sm-3">
+
+                                <!-- Download Button -->
+                                <div class="col-lg-3 col-md-3 col-sm-6">
                                     <div class="form-group">
-                                        <label> </label>
-                                        <button type="submit"
-                                            class="btn btn-primary btn-simple btn-round waves-effect"><a>Download</a></button>
+                                        <label>&nbsp;</label><br>
+                                        <button type="submit" class="btn btn-primary btn-round waves-effect btn-block">
+                                            <i class="zmdi zmdi-download"></i> Download Report
+                                        </button>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
 
-
-
-        <div class="row clearfix">
-            <div class="col-md-12 col-sm-12 col-xs-12">
-                <div class="card project_list">
-                    <p class="header"><strong>Material Report According To Site</strong></p>
-                    <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="col-lg-12 col-md-12 col-sm-12">
-                            <div class="row clearfix">
-                                <div class="col-lg-3 col-md-3 col-sm-3">
+                            <!-- For Supplier Statement (which might not need date range in original code) -->
+                            <div class="row clearfix statement-fields" style="display:none;">
+                                <div class="col-lg-6 col-md-6 col-sm-6">
                                     <div class="form-group">
-                                        <input type="hidden" name="type" value="2">
-                                        <label>Site Name</label>
-                                        <select name="site_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Site--</option>
-                                            @php
-                                                $sites = getallsites();
-                                            @endphp
-                                            @foreach ($sites as $site)
-                                                <option value="{{ $site->id }}">{{ $site->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>From Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="start_date1"
-                                            name="start_date" onchange="updateMaxDate1()">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>To Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="end_date1"
-                                            name="end_date" onchange="updateMinDate1()">
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-3 col-sm-3">
-                                    <div class="form-group">
-                                        <label>Report Type</label>
-                                        <select name="Report_Type" class="form-control show-tick" required>
-                                            <option value="" selected disabled>--Select Type--</option>
+                                        <label>Report Format</label>
+                                        <select name="Report_Type_Statement" id="report_type_statement" class="form-control show-tick">
+                                            <option value="" selected disabled>--Select Format--</option>
                                             <option value="0">PDF Format</option>
                                             <option value="1">Excel Format</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
+                                <div class="col-lg-6 col-md-6 col-sm-6">
                                     <div class="form-group">
-                                        <label> </label>
-                                        <button type="submit"
-                                            class="btn btn-primary btn-simple btn-round waves-effect"><a>Download</a></button>
+                                        <label>&nbsp;</label><br>
+                                        <button type="button" onclick="submitStatement()" class="btn btn-primary btn-round waves-effect btn-block">
+                                            <i class="zmdi zmdi-download"></i> Download Statement
+                                        </button>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </form>
-
-                </div>
-            </div>
-        </div>
-
-
-
-        <div class="row clearfix">
-            <div class="col-md-12 col-sm-12 col-xs-12">
-                <div class="card project_list">
-                    <p class="header"><strong>Material Report According To Supplier</strong></p>
-                    <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="col-lg-12 col-md-12 col-sm-12">
-                            <div class="row clearfix">
-                                <div class="col-lg-3 col-md-3 col-sm-3">
-                                    <div class="form-group">
-                                        <input type="hidden" name="type" value="3">
-                                        <label>Material Supplier </label>
-                                        <select name="supplier_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Supplier--</option>
-                                            @php
-                                                $parties = getallmaterialsupplier();
-                                            @endphp
-                                            @foreach ($parties as $party)
-                                                <option value="{{ $party->id }}">{{ $party->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>From Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="start_date2"
-                                            name="start_date" onchange="updateMaxDate2()">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>To Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="end_date2"
-                                            name="end_date" onchange="updateMinDate2()">
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-3 col-sm-3">
-                                    <div class="form-group">
-                                        <label>Report Type</label>
-                                        <select name="Report_Type" class="form-control show-tick" required>
-                                            <option value="" selected disabled>--Select Type--</option>
-                                            <option value="0">PDF Format</option>
-                                            <option value="1">Excel Format</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label> </label>
-                                        <button type="submit"
-                                            class="btn btn-primary btn-simple btn-round waves-effect"><a>Download</a></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-
-                </div>
-            </div>
-        </div>
-
-
-        <div class="row clearfix">
-            <div class="col-md-12 col-sm-12 col-xs-12">
-                <div class="card project_list">
-                    <p class="header"><strong>Material Report According To Supplier At Particular Site</strong></p>
-                    <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="col-lg-12 col-md-12 col-sm-12">
-                            <div class="row clearfix">
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <input type="hidden" name="type" value="4">
-                                        <label>Material Supplier </label>
-                                        <select name="supplier_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Supplier--</option>
-                                            @php
-                                                $parties = getallmaterialsupplier();
-                                            @endphp
-                                            @foreach ($parties as $party)
-                                                <option value="{{ $party->id }}">{{ $party->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>Site Name</label>
-                                        <select name="site_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Site--</option>
-                                            @php
-                                                $sites = getallsites();
-                                            @endphp
-                                            @foreach ($sites as $site)
-                                                <option value="{{ $site->id }}">{{ $site->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>From Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="start_date3"
-                                            name="start_date" onchange="updateMaxDate3()">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>To Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="end_date3"
-                                            name="end_date" onchange="updateMinDate3()">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>Report Type</label>
-                                        <select name="Report_Type" class="form-control show-tick" required>
-                                            <option value="" selected disabled>--Select Type--</option>
-                                            <option value="0">PDF Format</option>
-                                            <option value="1">Excel Format</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label> </label>
-                                        <button type="submit"
-                                            class="btn btn-primary btn-simple btn-round waves-effect"><a>Download</a></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-
-                </div>
-            </div>
-        </div>
-
-
-        <div class="row clearfix">
-            <div class="col-md-12 col-sm-12 col-xs-12">
-                <div class="card project_list">
-                    <p class="header"><strong>Material Report According To Specific Material</strong></p>
-                    <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="col-lg-12 col-md-12 col-sm-12">
-                            <div class="row clearfix">
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <input type="hidden" name="type" value="5">
-                                        <label>Material Name</label>
-                                        <select name="material_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Material--</option>
-                                            @php
-                                                $materials = getallmaterial();
-                                            @endphp
-                                            @foreach ($materials as $head)
-                                                <option value="{{ $head->id }}">{{ $head->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>From Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="start_date4"
-                                            name="start_date" onchange="updateMaxDate4()">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>To Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="end_date4"
-                                            name="end_date" onchange="updateMinDate4()">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>Report Type</label>
-                                        <select name="Report_Type" class="form-control show-tick" required>
-                                            <option value="" selected disabled>--Select Type--</option>
-                                            <option value="0">PDF Format</option>
-                                            <option value="1">Excel Format</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label> </label>
-                                        <button type="submit"
-                                            class="btn btn-primary btn-simple btn-round waves-effect"><a>Download</a></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-
-                </div>
-            </div>
-        </div>
-
-
-
-        <div class="row clearfix">
-            <div class="col-md-12 col-sm-12 col-xs-12">
-                <div class="card project_list">
-                    <p class="header"><strong>Material Report According To Specific Material At Particular Site</strong></p>
-                    <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="col-lg-12 col-md-12 col-sm-12">
-                            <div class="row clearfix">
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <input type="hidden" name="type" value="6">
-                                        <label>Material Name</label>
-                                        <select name="material_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Material--</option>
-                                            @php
-                                                $materials = getallmaterial();
-                                            @endphp
-                                            @foreach ($materials as $head)
-                                                <option value="{{ $head->id }}">{{ $head->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>Site Name</label>
-                                        <select name="site_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Site--</option>
-                                            @php
-                                                $sites = getallsites();
-                                            @endphp
-                                            @foreach ($sites as $site)
-                                                <option value="{{ $site->id }}">{{ $site->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>From Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="start_date5"
-                                            onchange="updateMaxDate5()" name="start_date">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>To Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="end_date5"
-                                            onchange="updateMinDate5()" name="end_date">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>Report Type</label>
-                                        <select name="Report_Type" class="form-control show-tick" required>
-                                            <option value="" selected disabled>--Select Type--</option>
-                                            <option value="0">PDF Format</option>
-                                            <option value="1">Excel Format</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label> </label>
-                                        <button type="submit"
-                                            class="btn btn-primary btn-simple btn-round waves-effect"><a>Download</a></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-
-                </div>
-            </div>
-        </div>
-        <div class="row clearfix">
-            <div class="col-md-12 col-sm-12 col-xs-12">
-                <div class="card project_list">
-                    <p class="header"><strong>Material Supplier Statement</strong></p>
-                    <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="col-lg-12 col-md-12 col-sm-12">
-                            <div class="row clearfix">
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <input type="hidden" name="type" value="6">
-                                        <label>Material Name</label>
-                                        <select name="material_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Material--</option>
-                                            @php
-                                                $materials = getallmaterial();
-                                            @endphp
-                                            @foreach ($materials as $head)
-                                                <option value="{{ $head->id }}">{{ $head->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>Site Name</label>
-                                        <select name="site_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Site--</option>
-                                            @php
-                                                $sites = getallsites();
-                                            @endphp
-                                            @foreach ($sites as $site)
-                                                <option value="{{ $site->id }}">{{ $site->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>From Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="start_date5"
-                                            onchange="updateMaxDate5()" name="start_date">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>To Date</label>
-                                        <input type="date" required class="form-control" min="{{ $min_date }}"
-                                            max="{{ $max_date }}" value="{{ $today }}" id="end_date5"
-                                            onchange="updateMinDate5()" name="end_date">
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label>Report Type</label>
-                                        <select name="Report_Type" class="form-control show-tick" required>
-                                            <option value="" selected disabled>--Select Type--</option>
-                                            <option value="0">PDF Format</option>
-                                            <option value="1">Excel Format</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label> </label>
-                                        <button type="submit"
-                                            class="btn btn-primary btn-simple btn-round waves-effect"><a>Download</a></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-
-                </div>
-            </div>
-        </div>
-        <div class="row clearfix">
-            <div class="col-md-12 col-sm-12 col-xs-12">
-                <div class="card project_list">
-                    <p class="header"><strong>Material Supplier Statement</strong></p>
-                    <form method="post" action="{{ url('/materialreports') }}" enctype="multipart/form-data">
-                        @csrf
-                        <div class="col-lg-12 col-md-12 col-sm-12">
-                            <div class="row clearfix">
-                                <div class="col-lg-3 col-md-3 col-sm-3">
-                                    <div class="form-group">
-                                        <input type="hidden" name="type" value="7">
-                                        <label>Material Supplier </label>
-                                        <select name="supplier_id" class="form-control show-tick" data-live-search="true"
-                                            required>
-                                            <option value="" selected disabled>--Select Supplier--</option>
-                                            @php
-                                                $parties = getallmaterialsupplier();
-                                            @endphp
-                                            @foreach ($parties as $party)
-                                                <option value="{{ $party->id }}">{{ $party->name }}</option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-3 col-md-3 col-sm-3">
-                                    <div class="form-group">
-                                        <label>Report Type</label>
-                                        <select name="Report_Type" class="form-control show-tick" required>
-                                            <option value="" selected disabled>--Select Type--</option>
-                                            <option value="0">PDF Format</option>
-                                            <option value="1">Excel Format</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-lg-2 col-md-2 col-sm-2">
-                                    <div class="form-group">
-                                        <label> </label>
-                                        <button type="submit"
-                                            class="btn btn-primary btn-simple btn-round waves-effect"><a>Download</a></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
     @endif
 @endsection
+
 @section('scripts')
     <script>
-        function updateMaxDate() {
-            var startDate = new Date(document.getElementById("start_date").value);
-            var maxDate = new Date(startDate);
-            maxDate.setMonth(maxDate.getMonth() + 12);
-            document.getElementById("end_date").max = maxDate.toISOString().split('T')[0];
+        function updateFields() {
+            var category = $('#report_category').val();
+
+            // Hide all dynamic fields first
+            $('.dynamic-field').hide();
+            $('.date-range-fields').show();
+            $('.statement-fields').hide();
+
+            // Reset required attributes
+            $('#site_id_select, #supplier_id_select, #material_id_select, #start_date, #end_date').prop('required', false);
+
+            if (category == '7') {
+                // Supplier Statement
+                $('.supplier-field').show();
+                $('#supplier_id_select').prop('required', true);
+                $('.date-range-fields').hide();
+                $('.statement-fields').show();
+                $('#report_type_statement').prop('required', true);
+            } else {
+                $('#start_date, #end_date').prop('required', true);
+                
+                if (category == '2' || category == '4' || category == '6') {
+                    $('.site-field').show();
+                    $('#site_id_select').prop('required', true);
+                }
+                if (category == '3' || category == '4') {
+                    $('.supplier-field').show();
+                    $('#supplier_id_select').prop('required', true);
+                }
+                if (category == '5' || category == '6') {
+                    $('.material-field').show();
+                    $('#material_id_select').prop('required', true);
+                }
+            }
+
+            // Refresh selectpicker if used
+            if ($('.show-tick').length > 0) {
+                $('.show-tick').selectpicker('refresh');
+            }
         }
 
-        function updateMinDate() {
-            var endDate = new Date(document.getElementById("end_date").value);
-            var maxDate = new Date(endDate);
-            maxDate.setDate(maxDate.getDate() - 1);
-            document.getElementById("start_date").max = maxDate.toISOString().split('T')[0];
+        function submitStatement() {
+            var category = $('#report_category').val();
+            var supplier = $('#supplier_id_select').val();
+            var format = $('#report_type_statement').val();
+
+            if (!supplier) {
+                alert('Please select a supplier');
+                return;
+            }
+            if (format === "" || format === null) {
+                alert('Please select a format');
+                return;
+            }
+
+            // Create a temporary form to submit
+            var form = $('<form></form>');
+            form.attr("method", "post");
+            form.attr("action", "{{ url('/materialreports') }}");
+            form.append('<input type="hidden" name="_token" value="{{ csrf_token() }}">');
+            form.append('<input type="hidden" name="type" value="7">');
+            form.append('<input type="hidden" name="supplier_id" value="' + supplier + '">');
+            form.append('<input type="hidden" name="Report_Type" value="' + format + '">');
+            
+            $(document.body).append(form);
+            form.submit();
         }
 
-        function updateMaxDate1() {
-            var startDate = new Date(document.getElementById("start_date1").value);
-            var maxDate = new Date(startDate);
-            maxDate.setMonth(maxDate.getMonth() + 12);
-            document.getElementById("end_date1").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMinDate1() {
-            var endDate = new Date(document.getElementById("end_date1").value);
-            var maxDate = new Date(endDate);
-            maxDate.setDate(maxDate.getDate() - 1);
-            document.getElementById("start_date1").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMaxDate2() {
-            var startDate = new Date(document.getElementById("start_date2").value);
-            var maxDate = new Date(startDate);
-            maxDate.setMonth(maxDate.getMonth() + 12);
-            document.getElementById("end_date2").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMinDate2() {
-            var endDate = new Date(document.getElementById("end_date2").value);
-            var maxDate = new Date(endDate);
-            maxDate.setDate(maxDate.getDate() - 1);
-            document.getElementById("start_date2").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMaxDate3() {
-            var startDate = new Date(document.getElementById("start_date3").value);
-            var maxDate = new Date(startDate);
-            maxDate.setMonth(maxDate.getMonth() + 12);
-            document.getElementById("end_date3").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMinDate3() {
-            var endDate = new Date(document.getElementById("end_date3").value);
-            var maxDate = new Date(endDate);
-            maxDate.setDate(maxDate.getDate() - 1);
-            document.getElementById("start_date3").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMaxDate4() {
-            var startDate = new Date(document.getElementById("start_date4").value);
-            var maxDate = new Date(startDate);
-            maxDate.setMonth(maxDate.getMonth() + 12);
-            document.getElementById("end_date4").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMinDate4() {
-            var endDate = new Date(document.getElementById("end_date4").value);
-            var maxDate = new Date(endDate);
-            maxDate.setDate(maxDate.getDate() - 1);
-            document.getElementById("start_date4").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMaxDate5() {
-            var startDate = new Date(document.getElementById("start_date5").value);
-            var maxDate = new Date(startDate);
-            maxDate.setMonth(maxDate.getMonth() + 12);
-            document.getElementById("end_date5").max = maxDate.toISOString().split('T')[0];
-        }
-
-        function updateMinDate5() {
-            var endDate = new Date(document.getElementById("end_date5").value);
-            var maxDate = new Date(endDate);
-            maxDate.setDate(maxDate.getDate() - 1);
-            document.getElementById("start_date5").max = maxDate.toISOString().split('T')[0];
-        }
+        // Initialize on page load
+        $(document).ready(function() {
+            updateFields();
+        });
     </script>
 @endsection

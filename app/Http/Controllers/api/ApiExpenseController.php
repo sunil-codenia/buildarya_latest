@@ -223,12 +223,13 @@ class ApiExpenseController extends Controller
             $user = $request->user();
             $conn = config('database.default');
             
-            $report_code = $request->get('report_code', 1);
-            $start_date = $request->get('start_date');
-            $end_date = $request->get('end_date');
+            $report_code = $request->get('report_code', $request->get('type', 1));
+            $start_date = $request->get('start_date', $request->get('from_date'));
+            $end_date = $request->get('end_date', $request->get('to_date'));
             $site_id = $request->get('site_id');
             $party_id_raw = $request->get('party_id');
             $head_id = $request->get('head_id');
+            $export = $request->get('export');
 
             $query = DB::table('expenses')
                 ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
@@ -250,16 +251,17 @@ class ApiExpenseController extends Controller
                     DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END AS party_name')
                 );
 
-            // Apply Filters based on report_code
+            // Apply Date Range
             if ($start_date && $end_date) {
                 $query->whereBetween('expenses.date', [$start_date, $end_date]);
             }
 
-            if ($report_code == 2 || $report_code == 4 || $report_code == 6) {
+            // Apply Filters based on report_code
+            if (in_array($report_code, [2, 4, 6])) {
                 if ($site_id) $query->where('expenses.site_id', $site_id);
             }
 
-            if ($report_code == 3 || $report_code == 4) {
+            if (in_array($report_code, [3, 4])) {
                 if ($party_id_raw) {
                     $party = explode("||", $party_id_raw);
                     $query->where('expenses.party_id', $party[0])
@@ -267,11 +269,31 @@ class ApiExpenseController extends Controller
                 }
             }
 
-            if ($report_code == 5 || $report_code == 6) {
+            if (in_array($report_code, [5, 6])) {
                 if ($head_id) $query->where('expenses.head_id', $head_id);
             }
 
             $data = $query->orderBy('expenses.date', 'desc')->get();
+
+            if ($export == 'csv') {
+                $filename = "expense_report_" . date('Y-m-d') . ".csv";
+                $headers = [
+                    "Content-type"        => "text/csv",
+                    "Content-Disposition" => "attachment; filename=$filename",
+                ];
+
+                $callback = function() use ($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Date', 'Party', 'Head', 'Particular', 'Amount', 'Site', 'User', 'Status', 'Remark']);
+
+                    foreach ($data as $e) {
+                        fputcsv($file, [$e->id, $e->date, $e->party_name, $e->head_name, $e->particular, $e->amount, $e->site_name, $e->user_name, $e->status, $e->remark]);
+                    }
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            }
 
             return response()->json(['status' => 'Ok', 'count' => count($data), 'data' => $data]);
         } catch (\Exception $e) {

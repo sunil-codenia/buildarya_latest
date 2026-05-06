@@ -2942,4 +2942,772 @@ class ApiManagementController extends Controller
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
+
+    // ==========================================
+    // MATERIAL UNIT MANAGEMENT
+    // ==========================================
+
+    public function listMaterialUnits(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            
+            $query = DB::connection($conn)->table('units');
+
+            if (!empty($search)) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
+            $units = $query->orderBy('name', 'asc')->paginate(10);
+            
+            return response()->json([
+                'status' => 'Ok', 
+                'data' => $units, 
+                'applied_search' => $search
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getMaterialUnit(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $unit = DB::connection($conn)->table('units')->where('id', $id)->first();
+
+            if (!$unit) {
+                return response()->json(['status' => 'Error', 'message' => 'Material unit not found'], 404);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $unit]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => 'Internal Server Error'], 500);
+        }
+    }
+
+    public function exportMaterialUnitsCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $units = DB::connection($conn)->table('units')->orderBy('name', 'asc')->get();
+
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="material_units.csv"',
+            ];
+
+            $callback = function() use ($units) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['ID', 'Unit Name']);
+
+                foreach ($units as $u) {
+                    fputcsv($file, [$u->id, $u->name]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeMaterialUnit(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $name = $input['name'] ?? null;
+
+            if (!$name) {
+                return response()->json(['status' => 'Error', 'message' => 'Unit name is required'], 400);
+            }
+
+            $id = DB::connection($conn)->table('units')->insertGetId(['name' => $name]);
+            addActivity($id, 'units', "New Material Unit Created via API: " . $name, 3, $user->id, $conn);
+            
+            return response()->json(['status' => 'Ok', 'message' => 'Material unit created successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            if ($e->getCode() == 23000) {
+                return response()->json(['status' => 'Error', 'message' => 'Unit already exists'], 400);
+            }
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMaterialUnit(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $name = $input['name'] ?? null;
+
+            if (!$name) {
+                return response()->json(['status' => 'Error', 'message' => 'Unit name is required'], 400);
+            }
+
+            DB::connection($conn)->table('units')->where('id', $id)->update(['name' => $name]);
+            addActivity($id, 'units', "Material Unit Updated via API: " . $name, 3, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Material unit updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function bulkDeleteMaterialUnits(Request $request)
+    {
+        try {
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? [];
+            
+            if (empty($ids)) {
+                return response()->json(['status' => 'Error', 'message' => 'No IDs provided'], 400);
+            }
+
+            return $this->processMaterialUnitDeletion($ids, $request->user('sanctum'));
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMaterialUnit(Request $request, $id)
+    {
+        try {
+            $ids = explode(',', $id);
+            return $this->processMaterialUnitDeletion($ids, $request->user('sanctum'));
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function processMaterialUnitDeletion($ids, $user)
+    {
+        try {
+            $conn = config('database.default');
+            $deletedCount = 0;
+            $skippedCount = 0;
+            $messages = [];
+
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+
+                // Check usage via helper
+                if (!isMaterialUnitDeletable($singleId, $conn)) {
+                    $skippedCount++;
+                    $unitName = DB::connection($conn)->table('units')->where('id', $singleId)->value('name') ?? $singleId;
+                    $messages[] = "Unit '$unitName' (ID: $singleId) is in use and cannot be deleted.";
+                    continue;
+                }
+                
+                $unit = DB::connection($conn)->table('units')->where('id', $singleId)->first();
+                if (!$unit) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                DB::connection($conn)->table('units')->where('id', $singleId)->delete();
+                addActivity(0, 'units', "Material Unit Deleted via API: " . $unit->name, 3, $user->id, $conn);
+                $deletedCount++;
+            }
+
+            return response()->json([
+                'status' => 'Ok', 
+                'message' => "Deleted $deletedCount units. Skipped $skippedCount.",
+                'details' => $messages
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    // ==========================================
+    // MATERIAL ENTRIES (TRANSACTIONS)
+    // ==========================================
+
+    public function listPendingMaterialEntries(Request $request)
+    {
+        return $this->listMaterialEntriesByStatus($request, 'Pending');
+    }
+
+    public function listVerifiedMaterialEntries(Request $request)
+    {
+        return $this->listMaterialEntriesByStatus($request, 'Verified'); // Or not Pending
+    }
+
+    public function generateMaterialReport(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            
+            $report_code = $request->get('report_code', $request->get('type', 1));
+            $start_date = $request->get('start_date', $request->get('from_date'));
+            $end_date = $request->get('end_date', $request->get('to_date'));
+            $site_id = $request->get('site_id');
+            $supplier_id = $request->get('supplier_id', $request->get('party_id'));
+            $material_id = $request->get('material_id', $request->get('head_id'));
+            $export = $request->get('export');
+
+            $query = DB::connection($conn)->table('material_entry')
+                ->leftJoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                ->leftJoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                ->leftJoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                ->leftJoin('units', 'units.id', '=', 'material_entry.unit')
+                ->leftJoin('users', 'users.id', '=', 'material_entry.user_id')
+                ->select(
+                    'material_entry.*',
+                    'material_supplier.name as supplier_name',
+                    'materials.name as material_name',
+                    'units.name as unit_name',
+                    'sites.name as site_name',
+                    'users.name as user_name'
+                );
+
+            // Apply Date Range
+            if ($report_code != 7 && $start_date && $end_date) {
+                $query->whereBetween('material_entry.date', [$start_date, $end_date]);
+            }
+
+            // Apply Filters based on report_code
+            if (in_array($report_code, [2, 4, 6])) {
+                if ($site_id) $query->where('material_entry.site_id', $site_id);
+            }
+
+            if (in_array($report_code, [3, 4, 7])) {
+                if ($supplier_id) $query->where('material_entry.supplier', $supplier_id);
+            }
+
+            if (in_array($report_code, [5, 6])) {
+                if ($material_id) $query->where('material_entry.material_id', $material_id);
+            }
+
+            if ($report_code == 7) {
+                // Statement logic is different, but for API we can return entries or a specialized structure
+                // Let's stick to entries for now as the basic report
+            }
+
+            $data = $query->orderBy('material_entry.date', 'desc')->get();
+
+            if ($export == 'csv') {
+                $filename = "material_report_" . date('Y-m-d') . ".csv";
+                $headers = [
+                    "Content-type"        => "text/csv",
+                    "Content-Disposition" => "attachment; filename=$filename",
+                ];
+
+                $callback = function() use ($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Date', 'Supplier', 'Material', 'Unit', 'Qty', 'Vehicle', 'Site', 'User', 'Status', 'Remark']);
+
+                    foreach ($data as $e) {
+                        fputcsv($file, [$e->id, $e->date, $e->supplier_name, $e->material_name, $e->unit_name, $e->qty, $e->vehical, $e->site_name, $e->user_name, $e->status, $e->remark]);
+                    }
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json(['status' => 'Ok', 'count' => count($data), 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getStockDashboard(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $site_id = $request->get('site_id');
+            $material_id = $request->get('material_id');
+            $search = $request->get('search'); // Site name search
+            $per_page = $request->get('per_page', 20);
+            $export = $request->get('export');
+
+            $query = DB::connection($conn)->table('material_stock_record')
+                ->join('materials', 'materials.id', '=', 'material_stock_record.material_id')
+                ->join('units', 'units.id', '=', 'material_stock_record.unit')
+                ->join('sites', 'sites.id', '=', 'material_stock_record.site_id')
+                ->where('sites.status', '=', 'Active')
+                ->select(
+                    'material_stock_record.*', 
+                    'materials.name as material_name', 
+                    'units.name as unit_name', 
+                    'sites.name as site_name'
+                )
+                ->orderBy('sites.name')
+                ->orderBy('materials.name');
+
+            if ($site_id) {
+                $query->where('material_stock_record.site_id', $site_id);
+            }
+
+            if ($material_id) {
+                $query->where('material_stock_record.material_id', $material_id);
+            }
+
+            if ($search) {
+                $query->where('sites.name', 'like', "%$search%");
+            }
+
+            if ($export == 'csv') {
+                $data = $query->get();
+                $filename = "stock_dashboard_" . date('Y-m-d') . ".csv";
+                $headers = [
+                    "Content-type"        => "text/csv",
+                    "Content-Disposition" => "attachment; filename=$filename",
+                ];
+
+                $callback = function() use ($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Site', 'Material', 'Unit', 'Qty']);
+                    foreach ($data as $e) {
+                        fputcsv($file, [$e->id, $e->site_name, $e->material_name, $e->unit_name, $e->qty]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $data = $query->paginate($per_page);
+
+            // Also provide sites and materials list for filters if needed (optional for UI)
+            $sites = DB::connection($conn)->table('sites')->where('status', 'Active')->select('id', 'name')->get();
+            $materials = DB::connection($conn)->table('materials')->select('id', 'name')->get();
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $data,
+                'sites' => $sites,
+                'materials' => $materials
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function exportPendingMaterialEntriesCsv(Request $request)
+    {
+        return $this->exportMaterialEntriesCsvByStatus($request, 'Pending');
+    }
+
+    public function exportVerifiedMaterialEntriesCsv(Request $request)
+    {
+        return $this->exportMaterialEntriesCsvByStatus($request, 'Verified');
+    }
+
+    private function listMaterialEntriesByStatus(Request $request, $statusType)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            $from_date = $request->get('from_date', date('Y-m-01'));
+            $to_date = $request->get('to_date', date('Y-m-t'));
+
+            $query = DB::connection($conn)->table('material_entry')
+                ->leftJoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                ->leftJoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                ->leftJoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                ->leftJoin('units', 'units.id', '=', 'material_entry.unit')
+                ->leftJoin('users', 'users.id', '=', 'material_entry.user_id')
+                ->select(
+                    'material_entry.*', 
+                    'materials.name as material_name', 
+                    'units.name as unit_name', 
+                    'sites.name as site_name', 
+                    'users.name as user_name', 
+                    'material_supplier.name as supplier_name'
+                );
+
+            if ($statusType == 'Pending') {
+                $query->where('material_entry.status', '=', 'Pending');
+            } else {
+                $query->where('material_entry.status', '!=', 'Pending');
+            }
+
+            $query->whereBetween('material_entry.date', [$from_date, $to_date]);
+
+            if (!empty($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('material_supplier.name', 'LIKE', "%{$search}%")
+                        ->orWhere('materials.name', 'LIKE', "%{$search}%")
+                        ->orWhere('material_entry.vehical', 'LIKE', "%{$search}%")
+                        ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                        ->orWhere('material_entry.remark', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $entries = $query->orderBy('material_entry.date', 'desc')->paginate(10);
+
+            return response()->json([
+                'status' => 'Ok', 
+                'data' => $entries,
+                'filters' => [
+                    'from_date' => $from_date,
+                    'to_date' => $to_date,
+                    'search' => $search
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getMaterialEntry(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $entry = DB::connection($conn)->table('material_entry')
+                ->leftJoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                ->leftJoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                ->leftJoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                ->leftJoin('units', 'units.id', '=', 'material_entry.unit')
+                ->select('material_entry.*', 'materials.name as material_name', 'units.name as unit_name', 'sites.name as site_name', 'material_supplier.name as supplier_name')
+                ->where('material_entry.id', $id)
+                ->first();
+
+            if (!$entry) {
+                return response()->json(['status' => 'Error', 'message' => 'Material entry not found'], 404);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $entry]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeMaterialEntry(Request $request)
+    {
+        // (Previously implemented logic remains here, just ensuring it's in the right place)
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            $role_id = $user->role ?? 0;
+            
+            $status = 'Pending';
+            $role_details = DB::connection($conn)->table('roles')->where('id', $role_id)->first();
+            if ($role_details && $role_details->can_certify == 1) {
+                $status = 'Approved';
+            }
+
+            $input = $request->all();
+            $site_ids = (array) ($input['site_id'] ?? []);
+            if (empty($site_ids)) return response()->json(['status' => 'Error', 'message' => 'Site ID is required'], 400);
+
+            $suppliers = (array) ($input['supplier'] ?? []);
+            $material_ids = (array) ($input['material_id'] ?? []);
+            $units = (array) ($input['unit'] ?? []);
+            $qtys = (array) ($input['qty'] ?? []);
+            $vehicals = (array) ($input['vehical'] ?? []);
+            $remarks = (array) ($input['remark'] ?? []);
+            $dates = (array) ($input['date'] ?? []);
+            $images = $request->file('image');
+
+            $length = count($site_ids);
+            $created_ids = [];
+
+            for ($i = 0; $i < $length; $i++) {
+                $imagePath = "images/expense.png";
+                if ($images && isset($images[$i])) {
+                    $image = $images[$i];
+                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                    $imagePath = "images/app_images/" . $conn . "/material/" . $imageName;
+                }
+
+                $data = [
+                    'supplier' => $suppliers[$i] ?? ($suppliers[0] ?? null),
+                    'material_id' => $material_ids[$i] ?? ($material_ids[0] ?? null),
+                    'unit' => $units[$i] ?? ($units[0] ?? null),
+                    'qty' => $qtys[$i] ?? ($qtys[0] ?? 0),
+                    'vehical' => $vehicals[$i] ?? ($vehicals[0] ?? null),
+                    'image' => $imagePath,
+                    'remark' => $remarks[$i] ?? ($remarks[0] ?? null),
+                    'site_id' => $site_ids[$i] ?? ($site_ids[0] ?? null),
+                    'status' => $status,
+                    'user_id' => $user->id,
+                    'date' => $dates[$i] ?? ($dates[0] ?? date('Y-m-d')),
+                    'create_datetime' => date('Y-m-d H:i:s')
+                ];
+
+                $id = DB::connection($conn)->table('material_entry')->insertGetId($data);
+                $created_ids[] = $id;
+
+                if ($status == 'Approved') {
+                    $this->approveMaterialEntryLogic($id, $conn, $user->id);
+                }
+            }
+
+            addActivity(0, 'material_entry', "New Material Entries Created via API", 3, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Created successfully', 'ids' => $created_ids, 'current_status' => $status]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMaterialEntry(Request $request, $id)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $entry = DB::connection($conn)->table('material_entry')->where('id', $id)->first();
+            if (!$entry) return response()->json(['status' => 'Error', 'message' => 'Entry not found'], 404);
+
+            $input = $request->all();
+            $imagePath = $entry->image;
+
+            if ($request->hasFile('image')) {
+                if ($imagePath && $imagePath != 'images/expense.png' && file_exists(public_path($imagePath))) {
+                    @unlink(public_path($imagePath));
+                }
+                $image = $request->file('image');
+                $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
+                $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                $imagePath = "images/app_images/" . $conn . "/material/" . $imageName;
+            }
+
+            $updateData = [
+                'supplier' => $input['supplier'] ?? $entry->supplier,
+                'material_id' => $input['material_id'] ?? $entry->material_id,
+                'unit' => $input['unit'] ?? $entry->unit,
+                'qty' => $input['qty'] ?? $entry->qty,
+                'vehical' => $input['vehical'] ?? $entry->vehical,
+                'remark' => $input['remark'] ?? $entry->remark,
+                'site_id' => $input['site_id'] ?? $entry->site_id,
+                'date' => $input['date'] ?? $entry->date,
+                'image' => $imagePath
+            ];
+
+            DB::connection($conn)->table('material_entry')->where('id', $id)->update($updateData);
+            addActivity($id, 'material_entry', "Material Entry Updated via API", 3, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Material entry updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMaterialEntry(Request $request, $id = null)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = isset($input['ids']) ? (array)$input['ids'] : explode(',', $id ?? '');
+
+            $deletedCount = 0;
+            $skippedCount = 0;
+
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+
+                $entry = DB::connection($conn)->table('material_entry')->where('id', $singleId)->first();
+                if (!$entry) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                // Revert stock if it was approved
+                if ($entry->status == 'Approved') {
+                    $this->rejectMaterialEntryLogic($singleId, $conn, $user->id);
+                }
+
+                if ($entry->image && $entry->image != 'images/expense.png' && file_exists(public_path($entry->image))) {
+                    @unlink(public_path($entry->image));
+                }
+
+                DB::connection($conn)->table('material_entry')->where('id', $singleId)->delete();
+                $deletedCount++;
+            }
+
+            addActivity(0, 'material_entry', "Material Entries Deleted via API (Count: $deletedCount)", 3, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => "Successfully deleted $deletedCount entries. Skipped $skippedCount."]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function approveMaterialEntry(Request $request, $id = null)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = isset($input['ids']) ? (array)$input['ids'] : explode(',', $id ?? '');
+
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+                $this->approveMaterialEntryLogic($singleId, $conn, $user->id);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => 'Material entries approved successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function rejectMaterialEntry(Request $request, $id = null)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = isset($input['ids']) ? (array)$input['ids'] : explode(',', $id);
+
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+                $this->rejectMaterialEntryLogic($singleId, $conn, $user->id);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => 'Material entries rejected successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function approveMaterialEntryLogic($id, $conn, $userId)
+    {
+        $material_entry = DB::connection($conn)->table('material_entry')->where('id', $id)->first();
+        if (!$material_entry || $material_entry->status == 'Approved') return;
+
+        DB::connection($conn)->table('material_entry')->where('id', $id)->update(['status' => 'Approved']);
+
+        // Stock Transaction
+        DB::connection($conn)->table('material_stock_transactions')->insert([
+            'site_id' => $material_entry->site_id,
+            'material_id' => $material_entry->material_id,
+            'qty' => $material_entry->qty,
+            'unit' => $material_entry->unit,
+            'type' => 'IN',
+            'refrence' => 'Purchase',
+            'refrence_id' => $id
+        ]);
+
+        // Stock Record
+        $check = DB::connection($conn)->table('material_stock_record')
+            ->where(['site_id' => $material_entry->site_id, 'material_id' => $material_entry->material_id, 'unit' => $material_entry->unit])
+            ->first();
+
+        if ($check) {
+            DB::connection($conn)->table('material_stock_record')->where('id', $check->id)->update(['qty' => $check->qty + $material_entry->qty]);
+        } else {
+            DB::connection($conn)->table('material_stock_record')->insert([
+                'material_id' => $material_entry->material_id, 'site_id' => $material_entry->site_id, 'qty' => $material_entry->qty, 'unit' => $material_entry->unit
+            ]);
+        }
+
+        addActivity($id, 'material_entry', "Material Entry Approved via API", 3, $userId, $conn);
+    }
+
+    private function rejectMaterialEntryLogic($id, $conn, $userId)
+    {
+        $material_entry = DB::connection($conn)->table('material_entry')->where('id', $id)->first();
+        if (!$material_entry) return;
+
+        DB::connection($conn)->table('material_entry')->where('id', $id)->update(['status' => 'Rejected']);
+
+        // Revert stock if it was approved
+        $stock_tx = DB::connection($conn)->table('material_stock_transactions')
+            ->where('refrence_id', '=', $id)
+            ->where('refrence', '=', 'Purchase')
+            ->first();
+
+        if ($stock_tx) {
+            DB::connection($conn)->table('material_stock_transactions')->where('id', $stock_tx->id)->delete();
+            
+            $check = DB::connection($conn)->table('material_stock_record')
+                ->where(['site_id' => $material_entry->site_id, 'material_id' => $material_entry->material_id, 'unit' => $material_entry->unit])
+                ->first();
+
+            if ($check) {
+                DB::connection($conn)->table('material_stock_record')->where('id', $check->id)->update(['qty' => $check->qty - $material_entry->qty]);
+            }
+        }
+
+        addActivity($id, 'material_entry', "Material Entry Rejected via API", 3, $userId, $conn);
+    }
+
+    private function exportMaterialEntriesCsvByStatus(Request $request, $statusType)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            $from_date = $request->get('from_date', date('Y-m-01'));
+            $to_date = $request->get('to_date', date('Y-m-t'));
+
+            $query = DB::connection($conn)->table('material_entry')
+                ->leftJoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                ->leftJoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                ->leftJoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                ->leftJoin('units', 'units.id', '=', 'material_entry.unit')
+                ->leftJoin('users', 'users.id', '=', 'material_entry.user_id')
+                ->select(
+                    'material_entry.id',
+                    'material_supplier.name as supplier',
+                    'materials.name as material',
+                    'units.name as unit',
+                    'material_entry.qty',
+                    'material_entry.vehical',
+                    'material_entry.status',
+                    'material_entry.remark',
+                    'sites.name as site',
+                    'users.name as user',
+                    'material_entry.date'
+                );
+
+            if ($statusType == 'Pending') {
+                $query->where('material_entry.status', '=', 'Pending');
+            } else {
+                $query->where('material_entry.status', '!=', 'Pending');
+            }
+
+            $query->whereBetween('material_entry.date', [$from_date, $to_date]);
+
+            if (!empty($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('material_supplier.name', 'LIKE', "%{$search}%")
+                        ->orWhere('materials.name', 'LIKE', "%{$search}%")
+                        ->orWhere('material_entry.vehical', 'LIKE', "%{$search}%")
+                        ->orWhere('sites.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $entries = $query->orderBy('material_entry.date', 'desc')->get();
+            $filename = strtolower($statusType) . "_material_entries_" . date('Y-m-d') . ".csv";
+
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => "attachment; filename=\"$filename\"",
+            ];
+
+            $callback = function() use ($entries) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['ID', 'Supplier', 'Material', 'Unit', 'Qty', 'Vehicle', 'Status', 'Remark', 'Site', 'User', 'Date']);
+
+                foreach ($entries as $e) {
+                    fputcsv($file, [$e->id, $e->supplier, $e->material, $e->unit, $e->qty, $e->vehical, $e->status, $e->remark, $e->site, $e->user, $e->date]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }

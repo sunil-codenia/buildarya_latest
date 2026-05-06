@@ -145,7 +145,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/expenses', [ApiManagementController::class, 'storeExpense']);
         Route::post('/expenses/bulk-status', [ApiManagementController::class, 'bulkUpdateExpenseStatus']);
         Route::post('/expenses/bulk', [ApiManagementController::class, 'bulkStoreExpenses']);
-        Route::get('/expenses/report', [ApiExpenseController::class, 'report']);
+        Route::match(['get', 'post'], '/expenses/report', [ApiExpenseController::class, 'report']);
         Route::get('/expenses/{id}', [ApiExpenseController::class, 'show']);
         Route::post('/expenses/{id}', [ApiManagementController::class, 'updateExpense']);
         Route::delete('/expenses/{id}', [ApiExpenseController::class, 'destroy']);
@@ -174,6 +174,40 @@ Route::prefix('v1')->group(function () {
         Route::get('/materials-master/{id}/conversions/export/csv', [ApiManagementController::class, 'exportMaterialConversionsCsv']);
         Route::post('/materials-master/{id}/conversions', [ApiManagementController::class, 'storeMaterialConversion']);
         Route::delete('/materials-master/{id}/conversions/{rule_id}', [ApiManagementController::class, 'deleteMaterialConversion']);
+
+        // Material Units (Management)
+        Route::get('/materials/units', [ApiManagementController::class, 'listMaterialUnits']);
+        Route::get('/materials/units/{id}', [ApiManagementController::class, 'getMaterialUnit']);
+        Route::get('/materials/units/export/csv', [ApiManagementController::class, 'exportMaterialUnitsCsv']);
+        Route::post('/materials/units', [ApiManagementController::class, 'storeMaterialUnit']);
+        Route::post('/materials/units/bulk-delete', [ApiManagementController::class, 'bulkDeleteMaterialUnits']);
+        Route::post('/materials/units/{id}', [ApiManagementController::class, 'updateMaterialUnit']);
+        Route::delete('/materials/units/{id}', [ApiManagementController::class, 'deleteMaterialUnit'])->where('id', '[0-9,]+');
+
+        // Material Entries (Transactions)
+        Route::get('/materials/entries/pending', [ApiManagementController::class, 'listPendingMaterialEntries']);
+        Route::get('/materials/entries/pending/export/csv', [ApiManagementController::class, 'exportPendingMaterialEntriesCsv']);
+        Route::get('/materials/entries/verified', [ApiManagementController::class, 'listVerifiedMaterialEntries']);
+        Route::get('/materials/entries/verified/export/csv', [ApiManagementController::class, 'exportVerifiedMaterialEntriesCsv']);
+        
+        // Material Reports
+        Route::match(['get', 'post'], '/materials/report', [ApiManagementController::class, 'generateMaterialReport']);
+        Route::match(['get', 'post'], '/material/report', [ApiManagementController::class, 'generateMaterialReport']);
+
+        Route::post('/materials/entries', [ApiManagementController::class, 'storeMaterialEntry']);
+        Route::get('/materials/entries/{id}', [ApiManagementController::class, 'getMaterialEntry']);
+        Route::post('/materials/entries/{id}', [ApiManagementController::class, 'updateMaterialEntry']);
+        Route::delete('/materials/entries/{id}', [ApiManagementController::class, 'deleteMaterialEntry'])->where('id', '[0-9,]+');
+        Route::post('/materials/entries/{id}/approve', [ApiManagementController::class, 'approveMaterialEntry'])->where('id', '[0-9,]+');
+        Route::post('/materials/entries/{id}/reject', [ApiManagementController::class, 'rejectMaterialEntry'])->where('id', '[0-9,]+');
+
+        // Explicit Bulk Routes
+        Route::post('/materials/entries/bulk/approve', [ApiManagementController::class, 'approveMaterialEntry']);
+        Route::post('/materials/entries/bulk/reject', [ApiManagementController::class, 'rejectMaterialEntry']);
+        Route::post('/materials/entries/bulk/delete', [ApiManagementController::class, 'deleteMaterialEntry']);
+
+        // Material Stock
+        Route::get('/materials/stock/dashboard', [ApiManagementController::class, 'getStockDashboard']);
 
         // Materials
         Route::get('/materials/summary', [ApiMaterialController::class, 'summary']);
