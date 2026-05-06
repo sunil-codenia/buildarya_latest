@@ -262,7 +262,7 @@
           },
       }).then((result) => {
           if (result.isConfirmed) {
-              var url = "{{url('/edit_material_entry/?id=')}}" + id;
+              var url = "{{url('/edit_consumption_entry/?id=')}}" + id;
               window.location.href = url;
           }
       });
@@ -287,7 +287,7 @@
           },
       }).then((result) => {
           if (result.isConfirmed) {
-              var url = "{{url('/edit_material_entry/?id=')}}" + id;
+              var url = "{{url('/edit_wastage_entry/?id=')}}" + id;
               window.location.href = url;
           }
       });

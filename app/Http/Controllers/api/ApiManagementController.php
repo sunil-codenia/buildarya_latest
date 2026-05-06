@@ -3323,14 +3323,17 @@ class ApiManagementController extends Controller
 
             $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
 
+            $user = $request->user();
+
             foreach ($ids as $id) {
+                if (empty($id)) continue;
                 if ($entry_type == 'Wastage') {
                     $this->adjustStockForWastage($id, $conn, 'approve');
                 } else {
                     $this->adjustStockForConsumption($id, $conn, 'approve');
                 }
                 DB::connection($conn)->table($table)->where('id', $id)->update(['status' => 'Approved']);
-                addActivity($id, $table, "Bulk Approved via API", 3);
+                addActivity($id, $table, "Bulk Approved via API", 3, $user->id, $conn);
             }
 
             return response()->json(['status' => 'Ok', 'message' => 'Selected entries approved successfully']);
@@ -3349,14 +3352,17 @@ class ApiManagementController extends Controller
 
             $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
 
+            $user = $request->user();
+
             foreach ($ids as $id) {
+                if (empty($id)) continue;
                 if ($entry_type == 'Wastage') {
                     $this->adjustStockForWastage($id, $conn, 'reject');
                 } else {
                     $this->adjustStockForConsumption($id, $conn, 'reject');
                 }
                 DB::connection($conn)->table($table)->where('id', $id)->update(['status' => 'Rejected']);
-                addActivity($id, $table, "Bulk Rejected via API", 3);
+                addActivity($id, $table, "Bulk Rejected via API", 3, $user->id, $conn);
             }
 
             return response()->json(['status' => 'Ok', 'message' => 'Selected entries rejected successfully']);
@@ -3547,6 +3553,7 @@ class ApiManagementController extends Controller
             $per_page = $request->get('per_page', 20);
             $site_id = $request->get('site_id');
             $material_id = $request->get('material_id');
+            $search = $request->get('search'); // Site name search
             $start_date = $request->get('start_date', $request->get('from_date'));
             $end_date = $request->get('end_date', $request->get('to_date'));
 
@@ -3591,10 +3598,13 @@ class ApiManagementController extends Controller
             // Apply Common Filters
             $queries = [$consumption_query, $wastage_query];
             foreach ($queries as $q) {
-                if ($site_id) $q->where('site_id', $site_id);
-                if ($material_id) $q->where('material_id', $material_id);
+                if ($site_id) $q->where($q->from . '.site_id', $site_id);
+                if ($material_id) $q->where($q->from . '.material_id', $material_id);
+                if ($search) {
+                    $q->where('sites.name', 'like', "%$search%");
+                }
                 if ($start_date && $end_date) {
-                    $q->whereBetween('date', [$start_date, $end_date]);
+                    $q->whereBetween($q->from . '.date', [$start_date, $end_date]);
                 }
             }
 
@@ -3612,6 +3622,16 @@ class ApiManagementController extends Controller
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
+    }
+
+    public function exportPendingMaterialEntriesCsv(Request $request)
+    {
+        return $this->exportMaterialEntriesCsvByStatus($request, 'Pending');
+    }
+
+    public function exportVerifiedMaterialEntriesCsv(Request $request)
+    {
+        return $this->exportMaterialEntriesCsvByStatus($request, 'Verified');
     }
 
     private function listMaterialEntriesByStatus(Request $request, $statusType)
