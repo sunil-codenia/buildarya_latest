@@ -3540,8 +3540,6 @@ class ApiManagementController extends Controller
                 $qty = is_array($request->qty) ? $request->qty[$i] : $request->qty;
                 $date = is_array($request->date) ? $request->date[$i] : $request->date;
                 $remark = is_array($request->remark) ? $request->remark[$i] : $request->remark;
-                $entry_type = is_array($request->entry_type) ? $request->entry_type[$i] : $request->get('entry_type', 'Consumption');
-                $reason = is_array($request->reason) ? $request->reason[$i] : $request->reason;
 
                 if (!$material_id || !$site_id || !$qty) continue;
 
@@ -3557,7 +3555,7 @@ class ApiManagementController extends Controller
                     }
                 }
 
-                $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
+                $table = 'material_consumption';
                 
                 $data = [
                     'material_id' => $material_id,
@@ -3572,27 +3570,103 @@ class ApiManagementController extends Controller
                     'create_datetime' => Carbon::now()
                 ];
 
-                if ($entry_type == 'Wastage') {
-                    $data['reason'] = $reason;
-                }
-
                 $id = DB::connection($conn)->table($table)->insertGetId($data);
                 addActivity($id, $table, "New Entry Created via API (Bulk Support)", 3, $user->id, $conn);
 
                 if ($status == 'Approved') {
-                    if ($entry_type == 'Wastage') {
-                        $this->adjustStockForWastage($id, $conn, 'approve');
-                    } else {
-                        $this->adjustStockForConsumption($id, $conn, 'approve');
-                    }
+                    $this->adjustStockForConsumption($id, $conn, 'approve');
                 }
 
-                $responses[] = ['id' => $id, 'type' => $entry_type, 'status' => 'Ok'];
+                $responses[] = ['id' => $id, 'type' => 'Consumption', 'status' => 'Ok'];
             }
 
             return response()->json([
                 'status' => 'Ok', 
                 'message' => count($responses) . ' entries processed successfully', 
+                'processed' => $responses,
+                'status_assigned' => $status
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeMaterialWastage(Request $request)
+    {
+        // Support both single and bulk entries
+        $material_ids = $request->get('material_id');
+        
+        if (!is_array($material_ids)) {
+            // Convert single request to array format for unified processing
+            $count = 1;
+        } else {
+            $count = count($material_ids);
+        }
+
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $status = getAppInitialEntryStatusByRole($user->role_id, $conn);
+            $responses = [];
+
+            for ($i = 0; $i < $count; $i++) {
+                $material_id = is_array($request->material_id) ? $request->material_id[$i] : $request->material_id;
+                $site_id = is_array($request->site_id) ? $request->site_id[$i] : $request->site_id;
+                $unit = is_array($request->unit) ? $request->unit[$i] : $request->unit;
+                $qty = is_array($request->qty) ? $request->qty[$i] : $request->qty;
+                $date = is_array($request->date) ? $request->date[$i] : $request->date;
+                $remark = is_array($request->remark) ? $request->remark[$i] : $request->remark;
+                // Reason field required for wastage (often sent as 'region' by mobile dev)
+                $reason = is_array($request->reason) ? $request->reason[$i] : $request->get('reason');
+                $region = is_array($request->region) ? $request->region[$i] : $request->get('region');
+                
+                // Fallback to region if reason is empty
+                $final_reason = !empty($reason) ? $reason : $region;
+
+                if (!$material_id || !$site_id || !$qty) continue;
+
+                $imagePath = "images/expense.png";
+                if ($request->hasFile('image')) {
+                    $images = $request->file('image');
+                    $file = is_array($images) ? ($images[$i] ?? null) : $images;
+                    
+                    if ($file) {
+                        $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                        $file->move(public_path('images/app_images/' . $conn . '/wastage'), $imageName);
+                        $imagePath = "images/app_images/" . $conn . "/wastage/" . $imageName;
+                    }
+                }
+
+                $table = 'material_wastage';
+                
+                $data = [
+                    'material_id' => $material_id,
+                    'site_id' => $site_id,
+                    'unit' => $unit,
+                    'qty' => $qty,
+                    'user_id' => $user->id,
+                    'image' => $imagePath,
+                    'remark' => $remark,
+                    'date' => $date,
+                    'reason' => $final_reason,
+                    'status' => $status,
+                    'create_datetime' => Carbon::now()
+                ];
+
+                $id = DB::connection($conn)->table($table)->insertGetId($data);
+                addActivity($id, $table, "New Wastage Entry Created via API (Bulk Support)", 3, $user->id, $conn);
+
+                if ($status == 'Approved') {
+                    $this->adjustStockForWastage($id, $conn, 'approve');
+                }
+
+                $responses[] = ['id' => $id, 'type' => 'Wastage', 'status' => 'Ok'];
+            }
+
+            return response()->json([
+                'status' => 'Ok', 
+                'message' => count($responses) . ' wastage entries processed successfully', 
                 'processed' => $responses,
                 'status_assigned' => $status
             ]);
