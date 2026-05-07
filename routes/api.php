@@ -208,6 +208,8 @@ Route::prefix('v1')->group(function () {
 
         // Material Stock
         Route::get('/materials/stock/dashboard', [ApiManagementController::class, 'getStockDashboard']);
+        Route::get('/materials/stock/transactions', [ApiManagementController::class, 'getStockTransactions']);
+        Route::get('/materials/stock/transactions/export/csv', [ApiManagementController::class, 'exportStockTransactionsCsv']);
         Route::post('/materials/consumption', [ApiManagementController::class, 'storeMaterialConsumption']);
         Route::get('/materials/consumption/pending', [ApiManagementController::class, 'getPendingConsumption']);
         Route::get('/materials/consumption/verified', [ApiManagementController::class, 'getVerifiedConsumption']);

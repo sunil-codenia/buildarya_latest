@@ -3290,6 +3290,172 @@ class ApiManagementController extends Controller
         }
     }
 
+    /**
+     * Get Material Stock Transactions (matches web: view_mat_transaction)
+     * Required params: material_id, site_id, unit
+     * Optional params: search, per_page, page
+     */
+    public function getStockTransactions(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $material_id = $request->get('material_id') ?? $request->get('mat_id');
+            $site_id = $request->get('site_id');
+            $unit = $request->get('unit');
+
+            if (!$material_id || !$site_id || !$unit) {
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'material_id, site_id and unit are required parameters'
+                ], 400);
+            }
+
+            // Get current stock info with names (matches web logic)
+            $current_stock = DB::connection($conn)->table('material_stock_record')
+                ->join('materials', 'materials.id', '=', 'material_stock_record.material_id')
+                ->join('sites', 'sites.id', '=', 'material_stock_record.site_id')
+                ->join('units', 'units.id', '=', 'material_stock_record.unit')
+                ->where('material_stock_record.site_id', '=', $site_id)
+                ->where('material_stock_record.material_id', '=', $material_id)
+                ->where('material_stock_record.unit', '=', $unit)
+                ->select(
+                    'material_stock_record.*',
+                    'units.name as unit_name',
+                    'materials.name as material_name',
+                    'sites.name as site_name'
+                )
+                ->first();
+
+            if (!$current_stock) {
+                return response()->json([
+                    'status' => 'Error',
+                    'message' => 'No stock record found for this Material/Site/Unit combination'
+                ], 404);
+            }
+
+            // Build transactions query
+            $query = DB::connection($conn)->table('material_stock_transactions')
+                ->where('site_id', '=', $site_id)
+                ->where('material_id', '=', $material_id)
+                ->where('unit', '=', $unit);
+
+            // Search filter
+            if ($request->has('search')) {
+                $search = trim($request->get('search'));
+                if (!empty($search)) {
+                    $query->where(function($q) use ($search) {
+                        $q->where('type', 'LIKE', "%{$search}%")
+                          ->orWhere('refrence', 'LIKE', "%{$search}%")
+                          ->orWhere('qty', 'LIKE', "%{$search}%");
+                    });
+                }
+            }
+
+            $perPage = $request->get('per_page', 10);
+            $transactions = $query->orderBy('id', 'desc')->paginate($perPage);
+
+            return response()->json([
+                'status' => 'Ok',
+                'current_stock' => [
+                    'material_name' => $current_stock->material_name,
+                    'site_name' => $current_stock->site_name,
+                    'unit_name' => $current_stock->unit_name,
+                    'qty' => $current_stock->qty,
+                    'last_updated' => $current_stock->last_updated ?? null,
+                ],
+                'transactions' => $transactions,
+                'server_time' => Carbon::now()->toDateTimeString()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Export Material Stock Transactions as CSV
+     * Required params: material_id, site_id, unit
+     */
+    public function exportStockTransactionsCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $material_id = $request->get('material_id') ?? $request->get('mat_id');
+            $site_id = $request->get('site_id');
+            $unit = $request->get('unit');
+
+            if (!$material_id || !$site_id || !$unit) {
+                return response()->json([
+                    'status' => 'Error',
+                    'message' => 'material_id, site_id and unit are required parameters'
+                ], 400);
+            }
+
+            // Get names for the header
+            $current_stock = DB::connection($conn)->table('material_stock_record')
+                ->join('materials', 'materials.id', '=', 'material_stock_record.material_id')
+                ->join('sites', 'sites.id', '=', 'material_stock_record.site_id')
+                ->join('units', 'units.id', '=', 'material_stock_record.unit')
+                ->where('material_stock_record.site_id', '=', $site_id)
+                ->where('material_stock_record.material_id', '=', $material_id)
+                ->where('material_stock_record.unit', '=', $unit)
+                ->select(
+                    'material_stock_record.qty',
+                    'units.name as unit_name',
+                    'materials.name as material_name',
+                    'sites.name as site_name'
+                )
+                ->first();
+
+            $materialName = $current_stock->material_name ?? 'Material';
+            $siteName = $current_stock->site_name ?? 'Site';
+
+            // Get ALL transactions (no pagination for CSV)
+            $transactions = DB::connection($conn)->table('material_stock_transactions')
+                ->where('site_id', '=', $site_id)
+                ->where('material_id', '=', $material_id)
+                ->where('unit', '=', $unit)
+                ->orderBy('id', 'desc')
+                ->get();
+
+            $unitName = $current_stock->unit_name ?? '';
+            $filename = "transactions_{$materialName}_{$siteName}.csv";
+
+            $headers = [
+                "Content-type" => "text/csv",
+                "Content-Disposition" => "attachment; filename=\"{$filename}\"",
+                "Pragma" => "no-cache",
+                "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+                "Expires" => "0"
+            ];
+
+            return response()->stream(function() use ($transactions, $materialName, $siteName, $unitName, $current_stock) {
+                $file = fopen('php://output', 'w');
+                // Header info rows
+                fputcsv($file, ['Material: ' . $materialName, 'Site: ' . $siteName, 'Current Stock: ' . ($current_stock->qty ?? 0) . ' ' . $unitName]);
+                fputcsv($file, []);
+                // Column headers
+                fputcsv($file, ['#', 'Date', 'Transaction Type', 'Quantity', 'Unit', 'Reference']);
+                // Data rows
+                $i = 1;
+                foreach ($transactions as $t) {
+                    fputcsv($file, [
+                        $i++,
+                        $t->created_at ?? '',
+                        $t->type ?? '',
+                        $t->qty ?? '',
+                        $unitName,
+                        $t->refrence ?? ''
+                    ]);
+                }
+                fclose($file);
+            }, 200, $headers);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function storeMaterialConsumption(Request $request)
     {
         // Support both single and bulk entries
