@@ -3223,7 +3223,71 @@ class ApiManagementController extends Controller
 
     public function getStockDashboard(Request $request)
     {
-        // ... (existing method code)
+        try {
+            $conn = config('database.default');
+            
+            // Match the web version (StockController::stock_dashboard) exactly:
+            // It shows ALL active sites for the company without any user-based filtering.
+            // Note: $request->user() returns user from the CENTRAL DB (Sanctum), not tenant DB.
+            
+            $query = DB::connection($conn)->table('material_stock_record')
+                ->join('materials', 'materials.id', '=', 'material_stock_record.material_id')
+                ->join('units', 'units.id', '=', 'material_stock_record.unit')
+                ->join('sites', 'sites.id', '=', 'material_stock_record.site_id')
+                ->where('sites.status', '=', 'Active')
+                ->select(
+                    'material_stock_record.*', 
+                    'materials.name as material_name', 
+                    'units.name as unit_name', 
+                    'sites.name as site_name'
+                );
+
+            // Optional filters from request
+            if ($request->has('site_id')) {
+                $query->where('material_stock_record.site_id', $request->get('site_id'));
+            }
+            if ($request->has('material_id')) {
+                $query->where('material_stock_record.material_id', $request->get('material_id'));
+            }
+            if ($request->has('search')) {
+                $search = trim($request->get('search'));
+                $query->where(function($q) use ($search) {
+                    $q->where('materials.name', 'LIKE', "%{$search}%")
+                      ->orWhere('sites.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $stock_data = $query->orderBy('sites.name')->orderBy('materials.name')->get();
+
+            // Structure data for dashboard (Site-wise grouping)
+            $site_wise = [];
+            foreach ($stock_data as $item) {
+                if (!isset($site_wise[$item->site_id])) {
+                    $site_wise[$item->site_id] = [
+                        'site_id' => $item->site_id,
+                        'site_name' => $item->site_name,
+                        'inventory' => []
+                    ];
+                }
+                $site_wise[$item->site_id]['inventory'][] = $item;
+            }
+
+            // Also fetch site and material lists for dropdown filters (matching web)
+            $sites = DB::connection($conn)->table('sites')->where('status', 'Active')->select('id', 'name')->get();
+            $materials = DB::connection($conn)->table('materials')->select('id', 'name')->get();
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => array_values($site_wise),
+                'count' => count($stock_data),
+                'sites' => $sites,
+                'materials' => $materials,
+                'server_time' => Carbon::now()->toDateTimeString()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
     }
 
     public function storeMaterialConsumption(Request $request)
@@ -3315,57 +3379,89 @@ class ApiManagementController extends Controller
 
     public function bulkApproveConsumption(Request $request)
     {
-        try {
-            $conn = config('database.default');
-            $ids = $request->get('ids');
-            if (!is_array($ids)) $ids = explode(',', $ids);
-            $entry_type = $request->get('entry_type', 'Consumption'); // Default to Consumption
-
-            $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
-
-            $user = $request->user();
-
-            foreach ($ids as $id) {
-                if (empty($id)) continue;
-                if ($entry_type == 'Wastage') {
-                    $this->adjustStockForWastage($id, $conn, 'approve');
-                } else {
-                    $this->adjustStockForConsumption($id, $conn, 'approve');
-                }
-                DB::connection($conn)->table($table)->where('id', $id)->update(['status' => 'Approved']);
-                addActivity($id, $table, "Bulk Approved via API", 3, $user->id, $conn);
-            }
-
-            return response()->json(['status' => 'Ok', 'message' => 'Selected entries approved successfully']);
-        } catch (\Exception $e) {
-            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
-        }
+        return $this->processBulkStatusUpdate($request, 'Approved', 'Consumption');
     }
 
     public function bulkRejectConsumption(Request $request)
+    {
+        return $this->processBulkStatusUpdate($request, 'Rejected', 'Consumption');
+    }
+
+    public function bulkApproveWastage(Request $request)
+    {
+        return $this->processBulkStatusUpdate($request, 'Approved', 'Wastage');
+    }
+
+    public function bulkRejectWastage(Request $request)
+    {
+        return $this->processBulkStatusUpdate($request, 'Rejected', 'Wastage');
+    }
+
+    private function processBulkStatusUpdate(Request $request, $targetStatus, $defaultEntryType)
     {
         try {
             $conn = config('database.default');
             $ids = $request->get('ids');
             if (!is_array($ids)) $ids = explode(',', $ids);
-            $entry_type = $request->get('entry_type', 'Consumption');
-
+            
+            $entry_type = $request->get('entry_type', $defaultEntryType);
             $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
-
+            
             $user = $request->user();
+            $action = ($targetStatus == 'Approved') ? 'approve' : 'reject';
 
             foreach ($ids as $id) {
                 if (empty($id)) continue;
+                
                 if ($entry_type == 'Wastage') {
-                    $this->adjustStockForWastage($id, $conn, 'reject');
+                    $this->adjustStockForWastage($id, $conn, $action);
                 } else {
-                    $this->adjustStockForConsumption($id, $conn, 'reject');
+                    $this->adjustStockForConsumption($id, $conn, $action);
                 }
-                DB::connection($conn)->table($table)->where('id', $id)->update(['status' => 'Rejected']);
-                addActivity($id, $table, "Bulk Rejected via API", 3, $user->id, $conn);
+                
+                DB::connection($conn)->table($table)->where('id', $id)->update(['status' => $targetStatus]);
+                addActivity($id, $table, "Bulk " . $targetStatus . " via API", 3, $user->id, $conn);
             }
 
-            return response()->json(['status' => 'Ok', 'message' => 'Selected entries rejected successfully']);
+            return response()->json(['status' => 'Ok', 'message' => 'Selected entries ' . strtolower($targetStatus) . ' successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getConsumptionDetails(Request $request, $id)
+    {
+        return $this->getMaterialEntryDetails($request, $id, 'Consumption');
+    }
+
+    public function getWastageDetails(Request $request, $id)
+    {
+        return $this->getMaterialEntryDetails($request, $id, 'Wastage');
+    }
+
+    private function getMaterialEntryDetails(Request $request, $id, $defaultType)
+    {
+        try {
+            $conn = config('database.default');
+            $entry_type = $request->get('entry_type', $defaultType);
+            $table = ($entry_type == 'Wastage') ? 'material_wastage' : 'material_consumption';
+
+            $data = DB::connection($conn)->table($table)
+                ->leftJoin('materials', 'materials.id', '=', $table . '.material_id')
+                ->leftJoin('sites', 'sites.id', '=', $table . '.site_id')
+                ->leftJoin('units', 'units.id', '=', $table . '.unit')
+                ->select(
+                    $table . '.*', 
+                    'materials.name as material_name', 
+                    'units.name as unit_name', 
+                    'sites.name as site_name'
+                )
+                ->where($table . '.id', $id)
+                ->first();
+
+            if (!$data) return response()->json(['status' => 'Error', 'message' => 'Entry not found'], 404);
+
+            return response()->json(['status' => 'Ok', 'data' => $data]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
@@ -3392,6 +3488,13 @@ class ApiManagementController extends Controller
             $updateData = $request->only(['material_id', 'site_id', 'unit', 'qty', 'date', 'remark']);
             if ($entry_type == 'Wastage') {
                 $updateData['reason'] = $request->get('reason');
+            }
+
+            if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                $file->move(public_path('images/app_images/' . $conn . '/consumption'), $imageName);
+                $updateData['image'] = "images/app_images/" . $conn . "/consumption/" . $imageName;
             }
             
             // If it was rejected, we reset it to Pending
@@ -3536,15 +3639,25 @@ class ApiManagementController extends Controller
 
     public function getPendingConsumption(Request $request)
     {
-        return $this->listConsumptionByStatus($request, 'Pending');
+        return $this->listConsumptionByStatus($request, 'Pending', 'Consumption');
     }
 
     public function getVerifiedConsumption(Request $request)
     {
-        return $this->listConsumptionByStatus($request, 'Verified');
+        return $this->listConsumptionByStatus($request, 'Verified', 'Consumption');
     }
 
-    private function listConsumptionByStatus(Request $request, $status)
+    public function getPendingWastage(Request $request)
+    {
+        return $this->listConsumptionByStatus($request, 'Pending', 'Wastage');
+    }
+
+    public function getVerifiedWastage(Request $request)
+    {
+        return $this->listConsumptionByStatus($request, 'Verified', 'Wastage');
+    }
+
+    private function listConsumptionByStatus(Request $request, $status, $filterType = 'Both')
     {
         try {
             $conn = config('database.default');
@@ -3596,8 +3709,8 @@ class ApiManagementController extends Controller
             }
 
             // Apply Common Filters
-            $queries = [$consumption_query, $wastage_query];
-            foreach ($queries as $q) {
+            $queries = ['Consumption' => $consumption_query, 'Wastage' => $wastage_query];
+            foreach ($queries as $type => $q) {
                 if ($site_id) $q->where($q->from . '.site_id', $site_id);
                 if ($material_id) $q->where($q->from . '.material_id', $material_id);
                 if ($search) {
@@ -3608,14 +3721,22 @@ class ApiManagementController extends Controller
                 }
             }
 
-            // Combine using Union
-            $final_query = $consumption_query->union($wastage_query)->orderBy('date', 'desc')->orderBy('id', 'desc');
+            // Determine final query based on filterType
+            if ($filterType == 'Consumption') {
+                $final_query = $consumption_query->orderBy('date', 'desc')->orderBy('id', 'desc');
+            } else if ($filterType == 'Wastage') {
+                $final_query = $wastage_query->orderBy('date', 'desc')->orderBy('id', 'desc');
+            } else {
+                // Combine using Union
+                $final_query = $consumption_query->union($wastage_query)->orderBy('date', 'desc')->orderBy('id', 'desc');
+            }
             
             $data = $final_query->paginate($per_page);
 
             return response()->json([
                 'status' => 'Ok',
                 'status_type' => $status,
+                'filter_type' => $filterType,
                 'data' => $data
             ]);
 

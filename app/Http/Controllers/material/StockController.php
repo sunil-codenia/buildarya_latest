@@ -154,7 +154,10 @@ class StockController extends Controller
     public function approveConsumptionReq($id, $user_db_conn_name)
     {
 
-        $material_consumption = DB::connection($user_db_conn_name)->table('material_consumption')->join('materials', 'materials.id', '=', 'material_consumption.material_id')->join('units', 'units.id', '=', 'material_consumption.unit')->select('material_consumption.*', 'materials.name as material', 'units.name as unitname')->where('material_consumption.id', $id)->get()[0];
+        $material_consumption = DB::connection($user_db_conn_name)->table('material_consumption')->leftjoin('materials', 'materials.id', '=', 'material_consumption.material_id')->leftjoin('units', 'units.id', '=', 'material_consumption.unit')->select('material_consumption.*', 'materials.name as material', 'units.name as unitname')->where('material_consumption.id', $id)->first();
+        if (!$material_consumption) {
+            return;
+        }
         $stock_data = ['site_id' => $material_consumption->site_id, 'material_id' => $material_consumption->material_id, 'qty' => $material_consumption->qty, 'unit' => $material_consumption->unit, 'type' => 'OUT', 'refrence' => 'Consumption', 'refrence_id' => $material_consumption->id];
         $check_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $material_consumption->site_id)->where('material_id', '=', $material_consumption->material_id)->where('unit', '=', $material_consumption->unit)->get();
         if (count($check_current_stock) > 0) {
@@ -178,7 +181,10 @@ class StockController extends Controller
     public function approveWastageReq($id, $user_db_conn_name)
     {
 
-        $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->join('materials', 'materials.id', '=', 'material_wastage.material_id')->join('units', 'units.id', '=', 'material_wastage.unit')->select('material_wastage.*', 'materials.name as material', 'units.name as unitname')->where('material_wastage.id', $id)->get()[0];
+        $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->leftjoin('materials', 'materials.id', '=', 'material_wastage.material_id')->leftjoin('units', 'units.id', '=', 'material_wastage.unit')->select('material_wastage.*', 'materials.name as material', 'units.name as unitname')->where('material_wastage.id', $id)->first();
+        if (!$material_wastage) {
+            return;
+        }
         $stock_data = ['site_id' => $material_wastage->site_id, 'material_id' => $material_wastage->material_id, 'qty' => $material_wastage->qty, 'unit' => $material_wastage->unit, 'type' => 'OUT', 'refrence' => 'Wastage', 'refrence_id' => $material_wastage->id];
         $check_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $material_wastage->site_id)->where('material_id', '=', $material_wastage->material_id)->where('unit', '=', $material_wastage->unit)->get();
         if (count($check_current_stock) > 0) {
@@ -202,14 +208,17 @@ class StockController extends Controller
 
     public function rejectConsumptionReq($id, $user_db_conn_name)
     {
-        $material_consumption = DB::connection($user_db_conn_name)->table('material_consumption')->join('materials', 'materials.id', '=', 'material_consumption.material_id')->join('units', 'units.id', '=', 'material_consumption.unit')->select('material_consumption.*', 'materials.name as material', 'units.name as unitname')->where('material_consumption.id', $id)->get()[0];
+        $material_consumption = DB::connection($user_db_conn_name)->table('material_consumption')->leftjoin('materials', 'materials.id', '=', 'material_consumption.material_id')->leftjoin('units', 'units.id', '=', 'material_consumption.unit')->select('material_consumption.*', 'materials.name as material', 'units.name as unitname')->where('material_consumption.id', $id)->first();
+        if (!$material_consumption) {
+            return;
+        }
         $check_entry_approved = DB::connection($user_db_conn_name)->table('material_stock_transactions')->where('refrence_id', '=', $material_consumption->id)->where('refrence', '=', 'Consumption')->get();
 
         DB::connection($user_db_conn_name)->table('material_consumption')->where('id', '=', $id)->update(['status' => 'Rejected']);
         if (count($check_entry_approved) == 1) {
             DB::connection($user_db_conn_name)->table('material_stock_transactions')->where('refrence_id', '=', $material_consumption->id)->where('refrence', '=', 'Consumption')->delete();
             $check_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $material_consumption->site_id)->where('material_id', '=', $material_consumption->material_id)->where('unit', '=', $material_consumption->unit)->get();
-            if (count($check_current_stock) >= 0) {
+            if (count($check_current_stock) > 0) {
                 $current_qty = $check_current_stock[0]->qty;
                 $new_qty = $current_qty + $material_consumption->qty;
                 DB::connection($user_db_conn_name)->table('material_stock_record')->where('id', '=', $check_current_stock[0]->id)->update(['qty' => $new_qty]);
@@ -222,14 +231,17 @@ class StockController extends Controller
 
     public function rejectWastageReq($id, $user_db_conn_name)
     {
-        $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->join('materials', 'materials.id', '=', 'material_wastage.material_id')->join('units', 'units.id', '=', 'material_wastage.unit')->select('material_wastage.*', 'materials.name as material', 'units.name as unitname')->where('material_wastage.id', $id)->get()[0];
+        $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->leftjoin('materials', 'materials.id', '=', 'material_wastage.material_id')->leftjoin('units', 'units.id', '=', 'material_wastage.unit')->select('material_wastage.*', 'materials.name as material', 'units.name as unitname')->where('material_wastage.id', $id)->first();
+        if (!$material_wastage) {
+            return;
+        }
         $check_entry_approved = DB::connection($user_db_conn_name)->table('material_stock_transactions')->where('refrence_id', '=', $material_wastage->id)->where('refrence', '=', 'Wastage')->get();
 
         DB::connection($user_db_conn_name)->table('material_wastage')->where('id', '=', $id)->update(['status' => 'Rejected']);
         if (count($check_entry_approved) == 1) {
             DB::connection($user_db_conn_name)->table('material_stock_transactions')->where('refrence_id', '=', $material_wastage->id)->where('refrence', '=', 'Wastage')->delete();
             $check_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $material_wastage->site_id)->where('material_id', '=', $material_wastage->material_id)->where('unit', '=', $material_wastage->unit)->get();
-            if (count($check_current_stock) >= 0) {
+            if (count($check_current_stock) > 0) {
                 $current_qty = $check_current_stock[0]->qty;
                 $new_qty = $current_qty + $material_wastage->qty;
                 DB::connection($user_db_conn_name)->table('material_stock_record')->where('id', '=', $check_current_stock[0]->id)->update(['qty' => $new_qty]);
@@ -286,7 +298,10 @@ class StockController extends Controller
         $units = DB::connection($user_db_conn_name)->table('units')->get();
         $material_stock_record = DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')->get();
         $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
-        $consumption = DB::connection($user_db_conn_name)->table('material_consumption')->where('id', $id)->get()[0];
+        $consumption = DB::connection($user_db_conn_name)->table('material_consumption')->where('id', $id)->first();
+        if (!$consumption) {
+            return redirect('/pending_consumption')->with('error', 'Material Consumption Entry Not Found!');
+        }
 
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
@@ -312,7 +327,10 @@ class StockController extends Controller
         $units = DB::connection($user_db_conn_name)->table('units')->get();
         $material_stock_record = DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')->get();
         $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
-        $wastage = DB::connection($user_db_conn_name)->table('material_wastage')->where('id', $id)->get()[0];
+        $wastage = DB::connection($user_db_conn_name)->table('material_wastage')->where('id', $id)->first();
+        if (!$wastage) {
+            return redirect('/pending_consumption')->with('error', 'Material Wastage Entry Not Found!');
+        }
 
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
@@ -338,7 +356,10 @@ class StockController extends Controller
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $id = $data['id'];
-        $material_consumption = DB::connection($user_db_conn_name)->table('material_consumption')->where('id', $id)->get()[0];
+        $material_consumption = DB::connection($user_db_conn_name)->table('material_consumption')->where('id', $id)->first();
+        if (!$material_consumption) {
+            return redirect('/verified_consumption')->with('error', 'Material Consumption Entry Not Found!');
+        }
 
         if (isset($request->image)) {
             if (File::exists($material_consumption->image) && $material_consumption->image != 'images/expense.png') {
@@ -383,7 +404,10 @@ class StockController extends Controller
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $id = $data['id'];
-        $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->where('id', $id)->get()[0];
+        $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->where('id', $id)->first();
+        if (!$material_wastage) {
+            return redirect('/verified_consumption')->with('error', 'Material Wastage Entry Not Found!');
+        }
 
         if (isset($request->image)) {
             if (File::exists($material_wastage->image) && $material_wastage->image != 'images/expense.png') {

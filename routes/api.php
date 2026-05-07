@@ -211,10 +211,16 @@ Route::prefix('v1')->group(function () {
         Route::post('/materials/consumption', [ApiManagementController::class, 'storeMaterialConsumption']);
         Route::get('/materials/consumption/pending', [ApiManagementController::class, 'getPendingConsumption']);
         Route::get('/materials/consumption/verified', [ApiManagementController::class, 'getVerifiedConsumption']);
+        Route::get('/materials/wastage/pending', [ApiManagementController::class, 'getPendingWastage']);
+        Route::get('/materials/wastage/verified', [ApiManagementController::class, 'getVerifiedWastage']);
         Route::post('/materials/consumption/bulk/approve', [ApiManagementController::class, 'bulkApproveConsumption']);
         Route::post('/materials/consumption/bulk/reject', [ApiManagementController::class, 'bulkRejectConsumption']);
+        Route::post('/materials/wastage/bulk/approve', [ApiManagementController::class, 'bulkApproveWastage']);
+        Route::post('/materials/wastage/bulk/reject', [ApiManagementController::class, 'bulkRejectWastage']);
+        Route::get('/materials/consumption/{id}', [ApiManagementController::class, 'getConsumptionDetails']);
+        Route::get('/materials/wastage/{id}', [ApiManagementController::class, 'getWastageDetails']);
+        Route::post('/materials/consumption/update/{id}', [ApiManagementController::class, 'updateMaterialConsumption']);
         Route::patch('/materials/consumption/{id}', [ApiManagementController::class, 'updateMaterialConsumption']);
-        Route::post('/materials/consumption/update/{id}', [ApiManagementController::class, 'updateConsumption']);
 
         // Materials
         Route::get('/materials/summary', [ApiMaterialController::class, 'summary']);
