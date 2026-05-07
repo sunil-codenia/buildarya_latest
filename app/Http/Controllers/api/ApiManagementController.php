@@ -3515,6 +3515,212 @@ class ApiManagementController extends Controller
         }
     }
 
+    /**
+     * Get Material Stock Site Transfers (matches web: stock_site_transfer)
+     * Supports search and CSV export
+     */
+    public function getStockSiteTransfers(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            
+            // Get user's role and site visibility
+            $role = DB::connection($conn)->table('roles')->where('id', $user->role_id)->first();
+            $visibility = $role->visiblity_at_site ?? 'all';
+            
+            $query = DB::connection($conn)->table('material_site_transfers')
+                ->leftJoin('materials', 'materials.id', '=', 'material_site_transfers.material_id')
+                ->leftJoin('sites as f_site', 'f_site.id', '=', 'material_site_transfers.from_site')
+                ->leftJoin('sites as t_site', 't_site.id', '=', 'material_site_transfers.to_site')
+                ->leftJoin('units', 'units.id', '=', 'material_site_transfers.unit')
+                ->leftJoin('users', 'users.id', '=', 'material_site_transfers.user_id')
+                ->select(
+                    'material_site_transfers.*', 
+                    'materials.name as material_name', 
+                    'units.name as unit_name', 
+                    'f_site.name as from_site_name', 
+                    't_site.name as to_site_name', 
+                    'users.name as user_name'
+                );
+
+            // Visibility filters
+            if ($visibility == 'current') {
+                $query->where(function($q) use ($user) {
+                    $q->where('material_site_transfers.from_site', '=', $user->site_id)
+                      ->orWhere('material_site_transfers.to_site', '=', $user->site_id);
+                });
+            }
+
+            // Search filter
+            if ($request->has('search')) {
+                $search = trim($request->get('search'));
+                if (!empty($search)) {
+                    $query->where(function($q) use ($search) {
+                        $q->where('materials.name', 'LIKE', "%{$search}%")
+                          ->orWhere('f_site.name', 'LIKE', "%{$search}%")
+                          ->orWhere('t_site.name', 'LIKE', "%{$search}%")
+                          ->orWhere('material_site_transfers.vehicle_no', 'LIKE', "%{$search}%")
+                          ->orWhere('material_site_transfers.remark', 'LIKE', "%{$search}%");
+                    });
+                }
+            }
+
+            // Date filters
+            if ($request->has('from_date') && $request->has('to_date')) {
+                $query->whereBetween('material_site_transfers.date', [$request->get('from_date'), $request->get('to_date')]);
+            }
+
+            $query->orderBy('material_site_transfers.id', 'DESC');
+
+            // CSV Export
+            if ($request->get('export') == 'csv') {
+                $data = $query->get();
+                $filename = 'stock_transfers_' . date('Y-m-d') . '.csv';
+                $headers = [
+                    'Content-type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Pragma' => 'no-cache',
+                    'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+                    'Expires' => '0'
+                ];
+                return response()->stream(function() use ($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['#', 'Date', 'Material', 'From Site', 'To Site', 'Qty', 'Unit', 'Vehicle No', 'Remark', 'Transferred By']);
+                    $i = 1;
+                    foreach ($data as $row) {
+                        fputcsv($file, [
+                            $i++,
+                            $row->date,
+                            $row->material_name,
+                            $row->from_site_name,
+                            $row->to_site_name,
+                            $row->qty,
+                            $row->unit_name,
+                            $row->vehicle_no,
+                            $row->remark,
+                            $row->user_name
+                        ]);
+                    }
+                    fclose($file);
+                }, 200, $headers);
+            }
+
+            $perPage = $request->get('per_page', 10);
+            $transfers = $query->paginate($perPage);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $transfers,
+                'server_time' => Carbon::now()->toDateTimeString()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Store Material Site Transfer (matches web: newMaterialTransferForm)
+     */
+    public function storeStockSiteTransfer(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $validator = Validator::make($request->all(), [
+                'material_id' => 'required',
+                'from_site' => 'required',
+                'to_site' => 'required',
+                'unit' => 'required',
+                'qty' => 'required|numeric|min:0.01',
+                'date' => 'required|date',
+                'vehicle_no' => 'nullable',
+                'remark' => 'nullable'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 'Error', 'message' => $validator->errors()->first()], 400);
+            }
+
+            $data = $request->all();
+
+            // Check stock in from_site
+            $check_current_stock = DB::connection($conn)->table('material_stock_record')
+                ->where('site_id', '=', $data['from_site'])
+                ->where('material_id', '=', $data['material_id'])
+                ->where('unit', '=', $data['unit'])
+                ->first();
+
+            if (!$check_current_stock || $check_current_stock->qty < $data['qty']) {
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'Insufficient stock for this transfer. Available: ' . ($check_current_stock->qty ?? 0)
+                ], 400);
+            }
+
+            return DB::connection($conn)->transaction(function () use ($conn, $data, $user, $check_current_stock) {
+                $insertData = [
+                    'material_id' => $data['material_id'],
+                    'from_site' => $data['from_site'],
+                    'to_site' => $data['to_site'],
+                    'unit' => $data['unit'],
+                    'qty' => $data['qty'],
+                    'user_id' => $user->id,
+                    'remark' => $data['remark'] ?? '',
+                    'vehicle_no' => $data['vehicle_no'] ?? '',
+                    'date' => $data['date'],
+                ];
+
+                $id = DB::connection($conn)->table('material_site_transfers')->insertGetId($insertData);
+
+                // Update From Site Stock
+                DB::connection($conn)->table('material_stock_record')
+                    ->where('id', '=', $check_current_stock->id)
+                    ->decrement('qty', $data['qty'], ['last_updated' => Carbon::now()]);
+
+                // Update To Site Stock
+                $to_site_stock = DB::connection($conn)->table('material_stock_record')
+                    ->where('site_id', '=', $data['to_site'])
+                    ->where('material_id', '=', $data['material_id'])
+                    ->where('unit', '=', $data['unit'])
+                    ->first();
+
+                if ($to_site_stock) {
+                    DB::connection($conn)->table('material_stock_record')
+                        ->where('id', '=', $to_site_stock->id)
+                        ->increment('qty', $data['qty'], ['last_updated' => Carbon::now()]);
+                } else {
+                    DB::connection($conn)->table('material_stock_record')->insert([
+                        'material_id' => $data['material_id'],
+                        'site_id' => $data['to_site'],
+                        'qty' => $data['qty'],
+                        'unit' => $data['unit'],
+                        'last_updated' => Carbon::now()
+                    ]);
+                }
+
+                // Log Transactions
+                DB::connection($conn)->table('material_stock_transactions')->insert([
+                    ['site_id' => $data['from_site'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['unit'], 'type' => 'OUT', 'refrence' => 'Site Transferred Debit', 'refrence_id' => $id, 'created_at' => Carbon::now(), 'updated_at' => Carbon::now()],
+                    ['site_id' => $data['to_site'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['unit'], 'type' => 'IN', 'refrence' => 'Site Transferred Credit', 'refrence_id' => $id, 'created_at' => Carbon::now(), 'updated_at' => Carbon::now()]
+                ]);
+
+                addActivity($id, 'material_site_transfers', "New Material Transfer Completed via API", 3, $user->id, $conn);
+
+                return response()->json([
+                    'status' => 'Ok', 
+                    'message' => 'Material Site Transferred successfully!',
+                    'id' => $id
+                ]);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function storeMaterialConsumption(Request $request)
     {
         // Support both single and bulk entries
@@ -4030,6 +4236,40 @@ class ApiManagementController extends Controller
                 $final_query = $consumption_query->union($wastage_query)->orderBy('date', 'desc')->orderBy('id', 'desc');
             }
             
+            // CSV Export: /api/v1/materials/consumption/pending?export=csv
+            if ($request->get('export') == 'csv') {
+                $data = $final_query->get();
+                $filename = strtolower($status) . '_' . strtolower($filterType) . '_' . date('Y-m-d') . '.csv';
+                $headers = [
+                    'Content-type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Pragma' => 'no-cache',
+                    'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+                    'Expires' => '0'
+                ];
+                return response()->stream(function() use ($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['#', 'Date', 'Type', 'Material', 'Site', 'Qty', 'Unit', 'User', 'Remark', 'Reason (for Wastage)']);
+                    $i = 1;
+                    foreach ($data as $row) {
+                        fputcsv($file, [
+                            $i++,
+                            $row->date,
+                            $row->entry_type,
+                            $row->material_name,
+                            $row->site_name,
+                            $row->qty,
+                            $row->unit_name,
+                            $row->user_name,
+                            $row->remark,
+                            $row->reason ?? ''
+                        ]);
+                    }
+                    fclose($file);
+                }, 200, $headers);
+            }
+
+            $per_page = $request->get('per_page', 20);
             $data = $final_query->paginate($per_page);
 
             return response()->json([
