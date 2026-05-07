@@ -3259,6 +3259,33 @@ class ApiManagementController extends Controller
 
             $stock_data = $query->orderBy('sites.name')->orderBy('materials.name')->get();
 
+            // CSV Export: /api/v1/materials/stock/dashboard?export=csv
+            if ($request->get('export') == 'csv') {
+                $filename = 'stock_dashboard_' . date('Y-m-d') . '.csv';
+                $headers = [
+                    'Content-type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Pragma' => 'no-cache',
+                    'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+                    'Expires' => '0'
+                ];
+                return response()->stream(function() use ($stock_data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['#', 'Site', 'Material', 'Quantity', 'Unit']);
+                    $i = 1;
+                    foreach ($stock_data as $item) {
+                        fputcsv($file, [
+                            $i++,
+                            $item->site_name,
+                            $item->material_name,
+                            $item->qty,
+                            $item->unit_name
+                        ]);
+                    }
+                    fclose($file);
+                }, 200, $headers);
+            }
+
             // Structure data for dashboard (Site-wise grouping)
             $site_wise = [];
             foreach ($stock_data as $item) {
@@ -3349,6 +3376,38 @@ class ApiManagementController extends Controller
                           ->orWhere('qty', 'LIKE', "%{$search}%");
                     });
                 }
+            }
+
+            // CSV Export: /api/v1/materials/stock/transactions?material_id=3&site_id=47&unit=3&export=csv
+            if ($request->get('export') == 'csv') {
+                $allTransactions = $query->orderBy('id', 'desc')->get();
+                $unitName = $current_stock->unit_name;
+                $filename = 'transactions_' . $current_stock->material_name . '_' . $current_stock->site_name . '.csv';
+                $headers = [
+                    'Content-type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Pragma' => 'no-cache',
+                    'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+                    'Expires' => '0'
+                ];
+                return response()->stream(function() use ($allTransactions, $current_stock, $unitName) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['Material: ' . $current_stock->material_name, 'Site: ' . $current_stock->site_name, 'Current Stock: ' . $current_stock->qty . ' ' . $unitName]);
+                    fputcsv($file, []);
+                    fputcsv($file, ['#', 'Date', 'Transaction Type', 'Quantity', 'Unit', 'Reference']);
+                    $i = 1;
+                    foreach ($allTransactions as $t) {
+                        fputcsv($file, [
+                            $i++,
+                            $t->created_at ?? '',
+                            $t->type ?? '',
+                            $t->qty ?? '',
+                            $unitName,
+                            $t->refrence ?? ''
+                        ]);
+                    }
+                    fclose($file);
+                }, 200, $headers);
             }
 
             $perPage = $request->get('per_page', 10);
