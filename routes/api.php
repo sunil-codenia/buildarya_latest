@@ -217,6 +217,15 @@ Route::prefix('v1')->group(function () {
         Route::get('/materials/stock/conversions', [ApiManagementController::class, 'getStockUnitConversions']);
         Route::post('/materials/stock/conversions', [ApiManagementController::class, 'storeStockUnitConversion']);
         Route::delete('/materials/stock/conversions/{id}', [ApiManagementController::class, 'deleteStockUnitConversion']);
+        Route::get('/materials/reconciliation', [ApiManagementController::class, 'listReconciliation']);
+        Route::post('/materials/reconciliation', [ApiManagementController::class, 'storeReconciliationRequest']);
+        Route::get('/materials/reconciliation/export', [ApiManagementController::class, 'exportReconciliationCsv']);
+        Route::get('/materials/reconciliation/{id}', [ApiManagementController::class, 'getReconciliationDetails']);
+        Route::patch('/materials/reconciliation/{id}', [ApiManagementController::class, 'updateReconciliationData']);
+        Route::delete('/materials/reconciliation/{id}', [ApiManagementController::class, 'deleteReconciliation']);
+        Route::post('/materials/reconciliation/{id}/verify', [ApiManagementController::class, 'verifyReconciliation']);
+        Route::post('/materials/reconciliation/{id}/reject', [ApiManagementController::class, 'rejectReconciliation']);
+        Route::post('/materials/reconciliation/{id}/approve-update', [ApiManagementController::class, 'approveAndUpdateStock']);
         Route::post('/materials/consumption', [ApiManagementController::class, 'storeMaterialConsumption']);
         Route::post('/materials/wastage', [ApiManagementController::class, 'storeMaterialWastage']);
         Route::get('/materials/consumption/pending', [ApiManagementController::class, 'getPendingConsumption']);

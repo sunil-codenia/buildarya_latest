@@ -4246,6 +4246,480 @@ class ApiManagementController extends Controller
         return $this->listConsumptionByStatus($request, 'Verified', 'Wastage');
     }
 
+    /**
+     * List Stock Reconciliations
+     * categories: pending, uploaded, verified
+     */
+    public function listReconciliation(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $type = $request->get('type', 'pending'); // pending, uploaded, verified
+            $search = trim($request->get('search'));
+            $per_page = $request->get('per_page', 10);
+
+            $query = DB::connection($conn)->table('material_reconsilation_record as msr')
+                ->select(
+                    'msr.*',
+                    'sites.name as site_name',
+                    'r_user.name as requested_by_name',
+                    'u_user.name as upload_by_name',
+                    'a_user.name as approved_by_name'
+                )
+                ->join('sites', 'sites.id', '=', 'msr.site_id')
+                ->leftJoin('users as r_user', 'r_user.id', '=', 'msr.requested_by')
+                ->leftJoin('users as u_user', 'u_user.id', '=', 'msr.upload_by')
+                ->leftJoin('users as a_user', 'a_user.id', '=', 'msr.approved_by');
+
+            // Apply Type Filter (matching StockController logic)
+            if ($type == 'pending') {
+                $query->whereIn('msr.status', ['Pending', 'Draft']);
+            } elseif ($type == 'uploaded' || $type == 'submitted') {
+                $query->where('msr.status', 'Submitted');
+            } elseif ($type == 'verified') {
+                $query->whereIn('msr.status', ['Rejected', 'Approved', 'Converted']);
+            }
+
+            // Apply Search
+            if (!empty($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('sites.name', 'LIKE', "%{$search}%")
+                        ->orWhere('r_user.name', 'LIKE', "%{$search}%")
+                        ->orWhere('msr.date', 'LIKE', "%{$search}%")
+                        ->orWhere('msr.status', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $data = $query->orderBy('msr.id', 'desc')->paginate($per_page);
+
+            return response()->json([
+                'status' => 'Ok',
+                'type' => $type,
+                'data' => $data,
+                'server_time' => \Carbon\Carbon::now()->toDateTimeString()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Stock Reconciliation Details
+     * Required param: id
+     */
+    public function getReconciliationDetails(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'Reconciliation ID is required'], 400);
+            }
+
+            $reconsile_record = DB::connection($conn)->table('material_reconsilation_record as msr')
+                ->select(
+                    'msr.*',
+                    'sites.name as site_name',
+                    'r_user.name as requested_by_name',
+                    'u_user.name as upload_by_name',
+                    'a_user.name as approved_by_name'
+                )
+                ->join('sites', 'sites.id', '=', 'msr.site_id')
+                ->leftJoin('users as r_user', 'r_user.id', '=', 'msr.requested_by')
+                ->leftJoin('users as u_user', 'u_user.id', '=', 'msr.upload_by')
+                ->leftJoin('users as a_user', 'a_user.id', '=', 'msr.approved_by')
+                ->where('msr.id', '=', $id)
+                ->first();
+
+            if (!$reconsile_record) {
+                return response()->json(['status' => 'Error', 'message' => 'Reconciliation record not found'], 404);
+            }
+
+            if ($reconsile_record->status == "Pending" || $reconsile_record->status == "Draft") {
+                $reconsile_data = DB::connection($conn)->table('material_reconsilation_data')
+                    ->where('reconsilation_id', '=', $id)
+                    ->get()
+                    ->keyBy(function ($item) {
+                        return $item->material_id . '_' . $item->unit;
+                    });
+
+                $material_stock_record = DB::connection($conn)->table('material_stock_record')
+                    ->join('materials', 'materials.id', '=', 'material_stock_record.material_id')
+                    ->join('units', 'units.id', '=', 'material_stock_record.unit')
+                    ->select('material_stock_record.*', 'units.name as unit_name', 'materials.name as material_name')
+                    ->where('material_stock_record.site_id', '=', $reconsile_record->site_id)
+                    ->get();
+
+                $data = array();
+                foreach ($material_stock_record as $stock) {
+                    $key = $stock->material_id . '_' . $stock->unit;
+                    $stock->system_qty = $stock->qty;
+                    $stock->reconsiled_qty = isset($reconsile_data[$key]) ? $reconsile_data[$key]->reconsiled_qty : null;
+                    if ($stock->reconsiled_qty !== null) {
+                        $stock->difference = $stock->qty - $stock->reconsiled_qty;
+                    } else {
+                        $stock->difference = null;
+                    }
+                    $data[] = $stock;
+                }
+            } else {
+                $data = DB::connection($conn)->table('material_reconsilation_data')
+                    ->join('materials', 'materials.id', '=', 'material_reconsilation_data.material_id')
+                    ->join('units', 'units.id', '=', 'material_reconsilation_data.unit')
+                    ->select('material_reconsilation_data.*', 'units.name as unit_name', 'materials.name as material_name')
+                    ->where('material_reconsilation_data.reconsilation_id', '=', $id)
+                    ->get();
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'record' => $reconsile_record,
+                'items' => $data,
+                'server_time' => \Carbon\Carbon::now()->toDateTimeString()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Export Stock Reconciliation as CSV
+     */
+    public function exportReconciliationCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $type = $request->get('type', 'all');
+            $search = trim($request->get('search'));
+
+            $query = DB::connection($conn)->table('material_reconsilation_record as msr')
+                ->select(
+                    'msr.*',
+                    'sites.name as site_name',
+                    'r_user.name as requested_by_name',
+                    'u_user.name as upload_by_name',
+                    'a_user.name as approved_by_name'
+                )
+                ->join('sites', 'sites.id', '=', 'msr.site_id')
+                ->leftJoin('users as r_user', 'r_user.id', '=', 'msr.requested_by')
+                ->leftJoin('users as u_user', 'u_user.id', '=', 'msr.upload_by')
+                ->leftJoin('users as a_user', 'a_user.id', '=', 'msr.approved_by');
+
+            // Apply Type Filter
+            if ($type == 'pending') {
+                $query->whereIn('msr.status', ['Pending', 'Draft']);
+            } elseif ($type == 'uploaded' || $type == 'submitted') {
+                $query->where('msr.status', 'Submitted');
+            } elseif ($type == 'verified') {
+                $query->whereIn('msr.status', ['Rejected', 'Approved', 'Converted']);
+            }
+
+            // Apply Search
+            if (!empty($search)) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('sites.name', 'LIKE', "%{$search}%")
+                        ->orWhere('r_user.name', 'LIKE', "%{$search}%")
+                        ->orWhere('msr.date', 'LIKE', "%{$search}%")
+                        ->orWhere('msr.status', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $records = $query->orderBy('msr.id', 'desc')->get();
+
+            $filename = 'reconciliation_export_' . ($type != 'all' ? $type . '_' : '') . date('Y-m-d') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ];
+
+            $callback = function () use ($records) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['#', 'Date', 'Site', 'Status', 'Requested By', 'Uploaded By', 'Verified By', 'Stock Updated']);
+
+                $i = 1;
+                foreach ($records as $r) {
+                    fputcsv($file, [
+                        $i++,
+                        $r->date,
+                        $r->site_name,
+                        $r->status,
+                        $r->requested_by_name,
+                        $r->upload_by_name,
+                        $r->approved_by_name,
+                        $r->stock_updated
+                    ]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Store a new Reconciliation Request
+     */
+    public function storeReconciliationRequest(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $site_id = $request->input('site_id');
+
+            if (!$site_id) {
+                return response()->json(['status' => 'Error', 'message' => 'site_id is required'], 400);
+            }
+
+            // Verify site exists and is active
+            $site = DB::connection($conn)->table('sites')->where('id', $site_id)->where('status', 'Active')->first();
+            if (!$site) {
+                return response()->json(['status' => 'Error', 'message' => 'Active site not found'], 404);
+            }
+
+            $date = \Carbon\Carbon::now()->format('d-m-Y');
+            $data = [
+                'site_id' => $site_id,
+                'requested_by' => $user->id,
+                'date' => $date,
+                'status' => 'Pending',
+                'stock_updated' => 'No'
+            ];
+
+            $id = DB::connection($conn)->table('material_reconsilation_record')->insertGetId($data);
+            addActivity($id, 'material_reconsilation_record', "New Stock Reconciliation Requested via API for site: " . $site->name, 3, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Stock Reconciliation Requested Successfully',
+                'id' => $id,
+                'server_time' => \Carbon\Carbon::now()->toDateTimeString()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete Stock Reconciliation
+     */
+    public function deleteReconciliation(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'Reconciliation ID is required'], 400);
+            }
+
+            $record = DB::connection($conn)->table('material_reconsilation_record')->where('id', $id)->first();
+            if (!$record) {
+                return response()->json(['status' => 'Error', 'message' => 'Record not found'], 404);
+            }
+
+            // Only allow deleting if not already converted/approved? (Optional, mirroring StockController: delete_reconsilation doesn't have checks)
+            DB::connection($conn)->table('material_reconsilation_record')->where('id', $id)->delete();
+            DB::connection($conn)->table('material_reconsilation_data')->where('reconsilation_id', $id)->delete();
+
+            addActivity($id, 'material_reconsilation_record', "Stock Reconciliation Request Deleted via API", 3, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Stock Reconciliation Request Deleted Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update/Upload Reconciliation Data
+     */
+    public function updateReconciliationData(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $reconsilation_id = $id ?? $request->get('id') ?? $request->get('reconsilation_id');
+
+            if (!$reconsilation_id) {
+                return response()->json(['status' => 'Error', 'message' => 'Reconciliation ID is required'], 400);
+            }
+
+            // More robust way to get items from JSON or Form Data
+            $items = $request->input('items');
+            if (!$items && $request->getContent()) {
+                $decoded = json_decode($request->getContent(), true);
+                $items = $decoded['items'] ?? null;
+            }
+
+            if (!is_array($items) || empty($items)) {
+                return response()->json(['status' => 'Error', 'message' => 'Items array is required'], 400);
+            }
+
+            $new_data = array();
+            foreach ($items as $item) {
+                $new_data[] = [
+                    'reconsilation_id' => $reconsilation_id,
+                    'material_id' => $item['material_id'],
+                    'system_qty' => $item['system_qty'],
+                    'reconsiled_qty' => $item['reconsiled_qty'],
+                    'unit' => $item['unit'],
+                    'difference' => $item['difference'] ?? ($item['system_qty'] - $item['reconsiled_qty'])
+                ];
+            }
+
+            DB::connection($conn)->table('material_reconsilation_data')->where('reconsilation_id', '=', $reconsilation_id)->delete();
+            DB::connection($conn)->table('material_reconsilation_data')->insert($new_data);
+            DB::connection($conn)->table('material_reconsilation_record')->where('id', '=', $reconsilation_id)->update([
+                'status' => 'Submitted', 
+                'upload_by' => $user->id
+            ]);
+
+            addActivity($reconsilation_id, 'material_reconsilation_record', "Stock Reconciliation Data Uploaded/Updated via API", 3, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Stock Reconciliation Data Uploaded Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Verify Stock Reconciliation (Sets status to Approved)
+     */
+    public function verifyReconciliation(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'Reconciliation ID is required'], 400);
+            }
+
+            DB::connection($conn)->table('material_reconsilation_record')->where('id', '=', $id)->update([
+                'status' => 'Approved', 
+                'approved_by' => $user->id
+            ]);
+
+            addActivity($id, 'material_reconsilation_record', "Stock Reconciliation Verified via API", 3, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Stock Reconciliation Verified Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Reject Stock Reconciliation (Sets status to Rejected)
+     */
+    public function rejectReconciliation(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'Reconciliation ID is required'], 400);
+            }
+
+            DB::connection($conn)->table('material_reconsilation_record')->where('id', '=', $id)->update([
+                'status' => 'Rejected', 
+                'approved_by' => $user->id
+            ]);
+
+            addActivity($id, 'material_reconsilation_record', "Stock Reconciliation Rejected via API", 3, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Stock Reconciliation Rejected Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Approve & Update Stock (Sets status to Converted and updates physical stock)
+     */
+    public function approveAndUpdateStock(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'Reconciliation ID is required'], 400);
+            }
+
+            $reconsile_record = DB::connection($conn)->table('material_reconsilation_record')->where('id', '=', $id)->first();
+            if (!$reconsile_record) {
+                return response()->json(['status' => 'Error', 'message' => 'Reconciliation record not found'], 404);
+            }
+
+            if ($reconsile_record->status == 'Converted') {
+                return response()->json(['status' => 'Error', 'message' => 'Stock already updated for this reconciliation'], 400);
+            }
+
+            $reconsile_data = DB::connection($conn)->table('material_reconsilation_data')->where('reconsilation_id', '=', $id)->get();
+            
+            if ($reconsile_data->isEmpty()) {
+                return response()->json(['status' => 'Error', 'message' => 'No item data found to update stock'], 400);
+            }
+
+            foreach ($reconsile_data as $data) {
+                // Update Material Stock Record
+                DB::connection($conn)->table('material_stock_record')
+                    ->where('site_id', '=', $reconsile_record->site_id)
+                    ->where('material_id', '=', $data->material_id)
+                    ->where('unit', '=', $data->unit)
+                    ->update(['qty' => $data->reconsiled_qty]);
+
+                // Create Stock Transaction Record
+                $trans_data = [
+                    'site_id' => $reconsile_record->site_id,
+                    'material_id' => $data->material_id,
+                    'unit' => $data->unit,
+                    'qty' => $data->reconsiled_qty,
+                    'type' => 'Reconciliation',
+                    'refrence' => $id,
+                    'created_at' => \Carbon\Carbon::now()->toDateTimeString(),
+                    'updated_at' => \Carbon\Carbon::now()->toDateTimeString()
+                ];
+                DB::connection($conn)->table('material_stock_transactions')->insert($trans_data);
+            }
+
+            // Update Reconciliation Record Status
+            DB::connection($conn)->table('material_reconsilation_record')->where('id', '=', $id)->update([
+                'status' => 'Converted', 
+                'stock_updated' => 'Yes',
+                'approved_by' => $user->id
+            ]);
+
+            addActivity($id, 'material_reconsilation_record', "Stock Reconciled & Updated via API", 3, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Stock Reconciled & Updated Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     private function listConsumptionByStatus(Request $request, $status, $filterType = 'Both')
     {
         try {
