@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use PDF;
 
@@ -3544,13 +3545,7 @@ class ApiManagementController extends Controller
                     'users.name as user_name'
                 );
 
-            // Visibility filters
-            if ($visibility == 'current') {
-                $query->where(function($q) use ($user) {
-                    $q->where('material_site_transfers.from_site', '=', $user->site_id)
-                      ->orWhere('material_site_transfers.to_site', '=', $user->site_id);
-                });
-            }
+            $query->orderBy('material_site_transfers.id', 'DESC');
 
             // Search filter
             if ($request->has('search')) {
@@ -3611,6 +3606,12 @@ class ApiManagementController extends Controller
 
             return response()->json([
                 'status' => 'Ok',
+                'debug' => [
+                    'connection' => $conn,
+                    'role_id' => $user->role_id,
+                    'site_id' => $user->site_id,
+                    'visibility' => $visibility
+                ],
                 'data' => $transfers,
                 'server_time' => Carbon::now()->toDateTimeString()
             ]);
@@ -3629,7 +3630,22 @@ class ApiManagementController extends Controller
             $conn = config('database.default');
             $user = $request->user();
 
-            $validator = Validator::make($request->all(), [
+            // Try to find the data in all possible places (Robust parsing)
+            $data = $request->all();
+            $filteredData = array_diff_key($data, array_flip(['tenant_conn', 'tenant_uid', 'tenant_role', 'tenant_site_id']));
+            
+            if (empty($filteredData)) {
+                $jsonData = $request->json()->all();
+                if (!empty($jsonData)) {
+                    $data = array_merge($data, $jsonData);
+                } else {
+                    $raw = file_get_contents('php://input');
+                    $decoded = json_decode($raw, true);
+                    if ($decoded) $data = array_merge($data, $decoded);
+                }
+            }
+
+            $validator = Validator::make($data, [
                 'material_id' => 'required',
                 'from_site' => 'required',
                 'to_site' => 'required',
@@ -3641,10 +3657,12 @@ class ApiManagementController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json(['status' => 'Error', 'message' => $validator->errors()->first()], 400);
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'Validation failed', 
+                    'errors' => $validator->errors()
+                ], 400);
             }
-
-            $data = $request->all();
 
             // Check stock in from_site
             $check_current_stock = DB::connection($conn)->table('material_stock_record')
@@ -3703,8 +3721,8 @@ class ApiManagementController extends Controller
 
                 // Log Transactions
                 DB::connection($conn)->table('material_stock_transactions')->insert([
-                    ['site_id' => $data['from_site'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['unit'], 'type' => 'OUT', 'refrence' => 'Site Transferred Debit', 'refrence_id' => $id, 'created_at' => Carbon::now(), 'updated_at' => Carbon::now()],
-                    ['site_id' => $data['to_site'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['unit'], 'type' => 'IN', 'refrence' => 'Site Transferred Credit', 'refrence_id' => $id, 'created_at' => Carbon::now(), 'updated_at' => Carbon::now()]
+                    ['site_id' => $data['from_site'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['unit'], 'type' => 'OUT', 'refrence' => 'Site Transferred Debit', 'refrence_id' => $id],
+                    ['site_id' => $data['to_site'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['unit'], 'type' => 'IN', 'refrence' => 'Site Transferred Credit', 'refrence_id' => $id]
                 ]);
 
                 addActivity($id, 'material_site_transfers', "New Material Transfer Completed via API", 3, $user->id, $conn);
@@ -3714,6 +3732,72 @@ class ApiManagementController extends Controller
                     'message' => 'Material Site Transferred successfully!',
                     'id' => $id
                 ]);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete Material Site Transfer (matches web: deleteMaterialTransferForm)
+     */
+    public function deleteStockSiteTransfer(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $transfer = DB::connection($conn)->table('material_site_transfers')->where('id', $id)->first();
+            if (!$transfer) {
+                return response()->json(['status' => 'Error', 'message' => 'Transfer record not found'], 404);
+            }
+
+            // Verify stock at destination site before reversing
+            $to_site_stock = DB::connection($conn)->table('material_stock_record')
+                ->where('site_id', $transfer->to_site)
+                ->where('material_id', $transfer->material_id)
+                ->where('unit', $transfer->unit)
+                ->first();
+
+            if (!$to_site_stock || $to_site_stock->qty < $transfer->qty) {
+                return response()->json([
+                    'status' => 'Error',
+                    'message' => 'Cannot delete transfer. Target site already used this material and has insufficient stock to reverse.'
+                ], 400);
+            }
+
+            return DB::connection($conn)->transaction(function () use ($conn, $transfer, $user, $id, $to_site_stock) {
+                // Reverse stock at destination site
+                DB::connection($conn)->table('material_stock_record')
+                    ->where('id', $to_site_stock->id)
+                    ->decrement('qty', $transfer->qty, ['last_updated' => Carbon::now()]);
+
+                // Restore stock at source site
+                $from_site_stock = DB::connection($conn)->table('material_stock_record')
+                    ->where('site_id', $transfer->from_site)
+                    ->where('material_id', $transfer->material_id)
+                    ->where('unit', $transfer->unit)
+                    ->first();
+
+                if ($from_site_stock) {
+                    DB::connection($conn)->table('material_stock_record')
+                        ->where('id', $from_site_stock->id)
+                        ->increment('qty', $transfer->qty, ['last_updated' => Carbon::now()]);
+                }
+
+                // Delete related transaction logs
+                DB::connection($conn)->table('material_stock_transactions')
+                    ->where('refrence_id', $id)
+                    ->whereIn('refrence', ['Site Transferred Debit', 'Site Transferred Credit'])
+                    ->delete();
+
+                // Delete the transfer record
+                DB::connection($conn)->table('material_site_transfers')->where('id', $id)->delete();
+
+                addActivity($id, 'material_site_transfers', "Material Transfer Deleted via API", 3, $user->id, $conn);
+
+                return response()->json(['status' => 'Ok', 'message' => 'Material Site Transfer deleted successfully!']);
             });
 
         } catch (\Exception $e) {
@@ -4697,6 +4781,286 @@ class ApiManagementController extends Controller
             };
 
             return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Stock Unit Conversions (matches web: stock_unit_conversion)
+     */
+    public function getStockUnitConversions(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            
+            // Get user's role and site visibility
+            $role = DB::connection($conn)->table('roles')->where('id', $user->role_id)->first();
+            $visibility = $role->visiblity_at_site ?? 'all';
+            
+            $query = DB::connection($conn)->table('material_units_conversion_record')
+                ->leftJoin('materials', 'materials.id', '=', 'material_units_conversion_record.material_id')
+                ->leftJoin('sites', 'sites.id', '=', 'material_units_conversion_record.site_id')
+                ->leftJoin('units as f_unit', 'f_unit.id', '=', 'material_units_conversion_record.from_unit')
+                ->leftJoin('units as t_unit', 't_unit.id', '=', 'material_units_conversion_record.to_unit')
+                ->leftJoin('users', 'users.id', '=', 'material_units_conversion_record.user_id')
+                ->select(
+                    'material_units_conversion_record.*', 
+                    'materials.name as material_name', 
+                    'f_unit.name as from_unit_name', 
+                    't_unit.name as to_unit_name', 
+                    'sites.name as site_name', 
+                    'users.name as user_name'
+                );
+
+            $query->orderBy('material_units_conversion_record.id', 'DESC');
+
+            // Search filter
+            if ($request->has('search')) {
+                $search = trim($request->get('search'));
+                if (!empty($search)) {
+                    $query->where(function($q) use ($search) {
+                        $q->where('materials.name', 'LIKE', "%{$search}%")
+                          ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                          ->orWhere('f_unit.name', 'LIKE', "%{$search}%")
+                          ->orWhere('t_unit.name', 'LIKE', "%{$search}%")
+                          ->orWhere('material_units_conversion_record.remark', 'LIKE', "%{$search}%");
+                    });
+                }
+            }
+
+            // Date filters
+            if ($request->has('from_date') && $request->has('to_date')) {
+                $query->whereBetween('material_units_conversion_record.date', [$request->get('from_date'), $request->get('to_date')]);
+            }
+
+            $query->orderBy('material_units_conversion_record.id', 'DESC');
+
+            // CSV Export
+            if ($request->get('export') == 'csv') {
+                $data = $query->get();
+                $filename = 'unit_conversions_' . date('Y-m-d') . '.csv';
+                $headers = [
+                    'Content-type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'Pragma' => 'no-cache',
+                    'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+                    'Expires' => '0'
+                ];
+                return response()->stream(function() use ($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['#', 'Date', 'Material', 'Site', 'From Unit', 'To Unit', 'From Qty', 'Converted Qty', 'Remark', 'Done By']);
+                    $i = 1;
+                    foreach ($data as $row) {
+                        fputcsv($file, [
+                            $i++,
+                            $row->date,
+                            $row->material_name,
+                            $row->site_name,
+                            $row->from_unit_name,
+                            $row->to_unit_name,
+                            $row->qty,
+                            $row->updated_qty,
+                            $row->remark,
+                            $row->user_name
+                        ]);
+                    }
+                    fclose($file);
+                }, 200, $headers);
+            }
+
+            $perPage = $request->get('per_page', 10);
+            $conversions = $query->paginate($perPage);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $conversions,
+                'server_time' => Carbon::now()->toDateTimeString()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Store Stock Unit Conversion (matches web: newStockUnitConversionForm)
+     */
+    public function storeStockUnitConversion(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            // Robust data parsing
+            $data = $request->all();
+            $filteredData = array_diff_key($data, array_flip(['tenant_conn', 'tenant_uid', 'tenant_role', 'tenant_site_id']));
+            
+            if (empty($filteredData)) {
+                $jsonData = $request->json()->all();
+                if (!empty($jsonData)) {
+                    $data = array_merge($data, $jsonData);
+                } else {
+                    $raw = file_get_contents('php://input');
+                    $decoded = json_decode($raw, true);
+                    if ($decoded) $data = array_merge($data, $decoded);
+                }
+            }
+
+            $validator = Validator::make($data, [
+                'material_id' => 'required',
+                'site_id' => 'required',
+                'from_unit' => 'required',
+                'to_unit' => 'required',
+                'qty' => 'required|numeric|min:0.01',
+                'updated_qty' => 'required|numeric|min:0.01',
+                'date' => 'required|date',
+                'remark' => 'nullable'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 'Error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 400);
+            }
+
+            if ($data['from_unit'] == $data['to_unit']) {
+                return response()->json(['status' => 'Error', 'message' => 'You cannot convert between same units.'], 400);
+            }
+
+            // Check stock for from_unit
+            $check_current_stock = DB::connection($conn)->table('material_stock_record')
+                ->where('site_id', '=', $data['site_id'])
+                ->where('material_id', '=', $data['material_id'])
+                ->where('unit', '=', $data['from_unit'])
+                ->first();
+
+            if (!$check_current_stock || $check_current_stock->qty < $data['qty']) {
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'Insufficient stock for conversion. Available: ' . ($check_current_stock->qty ?? 0)
+                ], 400);
+            }
+
+            return DB::connection($conn)->transaction(function () use ($conn, $data, $user, $check_current_stock) {
+                $insertData = [
+                    'material_id' => $data['material_id'],
+                    'site_id' => $data['site_id'],
+                    'from_unit' => $data['from_unit'],
+                    'to_unit' => $data['to_unit'],
+                    'qty' => $data['qty'],
+                    'updated_qty' => $data['updated_qty'],
+                    'user_id' => $user->id,
+                    'remark' => $data['remark'] ?? '',
+                    'date' => $data['date'],
+                ];
+
+                $id = DB::connection($conn)->table('material_units_conversion_record')->insertGetId($insertData);
+
+                // Stock Transactions (Debit from_unit, Credit to_unit)
+                DB::connection($conn)->table('material_stock_transactions')->insert([
+                    ['site_id' => $data['site_id'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['from_unit'], 'type' => 'OUT', 'refrence' => 'Unit Conversion Debit', 'refrence_id' => $id],
+                    ['site_id' => $data['site_id'], 'material_id' => $data['material_id'], 'qty' => $data['updated_qty'], 'unit' => $data['to_unit'], 'type' => 'IN', 'refrence' => 'Unit Conversion Credit', 'refrence_id' => $id]
+                ]);
+
+                // Update From Unit Stock
+                DB::connection($conn)->table('material_stock_record')
+                    ->where('id', '=', $check_current_stock->id)
+                    ->decrement('qty', $data['qty'], ['last_updated' => Carbon::now()]);
+
+                // Update To Unit Stock
+                $to_unit_stock = DB::connection($conn)->table('material_stock_record')
+                    ->where('site_id', '=', $data['site_id'])
+                    ->where('material_id', '=', $data['material_id'])
+                    ->where('unit', '=', $data['to_unit'])
+                    ->first();
+
+                if ($to_unit_stock) {
+                    DB::connection($conn)->table('material_stock_record')
+                        ->where('id', '=', $to_unit_stock->id)
+                        ->increment('qty', $data['updated_qty'], ['last_updated' => Carbon::now()]);
+                } else {
+                    DB::connection($conn)->table('material_stock_record')->insert([
+                        'material_id' => $data['material_id'],
+                        'site_id' => $data['site_id'],
+                        'qty' => $data['updated_qty'],
+                        'unit' => $data['to_unit'],
+                        'last_updated' => Carbon::now()
+                    ]);
+                }
+
+                addActivity($id, 'material_units_conversion_record', "Material Unit Conversion Completed via API", 3, $user->id, $conn);
+
+                return response()->json([
+                    'status' => 'Ok', 
+                    'message' => 'Material Unit Conversion successful!',
+                    'id' => $id
+                ]);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete Stock Unit Conversion (matches web: deleteStockUnitConversion)
+     */
+    public function deleteStockUnitConversion(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $conversion = DB::connection($conn)->table('material_units_conversion_record')->where('id', '=', $id)->first();
+            if (!$conversion) {
+                return response()->json(['status' => 'Error', 'message' => 'Conversion record not found.'], 404);
+            }
+
+            // Check if to_unit stock has already been used
+            $check_to_unit_stock = DB::connection($conn)->table('material_stock_record')
+                ->where('site_id', '=', $conversion->site_id)
+                ->where('material_id', '=', $conversion->material_id)
+                ->where('unit', '=', $conversion->to_unit)
+                ->first();
+
+            if (!$check_to_unit_stock || $check_to_unit_stock->qty < $conversion->updated_qty) {
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'Target site has already used the material in converted unit. Cannot delete.'
+                ], 400);
+            }
+
+            return DB::connection($conn)->transaction(function () use ($conn, $id, $conversion, $user, $check_to_unit_stock) {
+                // Revert from_unit stock
+                $from_unit_stock = DB::connection($conn)->table('material_stock_record')
+                    ->where('site_id', '=', $conversion->site_id)
+                    ->where('material_id', '=', $conversion->material_id)
+                    ->where('unit', '=', $conversion->from_unit)
+                    ->first();
+                
+                if ($from_unit_stock) {
+                    DB::connection($conn)->table('material_stock_record')
+                        ->where('id', '=', $from_unit_stock->id)
+                        ->increment('qty', $conversion->qty, ['last_updated' => Carbon::now()]);
+                }
+
+                // Revert to_unit stock
+                DB::connection($conn)->table('material_stock_record')
+                    ->where('id', '=', $check_to_unit_stock->id)
+                    ->decrement('qty', $conversion->updated_qty, ['last_updated' => Carbon::now()]);
+
+                // Delete records
+                DB::connection($conn)->table('material_units_conversion_record')->where('id', '=', $id)->delete();
+                DB::connection($conn)->table('material_stock_transactions')
+                    ->where('refrence_id', '=', $id)
+                    ->whereIn('refrence', ['Unit Conversion Debit', 'Unit Conversion Credit'])
+                    ->delete();
+
+                addActivity(0, 'material_units_conversion_record', "Material Unit Conversion Deleted via API", 3, $user->id, $conn);
+
+                return response()->json(['status' => 'Ok', 'message' => 'Material Unit Conversion deleted and stock reverted successfully!']);
+            });
+
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }

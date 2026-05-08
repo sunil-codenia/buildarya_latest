@@ -212,6 +212,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/materials/stock/transactions/export/csv', [ApiManagementController::class, 'exportStockTransactionsCsv']);
         Route::get('/materials/stock/transfers', [ApiManagementController::class, 'getStockSiteTransfers']);
         Route::post('/materials/stock/transfers', [ApiManagementController::class, 'storeStockSiteTransfer']);
+        Route::delete('/materials/stock/transfers/{id}', [ApiManagementController::class, 'deleteStockSiteTransfer']);
+
+        Route::get('/materials/stock/conversions', [ApiManagementController::class, 'getStockUnitConversions']);
+        Route::post('/materials/stock/conversions', [ApiManagementController::class, 'storeStockUnitConversion']);
+        Route::delete('/materials/stock/conversions/{id}', [ApiManagementController::class, 'deleteStockUnitConversion']);
         Route::post('/materials/consumption', [ApiManagementController::class, 'storeMaterialConsumption']);
         Route::post('/materials/wastage', [ApiManagementController::class, 'storeMaterialWastage']);
         Route::get('/materials/consumption/pending', [ApiManagementController::class, 'getPendingConsumption']);
