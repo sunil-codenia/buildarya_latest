@@ -4720,6 +4720,1055 @@ class ApiManagementController extends Controller
         }
     }
 
+    /**
+     * List Bill Parties
+     */
+    public function listBillParties(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            $status = $request->get('status');
+            $per_page = $request->get('per_page', 20);
+
+            $query = DB::connection($conn)->table('bills_party')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'bills_party.cost_category_id')
+                ->select('bills_party.*', 'expense_head.name as category_name');
+
+            if ($status) {
+                $query->where('bills_party.status', $status);
+            }
+
+            if (!empty($search)) {
+                $query->where('bills_party.name', 'LIKE', "%{$search}%");
+            }
+
+            $data = $query->orderBy('bills_party.name', 'asc')->paginate($per_page);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $data,
+                'server_time' => \Carbon\Carbon::now()->toDateTimeString()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Store New Bill Party
+     */
+    public function storeBillParty(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            // Get input with fallback to raw content decoding
+            $input = $request->all();
+            if (empty($input) || !isset($input['name'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+
+            $data = [
+                'name' => isset($input['name']) ? $input['name'] : null,
+                'address' => isset($input['address']) ? $input['address'] : null,
+                'panno' => isset($input['panno']) ? $input['panno'] : null,
+                'bank_ac' => isset($input['bank_ac']) ? $input['bank_ac'] : null,
+                'ifsc' => isset($input['ifsc']) ? $input['ifsc'] : null,
+                'bankname' => isset($input['bankname']) ? $input['bankname'] : null,
+                'ac_holder_name' => isset($input['ac_holder_name']) ? $input['ac_holder_name'] : null,
+                'cost_category_id' => isset($input['cost_category_id']) ? $input['cost_category_id'] : null,
+                'status' => isset($input['status']) ? $input['status'] : 'Pending'
+            ];
+
+            if (!$data['name']) {
+                return response()->json(['status' => 'Error', 'message' => 'Name is required'], 400);
+            }
+
+            $id = DB::connection($conn)->table('bills_party')->insertGetId($data);
+            addActivity($id, 'bills_party', "New Bill Party Created via API: " . $data['name'], 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Party Created Successfully',
+                'id' => $id
+            ]);
+        } catch (\Exception $e) {
+            if ($e->getCode() == 23000) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Party already exists'], 400);
+            }
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update Bill Party
+     */
+    public function updateBillParty(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->input('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            // Get input with fallback to raw content decoding
+            $input = $request->all();
+            if (empty($input) || !isset($input['name'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+
+            $data = [
+                'name' => isset($input['name']) ? $input['name'] : null,
+                'address' => isset($input['address']) ? $input['address'] : null,
+                'panno' => isset($input['panno']) ? $input['panno'] : null,
+                'bank_ac' => isset($input['bank_ac']) ? $input['bank_ac'] : null,
+                'ifsc' => isset($input['ifsc']) ? $input['ifsc'] : null,
+                'bankname' => isset($input['bankname']) ? $input['bankname'] : null,
+                'ac_holder_name' => isset($input['ac_holder_name']) ? $input['ac_holder_name'] : null,
+                'cost_category_id' => isset($input['cost_category_id']) ? $input['cost_category_id'] : null
+            ];
+
+            // Remove null values to avoid overwriting with nulls if not provided
+            $data = array_filter($data, function ($value) {
+                return $value !== null;
+            });
+
+            if (empty($data)) {
+                return response()->json(['status' => 'Error', 'message' => 'No data provided to update'], 400);
+            }
+
+            DB::connection($conn)->table('bills_party')->where('id', $id)->update($data);
+            addActivity($id, 'bills_party', "Bill Party Updated via API", 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Party Updated Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete Bill Party
+     */
+    public function deleteBillParty(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            // Check if in use
+            $check = DB::connection($conn)->table('new_bill_entry')->where('party_id', '=', $id)->count();
+            if ($check > 0) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Party is in use and cannot be deleted'], 400);
+            }
+
+            $party = DB::connection($conn)->table('bills_party')->where('id', $id)->first();
+            if (!$party) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Party not found'], 404);
+            }
+
+            DB::connection($conn)->table('bills_party')->where('id', $id)->delete();
+            addActivity(0, 'bills_party', "Bill Party Deleted via API - " . $party->name, 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Party Deleted Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update Bill Party Status
+     */
+    public function updateBillPartyStatus(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->input('id');
+            
+            $input = $request->all();
+            if (empty($input) || !isset($input['status'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+            $status = $input['status'] ?? null;
+
+            if (!$id || !$status) {
+                return response()->json(['status' => 'Error', 'message' => 'ID and Status are required'], 400);
+            }
+
+            $party = DB::connection($conn)->table('bills_party')->where('id', '=', $id)->first();
+            if (!$party) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Party not found'], 404);
+            }
+
+            DB::connection($conn)->table('bills_party')->where('id', '=', $id)->update(['status' => $status]);
+            addActivity($id, 'bills_party', "Bill Party Status Updated To " . $status . " via API", 4, $user->id, $conn);
+
+            if ($status == 'Active' && $party->status == 'Pending') {
+                DB::connection($conn)->table('contact_profile')->insert([
+                    'comp_name' => $party->name, 
+                    'contact_name' => $party->name, 
+                    'category' => 'Bills Party'
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Party Status Updated Successfully',
+                'new_status' => $status
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Bill Party Details
+     */
+    public function getBillPartyDetails(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $party = DB::connection($conn)->table('bills_party')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'bills_party.cost_category_id')
+                ->select('bills_party.*', 'expense_head.name as category_name')
+                ->where('bills_party.id', $id)
+                ->first();
+
+            if (!$party) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Party not found'], 404);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $party
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Export Bill Parties as CSV
+     */
+    public function exportBillPartiesCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            $status = $request->get('status');
+
+            $query = DB::connection($conn)->table('bills_party')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'bills_party.cost_category_id')
+                ->select('bills_party.*', 'expense_head.name as category_name');
+
+            if ($status) {
+                $query->where('bills_party.status', $status);
+            }
+
+            if (!empty($search)) {
+                $query->where('bills_party.name', 'LIKE', "%{$search}%");
+            }
+
+            $records = $query->orderBy('bills_party.name', 'asc')->get();
+
+            $filename = 'bill_parties_export_' . date('Y-m-d') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ];
+
+            $callback = function () use ($records) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['ID', 'Name', 'Address', 'PAN No', 'Bank Account', 'IFSC', 'Bank Name', 'Account Holder', 'Category', 'Status']);
+
+                foreach ($records as $r) {
+                    fputcsv($file, [
+                        $r->id,
+                        $r->name,
+                        $r->address,
+                        $r->panno,
+                        $r->bank_ac,
+                        $r->ifsc,
+                        $r->bankname,
+                        $r->ac_holder_name,
+                        $r->category_name,
+                        $r->status
+                    ]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * List Bill Party Payments
+     */
+    public function listBillPartyPayments(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $party_id = $request->get('party_id');
+            $search = trim($request->get('search'));
+            $per_page = $request->get('per_page', 20);
+
+            $query = DB::connection($conn)->table('bill_party_payments');
+
+            if ($party_id) {
+                $query->where('party_id', $party_id);
+            }
+
+            if (!empty($search)) {
+                $query->where('remark', 'LIKE', "%{$search}%");
+            }
+
+            $data = $query->orderBy('date', 'desc')->paginate($per_page);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $data,
+                'server_time' => \Carbon\Carbon::now()->toDateTimeString()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Store New Bill Party Payment
+     */
+    public function storeBillPartyPayment(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $input = $request->all();
+            if (empty($input) || !isset($input['party_id'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+
+            $id = $input['party_id'] ?? null;
+            $amount = $input['amount'] ?? 0;
+            $remark = $input['remark'] ?? '';
+            $date = $input['date'] ?? date('Y-m-d');
+
+            if (!$id || !$amount) {
+                return response()->json(['status' => 'Error', 'message' => 'Party ID and Amount are required'], 400);
+            }
+
+            $data = [
+                'party_id' => $id,
+                'amount' => $amount,
+                'remark' => $remark,
+                'date' => $date
+            ];
+
+            $pay_id = DB::connection($conn)->table('bill_party_payments')->insertGetId($data);
+            addActivity($pay_id, 'bill_party_payments', "Bill Party Payment Done Of Amount - " . $amount . " via API", 4, $user->id, $conn);
+
+            $tdata = [
+                'party_id' => $id,
+                'type' => 'Credit',
+                'payment_id' => $pay_id,
+                'particular' => $remark
+            ];
+            DB::connection($conn)->table('bill_party_statement')->insert($tdata);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Party Balance Credit Successfully',
+                'payment_id' => $pay_id
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Bill Party Payment Details
+     */
+    public function getBillPartyPaymentDetails(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $payment = DB::connection($conn)->table('bill_party_payments')->where('id', $id)->first();
+            if (!$payment) {
+                return response()->json(['status' => 'Error', 'message' => 'Payment not found'], 404);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $payment
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update Bill Party Payment
+     */
+    public function updateBillPartyPayment(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->input('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $input = $request->all();
+            if (empty($input) || !isset($input['amount'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+
+            $data = [
+                'amount' => $input['amount'] ?? null,
+                'remark' => $input['remark'] ?? null,
+                'date' => $input['date'] ?? null
+            ];
+
+            $data = array_filter($data, function ($v) { return $v !== null; });
+
+            if (empty($data)) {
+                return response()->json(['status' => 'Error', 'message' => 'No data provided to update'], 400);
+            }
+
+            DB::connection($conn)->table('bill_party_payments')->where('id', $id)->update($data);
+            addActivity($id, 'bill_party_payments', "Bill Party Payment Updated via API", 4, $user->id, $conn);
+
+            if (isset($data['remark'])) {
+                DB::connection($conn)->table('bill_party_statement')->where('payment_id', $id)->update(['particular' => $data['remark']]);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Party Balance Updated Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Export Bill Party Payments as CSV
+     */
+    public function exportBillPartyPaymentsCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $party_id = $request->get('party_id');
+            $search = trim($request->get('search'));
+
+            $query = DB::connection($conn)->table('bill_party_payments')
+                ->leftJoin('bills_party', 'bills_party.id', '=', 'bill_party_payments.party_id')
+                ->select('bill_party_payments.*', 'bills_party.name as party_name');
+
+            if ($party_id) {
+                $query->where('party_id', $party_id);
+            }
+
+            if (!empty($search)) {
+                $query->where('remark', 'LIKE', "%{$search}%");
+            }
+
+            $records = $query->orderBy('date', 'desc')->get();
+
+            $filename = 'bill_party_payments_' . date('Y-m-d') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ];
+
+            $callback = function () use ($records) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['ID', 'Party Name', 'Amount', 'Date', 'Remark']);
+
+                foreach ($records as $r) {
+                    fputcsv($file, [
+                        $r->id,
+                        $r->party_name,
+                        $r->amount,
+                        $r->date,
+                        $r->remark
+                    ]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * List Bill Works
+     */
+    public function listBillWorks(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            $per_page = $request->get('per_page', 20);
+
+            $query = DB::connection($conn)->table('bills_work');
+
+            if (!empty($search)) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
+            $data = $query->orderBy('name', 'asc')->paginate($per_page);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $data,
+                'server_time' => \Carbon\Carbon::now()->toDateTimeString()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Store New Bill Work
+     */
+    public function storeBillWork(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $input = $request->all();
+            if (empty($input) || !isset($input['name'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+
+            $name = $input['name'] ?? null;
+            $unit = $input['unit'] ?? null;
+
+            if (!$name || !$unit) {
+                return response()->json(['status' => 'Error', 'message' => 'Name and Unit are required'], 400);
+            }
+
+            $exists = DB::connection($conn)->table('bills_work')->where('name', $name)->exists();
+            if ($exists) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill work already exists'], 400);
+            }
+
+            $data = ['name' => $name, 'unit' => $unit];
+            $id = DB::connection($conn)->table('bills_work')->insertGetId($data);
+            addActivity($id, 'bills_work', "New Bill work Created via API", 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Work Created Successfully',
+                'id' => $id
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Bill Work Details
+     */
+    public function getBillWorkDetails(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $work = DB::connection($conn)->table('bills_work')->where('id', $id)->first();
+            if (!$work) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Work not found'], 404);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $work
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update Bill Work
+     */
+    public function updateBillWork(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->input('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $input = $request->all();
+            if (empty($input) || !isset($input['name'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+
+            $data = [
+                'name' => $input['name'] ?? null,
+                'unit' => $input['unit'] ?? null
+            ];
+
+            $data = array_filter($data, function ($v) { return $v !== null; });
+
+            if (empty($data)) {
+                return response()->json(['status' => 'Error', 'message' => 'No data provided to update'], 400);
+            }
+
+            DB::connection($conn)->table('bills_work')->where('id', $id)->update($data);
+            addActivity($id, 'bills_work', "Bill Work Updated via API", 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Work Updated Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete Bill Work
+     */
+    public function deleteBillWork(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->input('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $work = DB::connection($conn)->table('bills_work')->where('id', $id)->first();
+            if (!$work) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Work not found'], 404);
+            }
+
+            $check = DB::connection($conn)->table('new_bills_item_entry')->where('work_id', $id)->exists();
+            if ($check) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Work is in use and cannot be deleted'], 400);
+            }
+
+            DB::connection($conn)->table('bills_work')->where('id', $id)->delete();
+            DB::connection($conn)->table('bills_rate')->where('work_id', $id)->delete();
+            
+            addActivity(0, 'bills_work', "Bill Work Deleted via API: " . $work->name, 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Work Deleted Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Export Bill Works as CSV
+     */
+    public function exportBillWorksCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+
+            $query = DB::connection($conn)->table('bills_work');
+
+            if (!empty($search)) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
+            $records = $query->orderBy('name', 'asc')->get();
+
+            $filename = 'bill_works_' . date('Y-m-d') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ];
+
+            $callback = function () use ($records) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['ID', 'Name', 'Unit']);
+
+                foreach ($records as $r) {
+                    fputcsv($file, [$r->id, $r->name, $r->unit]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * List Bill Rates
+     */
+    public function listBillRates(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            $site_id = $request->get('site_id');
+            $work_id = $request->get('work_id');
+            $per_page = $request->get('per_page', 20);
+
+            $query = DB::connection($conn)->table('bills_rate')
+                ->leftJoin('bills_work', 'bills_work.id', '=', 'bills_rate.work_id')
+                ->leftJoin('sites', 'sites.id', '=', 'bills_rate.site_id')
+                ->select('bills_rate.*', 'bills_work.name as work_name', 'bills_work.unit', 'sites.name as site_name');
+
+            if ($site_id) {
+                $query->where('bills_rate.site_id', $site_id);
+            }
+
+            if ($work_id) {
+                $query->where('bills_rate.work_id', $work_id);
+            }
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('bills_work.name', 'LIKE', "%{$search}%")
+                      ->orWhere('sites.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $data = $query->orderBy('sites.name', 'asc')->orderBy('bills_work.name', 'asc')->paginate($per_page);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $data,
+                'server_time' => \Carbon\Carbon::now()->toDateTimeString()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Store New Bill Rate
+     */
+    public function storeBillRate(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $input = $request->all();
+            if (empty($input) || !isset($input['work_id'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+
+            $work_id = $input['work_id'] ?? null;
+            $site_id = $input['site_id'] ?? null;
+            $rate = $input['rate'] ?? null;
+
+            if (!$work_id || !$site_id || $rate === null) {
+                return response()->json(['status' => 'Error', 'message' => 'Work ID, Site ID, and Rate are required'], 400);
+            }
+
+            $exists = DB::connection($conn)->table('bills_rate')->where('work_id', $work_id)->where('site_id', $site_id)->exists();
+            if ($exists) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Rate already exists for this site and work'], 400);
+            }
+
+            $data = ['work_id' => $work_id, 'site_id' => $site_id, 'rate' => $rate];
+            $id = DB::connection($conn)->table('bills_rate')->insertGetId($data);
+            
+            $site_name = DB::connection($conn)->table('sites')->where('id', $site_id)->value('name');
+            addActivity($id, 'bills_rate', "Bill Work Rate Set For Site - " . $site_name . " via API", 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Rate Created Successfully',
+                'id' => $id
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Bill Rate Details
+     */
+    public function getBillRateDetails(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $id = $id ?? $request->get('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $rate = DB::connection($conn)->table('bills_rate')
+                ->leftJoin('bills_work', 'bills_work.id', '=', 'bills_rate.work_id')
+                ->leftJoin('sites', 'sites.id', '=', 'bills_rate.site_id')
+                ->select('bills_rate.*', 'bills_work.name as work_name', 'bills_work.unit', 'sites.name as site_name')
+                ->where('bills_rate.id', $id)
+                ->first();
+
+            if (!$rate) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Rate not found'], 404);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $rate
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update Bill Rate
+     */
+    public function updateBillRate(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->input('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $input = $request->all();
+            if (empty($input) || !isset($input['rate'])) {
+                $raw = $request->getContent();
+                if ($raw) {
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)) {
+                        $input = array_merge($input, $decoded);
+                    }
+                }
+            }
+
+            $data = [
+                'work_id' => $input['work_id'] ?? null,
+                'site_id' => $input['site_id'] ?? null,
+                'rate' => $input['rate'] ?? null
+            ];
+
+            $data = array_filter($data, function ($v) { return $v !== null; });
+
+            if (empty($data)) {
+                return response()->json(['status' => 'Error', 'message' => 'No data provided to update'], 400);
+            }
+
+            // If updating work_id or site_id, check for duplicates
+            if (isset($data['work_id']) || isset($data['site_id'])) {
+                $current = DB::connection($conn)->table('bills_rate')->where('id', $id)->first();
+                $new_work = $data['work_id'] ?? $current->work_id;
+                $new_site = $data['site_id'] ?? $current->site_id;
+                
+                if ($new_work != $current->work_id || $new_site != $current->site_id) {
+                    $exists = DB::connection($conn)->table('bills_rate')
+                        ->where('work_id', $new_work)
+                        ->where('site_id', $new_site)
+                        ->where('id', '!=', $id)
+                        ->exists();
+                    if ($exists) {
+                        return response()->json(['status' => 'Error', 'message' => 'Bill Rate already exists for this site and work'], 400);
+                    }
+                }
+            }
+
+            DB::connection($conn)->table('bills_rate')->where('id', $id)->update($data);
+            
+            $site_id = $data['site_id'] ?? DB::connection($conn)->table('bills_rate')->where('id', $id)->value('site_id');
+            $site_name = DB::connection($conn)->table('sites')->where('id', $site_id)->value('name');
+            addActivity($id, 'bills_rate', "Bill Work Rate Updated For Site - " . $site_name . " via API", 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Rate Updated Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Delete Bill Rate
+     */
+    public function deleteBillRate(Request $request, $id = null)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $id = $id ?? $request->input('id');
+
+            if (!$id) {
+                return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
+            }
+
+            $rate = DB::connection($conn)->table('bills_rate')->where('id', $id)->first();
+            if (!$rate) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Rate not found'], 404);
+            }
+
+            DB::connection($conn)->table('bills_rate')->where('id', $id)->delete();
+            addActivity(0, 'bills_rate', "Bill Work Rate Deleted Of Amount - " . $rate->rate . " via API", 4, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Bill Rate Deleted Successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Export Bill Rates as CSV
+     */
+    public function exportBillRatesCsv(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $search = trim($request->get('search'));
+            $site_id = $request->get('site_id');
+
+            $query = DB::connection($conn)->table('bills_rate')
+                ->leftJoin('bills_work', 'bills_work.id', '=', 'bills_rate.work_id')
+                ->leftJoin('sites', 'sites.id', '=', 'bills_rate.site_id')
+                ->select('bills_rate.id', 'sites.name as site_name', 'bills_work.name as work_name', 'bills_rate.rate', 'bills_work.unit');
+
+            if ($site_id) {
+                $query->where('bills_rate.site_id', $site_id);
+            }
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('bills_work.name', 'LIKE', "%{$search}%")
+                      ->orWhere('sites.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $records = $query->orderBy('sites.name', 'asc')->orderBy('bills_work.name', 'asc')->get();
+
+            $filename = 'bill_rates_' . date('Y-m-d') . '.csv';
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ];
+
+            $callback = function () use ($records) {
+                $file = fopen('php://output', 'w');
+                fputcsv($file, ['ID', 'Site Name', 'Work Name', 'Rate', 'Unit']);
+
+                foreach ($records as $r) {
+                    fputcsv($file, [$r->id, $r->site_name, $r->work_name, $r->rate, $r->unit]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     private function listConsumptionByStatus(Request $request, $status, $filterType = 'Both')
     {
         try {

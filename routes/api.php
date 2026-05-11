@@ -226,6 +226,39 @@ Route::prefix('v1')->group(function () {
         Route::post('/materials/reconciliation/{id}/verify', [ApiManagementController::class, 'verifyReconciliation']);
         Route::post('/materials/reconciliation/{id}/reject', [ApiManagementController::class, 'rejectReconciliation']);
         Route::post('/materials/reconciliation/{id}/approve-update', [ApiManagementController::class, 'approveAndUpdateStock']);
+        
+        // Bill Parties
+        Route::get('/bill-parties', [ApiManagementController::class, 'listBillParties']);
+        Route::get('/bill-parties/export', [ApiManagementController::class, 'exportBillPartiesCsv']);
+        Route::post('/bill-parties', [ApiManagementController::class, 'storeBillParty']);
+        Route::get('/bill-parties/{id}', [ApiManagementController::class, 'getBillPartyDetails']);
+        Route::patch('/bill-parties/{id}', [ApiManagementController::class, 'updateBillParty']);
+        Route::delete('/bill-parties/{id}', [ApiManagementController::class, 'deleteBillParty']);
+        Route::post('/bill-parties/{id}/status', [ApiManagementController::class, 'updateBillPartyStatus']);
+    
+        // Bill Party Payments
+        Route::get('/bill-party-payments', [ApiManagementController::class, 'listBillPartyPayments']);
+        Route::post('/bill-party-payments', [ApiManagementController::class, 'storeBillPartyPayment']);
+        Route::get('/bill-party-payments/export', [ApiManagementController::class, 'exportBillPartyPaymentsCsv']);
+        Route::get('/bill-party-payments/{id}', [ApiManagementController::class, 'getBillPartyPaymentDetails']);
+        Route::patch('/bill-party-payments/{id}', [ApiManagementController::class, 'updateBillPartyPayment']);
+
+        // Bill Works
+        Route::get('/bill-works', [ApiManagementController::class, 'listBillWorks']);
+        Route::post('/bill-works', [ApiManagementController::class, 'storeBillWork']);
+        Route::get('/bill-works/export', [ApiManagementController::class, 'exportBillWorksCsv']);
+        Route::get('/bill-works/{id}', [ApiManagementController::class, 'getBillWorkDetails']);
+        Route::patch('/bill-works/{id}', [ApiManagementController::class, 'updateBillWork']);
+        Route::delete('/bill-works/{id}', [ApiManagementController::class, 'deleteBillWork']);
+
+        // Bill Rates
+        Route::get('/bill-rates', [ApiManagementController::class, 'listBillRates']);
+        Route::post('/bill-rates', [ApiManagementController::class, 'storeBillRate']);
+        Route::get('/bill-rates/export', [ApiManagementController::class, 'exportBillRatesCsv']);
+        Route::get('/bill-rates/{id}', [ApiManagementController::class, 'getBillRateDetails']);
+        Route::patch('/bill-rates/{id}', [ApiManagementController::class, 'updateBillRate']);
+        Route::delete('/bill-rates/{id}', [ApiManagementController::class, 'deleteBillRate']);
+
         Route::post('/materials/consumption', [ApiManagementController::class, 'storeMaterialConsumption']);
         Route::post('/materials/wastage', [ApiManagementController::class, 'storeMaterialWastage']);
         Route::get('/materials/consumption/pending', [ApiManagementController::class, 'getPendingConsumption']);
