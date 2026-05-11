@@ -6588,4 +6588,428 @@ class ApiManagementController extends Controller
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
+
+    /**
+     * ==========================================
+     * SITE BILLS MANAGEMENT
+     * ==========================================
+     */
+
+    public function listPendingSiteBills(Request $request)
+    {
+        $request->merge(['status' => 'Pending']);
+        return $this->listSiteBills($request);
+    }
+
+    public function listVerifiedSiteBills(Request $request)
+    {
+        $request->merge(['status' => 'Approved']);
+        return $this->listSiteBills($request);
+    }
+
+    public function listSiteBills(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $status = $request->get('status');
+            $search = $request->get('search');
+            $site_id = $request->get('site_id');
+            $party_id = $request->get('party_id');
+            $from_date = $request->get('from_date', $request->get('start_date'));
+            $to_date = $request->get('to_date', $request->get('end_date'));
+
+            $query = DB::connection($conn)->table('new_bill_entry')
+                ->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')
+                ->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')
+                ->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')
+                ->select('new_bill_entry.*', 'sites.name as site_name', 'users.name as user_name', 'bills_party.name as party_name');
+
+            if ($status) {
+                $query->where('new_bill_entry.status', $status);
+            }
+
+            if ($site_id && $site_id != 'all') {
+                $query->where('new_bill_entry.site_id', $site_id);
+            }
+
+            if ($party_id) {
+                $query->where('new_bill_entry.party_id', $party_id);
+            }
+
+            if ($from_date && $to_date) {
+                $query->whereBetween('new_bill_entry.billdate', [$from_date, $to_date]);
+            }
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('new_bill_entry.bill_no', 'like', "%$search%")
+                        ->orWhere('bills_party.name', 'like', "%$search%")
+                        ->orWhere('new_bill_entry.remark', 'like', "%$search%");
+                });
+            }
+
+            $bills = $query->orderBy('new_bill_entry.id', 'desc')->paginate($request->get('per_page', 20));
+
+            // Map and add from_date and to_date for the API response
+            $bills->getCollection()->transform(function($bill) {
+                $period = explode(' to ', $bill->bill_period);
+                $bill->bill_from_date = $period[0] ?? '';
+                $bill->bill_to_date = $period[1] ?? '';
+                return $bill;
+            });
+
+            // CSV Export logic
+            if ($request->get('export') == 'csv') {
+                $data = $query->orderBy('new_bill_entry.id', 'desc')->get();
+                $filename = 'site_bills_' . date('Y-m-d') . '.csv';
+                $headers = [
+                    'Content-type' => 'text/csv',
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                ];
+                return response()->stream(function () use ($data) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['#', 'Bill No', 'Date', 'Party', 'Site', 'Amount', 'Status', 'Period', 'Created By', 'Remark']);
+                    $i = 1;
+                    foreach ($data as $row) {
+                        fputcsv($file, [
+                            $i++,
+                            $row->bill_no,
+                            $row->billdate,
+                            $row->party_name,
+                            $row->site_name,
+                            $row->amount,
+                            $row->status,
+                            $row->bill_period,
+                            $row->user_name,
+                            $row->remark
+                        ]);
+                    }
+                    fclose($file);
+                }, 200, $headers);
+            }
+
+            $bills = $query->orderBy('new_bill_entry.id', 'desc')->paginate($request->get('per_page', 20));
+
+            return response()->json(['status' => 'Ok', 'data' => $bills]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeSiteBill(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $data = $request->all();
+            $filteredData = array_diff_key($data, array_flip(['tenant_conn', 'tenant_uid', 'tenant_role', 'tenant_site_id']));
+
+            if (empty($filteredData['items'])) {
+                $jsonData = $request->json()->all();
+                if (!empty($jsonData['items'])) {
+                    $data = array_merge($data, $jsonData);
+                } else {
+                    $raw = file_get_contents('php://input');
+                    $decoded = json_decode($raw, true);
+                    if ($decoded) $data = array_merge($data, $decoded);
+                }
+            }
+
+            $validator = Validator::make($data, [
+                'bill_party_id' => 'required',
+                'bill_site_id' => 'required',
+                'bill_no' => 'required',
+                'bill_date' => 'required|date',
+                'bill_from_date' => 'required|date',
+                'bill_to_date' => 'required|date',
+                'items' => 'required|array|min:1',
+                'items.*.work_id' => 'required',
+                'items.*.qty' => 'required|numeric',
+                'items.*.rate' => 'required|numeric',
+                'items.*.unit' => 'required',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 'Error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 400);
+            }
+
+            $party = DB::connection($conn)->table('bills_party')->where('id', $data['bill_party_id'])->first();
+            if (!$party || $party->status != 'Active') {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Party is not active or not found.'], 400);
+            }
+
+            $totalAmount = 0;
+            foreach ($data['items'] as $item) {
+                $totalAmount += ($item['qty'] * $item['rate']);
+            }
+
+            $status = getAppInitialEntryStatusByRole($user->role_id, $conn);
+            $bill_period = ($data['bill_from_date'] ?? '') . " to " . ($data['bill_to_date'] ?? '');
+
+            return DB::connection($conn)->transaction(function () use ($conn, $data, $user, $status, $totalAmount, $bill_period) {
+                $billId = DB::connection($conn)->table('new_bill_entry')->insertGetId([
+                    'party_id' => $data['bill_party_id'],
+                    'bill_no' => $data['bill_no'],
+                    'site_id' => $data['bill_site_id'],
+                    'billdate' => $data['bill_date'],
+                    'bill_period' => $bill_period,
+                    'user_id' => $user->id,
+                    'status' => $status,
+                    'amount' => $totalAmount,
+                    'remark' => $data['remark'] ?? '',
+                    'create_datetime' => Carbon::now()
+                ]);
+
+                foreach ($data['items'] as $item) {
+                    DB::connection($conn)->table('new_bills_item_entry')->insert([
+                        'bill_id' => $billId,
+                        'work_id' => $item['work_id'],
+                        'unit' => $item['unit'],
+                        'rate' => $item['rate'],
+                        'qty' => $item['qty'],
+                        'amount' => $item['qty'] * $item['rate']
+                    ]);
+                }
+
+                addActivity($billId, 'new_bill_entry', "New Bill Created via API - " . $data['bill_no'], 4, $user->id, $conn);
+
+                if ($status == 'Approved') {
+                    $this->syncBillToStatement($billId, $conn);
+                }
+
+                return response()->json(['status' => 'Ok', 'message' => 'Bill created successfully', 'id' => $billId]);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getSiteBillDetails(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $bill = DB::connection($conn)->table('new_bill_entry')
+                ->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')
+                ->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')
+                ->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')
+                ->select('new_bill_entry.*', 'sites.name as site_name', 'users.name as user_name', 'bills_party.name as party_name')
+                ->where('new_bill_entry.id', $id)
+                ->first();
+
+            if (!$bill) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill not found'], 404);
+            }
+
+            $period = explode(' to ', $bill->bill_period);
+            $bill->bill_from_date = $period[0] ?? '';
+            $bill->bill_to_date = $period[1] ?? '';
+
+            $items = DB::connection($conn)->table('new_bills_item_entry')
+                ->leftJoin('bills_work', 'bills_work.id', '=', 'new_bills_item_entry.work_id')
+                ->where('bill_id', $id)
+                ->select('new_bills_item_entry.*', 'bills_work.name as work_name')
+                ->get();
+
+            return response()->json(['status' => 'Ok', 'data' => ['bill' => $bill, 'items' => $items]]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateSiteBill(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $bill = DB::connection($conn)->table('new_bill_entry')->where('id', $id)->first();
+            if (!$bill) return response()->json(['status' => 'Error', 'message' => 'Bill not found'], 404);
+
+            if ($bill->status == 'Approved') {
+                return response()->json(['status' => 'Error', 'message' => 'Cannot update an approved bill.'], 403);
+            }
+
+            $data = $request->all();
+            $filteredData = array_diff_key($data, array_flip(['tenant_conn', 'tenant_uid', 'tenant_role', 'tenant_site_id']));
+
+            if (empty($filteredData) || (empty($filteredData['items']) && $request->isJson())) {
+                $jsonData = $request->json()->all();
+                if (!empty($jsonData)) {
+                    $data = array_merge($data, $jsonData);
+                } else {
+                    $raw = file_get_contents('php://input');
+                    $decoded = json_decode($raw, true);
+                    if ($decoded) $data = array_merge($data, $decoded);
+                }
+            }
+
+            $validator = Validator::make($data, [
+                'bill_party_id' => 'sometimes|required',
+                'bill_site_id' => 'sometimes|required',
+                'bill_no' => 'sometimes|required',
+                'bill_date' => 'sometimes|required|date',
+                'bill_from_date' => 'sometimes|required|date',
+                'bill_to_date' => 'sometimes|required|date',
+                'items' => 'nullable|array',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 'Error', 'message' => 'Validation failed', 'errors' => $validator->errors()], 400);
+            }
+
+            $totalAmount = 0;
+            if (isset($data['items'])) {
+                foreach ($data['items'] as $item) {
+                    $totalAmount += ($item['qty'] * $item['rate']);
+                }
+            } else {
+                $totalAmount = $bill->amount;
+            }
+
+            $bill_period = (isset($data['bill_from_date']) && isset($data['bill_to_date']))
+                ? ($data['bill_from_date'] . " to " . $data['bill_to_date'])
+                : $bill->bill_period;
+
+            return DB::connection($conn)->transaction(function () use ($conn, $id, $data, $user, $totalAmount, $bill_period, $bill) {
+                $updateData = [
+                    'party_id' => $data['bill_party_id'] ?? $bill->party_id,
+                    'bill_no' => $data['bill_no'] ?? $bill->bill_no,
+                    'site_id' => $data['bill_site_id'] ?? $bill->site_id,
+                    'billdate' => $data['bill_date'] ?? $bill->billdate,
+                    'bill_period' => $bill_period,
+                    'amount' => $totalAmount,
+                    'remark' => $data['remark'] ?? $bill->remark,
+                ];
+
+                DB::connection($conn)->table('new_bill_entry')->where('id', $id)->update($updateData);
+
+                if (isset($data['items'])) {
+                    DB::connection($conn)->table('new_bills_item_entry')->where('bill_id', $id)->delete();
+                    foreach ($data['items'] as $item) {
+                        DB::connection($conn)->table('new_bills_item_entry')->insert([
+                            'bill_id' => $id,
+                            'work_id' => $item['work_id'],
+                            'unit' => $item['unit'],
+                            'rate' => $item['rate'],
+                            'qty' => $item['qty'],
+                            'amount' => $item['qty'] * $item['rate']
+                        ]);
+                    }
+                }
+
+                addActivity($id, 'new_bill_entry', "Bill Updated via API", 4, $user->id, $conn);
+
+                return response()->json(['status' => 'Ok', 'message' => 'Bill updated successfully']);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteSiteBill(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $bill = DB::connection($conn)->table('new_bill_entry')->where('id', $id)->first();
+            if (!$bill) return response()->json(['status' => 'Error', 'message' => 'Bill not found'], 404);
+
+            if ($bill->status == 'Approved') {
+                return response()->json(['status' => 'Error', 'message' => 'Cannot delete an approved bill.'], 403);
+            }
+
+            return DB::connection($conn)->transaction(function () use ($conn, $id, $user) {
+                DB::connection($conn)->table('new_bill_entry')->where('id', $id)->delete();
+                DB::connection($conn)->table('new_bills_item_entry')->where('bill_id', $id)->delete();
+
+                addActivity($id, 'new_bill_entry', "Bill Deleted via API", 4, $user->id, $conn);
+                return response()->json(['status' => 'Ok', 'message' => 'Bill deleted successfully']);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function bulkUpdateSiteBillStatus(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+            $data = $request->all();
+            $filteredData = array_diff_key($data, array_flip(['tenant_conn', 'tenant_uid', 'tenant_role', 'tenant_site_id']));
+
+            // Robust JSON parsing (handles Text body and strips comments)
+            if (empty($filteredData['ids']) && empty($filteredData['id'])) {
+                $raw = file_get_contents('php://input');
+                // Strip comments (// or /* */) to handle copy-pasted examples with notes
+                $json = preg_replace('#//.*$|/\*.*?\*/#m', '', $raw);
+                $decoded = json_decode($json, true);
+                if ($decoded) {
+                    $data = array_merge($data, $decoded);
+                }
+            }
+
+            $ids = $data['ids'] ?? [$data['id'] ?? null];
+            $ids = array_filter((array)$ids);
+            $status = $data['status'] ?? null; // 'Approved' or 'Rejected'
+
+            if (empty($ids)) {
+                return response()->json(['status' => 'Error', 'message' => 'No bill IDs provided.'], 400);
+            }
+
+            if (!in_array($status, ['Approved', 'Rejected'])) {
+                return response()->json(['status' => 'Error', 'message' => 'Invalid status provided. Use Approved or Rejected.'], 400);
+            }
+
+            return DB::connection($conn)->transaction(function () use ($conn, $ids, $status, $user) {
+                $count = 0;
+                foreach ($ids as $id) {
+                    $bill = DB::connection($conn)->table('new_bill_entry')->where('id', $id)->first();
+                    if (!$bill) continue;
+
+                    if ($status == 'Approved') {
+                        $party = DB::connection($conn)->table('bills_party')->where('id', $bill->party_id)->first();
+                        if (!$party || $party->status != 'Active') {
+                            continue; // Skip if party is not active
+                        }
+                        DB::connection($conn)->table('new_bill_entry')->where('id', $id)->update(['status' => 'Approved']);
+                        $this->syncBillToStatement($id, $conn);
+                        addActivity($id, 'new_bill_entry', "Bill Approved via API", 4, $user->id, $conn);
+                    } else {
+                        DB::connection($conn)->table('new_bill_entry')->where('id', $id)->update(['status' => 'Rejected']);
+                        DB::connection($conn)->table('bill_party_statement')->where('bill_no', $id)->delete();
+                        addActivity($id, 'new_bill_entry', "Bill Rejected via API", 4, $user->id, $conn);
+                    }
+                    $count++;
+                }
+
+                return response()->json(['status' => 'Ok', 'message' => "Successfully updated $count bills to $status."]);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function syncBillToStatement($billId, $conn)
+    {
+        $bill = DB::connection($conn)->table('new_bill_entry')->where('id', $billId)->first();
+        if (!$bill) return;
+
+        $party_statement = [
+            'party_id' => $bill->party_id,
+            'type' => 'Debit',
+            'particular' => $bill->bill_no,
+            'bill_no' => $billId,
+            'create_datetime' => $bill->create_datetime
+        ];
+
+        DB::connection($conn)->table('bill_party_statement')->where('bill_no', $billId)->delete();
+        DB::connection($conn)->table('bill_party_statement')->insert($party_statement);
+    }
 }

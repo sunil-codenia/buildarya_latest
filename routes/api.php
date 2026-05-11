@@ -290,6 +290,16 @@ Route::prefix('v1')->group(function () {
         Route::post('/bills/{id}', [ApiSiteBillsController::class, 'update']);
         Route::delete('/bills/{id}', [ApiSiteBillsController::class, 'destroy']);
 
+        // Site Bills (Management)
+        Route::get('/management/bills/pending', [ApiManagementController::class, 'listPendingSiteBills']);
+        Route::get('/management/bills/verified', [ApiManagementController::class, 'listVerifiedSiteBills']);
+        Route::get('/management/bills', [ApiManagementController::class, 'listSiteBills']);
+        Route::post('/management/bills', [ApiManagementController::class, 'storeSiteBill']);
+        Route::get('/management/bills/{id}', [ApiManagementController::class, 'getSiteBillDetails']);
+        Route::post('/management/bills/bulk-status', [ApiManagementController::class, 'bulkUpdateSiteBillStatus']);
+        Route::patch('/management/bills/{id}', [ApiManagementController::class, 'updateSiteBill']);
+        Route::delete('/management/bills/{id}', [ApiManagementController::class, 'deleteSiteBill']);
+
         // Assets
         Route::get('/assets/summary', [ApiAssetMachineryController::class, 'assetSummary']);
         Route::get('/assets', [ApiAssetMachineryController::class, 'listAssets']);

@@ -4,9 +4,10 @@
     @php
         $edit = false;
         $dataarray = json_decode($data, true);
-        if (isset(json_decode($data, true)['edit_data'])) {
+        if (isset($dataarray['edit_data'])) {
             $editdata = $dataarray['edit_data'][0];
             $edit = true;
+            $dataarray = $dataarray['data'];
         }
     @endphp
     <div class="row clearfix">
@@ -21,7 +22,7 @@
                             @csrf
                             <div class="modal-content">
                                 <div class="modal-header">
-                                    <h4 class="title">Edit Bill Works</h4>
+                                    <h4 class="title">Edit Bill Rate</h4>
                                 </div>
                                 <div class="modal-body">
                                     <div class="row clearfix">
@@ -55,7 +56,7 @@
                                         </div>
                                         <div class="col-lg-12 col-md-12 col-sm-12">
                                             <div class="form-group">
-                                                <label for="name">Site Id</label>
+                                                <label for="name">Site</label>
 
                                                 <select id="site_id" name="site_id" required
                                                     class="form-control show-tick" data-live-search="true">

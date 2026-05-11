@@ -4,9 +4,10 @@
     @php
         $edit = false;
         $dataarray = json_decode($data, true);
-        if (isset(json_decode($data, true)['edit_data'])) {
+        if (isset($dataarray['edit_data'])) {
             $editdata = $dataarray['edit_data'][0];
             $edit = true;
+            $dataarray = $dataarray['data'];
         }
     @endphp
     <div class="row clearfix">
