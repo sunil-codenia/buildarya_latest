@@ -3,13 +3,13 @@
     @include('templates.blockheader', ['pagename' => 'Assets'])
 
     @php
-    $edit = false;
-    $dataarray = json_decode($data, true);
-    if (isset(json_decode($data, true)['edit_data'])) {
-        $editdata = $dataarray['edit_data'][0];
-        $edit = true;
-    }
-@endphp
+        $edit = false;
+        $dataarray = json_decode($data, true);
+        if (isset($dataarray['edit_data'])) {
+            $editdata = $dataarray['edit_data'][0];
+            $edit = true;
+        }
+    @endphp
 
     <div class="row clearfix">
         @if ($edit)
@@ -76,10 +76,9 @@
                             <tbody>
                                 @php
                                     $i = 1;
-                                    $data = json_decode($data, true);
+                                    $assets = isset($dataarray['data']) ? $dataarray['data'] : $dataarray;
                                 @endphp
-
-                                @foreach ($data as $dd)
+                                @foreach ($assets as $dd)
                                     @if (!empty($dd))
                                         @php
                                             $ddid = $dd['id'];

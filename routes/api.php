@@ -284,7 +284,9 @@ Route::prefix('v1')->group(function () {
 
         // Site Bills
         Route::get('/bills/summary', [ApiSiteBillsController::class, 'summary']);
+        Route::get('/bills/works-by-site', [ApiSiteBillsController::class, 'getSiteWorks']);
         Route::get('/bills', [ApiSiteBillsController::class, 'index']);
+        Route::match(['get', 'post'], '/bills/report', [ApiSiteBillsController::class, 'report']);
         Route::get('/bills/{id}', [ApiSiteBillsController::class, 'show']);
         Route::post('/bills', [ApiSiteBillsController::class, 'store']);
         Route::post('/bills/{id}', [ApiSiteBillsController::class, 'update']);
@@ -309,7 +311,10 @@ Route::prefix('v1')->group(function () {
         // Machinery
         Route::get('/machinery/summary', [ApiAssetMachineryController::class, 'machinerySummary']);
         Route::get('/machinery', [ApiAssetMachineryController::class, 'listMachinery']);
+        Route::match(['get', 'post'], '/machinery/report', [ApiAssetMachineryController::class, 'machineryReport']);
+        Route::get('/machinery/export/csv', [ApiAssetMachineryController::class, 'exportMachineryCsv']);
         Route::post('/machinery', [ApiAssetMachineryController::class, 'storeMachinery']);
+        Route::post('/machinery/heads', [ApiAssetMachineryController::class, 'storeMachineryHead']);
         Route::get('/machinery/{id}/documents', [ApiAssetMachineryController::class, 'machineryDocuments']);
         Route::post('/machinery/{id}/documents', [ApiAssetMachineryController::class, 'storeMachineryDocument']);
         Route::get('/machinery/{id}/services', [ApiAssetMachineryController::class, 'machineryServices']);

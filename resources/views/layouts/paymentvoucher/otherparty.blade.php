@@ -4,7 +4,7 @@
     @php
         $edit = false;
         $dataarray = json_decode($data, true);
-        if (isset(json_decode($data, true)['edit_data'])) {
+        if (isset($dataarray['edit_data'])) {
             $editdata = $dataarray['edit_data'][0];
             $edit = true;
         }
@@ -141,7 +141,10 @@
                                     @php
                                         $i = 1;
                                     @endphp
-                                    @foreach ($dataarray as $dd)
+                                    @php
+                                        $other_parties = isset($dataarray['data']) ? $dataarray['data'] : $dataarray;
+                                    @endphp
+                                    @foreach ($other_parties as $dd)
                                         @php
                                             $ddid = $dd['id'];
                                         @endphp

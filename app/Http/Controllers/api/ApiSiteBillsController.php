@@ -260,6 +260,167 @@ class ApiSiteBillsController extends Controller
     }
 
     /**
+     * Get Works/Items for a specific Site
+     */
+    public function getSiteWorks(Request $request)
+    {
+        try {
+            $site_id = $request->get('site_id');
+            if (!$site_id) {
+                return response()->json(['status' => 'Failed', 'message' => 'site_id is required'], 400);
+            }
+
+            $works = DB::table('bills_rate')
+                ->leftJoin('bills_work', 'bills_work.id', '=', 'bills_rate.work_id')
+                ->where('bills_rate.site_id', $site_id)
+                ->select('bills_work.id', 'bills_work.name', 'bills_work.unit', 'bills_rate.rate')
+                ->get();
+
+            return response()->json(['status' => 'Ok', 'data' => $works]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Generate Site Bill Report (JSON Response)
+     */
+    public function report(Request $request)
+    {
+        try {
+            $report_code = $request->get('type');
+            $start_date = $request->get('start_date');
+            $end_date = $request->get('end_date');
+            $site_id = $request->get('site_id');
+            $party_id = $request->get('party_id');
+            $work_id = $request->get('work_id');
+            $conn = config('database.default');
+
+            if ($report_code == 11) {
+                // Party Statement Logic
+                if (!$party_id) {
+                    return response()->json(['status' => 'Failed', 'message' => 'party_id is required for statement'], 400);
+                }
+
+                $statement = DB::table('bill_party_statement')
+                    ->where('party_id', $party_id)
+                    ->orderBy('id', 'asc')
+                    ->get();
+
+                $data = [];
+                foreach ($statement as $statem) {
+                    if ($statem->type == 'Credit') {
+                        if (!is_null($statem->expense_id)) {
+                            $expense = DB::table('expenses')->where('id', $statem->expense_id)->first();
+                            if ($expense) {
+                                $data[] = [
+                                    'date' => $expense->date,
+                                    'ref' => 'Expense',
+                                    'ref_no' => '',
+                                    'site_name' => getSiteDetailsById($expense->site_id)->name ?? '',
+                                    'credit' => $expense->amount,
+                                    'debit' => 0,
+                                    'particular' => $statem->particular,
+                                    'image' => $expense->image
+                                ];
+                            }
+                        } else if (!is_null($statem->payment_id)) {
+                            $payment = DB::table('bill_party_payments')->where('id', $statem->payment_id)->first();
+                            if ($payment) {
+                                $data[] = [
+                                    'date' => $payment->date,
+                                    'ref' => 'Payment',
+                                    'ref_no' => '',
+                                    'site_name' => '',
+                                    'credit' => $payment->amount,
+                                    'debit' => 0,
+                                    'particular' => $statem->particular,
+                                    'image' => ''
+                                ];
+                            }
+                        } else if (!is_null($statem->payment_voucher_id)) {
+                            $pv = DB::table('payment_vouchers')->where('id', $statem->payment_voucher_id)->first();
+                            if ($pv) {
+                                $data[] = [
+                                    'date' => $pv->date,
+                                    'ref' => 'Payment Vouchers',
+                                    'ref_no' => $pv->voucher_no,
+                                    'site_name' => getSiteDetailsById($pv->site_id)->name ?? '',
+                                    'credit' => $pv->amount,
+                                    'debit' => 0,
+                                    'particular' => $statem->particular,
+                                    'image' => $pv->image
+                                ];
+                            }
+                        }
+                    } else {
+                        if (!is_null($statem->bill_no)) {
+                            $bill = DB::table('new_bill_entry')->where('id', $statem->bill_no)->first();
+                            if ($bill) {
+                                $data[] = [
+                                    'date' => $bill->billdate,
+                                    'ref' => 'Site Bill',
+                                    'ref_no' => $bill->bill_no,
+                                    'site_name' => getSiteDetailsById($bill->site_id)->name ?? '',
+                                    'credit' => 0,
+                                    'debit' => $bill->amount,
+                                    'particular' => $statem->particular,
+                                    'image' => ''
+                                ];
+                            }
+                        }
+                    }
+                }
+
+                return response()->json(['status' => 'Ok', 'data' => $data]);
+            } else {
+                // General Filtering for all other report types
+                $query = DB::table('new_bill_entry')
+                    ->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')
+                    ->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')
+                    ->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')
+                    ->select('new_bill_entry.*', 'users.name as user_name', 'sites.name as site_name', 'bills_party.name as party_name');
+
+                if ($start_date && $end_date) {
+                    $query->whereBetween('new_bill_entry.billdate', [$start_date, $end_date]);
+                }
+                
+                if ($site_id) {
+                    $query->where('new_bill_entry.site_id', $site_id);
+                }
+                
+                if ($party_id) {
+                    $query->where('new_bill_entry.party_id', $party_id);
+                }
+                
+                if ($work_id) {
+                    $query->join('new_bills_item_entry', 'new_bill_entry.id', '=', 'new_bills_item_entry.bill_id');
+                    $query->where('new_bills_item_entry.work_id', $work_id);
+                    $query->select('new_bill_entry.*', 'users.name as user_name', 'sites.name as site_name', 'bills_party.name as party_name');
+                    $query->distinct();
+                }
+
+                $bills = $query->orderBy('new_bill_entry.billdate', 'desc')->get();
+
+                // If detailed report requested, fetch items for each bill
+                if (in_array($report_code, [2, 6, 8, 10, 12])) {
+                    foreach ($bills as $bill) {
+                        $bill->items = DB::table('new_bills_item_entry')
+                            ->leftJoin('bills_work', 'bills_work.id', '=', 'new_bills_item_entry.work_id')
+                            ->where('bill_id', $bill->id)
+                            ->select('new_bills_item_entry.*', 'bills_work.name as work_name')
+                            ->get();
+                    }
+                }
+
+                return response()->json(['status' => 'Ok', 'data' => $bills]);
+            }
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Approve Bill logic (helper)
      */
     private function approve_bill($id, $conn)

@@ -11,6 +11,7 @@ use Response;
 use App\Exports\SiteBillExport;
 use File;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\MaterialExport;
 
 class NewBillController extends Controller
 {
@@ -87,6 +88,15 @@ class NewBillController extends Controller
         return  view('layouts.bills.newbill')->with('data', json_encode($data));
     }
 
+
+    public function bill_report(Request $request)
+    {
+        $sites = getallsites();
+        $parties = getallbillparties();
+        $works = getallworkslist();
+
+        return view('layouts.bills.bills_report', compact('sites', 'parties', 'works'));
+    }
 
     public function addnewbill(Request $request)
     {
@@ -373,11 +383,6 @@ class NewBillController extends Controller
 
 
 
-    public function bill_report(Request $request)
-    {
-        return view('layouts.bills.bills_report');
-    }
-
 
     public function sitebillreport(Request $request)
     {
@@ -393,7 +398,7 @@ class NewBillController extends Controller
 
         if ($report_code == 1) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code);
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code);
             } else {
                 $file_name = "Bill Report (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -409,7 +414,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 2) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code);
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code);
             } else {
                 $file_name = "Bill Detailed Report (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -436,7 +441,7 @@ class NewBillController extends Controller
             }
         }else if ($report_code == 3) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, $headname, "", "");
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, $headname, "", "");
             } else {
                 $file_name = "Bill Item Report (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -456,7 +461,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 4) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, $headname, $sitename, "");
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, $headname, $sitename, "");
             } else {
                 $file_name = "Bill Item Report At Particular Site (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -477,7 +482,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 5) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", "", $partyname);
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", "", $partyname);
             } else {
                 $file_name = "Bill Party Report (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -495,7 +500,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 6) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", "", $partyname);
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", "", $partyname);
             } else {
                 $file_name = "Bill Party Detailed Report (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -523,7 +528,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 7) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, $partyname);
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, $partyname);
             } else {
                 $file_name = "Bill Party Report At Particular Site (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -543,7 +548,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 8) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, $partyname);
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, $partyname);
             } else {
                 $file_name = "Bill Party Deatiled Report At Particular Site (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -573,7 +578,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 9) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, "");
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, "");
             } else {
                 $file_name = "Bill Site Report (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -592,7 +597,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 10) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, "");
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, "");
             } else {
                 $file_name = "Bill Site Detailed Report (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -621,7 +626,7 @@ class NewBillController extends Controller
             }
         }else if ($report_code == 12) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, "");
+                return $this->exportSiteBillExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", $sitename, "");
             } else {
                 $file_name = "Bill Site Detailed With Work Report (" . $start_date . " - " . $end_date . ").pdf";
                 $bills = DB::connection($user_db_conn_name)
@@ -650,7 +655,7 @@ class NewBillController extends Controller
             }
         } else if ($report_code == 11) {
             if ($type == 1) {
-                return $this->exportExcel($user_db_conn_name, "","", $report_code, "", "", $partyname);
+                return $this->exportSiteBillExcel($user_db_conn_name, "","", $report_code, "", "", $partyname);
             } else {
                 $party_name = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
 
@@ -713,7 +718,173 @@ class NewBillController extends Controller
 
                 $partybalance = getBillPartyBalance($partyname);
                 
-                $pdf = Pdf::loadView('layouts.bills.pdfs.partyStatement', compact('data', 'party_name','total_credit','total_debit','partybalance'));
+                return $pdf->download($file_name);
+            }
+        } else if ($report_code == 13) {
+            if ($type == 1) {
+                return $this->exportMaterialExcel($user_db_conn_name, $start_date, $end_date, 1);
+            } else {
+                $file_name = "Material Date Report (" . $start_date . " To " . $end_date . ").pdf";
+                $material = DB::connection($user_db_conn_name)
+                    ->table('material_entry')->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->whereBetween('material_entry.date', [$start_date, $end_date])
+                    ->orderBy('material_entry.date', 'desc')->get();
+                $pdf = Pdf::loadView('layouts.material.pdfs.accToDate', compact('material', 'start_date', 'end_date'));
+                return $pdf->download($file_name);
+            }
+        } else if ($report_code == 14) {
+            if ($type == 1) {
+                return $this->exportMaterialExcel($user_db_conn_name, $start_date, $end_date, 2, $sitename, "", "");
+            } else {
+                $file_name = "Material Site Report (" . $start_date . " To " . $end_date . ").pdf";
+                $material = DB::connection($user_db_conn_name)
+                    ->table('material_entry')
+                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->where('material_entry.site_id', $sitename)
+                    ->whereBetween('material_entry.date', [$start_date, $end_date])
+                    ->orderBy('material_entry.date', 'desc')->get();
+                $sitename = getSiteDetailsById($sitename)->name;
+                $pdf = Pdf::loadView('layouts.material.pdfs.accToSite', compact('material', 'start_date', 'end_date', 'sitename'));
+                return $pdf->download($file_name);
+            }
+        } else if ($report_code == 15) {
+            $supplier_id = $request->get('supplier_id');
+            if ($type == 1) {
+                return $this->exportMaterialExcel($user_db_conn_name, $start_date, $end_date, 3, "", $supplier_id, "");
+            } else {
+                $file_name = "Material Supplier Report (" . $start_date . " To " . $end_date . ").pdf";
+                $material = DB::connection($user_db_conn_name)
+                    ->table('material_entry')
+                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->where('material_entry.supplier', $supplier_id)
+                    ->whereBetween('material_entry.date', [$start_date, $end_date])
+                    ->orderBy('material_entry.date', 'desc')->get();
+                $partyname = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->get()[0]->name;
+                $pdf = Pdf::loadView('layouts.material.pdfs.accToSupp', compact('material', 'start_date', 'end_date', 'partyname'));
+                return $pdf->download($file_name);
+            }
+        } else if ($report_code == 16) {
+            $supplier_id = $request->get('supplier_id');
+            if ($type == 1) {
+                return $this->exportMaterialExcel($user_db_conn_name, $start_date, $end_date, 4, $sitename, $supplier_id, "");
+            } else {
+                $file_name = "Material Supplier Report At Particular Site (" . $start_date . " To " . $end_date . ").pdf";
+                $material = DB::connection($user_db_conn_name)
+                    ->table('material_entry')
+                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->where('material_entry.site_id', $sitename)
+                    ->where('material_entry.supplier', $supplier_id)
+                    ->whereBetween('material_entry.date', [$start_date, $end_date])
+                    ->orderBy('material_entry.date', 'desc')->get();
+                $partyname = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->get()[0]->name;
+                $sitename = getSiteDetailsById($sitename)->name;
+                $pdf = Pdf::loadView('layouts.material.pdfs.accToSuppAtSite', compact('material', 'start_date', 'end_date', 'partyname', 'sitename'));
+                return $pdf->download($file_name);
+            }
+        } else if ($report_code == 17) {
+            $material_id = $request->get('material_id');
+            if ($type == 1) {
+                return $this->exportMaterialExcel($user_db_conn_name, $start_date, $end_date, 5, "", "", $material_id);
+            } else {
+                $file_name = "Material Item Report (" . $start_date . " To " . $end_date . ").pdf";
+                $material = DB::connection($user_db_conn_name)
+                    ->table('material_entry')
+                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->where('material_entry.material_id', $material_id)
+                    ->whereBetween('material_entry.date', [$start_date, $end_date])
+                    ->orderBy('material_entry.date', 'desc')->get();
+                $headname = DB::connection($user_db_conn_name)->table('materials')->where('id', $material_id)->get()[0]->name;
+                $pdf = Pdf::loadView('layouts.material.pdfs.accToMat', compact('material', 'start_date', 'end_date', 'headname'));
+                return $pdf->download($file_name);
+            }
+        } else if ($report_code == 18) {
+            $material_id = $request->get('material_id');
+            if ($type == 1) {
+                return $this->exportMaterialExcel($user_db_conn_name, $start_date, $end_date, 6, $sitename, "", $material_id);
+            } else {
+                $file_name = "Material Item Report At Particular Site (" . $start_date . " To " . $end_date . ").pdf";
+                $material = DB::connection($user_db_conn_name)
+                    ->table('material_entry')
+                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->where('material_entry.site_id', $sitename)
+                    ->where('material_entry.material_id', $material_id)
+                    ->whereBetween('material_entry.date', [$start_date, $end_date])
+                    ->orderBy('material_entry.date', 'desc')->get();
+                $headname = DB::connection($user_db_conn_name)->table('materials')->where('id', $material_id)->get()[0]->name;
+                $sitename = getSiteDetailsById($sitename)->name;
+                $pdf = Pdf::loadView('layouts.material.pdfs.accToMatAtSite', compact('material', 'start_date', 'end_date', 'headname', 'sitename'));
+                return $pdf->download($file_name);
+            }
+        } else if ($report_code == 19) {
+            $supplier_id = $request->get('supplier_id');
+            if ($type == 1) {
+                return $this->exportMaterialExcel($user_db_conn_name, "", "", 7, "", $supplier_id, "");
+            } else {
+                $party_name = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->get()[0]->name;
+                $file_name = "Material Supplier Statement - " . $party_name . " .pdf";
+                $statement = DB::connection($user_db_conn_name)
+                    ->table('material_supplier_statement')
+                    ->where('material_supplier_statement.supplier_id', $supplier_id)
+                    ->orderBy('material_supplier_statement.id', 'asc')->get();
+                $data = array();
+                $total_credit = 0;
+                $total_debit = 0;
+                foreach ($statement as $statem) {
+                    if ($statem->type == 'Credit') {
+                        $pv = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $statem->payment_voucher_id)->get()[0];
+                        $amount = $pv->amount;
+                        $site = getSiteDetailsById($pv->site_id)->name;
+                        $user = getUserDetailsById($pv->created_by)->name;
+                        $total_credit += $amount;
+                        $dat = ['date' => $pv->date, 'ref' => 'Payment Vouchers', 'ref_no' => $pv->voucher_no, 'user_name' => $user, 'site_name' => $site, 'credit' => $amount, 'debit' => '', 'particular' => $pv->remark, 'image' => $pv->image];
+                        array_push($data, $dat);
+                    } else {
+                        $mat = DB::connection($user_db_conn_name)->table('material_entry')->join('materials', 'materials.id', '=', 'material_entry.material_id')->join('units', 'units.id', '=', 'material_entry.unit')->select('material_entry.*', 'units.name as unit_name', 'materials.name as mat_name')->where('material_entry.id', $statem->entry_id)->get()[0];
+                        $amount = $mat->amount;
+                        $site = getSiteDetailsById($mat->site_id)->name;
+                        $user = getUserDetailsById($mat->user_id)->name;
+                        $total_debit += $amount;
+                        $dat = ['date' => $mat->date, 'ref' => 'Material Entry', 'ref_no' => $mat->bill_no, 'user_name' => $user, 'site_name' => $site, 'credit' => '', 'debit' => $amount, 'particular' => $mat->mat_name . " - " . $mat->qty . " " . $mat->unit_name, 'image' => $mat->image];
+                        array_push($data, $dat);
+                    }
+                }
+                usort($data, function ($a, $b) {
+                    $dateA = strtotime($a['date']);
+                    $dateB = strtotime($b['date']);
+                    return $dateA - $dateB;
+                });
+                $partybalance = getMaterialsSupplierBalance($supplier_id);
+                $pdf = Pdf::loadView('layouts.material.pdfs.supplierStatement', compact('data', 'party_name', 'total_credit', 'total_debit', 'partybalance'));
                 return $pdf->download($file_name);
             }
         }
@@ -722,49 +893,67 @@ class NewBillController extends Controller
     
     // Sort the array using usort and the custom comparison function
    
-    public function exportExcel($user_db_conn_name, $start_date=null, $end_date=null, $report_code, $headname = null, $sitename = null, $partyname = null)
+    public function exportSiteBillExcel($user_db_conn_name, $start_date = null, $end_date = null, $report_code, $headname = null, $sitename = null, $partyname = null)
     {
-
         $file_name = "Bill ";
-
         if ($report_code == 1) {
             $file_name .= "Date Report";
         } else if ($report_code == 2) {
             $file_name .= "Detailed Date Report ";
         } else if ($report_code == 3) {
-
             $file_name .= "Item Report ";
         } else if ($report_code == 4) {
             $file_name .= "Item Report At Particular Site ";
         } else if ($report_code == 5) {
             $file_name .= "Party Report ";
         } else if ($report_code == 6) {
-
             $file_name .= "Party Detailed Report ";
         } else if ($report_code == 7) {
-
             $file_name .= "Party Report At Particular Site ";
         } else if ($report_code == 8) {
-
             $file_name .= "Party Detailed Report At Particular Site ";
         } else if ($report_code == 9) {
-
             $file_name .= "Site Report ";
         } else if ($report_code == 10) {
-
             $file_name .= "Site Detailed Report ";
         } else if ($report_code == 12) {
-
             $file_name .= "Site Detailed With Work Report ";
-        } 
-        $file_name .= "(" . $start_date . " TO " . $end_date . ").xlsx";
-        
-        if ($report_code == 11) {
-            $party_name = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
-
-            $file_name = "Bill Party Statement - ".$party_name.".xlsx";
         }
 
-        return Excel::download(new SiteBillExport($user_db_conn_name, $start_date, $end_date, $report_code, $sitename,  $partyname, $headname), $file_name);
+        if ($report_code == 11) {
+            $party_name = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
+            $file_name = "Bill Party Statement-" . $party_name . ".xlsx";
+        } else {
+            $file_name .= "(" . $start_date . " TO " . $end_date . ").xlsx";
+        }
+
+        return Excel::download(new SiteBillExport($user_db_conn_name, $start_date, $end_date, $report_code, $headname, $sitename, $partyname), $file_name);
+    }
+
+    public function exportMaterialExcel($user_db_conn_name, $start_date, $end_date, $report_code, $sitename = null, $partyname = null, $headname = null)
+    {
+        $file_name = "Material ";
+        if ($report_code == 1) {
+            $file_name .= "Date Report";
+        } else if ($report_code == 2) {
+            $file_name .= "Site Report ";
+        } else if ($report_code == 3) {
+            $file_name .= "Supplier Report ";
+        } else if ($report_code == 4) {
+            $file_name .= "Supplier Report At Particular Site ";
+        } else if ($report_code == 5) {
+            $file_name .= "Item Report ";
+        } else if ($report_code == 6) {
+            $file_name .= "Item Report At Particular Site ";
+        }
+
+        if ($report_code == 7) {
+            $party_name = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->get()[0]->name;
+            $file_name = "Material Supplier Statement-" . $party_name . ".xlsx";
+        } else {
+            $file_name .= "(" . $start_date . " TO " . $end_date . ").xlsx";
+        }
+
+        return Excel::download(new MaterialExport($user_db_conn_name, $start_date, $end_date, $report_code, $sitename, $partyname, $headname), $file_name);
     }
 }

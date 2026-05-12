@@ -6794,7 +6794,8 @@ class ApiManagementController extends Controller
                 ->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')
                 ->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')
                 ->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')
-                ->select('new_bill_entry.*', 'sites.name as site_name', 'users.name as user_name', 'bills_party.name as party_name')
+                ->select('new_bill_entry.*', 'sites.name as site_name', 'users.name as user_name', 'bills_party.name as party_name', 
+                         'bills_party.bank_ac', 'bills_party.ifsc', 'bills_party.bankname', 'bills_party.ac_holder_name', 'bills_party.panno')
                 ->where('new_bill_entry.id', $id)
                 ->first();
 
