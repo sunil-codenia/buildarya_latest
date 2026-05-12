@@ -311,14 +311,27 @@ Route::prefix('v1')->group(function () {
         // Machinery
         Route::get('/machinery/summary', [ApiAssetMachineryController::class, 'machinerySummary']);
         Route::get('/machinery', [ApiAssetMachineryController::class, 'listMachinery']);
+        Route::get('/machinery-heads', [ApiAssetMachineryController::class, 'listMachineryHeads']);
+        Route::get('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'getMachineryHead']);
+        Route::post('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'updateMachineryHead']);
+        Route::delete('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'deleteMachineryHead']);
         Route::match(['get', 'post'], '/machinery/report', [ApiAssetMachineryController::class, 'machineryReport']);
         Route::get('/machinery/export/csv', [ApiAssetMachineryController::class, 'exportMachineryCsv']);
+        Route::get('/machinery/{id}', [ApiAssetMachineryController::class, 'getMachinery']);
+        Route::post('/machinery/{id}', [ApiAssetMachineryController::class, 'updateMachinery']);
+        Route::delete('/machinery/{id}', [ApiAssetMachineryController::class, 'deleteMachinery']);
         Route::post('/machinery', [ApiAssetMachineryController::class, 'storeMachinery']);
         Route::post('/machinery/heads', [ApiAssetMachineryController::class, 'storeMachineryHead']);
         Route::get('/machinery/{id}/documents', [ApiAssetMachineryController::class, 'machineryDocuments']);
         Route::post('/machinery/{id}/documents', [ApiAssetMachineryController::class, 'storeMachineryDocument']);
         Route::get('/machinery/{id}/services', [ApiAssetMachineryController::class, 'machineryServices']);
         Route::post('/machinery/{id}/services', [ApiAssetMachineryController::class, 'storeMachineryService']);
+        Route::get('/machinery/{id}/transfer-history', [ApiAssetMachineryController::class, 'machineryTransferHistory']);
+        Route::post('/machinery/{id}/transfer', [ApiAssetMachineryController::class, 'transferMachinery']);
+        Route::post('/machinery/{id}/sell', [ApiAssetMachineryController::class, 'sellMachinery']);
+        Route::get('/machinery-expense-heads', [ApiAssetMachineryController::class, 'listMachineryExpenseHeads']);
+        Route::post('/machinery-expense-heads', [ApiAssetMachineryController::class, 'storeMachineryExpenseHead']);
+        Route::delete('/machinery-expense-heads/{id}', [ApiAssetMachineryController::class, 'deleteMachineryExpenseHead']);
 
         // Users (Management)
         Route::get('/users', [ApiManagementController::class, 'listUsers']);

@@ -135,8 +135,9 @@ $dataarray = json_decode($data, true);
                         <tbody>
                             @php
                             $i=1;
+                            $display_heads = isset($dataarray['data']) ? $dataarray['data'] : $dataarray;
                             @endphp
-                            @foreach($dataarray as $dd)
+                            @foreach($display_heads as $dd)
                             @php
                             $ddid = $dd['id'];
                             @endphp

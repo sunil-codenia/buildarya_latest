@@ -169,31 +169,16 @@ class MachineryController extends Controller
     public function edit_machinery_head(Request $request)
     {
         $id = $request->get('id');
-        $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $data = DB::connection($user_db_conn_name)->table('machinery_head')->get();
+        $edit_data = DB::connection($user_db_conn_name)->table('machinery_head')->where('id', '=', $id)->get();
+        
+        $response = [
+            'data' => $data,
+            'edit_data' => $edit_data
+        ];
 
-
-
-        $role_id = session()->get('role');
-        $site_id = session()->get('site_id');
-        $role_details = getRoleDetailsById($role_id);
-        $visiblity_at_site = $role_details->visiblity_at_site;
-        if ($visiblity_at_site == 'current') {
-            $data['data'] = DB::connection($user_db_conn_name)->table('machinery_details')
-                ->select('machinery_details.site_id', 'machinery_details.head_id', DB::raw('COUNT(machinery_details.id) as count'))
-                ->where('machinery_details.status', '=', 'Working')->where('machinery_details.site_id', '=', $site_id)
-                ->groupBy('machinery_details.head_id', 'machinery_details.site_id')
-                ->get();
-        } else {
-            $data['data'] = DB::connection($user_db_conn_name)->table('machinery_details')
-                ->select('machinery_details.site_id', 'machinery_details.head_id', DB::raw('COUNT(machinery_details.id) as count'))
-                ->where('machinery_details.status', '=', 'Working')
-                ->groupBy('machinery_details.head_id', 'machinery_details.site_id')
-                ->get();
-        }
-
-        $data['edit_data'] = DB::connection($user_db_conn_name)->table('machinery_head')->where('id', '=', $id)->get();
-        return  view('layouts.machinery.head')->with('data', json_encode($data));
+        return  view('layouts.machinery.head')->with('data', json_encode($response))->with('showing_data','all');
     }
     public function delete_machinery_head(Request $request)
     {

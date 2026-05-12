@@ -141,6 +141,44 @@ class ApiAssetMachineryController extends Controller
         }
     }
 
+    public function listMachineryHeads(Request $request)
+    {
+        try {
+            $search = $request->get('search');
+            $export = $request->get('export');
+
+            $query = DB::table('machinery_head')->orderBy('id', 'desc');
+
+            if ($search) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "machinery_heads_" . time() . ".csv";
+                $headers = array(
+                    "Content-type" => "text/csv",
+                    "Content-Disposition" => "attachment; filename=$filename",
+                );
+
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->name]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $heads = $query->paginate(20);
+            return response()->json(['status' => 'Ok', 'data' => $heads]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function storeMachineryHead(Request $request)
     {
         $log = "BEFORE: " . json_encode($request->all()) . "\nCONTENT: " . $request->getContent();
@@ -211,12 +249,15 @@ class ApiAssetMachineryController extends Controller
                     "Expires" => "0"
                 );
 
-                $columns = array('ID', 'Name', 'Head', 'Site', 'Cost Price', 'Status', 'Sale Price');
+                $columns = array('ID', 'Name', 'Head', 'Site', 'Cost Price', 'Status', 'Sale Price', 'Next Service', 'Last Transfer', 'Purchase Date');
 
                 $callback = function() use ($results, $columns) {
                     $file = fopen('php://output', 'w');
                     fputcsv($file, $columns);
                     foreach ($results as $row) {
+                        $next_service = DB::table('machinery_services')->where('machinery_id', $row->id)->orderBy('id', 'desc')->value('next_service_on') ?? '';
+                        $last_transfer = DB::table('machinery_transaction')->where('machinery_id', $row->id)->orderBy('id', 'desc')->value('create_datetime') ?? $row->create_datetime;
+
                         fputcsv($file, array(
                             $row->id,
                             $row->name,
@@ -224,7 +265,10 @@ class ApiAssetMachineryController extends Controller
                             $row->site_name,
                             $row->cost_price,
                             $row->status,
-                            $row->sale_price ?? 'N/A'
+                            $row->sale_price ?? 'N/A',
+                            $next_service,
+                            $last_transfer,
+                            $row->create_datetime
                         ));
                     }
                     fclose($file);
@@ -233,6 +277,24 @@ class ApiAssetMachineryController extends Controller
             }
 
             $machinery = $query->paginate(20);
+
+            // Add calculated fields for JSON response
+            $machinery->getCollection()->transform(function($item) {
+                $item->next_service_on = DB::table('machinery_services')
+                    ->where('machinery_id', $item->id)
+                    ->orderBy('id', 'desc')
+                    ->value('next_service_on') ?? '';
+                
+                $item->last_transfer_date = DB::table('machinery_transaction')
+                    ->where('machinery_id', $item->id)
+                    ->orderBy('id', 'desc')
+                    ->value('create_datetime') ?? $item->create_datetime;
+                
+                $item->purchase_date = $item->create_datetime;
+                
+                return $item;
+            });
+
             return response()->json(['status' => 'Ok', 'data' => $machinery]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
@@ -304,41 +366,215 @@ class ApiAssetMachineryController extends Controller
     public function machineryReport(Request $request)
     {
         try {
-            $report_code = $request->get('type'); // 1: By Head, 2: By Site, 3: Date Range
+            $report_code = $request->get('type'); // 1-12
             $start_date = $request->get('start_date');
             $end_date = $request->get('end_date');
             $site_id = $request->get('site_id');
             $head_id = $request->get('head_id');
+            $search = $request->get('search');
+            $export = $request->get('export');
 
-            $query = DB::table('machinery_details')
-                ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
-                ->leftJoin('sites as ws', 'ws.id', '=', 'machinery_details.site_id')
-                ->leftJoin('expenses', 'expenses.id', '=', 'machinery_details.expense_id')
-                ->leftJoin('sites as ps', 'ps.id', '=', 'expenses.site_id')
-                ->leftJoin('users as u', 'u.id', '=', 'expenses.user_id')
-                ->leftJoin('bills_party', function ($join) {
-                    $join->on('expenses.party_id', '=', 'bills_party.id')
-                         ->where('expenses.party_type', '=', 'bill');
-                })
-                ->leftJoin('expense_party', function ($join) {
-                    $join->on('expenses.party_id', '=', 'expense_party.id')
-                         ->where('expenses.party_type', '=', 'expense');
-                })
-                ->selectRaw('machinery_details.*, ws.name as working_site, ps.name as purchase_site, machinery_head.name as head_name, expenses.date as purchase_date, u.name as user_name, CASE WHEN expenses.party_type = "bill" THEN bills_party.name WHEN expenses.party_type = "expense" THEN expense_party.name END AS supplier_name')
-                ->orderBy('machinery_details.id', 'desc');
+            $query = null;
+            $csv_headers = [];
 
-            if ($report_code == 1 && $head_id) {
-                $query->where('machinery_details.head_id', $head_id);
-            } elseif ($report_code == 2 && $site_id) {
-                $query->where('expenses.site_id', $site_id);
+            if (in_array($report_code, [1, 2, 3])) {
+                // Purchase Reports
+                $query = DB::table('machinery_details')
+                    ->leftjoin('sites as ws', 'ws.id', '=', 'machinery_details.site_id')
+                    ->leftjoin('expenses', 'expenses.id', '=', 'machinery_details.expense_id')
+                    ->leftjoin('sites as ps', 'ps.id', '=', 'expenses.site_id')
+                    ->leftjoin('users as u', 'u.id', '=', 'expenses.user_id')
+                    ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
+                    ->leftJoin('bills_party', function ($join) {
+                        $join->on('expenses.party_id', '=', 'bills_party.id')
+                             ->where('expenses.party_type', '=', 'bill');
+                    })
+                    ->leftJoin('expense_party', function ($join) {
+                        $join->on('expenses.party_id', '=', 'expense_party.id')
+                             ->where('expenses.party_type', '=', 'expense');
+                    })
+                    ->selectRaw('machinery_details.*, ws.name as working_site, ps.name as purchase_site, machinery_head.name as head_name, expenses.date as purchase_date, u.name as user_name, CASE WHEN expenses.party_type = "bill" THEN bills_party.name WHEN expenses.party_type = "expense" THEN expense_party.name END AS supplier_name');
+
+                if ($report_code == 1 && $head_id) $query->where('machinery_details.head_id', $head_id);
+                if ($report_code == 2 && $site_id) $query->where('expenses.site_id', $site_id);
+                if ($start_date && $end_date) $query->whereBetween('expenses.date', [$start_date, $end_date]);
+                
+                $csv_headers = ['ID', 'Name', 'Head', 'Working Site', 'Purchase Site', 'Supplier', 'Purchase Date', 'Cost Price'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->name, $data->head_name, $data->working_site, $data->purchase_site, $data->supplier_name, $data->purchase_date, $data->cost_price]);
+                };
+
+            } elseif (in_array($report_code, [4, 5, 6])) {
+                // Sale Reports
+                $query = DB::table('machinery_details')
+                    ->leftJoin('machinery_head', 'machinery_head.id', 'machinery_details.head_id')
+                    ->leftjoin('sites as ss', 'ss.id', '=', 'machinery_details.site_id')
+                    ->leftjoin('machinery_transaction as mt', 'mt.machinery_id', '=', 'machinery_details.id')
+                    ->selectRaw('machinery_details.*, ss.name as site_name, machinery_head.name as head_name, mt.create_datetime as sale_date')
+                    ->where('mt.transaction_type', 'Sold');
+
+                if ($report_code == 4 && $head_id) $query->where('machinery_details.head_id', $head_id);
+                if ($report_code == 5 && $site_id) $query->where('machinery_details.site_id', $site_id);
+                if ($start_date && $end_date) $query->whereBetween('mt.create_datetime', [$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
+
+                $csv_headers = ['ID', 'Name', 'Head', 'Sale Site', 'Sale Date', 'Cost Price', 'Sale Price'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->name, $data->head_name, $data->site_name, $data->sale_date, $data->cost_price, $data->sale_price]);
+                };
+
+            } elseif (in_array($report_code, [7, 8])) {
+                // Transfer Reports
+                $query = DB::table('machinery_transaction')
+                    ->leftJoin('machinery_details', 'machinery_details.id', '=', 'machinery_transaction.machinery_id')
+                    ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
+                    ->leftJoin('sites as fs', 'fs.id', '=', 'machinery_transaction.from_site')
+                    ->leftJoin('sites as ts', 'ts.id', '=', 'machinery_transaction.to_site')
+                    ->selectRaw('machinery_transaction.*, machinery_details.name as machinery_name, machinery_head.name as head_name, fs.name as from_site_name, ts.name as to_site_name')
+                    ->where('machinery_transaction.transaction_type', 'Transfer');
+
+                if ($report_code == 7 && $head_id) $query->where('machinery_details.head_id', $head_id);
+                if ($start_date && $end_date) $query->whereBetween('machinery_transaction.create_datetime', [$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
+
+                $csv_headers = ['Transaction ID', 'Machinery', 'Head', 'From Site', 'To Site', 'Transfer Date', 'Remark'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->machinery_name, $data->head_name, $data->from_site_name, $data->to_site_name, $data->create_datetime, $data->remark]);
+                };
+
+            } elseif (in_array($report_code, [11, 12])) {
+                // Service Reports
+                $query = DB::table('machinery_service')
+                    ->leftJoin('machinery_details', 'machinery_details.id', '=', 'machinery_service.machinery_id')
+                    ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
+                    ->leftJoin('sites', 'sites.id', '=', 'machinery_service.site_id')
+                    ->selectRaw('machinery_service.*, machinery_details.name as machinery_name, machinery_head.name as head_name, sites.name as site_name');
+
+                if ($report_code == 11 && $head_id) $query->where('machinery_details.head_id', $head_id);
+                if ($start_date && $end_date) $query->whereBetween('machinery_service.date', [$start_date, $end_date]);
+
+                $csv_headers = ['ID', 'Machinery', 'Head', 'Site', 'Service Date', 'Nature of Work', 'Remark'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->machinery_name, $data->head_name, $data->site_name, $data->date, $data->nature_of_work, $data->remark]);
+                };
+
+            } else {
+                // Default Machinery List
+                $query = DB::table('machinery_details')
+                    ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
+                    ->leftJoin('sites', 'sites.id', '=', 'machinery_details.site_id')
+                    ->select('machinery_details.*', 'sites.name as site_name', 'machinery_head.name as head_name');
+                
+                $csv_headers = ['ID', 'Name', 'Head', 'Current Site', 'Status', 'Cost Price'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->name, $data->head_name, $data->site_name, $data->status, $data->cost_price]);
+                };
             }
 
-            if ($start_date && $end_date) {
-                $query->whereBetween('expenses.date', [$start_date, $end_date]);
+            // Search Filter
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->where('machinery_details.name', 'LIKE', "%$search%");
+                    if (Schema::hasColumn('machinery_head', 'name')) {
+                        $q->orWhere('machinery_head.name', 'LIKE', "%$search%");
+                    }
+                });
             }
 
-            $data = $query->get();
-            return response()->json(['status' => 'Ok', 'data' => $data]);
+            $query->orderBy('id', 'desc');
+
+            $results = $query->get();
+
+            // Fetch filter options for the user
+            $filter_options = [
+                'sites' => DB::table('sites')->select('id', 'name')->where('status', 'Active')->get(),
+                'machinery_heads' => DB::table('machinery_head')->select('id', 'name')->get(),
+                'report_types' => [
+                    ['id' => 1, 'name' => 'Purchase Report by Head', 'requires' => 'head_id'],
+                    ['id' => 2, 'name' => 'Purchase Report by Site', 'requires' => 'site_id'],
+                    ['id' => 3, 'name' => 'Complete Purchase Report', 'requires' => 'none'],
+                    ['id' => 4, 'name' => 'Sale Report by Head', 'requires' => 'head_id'],
+                    ['id' => 5, 'name' => 'Sale Report by Site', 'requires' => 'site_id'],
+                    ['id' => 6, 'name' => 'Complete Sale Report', 'requires' => 'none'],
+                    ['id' => 7, 'name' => 'Transfer Report by Head', 'requires' => 'head_id'],
+                    ['id' => 8, 'name' => 'Complete Transfer Report', 'requires' => 'none'],
+                    ['id' => 11, 'name' => 'Service Report by Head', 'requires' => 'head_id'],
+                    ['id' => 12, 'name' => 'Complete Service Report', 'requires' => 'none'],
+                ]
+            ];
+
+            if ($export == 'csv') {
+                $filename = "machinery_report_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results, $csv_headers, $csv_callback) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, $csv_headers);
+                    foreach ($results as $row) {
+                        $csv_callback($file, $row);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json([
+                'status' => 'Ok', 
+                'data' => $results,
+                'filters' => $filter_options
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getMachineryHead($id)
+    {
+        try {
+            $head = DB::table('machinery_head')->where('id', $id)->first();
+            if (!$head) return response()->json(['status' => 'Error', 'message' => 'Machinery Head not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $head]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMachineryHead(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            $name = $request->input('name');
+            if (!$name) {
+                 $json = json_decode($request->getContent(), true);
+                 $name = $json['name'] ?? null;
+            }
+
+            if (!$name) return response()->json(['status' => 'Error', 'message' => 'Name is required'], 400);
+
+            DB::table('machinery_head')->where('id', $id)->update(['name' => $name]);
+            addActivity($id, 'machinery_head', "Machinery Head Updated via API", 6, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Machinery Head updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMachineryHead(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            $check = DB::table('machinery_details')->where('head_id', $id)->count();
+            if ($check > 0) {
+                return response()->json(['status' => 'Error', 'message' => 'Machinery Head is in use and cannot be deleted'], 400);
+            }
+
+            $head = DB::table('machinery_head')->where('id', $id)->first();
+            if (!$head) return response()->json(['status' => 'Error', 'message' => 'Machinery Head not found'], 404);
+
+            DB::table('machinery_head')->where('id', $id)->delete();
+            addActivity(0, 'machinery_head', "Machinery Head Deleted via API - " . $head->name, 6, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Machinery Head deleted successfully']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
@@ -393,6 +629,63 @@ class ApiAssetMachineryController extends Controller
     // MACHINERY DOCUMENTS & SERVICES
     // ==========================================
 
+    public function getMachinery($id)
+    {
+        try {
+            $machinery = DB::table('machinery_details')
+                ->leftJoin('sites', 'sites.id', '=', 'machinery_details.site_id')
+                ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
+                ->select('machinery_details.*', 'sites.name as site_name', 'machinery_head.name as head_name')
+                ->where('machinery_details.id', $id)
+                ->first();
+
+            if (!$machinery) return response()->json(['status' => 'Error', 'message' => 'Machinery not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $machinery]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMachinery(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            $data = $request->only(['name', 'head_id', 'site_id', 'cost_price', 'status', 'sale_price']);
+            
+            // Fallback for raw JSON if body not parsed
+            if (empty($data) && !empty($request->getContent())) {
+                $json = json_decode($request->getContent(), true);
+                if ($json) {
+                    $data = array_intersect_key($json, array_flip(['name', 'head_id', 'site_id', 'cost_price', 'status', 'sale_price']));
+                }
+            }
+
+            if (empty($data)) return response()->json(['status' => 'Error', 'message' => 'No data provided'], 400);
+
+            DB::table('machinery_details')->where('id', $id)->update($data);
+            addActivity($id, 'machinery_details', "Machinery Updated via API", 6, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Machinery updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMachinery(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            DB::table('machinery_details')->where('id', $id)->delete();
+            addActivity($id, 'machinery_details', "Machinery Deleted via API", 6, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Machinery deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function machineryDocuments($id)
     {
         try {
@@ -436,11 +729,28 @@ class ApiAssetMachineryController extends Controller
         }
     }
 
-    public function machineryServices($id)
+    public function machineryServices(Request $request, $id)
     {
         try {
-            $services = DB::table('machinery_services')->where('machinery_id', $id)->orderBy('create_date', 'desc')->get();
-            return response()->json(['status' => 'Ok', 'data' => $services]);
+            $export = $request->get('export');
+            $query = DB::table('machinery_services')->where('machinery_id', $id)->orderBy('create_date', 'desc');
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "machinery_service_history_" . $id . "_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Service Date', 'Next Service', 'Items', 'Remark']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->create_date, $row->next_service_on, $row->maintainence_item, $row->remark]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $query->get()]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
@@ -481,6 +791,203 @@ class ApiAssetMachineryController extends Controller
             addActivity($serviceId, 'machinery_services', "New Service Record via API", 6, $user->id, $conn);
 
             return response()->json(['status' => 'Ok', 'message' => 'Service record added successfully', 'id' => $serviceId]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function machineryTransferHistory(Request $request, $id)
+    {
+        try {
+            $export = $request->get('export');
+            $query = DB::table('machinery_transaction')
+                ->leftJoin('sites as fs', 'fs.id', '=', 'machinery_transaction.from_site')
+                ->leftJoin('sites as ts', 'ts.id', '=', 'machinery_transaction.to_site')
+                ->select('machinery_transaction.*', 'fs.name as from_site_name', 'ts.name as to_site_name')
+                ->where('machinery_id', $id)
+                ->orderBy('id', 'desc');
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "machinery_transfer_history_" . $id . "_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'From Site', 'To Site', 'Type', 'Remark', 'Date']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->from_site_name ?? 'N/A', $row->to_site_name ?? 'N/A', $row->transaction_type, $row->remark, $row->create_datetime]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $query->get()]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function transferMachinery(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'to_site' => 'required',
+            'remark' => 'nullable'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            return DB::transaction(function () use ($request, $id, $user, $conn) {
+                $machinery = DB::table('machinery_details')->where('id', $id)->first();
+                if (!$machinery) return response()->json(['status' => 'Error', 'message' => 'Machinery not found'], 404);
+
+                $from_site = $machinery->site_id;
+                $to_site = $request->to_site;
+
+                DB::table('machinery_transaction')->insert([
+                    'machinery_id' => $id,
+                    'from_site' => $from_site,
+                    'to_site' => $to_site,
+                    'transaction_type' => 'Transfer',
+                    'remark' => $request->remark ?? 'Transferred via API',
+                    'create_datetime' => now()
+                ]);
+
+                DB::table('machinery_details')->where('id', $id)->update(['site_id' => $to_site]);
+                addActivity($id, 'machinery_details', "Machinery Transferred from Site $from_site to Site $to_site via API", 6, $user->id, $conn);
+
+                return response()->json(['status' => 'Ok', 'message' => 'Machinery transferred successfully']);
+            });
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function sellMachinery(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'sale_price' => 'required|numeric',
+            'remark' => 'nullable'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            DB::table('machinery_details')->where('id', $id)->update([
+                'status' => 'Sold',
+                'sale_price' => $request->sale_price
+            ]);
+
+            DB::table('machinery_transaction')->insert([
+                'machinery_id' => $id,
+                'transaction_type' => 'Sale',
+                'remark' => $request->remark ?? 'Sold via API',
+                'create_datetime' => now()
+            ]);
+
+            addActivity($id, 'machinery_details', "Machinery Sold for " . $request->sale_price . " via API", 6, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Machinery marked as Sold successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function listMachineryExpenseHeads(Request $request)
+    {
+        try {
+            $search = $request->get('search');
+            $export = $request->get('export');
+
+            $query = DB::table('machinery_expense_head')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'machinery_expense_head.head_id')
+                ->select('machinery_expense_head.*', 'expense_head.name as head_name')
+                ->orderBy('machinery_expense_head.id', 'desc');
+
+            if ($search) {
+                $query->where('expense_head.name', 'LIKE', "%{$search}%");
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "machinery_expense_heads_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Expense Head Name']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->head_name]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $query->paginate(20)]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeMachineryExpenseHead(Request $request)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->merge($json);
+        }
+
+        $request->validate([
+            'head_id' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            // Manual check for existence in tenant DB
+            $head_exists = DB::table('expense_head')->where('id', $request->head_id)->exists();
+            if (!$head_exists) {
+                return response()->json([
+                    'message' => 'The given data was invalid.',
+                    'errors' => ['head_id' => ['The selected head id is invalid.']]
+                ], 422);
+            }
+
+            $exists = DB::table('machinery_expense_head')->where('head_id', $request->head_id)->exists();
+            if ($exists) return response()->json(['status' => 'Error', 'message' => 'Expense Head already added to machinery'], 400);
+
+            $id = DB::table('machinery_expense_head')->insertGetId(['head_id' => $request->head_id]);
+            addActivity($id, 'machinery_expense_head', "New Machinery Expense Head Added via API", 6, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Expense Head added successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMachineryExpenseHead(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            DB::table('machinery_expense_head')->where('id', $id)->delete();
+            addActivity($id, 'machinery_expense_head', "Machinery Expense Head Deleted via API", 6, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Expense Head deleted successfully']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
