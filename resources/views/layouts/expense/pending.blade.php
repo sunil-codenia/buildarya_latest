@@ -37,7 +37,7 @@
                                 <table id="pendingExpenseTable" class="table table-hover">
                                     <thead>
                                         <tr>
-                                            <th><input type="checkbox" id="select_all"></th>
+                                            <th><input type="checkbox" id="select_all" onclick="selectAll(this)"></th>
                                             <th>#</th>
                                             <th>Party</th>
                                             <th>Head</th>
@@ -185,17 +185,26 @@
 @endsection
 @section('scripts')
     <script>
-        $('#select_all').on('click', function() {
-            if (this.checked) {
-                $('.check_item').each(function() {
-                    this.checked = true;
-                });
-            } else {
-                $('.check_item').each(function() {
-                    this.checked = false;
-                });
+        function selectAll(source) {
+            var checkboxes = document.getElementsByClassName('check_item');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = source.checked;
             }
-        });
+        }
+
+        function updateSelectAll() {
+            var source = document.getElementById('select_all');
+            var checkboxes = document.getElementsByClassName('check_item');
+            var allChecked = true;
+            if (checkboxes.length == 0) allChecked = false;
+            for (var i = 0; i < checkboxes.length; i++) {
+                if (!checkboxes[i].checked) {
+                    allChecked = false;
+                    break;
+                }
+            }
+            source.checked = allChecked;
+        }
 
         function editexpense(id) {
             Swal.fire({
@@ -301,18 +310,6 @@
             $('#machinery_head_expense_id').val(id);
             $('#assignmachineryhead').modal();
         }
-
-        $("#select_all").click(function() {
-            $('.check_item').prop('checked', this.checked);
-        });
-
-        $(document).on('change', '.check_item', function() {
-            if ($('.check_item:checked').length == $('.check_item').length) {
-                $('#select_all').prop('checked', true);
-            } else {
-                $('#select_all').prop('checked', false);
-            }
-        });
 
         $(document).ready(function() {
             var newExportAction = function (e, dt, button, config) {

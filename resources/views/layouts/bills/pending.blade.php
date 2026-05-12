@@ -25,6 +25,7 @@
                      
                         <thead>
                             <tr>           
+                                <th><input type="checkbox" id="select_all" onclick="selectAll(this)"></th>
                                 <th>#</th>                            
                                 <th >Party</th>
                                 <th>Bill No</th>
@@ -84,7 +85,7 @@
                                             {{$dd['remark']}}
                                         </td>
                                         <td>
-                                            <input type="checkbox" name="check_list[]" value="{{$dd['id']}}"> 
+                                            <input type="checkbox" name="check_list[]" class="check_item" value="{{$dd['id']}}" onclick="updateSelectAll()"> 
                                             &nbsp;
                                             <?php
                                             $ddid = $dd['id'];
@@ -114,6 +115,27 @@
     </div>
 </div>
 <script>
+        function selectAll(source) {
+            var checkboxes = document.getElementsByClassName('check_item');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = source.checked;
+            }
+        }
+
+        function updateSelectAll() {
+            var source = document.getElementById('select_all');
+            var checkboxes = document.getElementsByClassName('check_item');
+            var allChecked = true;
+            if (checkboxes.length == 0) allChecked = false;
+            for (var i = 0; i < checkboxes.length; i++) {
+                if (!checkboxes[i].checked) {
+                    allChecked = false;
+                    break;
+                }
+            }
+            source.checked = allChecked;
+        }
+
          function editbill(id) {
          Swal.fire({
             title: 'Are you sure?',

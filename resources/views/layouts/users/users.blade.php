@@ -325,11 +325,8 @@
                                             </select>
                                         </div>
                                         <div class="col-sm-6"><b>Company</b>
-                                            <select name="company_id" class="form-control show-tick" data-live-search="true" required>
-                                                @foreach (getallCompanies() as $comp)
-                                                    <option value="{{ $comp->id }}">{{ $comp->name }}</option>
-                                                @endforeach
-                                            </select>
+                                            <input type="text" class="form-control" value="{{ session()->get('comp_name') }}" readonly>
+                                            <input type="hidden" name="company_id" value="{{ session()->get('comp_db_id') }}">
                                         </div>
                                     </div>
                                     <div class="row clearfix m-t-15">

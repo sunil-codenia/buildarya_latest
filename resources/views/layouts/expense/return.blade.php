@@ -57,12 +57,15 @@
 
 @section('scripts')
     <script>
-        $('#select_all').on('click', function() {
-            $('.check_item').prop('checked', this.checked);
+        $(document).on('change', '#select_all', function() {
+            var status = this.checked;
+            $('.check_item').each(function() {
+                $(this).prop('checked', status);
+            });
         });
 
         $(document).on('change', '.check_item', function() {
-            if ($('.check_item:checked').length == $('.check_item').length) {
+            if ($('.check_item:checked').length == $('.check_item').length && $('.check_item').length > 0) {
                 $('#select_all').prop('checked', true);
             } else {
                 $('#select_all').prop('checked', false);

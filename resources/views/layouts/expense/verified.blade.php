@@ -78,7 +78,7 @@
                                         <tr>
                                             <th style="width: 20px;">
                                                 <div class="checkbox">
-                                                    <input id="select_all_verified" type="checkbox" onclick="setTimeout(toggleBulkActions, 50)">
+                                                    <input id="select_all_verified" type="checkbox" onclick="selectAllVerified(this)">
                                                     <label for="select_all_verified">&nbsp;</label>
                                                 </div>
                                             </th>
@@ -113,7 +113,7 @@
                                         <tr>
                                             <td style="padding-left: 10px;">
                                                 <div class="checkbox">
-                                                    <input id="check_{{ $ddid }}" name="check_list[]" class="item_checkbox" type="checkbox" value="{{ $ddid }}" onclick="toggleBulkActions()">
+                                                    <input id="check_{{ $ddid }}" name="check_list[]" class="item_checkbox" type="checkbox" value="{{ $ddid }}" onclick="updateSelectAllVerified()">
                                                     <label for="check_{{ $ddid }}">&nbsp;</label>
                                                 </div>
                                             </td>
@@ -324,19 +324,29 @@
             }
         };
 
-        $("#select_all_verified").click(function() {
-            $('.item_checkbox').prop('checked', this.checked);
-            toggleBulkActions();
-        });
-
-        $(document).on('change', '.item_checkbox', function() {
-            toggleBulkActions();
-            if ($('.item_checkbox:checked').length == $('.item_checkbox').length) {
-                $('#select_all_verified').prop('checked', true);
-            } else {
-                $('#select_all_verified').prop('checked', false);
+        function selectAllVerified(source) {
+            var checkboxes = document.getElementsByClassName('item_checkbox');
+            for (var i = 0; i < checkboxes.length; i++) {
+                checkboxes[i].checked = source.checked;
             }
-        });
+            toggleBulkActions();
+        }
+
+        function updateSelectAllVerified() {
+            var source = document.getElementById('select_all_verified');
+            var checkboxes = document.getElementsByClassName('item_checkbox');
+            var allChecked = true;
+            if (checkboxes.length == 0) allChecked = false;
+            for (var i = 0; i < checkboxes.length; i++) {
+                if (!checkboxes[i].checked) {
+                    allChecked = false;
+                    break;
+                }
+            }
+            source.checked = allChecked;
+            toggleBulkActions();
+        }
+
 
         function submitBulkEdit() {
             $("#bulkActionForm").attr('action', "{{ url('/pending_expense/bulk_edit_expense') }}");

@@ -399,7 +399,7 @@ class ExpenseController extends Controller
         foreach ($data as $row) {
             $ddid = $row->id;
             
-            $checkbox = '<input type="checkbox" name="check_list[]" class="check_item" value="'.$ddid.'" onclick="event.stopPropagation()">';
+            $checkbox = '<input type="checkbox" name="check_list[]" class="check_item" value="'.$ddid.'" onclick="event.stopPropagation(); updateSelectAll()">';
             
             $partyName = htmlspecialchars(getExpensePartyNameByPartyType($row->party_id, $row->party_type));
             $headName = htmlspecialchars((string) $row->head);
@@ -570,7 +570,7 @@ class ExpenseController extends Controller
         foreach ($data as $row) {
             $ddid = $row->id;
             
-            $checkbox = '<input type="checkbox" name="check_list[]" class="check_item" value="'.$ddid.'" onclick="event.stopPropagation()">';
+            $checkbox = '<input type="checkbox" name="check_list[]" class="check_item" value="'.$ddid.'" onclick="event.stopPropagation(); updateSelectAll()">';
             
             $partyName = htmlspecialchars(getExpensePartyNameByPartyType($row->party_id, $row->party_type));
             $headName = htmlspecialchars((string) $row->head);

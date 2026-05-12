@@ -50,13 +50,13 @@
                             <thead>
                                 <tr style="text-align: center;">
                                     <th>Module </th>
-                                    <th>View (Sidebar Access)</th>
-                                    <th>Add</th>
-                                    <th>Edit</th>
-                                    <th>Approve / Certify</th>
-                                    <th>Delete</th>
-                                    <th>Pay</th>
-                                    <th>Generate Report</th>
+                                    <th>View (Sidebar Access)<br><small class="text-muted" style="font-size: 9px; display: block; font-weight: normal; line-height: 1.1; margin-top: 4px;">List & Sidebar access</small></th>
+                                    <th>Add<br><small class="text-muted" style="font-size: 9px; display: block; font-weight: normal; line-height: 1.1; margin-top: 4px;">Create new entries</small></th>
+                                    <th>Edit<br><small class="text-muted" style="font-size: 9px; display: block; font-weight: normal; line-height: 1.1; margin-top: 4px;">Update existing data</small></th>
+                                    <th>Approve / Certify<br><small class="text-muted" style="font-size: 9px; display: block; font-weight: normal; line-height: 1.1; margin-top: 4px;">Authorize/Verify actions</small></th>
+                                    <th>Delete<br><small class="text-muted" style="font-size: 9px; display: block; font-weight: normal; line-height: 1.1; margin-top: 4px;">Remove entries</small></th>
+                                    <th>Pay<br><small class="text-muted" style="font-size: 9px; display: block; font-weight: normal; line-height: 1.1; margin-top: 4px;">Process transactions</small></th>
+                                    <th>Generate Report<br><small class="text-muted" style="font-size: 9px; display: block; font-weight: normal; line-height: 1.1; margin-top: 4px;">Export data/reports</small></th>
                                 </tr>
                             </thead>
                             <tbody>
