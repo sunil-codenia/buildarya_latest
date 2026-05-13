@@ -997,10 +997,37 @@ class ApiAssetMachineryController extends Controller
         }
     }
 
-    public function machineryDocuments($id)
+    public function machineryDocuments(Request $request, $id)
     {
         try {
-            $docs = DB::table('machinery_documents')->where('machinery_id', $id)->get();
+            $search = $request->get('search');
+            $export = $request->get('export');
+
+            $query = DB::table('machinery_documents')->where('machinery_id', $id)->orderBy('id', 'desc');
+
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('remark', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "machinery_docs_" . $id . "_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name', 'Issue Date', 'End Date', 'Remark', 'Attachment']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->name, $row->issue_date, $row->end_date, $row->remark, url($row->attachment)]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $docs = $query->get();
             return response()->json(['status' => 'Ok', 'data' => $docs]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
@@ -1012,7 +1039,9 @@ class ApiAssetMachineryController extends Controller
         $request->validate([
             'name' => 'required',
             'issue_date' => 'required|date',
-            'attachment' => 'required|file'
+            'end_date' => 'nullable|date',
+            'attachment' => 'required|file',
+            'remark' => 'nullable'
         ]);
 
         try {
@@ -1035,6 +1064,60 @@ class ApiAssetMachineryController extends Controller
 
             addActivity($docId, 'machinery_documents', "New Doc Uploaded via API: " . $request->name, 6, $user->id, $conn);
             return response()->json(['status' => 'Ok', 'message' => 'Document uploaded successfully', 'id' => $docId]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getMachineryDocument($id)
+    {
+        try {
+            $doc = DB::table('machinery_documents')->where('id', $id)->first();
+            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $doc]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMachineryDocument(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            $doc = DB::table('machinery_documents')->where('id', $id)->first();
+
+            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found'], 404);
+
+            $data = $request->only(['name', 'issue_date', 'end_date', 'remark']);
+            
+            if ($request->hasFile('attachment')) {
+                $file = $request->file('attachment');
+                $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                $file->move(public_path('images/app_images/' . $conn . '/machinery_doc'), $imageName);
+                $data['attachment'] = "images/app_images/" . $conn . "/machinery_doc/" . $imageName;
+            }
+
+            DB::table('machinery_documents')->where('id', $id)->update($data);
+            addActivity($id, 'machinery_documents', "Machinery Doc Updated via API", 6, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Document updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMachineryDocument(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            $doc = DB::table('machinery_documents')->where('id', $id)->first();
+
+            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found'], 404);
+
+            DB::table('machinery_documents')->where('id', $id)->delete();
+            addActivity(0, 'machinery_documents', "Machinery Doc Deleted via API - " . $doc->name, 6, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Document deleted successfully']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
