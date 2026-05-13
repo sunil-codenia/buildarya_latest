@@ -451,10 +451,15 @@ class ApiAssetMachineryController extends Controller
             $search = $request->get('search');
             $export = $request->get('export');
 
-            $query = DB::table('machinery_head')->orderBy('id', 'desc');
+            $query = DB::table('machinery_head')
+                ->select('machinery_head.*')
+                ->selectSub(function($q) {
+                    $q->from('machinery_details')->whereColumn('machinery_details.head_id', 'machinery_head.id')->selectRaw('count(*)');
+                }, 'machinery_count')
+                ->orderBy('machinery_head.id', 'desc');
 
             if ($search) {
-                $query->where('name', 'LIKE', "%{$search}%");
+                $query->where('machinery_head.name', 'LIKE', "%{$search}%");
             }
 
             if ($export == 'csv') {
@@ -467,9 +472,9 @@ class ApiAssetMachineryController extends Controller
 
                 $callback = function() use ($results) {
                     $file = fopen('php://output', 'w');
-                    fputcsv($file, ['ID', 'Name']);
+                    fputcsv($file, ['ID', 'Name', 'Machinery Count']);
                     foreach ($results as $row) {
-                        fputcsv($file, [$row->id, $row->name]);
+                        fputcsv($file, [$row->id, $row->name, $row->machinery_count]);
                     }
                     fclose($file);
                 };
@@ -827,7 +832,14 @@ class ApiAssetMachineryController extends Controller
     public function getMachineryHead($id)
     {
         try {
-            $head = DB::table('machinery_head')->where('id', $id)->first();
+            $head = DB::table('machinery_head')
+                ->select('machinery_head.*')
+                ->selectSub(function($q) {
+                    $q->from('machinery_details')->whereColumn('machinery_details.head_id', 'machinery_head.id')->selectRaw('count(*)');
+                }, 'machinery_count')
+                ->where('machinery_head.id', $id)
+                ->first();
+
             if (!$head) return response()->json(['status' => 'Error', 'message' => 'Machinery Head not found'], 404);
             return response()->json(['status' => 'Ok', 'data' => $head]);
         } catch (\Exception $e) {
