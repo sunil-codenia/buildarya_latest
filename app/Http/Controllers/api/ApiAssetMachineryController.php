@@ -485,17 +485,12 @@ class ApiAssetMachineryController extends Controller
 
     public function storeMachineryHead(Request $request)
     {
-        $log = "BEFORE: " . json_encode($request->all()) . "\nCONTENT: " . $request->getContent();
-        
         if (!$request->has('name') && !empty($request->getContent())) {
             $json = json_decode($request->getContent(), true);
             if ($json) {
                 $request->request->add($json); // Add to ParameterBag
             }
         }
-        
-        $log .= "\nAFTER: " . json_encode($request->all());
-        file_put_contents('/home/codenia/rsg/buildarya_front_backend29April/scratch/debug_request.txt', $log);
 
         $request->validate([
             'name' => 'required|unique:machinery_head,name'
