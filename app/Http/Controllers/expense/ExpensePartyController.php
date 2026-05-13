@@ -219,8 +219,7 @@ class ExpensePartyController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        $data['data'] = [];
-        $data['data']['cost_categories'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
+        $data['cost_categories'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $id)->get();
         return  view('layouts.expense.party')->with('data', json_encode($data));
     }

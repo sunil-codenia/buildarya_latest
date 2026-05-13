@@ -32,8 +32,13 @@ class ApiAssetMachineryController extends Controller
         try {
             $user = $request->user();
             $head_id = $request->get('head_id');
-            $site_id = $request->get('site_id', $user->site_id);
+            $requested_site = $request->get('site_id');
             $status = $request->get('status', 'Working');
+            $search = $request->get('search');
+            $export = $request->get('export');
+
+            // Default to 'all' if no site_id is provided
+            $site_id = $requested_site ?? 'all';
 
             $query = DB::table('assets')
                 ->leftJoin('sites', 'sites.id', '=', 'assets.site_id')
@@ -43,7 +48,42 @@ class ApiAssetMachineryController extends Controller
 
             if ($head_id) $query->where('assets.head_id', $head_id);
             if ($site_id && $site_id != 'all') $query->where('assets.site_id', $site_id);
-            if ($status) $query->where('assets.status', $status);
+            if ($status && $status != 'all') $query->where('assets.status', $status);
+            
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->where('assets.name', 'LIKE', "%{$search}%")
+                      ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                      ->orWhere('asset_head.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "assets_report_" . time() . ".csv";
+                $headers = array(
+                    "Content-type" => "text/csv",
+                    "Content-Disposition" => "attachment; filename=$filename",
+                );
+
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name', 'Head', 'Site', 'Cost Price', 'Status', 'Purchase Date']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [
+                            $row->id, 
+                            $row->name, 
+                            $row->head_name, 
+                            $row->site_name, 
+                            $row->cost_price, 
+                            $row->status,
+                            $row->create_datetime ?? 'N/A'
+                        ]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
 
             $assets = $query->paginate(20);
             return response()->json(['status' => 'Ok', 'data' => $assets]);
@@ -54,6 +94,12 @@ class ApiAssetMachineryController extends Controller
 
     public function storeAsset(Request $request)
     {
+        // Handle JSON body if not automatically parsed
+        if (!$request->has('name') && !empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
         $request->validate([
             'name' => 'required',
             'head_id' => 'required',
@@ -92,6 +138,12 @@ class ApiAssetMachineryController extends Controller
 
     public function transferAsset(Request $request, $id)
     {
+        // Handle JSON body if not automatically parsed
+        if (!$request->has('to_site') && !empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
         $request->validate([
             'to_site' => 'required',
             'remark' => 'nullable'
@@ -119,6 +171,258 @@ class ApiAssetMachineryController extends Controller
                 addActivity($id, 'assets', "Asset Transferred to site: " . $request->to_site, 5, $user->id, $conn);
                 return response()->json(['status' => 'Ok', 'message' => 'Asset transferred successfully']);
             });
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function assetTransferHistory(Request $request)
+    {
+        try {
+            $asset_id = $request->get('asset_id');
+            $search = $request->get('search');
+            $export = $request->get('export');
+
+            $query = DB::table('asset_transaction')
+                ->leftJoin('assets', 'assets.id', '=', 'asset_transaction.asset_id')
+                ->leftJoin('sites as from_sites', 'from_sites.id', '=', 'asset_transaction.from_site')
+                ->leftJoin('sites as to_sites', 'to_sites.id', '=', 'asset_transaction.to_site')
+                ->select('asset_transaction.*', 'assets.name as asset_name', 'from_sites.name as from_site_name', 'to_sites.name as to_site_name')
+                ->orderBy('asset_transaction.id', 'desc');
+
+            if ($asset_id) {
+                $query->where('asset_transaction.asset_id', $asset_id);
+            }
+
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->where('assets.name', 'LIKE', "%{$search}%")
+                      ->orWhere('asset_transaction.remark', 'LIKE', "%{$search}%")
+                      ->orWhere('asset_transaction.transaction_type', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "asset_transfer_history_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Asset', 'Type', 'From Site', 'To Site', 'Remark', 'Date']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [
+                            $row->id, 
+                            $row->asset_name, 
+                            $row->transaction_type, 
+                            $row->from_site_name ?? 'N/A', 
+                            $row->to_site_name ?? 'N/A', 
+                            $row->remark, 
+                            $row->create_datetime ?? 'N/A'
+                        ]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $history = $query->paginate(20);
+            return response()->json(['status' => 'Ok', 'data' => $history]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function sellAsset(Request $request, $id)
+    {
+        // Handle JSON body if not automatically parsed
+        if (!$request->has('sold_value') && !empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'sold_value' => 'required|numeric',
+            'remark' => 'nullable',
+            'date' => 'required|date'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            $asset = DB::table('assets')->where('id', $id)->first();
+
+            if (!$asset) return response()->json(['status' => 'Failed', 'message' => 'Asset not found'], 404);
+            if ($asset->status == 'Sold') return response()->json(['status' => 'Failed', 'message' => 'Asset already sold'], 400);
+
+            return DB::transaction(function () use ($id, $asset, $request, $user, $conn) {
+                $sold_value = $request->sold_value;
+                $remark = $request->remark;
+                $date = $request->date;
+
+                // Update Asset
+                DB::table('assets')->where('id', $id)->update([
+                    'status' => 'Sold',
+                    'sale_price' => $sold_value
+                ]);
+
+                // Record Transaction
+                DB::table('asset_transaction')->insert([
+                    'asset_id' => $id,
+                    'from_site' => $asset->site_id,
+                    'transaction_type' => 'Sold',
+                    'remark' => $remark,
+                    'create_datetime' => Carbon::now()
+                ]);
+
+                // Update Site Balance (Matches addsitesBalance logic)
+                $pay_id = DB::table('site_payments')->insertGetId([
+                    'site_id' => $asset->site_id,
+                    'amount' => $sold_value,
+                    'remark' => "Asset Sold - " . ($remark ?? $asset->name),
+                    'date' => $date
+                ]);
+
+                DB::table('sites_transaction')->insert([
+                    'site_id' => $asset->site_id,
+                    'type' => 'Credit',
+                    'payment_id' => $pay_id,
+                    'create_datetime' => Carbon::now()
+                ]);
+
+                addActivity($id, 'assets', "Asset Sold For Amount - " . $sold_value, 5, $user->id, $conn);
+                addActivity($pay_id, 'site_payments', "Payment Created At Site By Selling Asset.", 1, $user->id, $conn);
+
+                return response()->json(['status' => 'Ok', 'message' => 'Asset sold successfully']);
+            });
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function listAssetHeads(Request $request)
+    {
+        try {
+            $search = $request->get('search');
+            $export = $request->get('export');
+
+            $query = DB::table('asset_head')
+                ->select('asset_head.*')
+                ->selectSub(function($q) {
+                    $q->from('assets')->whereColumn('assets.head_id', 'asset_head.id')->selectRaw('count(*)');
+                }, 'assets_count')
+                ->orderBy('asset_head.id', 'desc');
+
+            if ($search) {
+                $query->where('asset_head.name', 'LIKE', "%{$search}%");
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "asset_heads_" . time() . ".csv";
+                $headers = array(
+                    "Content-type" => "text/csv",
+                    "Content-Disposition" => "attachment; filename=$filename",
+                );
+
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name', 'Assets Count']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->name, $row->assets_count]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $heads = $query->paginate(20);
+            return response()->json(['status' => 'Ok', 'data' => $heads]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getAssetHead($id)
+    {
+        try {
+            $head = DB::table('asset_head')
+                ->select('asset_head.*')
+                ->selectSub(function($q) {
+                    $q->from('assets')->whereColumn('assets.head_id', 'asset_head.id')->selectRaw('count(*)');
+                }, 'assets_count')
+                ->where('asset_head.id', $id)
+                ->first();
+                
+            if (!$head) return response()->json(['status' => 'Error', 'message' => 'Asset Head not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $head]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeAssetHead(Request $request)
+    {
+        // Handle JSON body if not automatically parsed
+        if (!$request->has('name') && !empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'name' => 'required|unique:asset_head,name'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            $id = DB::table('asset_head')->insertGetId(['name' => $request->name]);
+            addActivity($id, 'asset_head', "New Asset Head Created via API: " . $request->name, 5, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Asset head created successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateAssetHead(Request $request, $id)
+    {
+        // Handle JSON body if not automatically parsed
+        if (!$request->has('name') && !empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            $name = $request->input('name');
+            if (!$name) return response()->json(['status' => 'Error', 'message' => 'Name is required'], 400);
+
+            DB::table('asset_head')->where('id', $id)->update(['name' => $name]);
+            addActivity($id, 'asset_head', "Asset Head Updated via API", 5, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Asset Head updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteAssetHead(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            $check = DB::table('assets')->where('head_id', $id)->count();
+            if ($check > 0) {
+                return response()->json(['status' => 'Error', 'message' => 'Asset Head is in use and cannot be deleted'], 400);
+            }
+
+            $head = DB::table('asset_head')->where('id', $id)->first();
+            if (!$head) return response()->json(['status' => 'Error', 'message' => 'Asset Head not found'], 404);
+
+            DB::table('asset_head')->where('id', $id)->delete();
+            addActivity(0, 'asset_head', "Asset Head Deleted via API - " . $head->name, 5, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Asset Head deleted successfully']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }

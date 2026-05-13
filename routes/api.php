@@ -304,31 +304,40 @@ Route::prefix('v1')->group(function () {
 
         // Assets
         Route::get('/assets/summary', [ApiAssetMachineryController::class, 'assetSummary']);
+        Route::get('/assets/transfer-history', [ApiAssetMachineryController::class, 'assetTransferHistory']);
         Route::get('/assets', [ApiAssetMachineryController::class, 'listAssets']);
         Route::post('/assets', [ApiAssetMachineryController::class, 'storeAsset']);
         Route::post('/assets/{id}/transfer', [ApiAssetMachineryController::class, 'transferAsset']);
+        Route::post('/assets/{id}/sell', [ApiAssetMachineryController::class, 'sellAsset']);
+
+        // Asset Heads (Management)
+        Route::get('/asset-heads', [ApiAssetMachineryController::class, 'listAssetHeads']);
+        Route::get('/asset-heads/{id}', [ApiAssetMachineryController::class, 'getAssetHead']);
+        Route::post('/asset-heads', [ApiAssetMachineryController::class, 'storeAssetHead']);
+        Route::post('/asset-heads/{id}', [ApiAssetMachineryController::class, 'updateAssetHead']);
+        Route::delete('/asset-heads/{id}', [ApiAssetMachineryController::class, 'deleteAssetHead']);
 
         // Machinery
         Route::get('/machinery/summary', [ApiAssetMachineryController::class, 'machinerySummary']);
         Route::get('/machinery', [ApiAssetMachineryController::class, 'listMachinery']);
         Route::get('/machinery-heads', [ApiAssetMachineryController::class, 'listMachineryHeads']);
-        Route::get('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'getMachineryHead']);
-        Route::post('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'updateMachineryHead']);
-        Route::delete('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'deleteMachineryHead']);
+        Route::get('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'getMachineryHead'])->where('id', '[0-9]+');
+        Route::post('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'updateMachineryHead'])->where('id', '[0-9]+');
+        Route::delete('/machinery-heads/{id}', [ApiAssetMachineryController::class, 'deleteMachineryHead'])->where('id', '[0-9]+');
         Route::match(['get', 'post'], '/machinery/report', [ApiAssetMachineryController::class, 'machineryReport']);
         Route::get('/machinery/export/csv', [ApiAssetMachineryController::class, 'exportMachineryCsv']);
-        Route::get('/machinery/{id}', [ApiAssetMachineryController::class, 'getMachinery']);
-        Route::post('/machinery/{id}', [ApiAssetMachineryController::class, 'updateMachinery']);
-        Route::delete('/machinery/{id}', [ApiAssetMachineryController::class, 'deleteMachinery']);
-        Route::post('/machinery', [ApiAssetMachineryController::class, 'storeMachinery']);
         Route::post('/machinery/heads', [ApiAssetMachineryController::class, 'storeMachineryHead']);
-        Route::get('/machinery/{id}/documents', [ApiAssetMachineryController::class, 'machineryDocuments']);
-        Route::post('/machinery/{id}/documents', [ApiAssetMachineryController::class, 'storeMachineryDocument']);
-        Route::get('/machinery/{id}/services', [ApiAssetMachineryController::class, 'machineryServices']);
-        Route::post('/machinery/{id}/services', [ApiAssetMachineryController::class, 'storeMachineryService']);
-        Route::get('/machinery/{id}/transfer-history', [ApiAssetMachineryController::class, 'machineryTransferHistory']);
-        Route::post('/machinery/{id}/transfer', [ApiAssetMachineryController::class, 'transferMachinery']);
-        Route::post('/machinery/{id}/sell', [ApiAssetMachineryController::class, 'sellMachinery']);
+        Route::get('/machinery/{id}', [ApiAssetMachineryController::class, 'getMachinery'])->where('id', '[0-9]+');
+        Route::post('/machinery/{id}', [ApiAssetMachineryController::class, 'updateMachinery'])->where('id', '[0-9]+');
+        Route::delete('/machinery/{id}', [ApiAssetMachineryController::class, 'deleteMachinery'])->where('id', '[0-9]+');
+        Route::post('/machinery', [ApiAssetMachineryController::class, 'storeMachinery']);
+        Route::get('/machinery/{id}/documents', [ApiAssetMachineryController::class, 'machineryDocuments'])->where('id', '[0-9]+');
+        Route::post('/machinery/{id}/documents', [ApiAssetMachineryController::class, 'storeMachineryDocument'])->where('id', '[0-9]+');
+        Route::get('/machinery/{id}/services', [ApiAssetMachineryController::class, 'machineryServices'])->where('id', '[0-9]+');
+        Route::post('/machinery/{id}/services', [ApiAssetMachineryController::class, 'storeMachineryService'])->where('id', '[0-9]+');
+        Route::get('/machinery/{id}/transfer-history', [ApiAssetMachineryController::class, 'machineryTransferHistory'])->where('id', '[0-9]+');
+        Route::post('/machinery/{id}/transfer', [ApiAssetMachineryController::class, 'transferMachinery'])->where('id', '[0-9]+');
+        Route::post('/machinery/{id}/sell', [ApiAssetMachineryController::class, 'sellMachinery'])->where('id', '[0-9]+');
         Route::get('/machinery-expense-heads', [ApiAssetMachineryController::class, 'listMachineryExpenseHeads']);
         Route::post('/machinery-expense-heads', [ApiAssetMachineryController::class, 'storeMachineryExpenseHead']);
         Route::delete('/machinery-expense-heads/{id}', [ApiAssetMachineryController::class, 'deleteMachineryExpenseHead']);

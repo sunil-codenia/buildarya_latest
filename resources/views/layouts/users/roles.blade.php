@@ -244,10 +244,9 @@
                                 </thead>
                                 <tbody>
                                     @php
-
-                                        // $dataarray = json_decode($data, true);
+                                        $roles_list = ($roleedit || $settingedit) ? ($dataarray['data'] ?? []) : $dataarray;
                                     @endphp
-                                    @foreach ($dataarray as $roled)
+                                    @foreach ($roles_list as $roled)
                                         @php
                                             $count = 0;
                                             //   $rolesd = json_decode($roled,true);
