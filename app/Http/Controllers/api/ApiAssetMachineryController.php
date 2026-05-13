@@ -1040,15 +1040,34 @@ class ApiAssetMachineryController extends Controller
             'name' => 'required',
             'issue_date' => 'required|date',
             'end_date' => 'nullable|date',
-            'attachment' => 'required|file',
             'remark' => 'nullable'
         ]);
+
+        $attachment = $request->file('attachment');
+        if (!$attachment) {
+            // Check for keys that might have trailing spaces or tabs (common in Postman)
+            foreach ($_FILES as $key => $fileInfo) {
+                if (trim($key) === 'attachment') {
+                    $attachment = $request->file($key);
+                    break;
+                }
+            }
+        }
+
+        if (!$attachment) {
+            return response()->json([
+                'status' => 'Error', 
+                'message' => 'The attachment field is required and must be a file.',
+                'received_keys' => array_keys($request->all()),
+                'files_present' => array_keys($_FILES)
+            ], 422);
+        }
 
         try {
             $user = $request->user();
             $conn = config('database.default');
 
-            $file = $request->file('attachment');
+            $file = $attachment;
             $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
             $file->move(public_path('images/app_images/' . $conn . '/machinery_doc'), $imageName);
             $imagePath = "images/app_images/" . $conn . "/machinery_doc/" . $imageName;
@@ -1069,51 +1088,67 @@ class ApiAssetMachineryController extends Controller
         }
     }
 
-    public function getMachineryDocument($id)
+    public function getMachineryDocument($machinery_id, $id)
     {
         try {
-            $doc = DB::table('machinery_documents')->where('id', $id)->first();
-            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found'], 404);
+            $doc = DB::table('machinery_documents')->where('id', $id)->where('machinery_id', $machinery_id)->first();
+            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found for this machinery'], 404);
             return response()->json(['status' => 'Ok', 'data' => $doc]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
 
-    public function updateMachineryDocument(Request $request, $id)
+    public function updateMachineryDocument(Request $request, $machinery_id, $id)
     {
         try {
             $user = $request->user();
             $conn = config('database.default');
-            $doc = DB::table('machinery_documents')->where('id', $id)->first();
+            $doc = DB::table('machinery_documents')->where('id', $id)->where('machinery_id', $machinery_id)->first();
 
-            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found'], 404);
+            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found for this machinery'], 404);
 
             $data = $request->only(['name', 'issue_date', 'end_date', 'remark']);
             
-            if ($request->hasFile('attachment')) {
-                $file = $request->file('attachment');
+            // Clean null values from $data to avoid overwriting with nulls if fields are missing in request
+            $data = array_filter($data, function($value) { return !is_null($value); });
+
+            $attachment = $request->file('attachment');
+            if (!$attachment) {
+                foreach ($_FILES as $key => $fileInfo) {
+                    if (trim($key) === 'attachment') {
+                        $attachment = $request->file($key);
+                        break;
+                    }
+                }
+            }
+
+            if ($attachment) {
+                $file = $attachment;
                 $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
                 $file->move(public_path('images/app_images/' . $conn . '/machinery_doc'), $imageName);
                 $data['attachment'] = "images/app_images/" . $conn . "/machinery_doc/" . $imageName;
             }
 
-            DB::table('machinery_documents')->where('id', $id)->update($data);
-            addActivity($id, 'machinery_documents', "Machinery Doc Updated via API", 6, $user->id, $conn);
+            if (!empty($data)) {
+                DB::table('machinery_documents')->where('id', $id)->update($data);
+                addActivity($id, 'machinery_documents', "Machinery Doc Updated via API", 6, $user->id, $conn);
+            }
+
             return response()->json(['status' => 'Ok', 'message' => 'Document updated successfully']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
 
-    public function deleteMachineryDocument(Request $request, $id)
+    public function deleteMachineryDocument(Request $request, $machinery_id, $id)
     {
         try {
             $user = $request->user();
             $conn = config('database.default');
-            $doc = DB::table('machinery_documents')->where('id', $id)->first();
+            $doc = DB::table('machinery_documents')->where('id', $id)->where('machinery_id', $machinery_id)->first();
 
-            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found'], 404);
+            if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found for this machinery'], 404);
 
             DB::table('machinery_documents')->where('id', $id)->delete();
             addActivity(0, 'machinery_documents', "Machinery Doc Deleted via API - " . $doc->name, 6, $user->id, $conn);
