@@ -667,6 +667,121 @@ class ApiAssetMachineryController extends Controller
         }
     }
 
+    public function assetReport(Request $request)
+    {
+        try {
+            $report_code = $request->get('type'); // 1-9
+            $start_date = $request->get('start_date');
+            $end_date = $request->get('end_date');
+            $site_id = $request->get('site_id');
+            $head_id = $request->get('head_id');
+            $export = $request->get('export');
+
+            $query = null;
+            $csv_headers = [];
+            $csv_callback = null;
+
+            if (in_array($report_code, [1, 2, 3])) {
+                // Purchase Reports
+                $query = DB::table('assets')
+                    ->leftjoin('sites as ws', 'ws.id', '=', 'assets.site_id')
+                    ->leftjoin('expenses', 'expenses.id', '=', 'assets.expense_id')
+                    ->leftjoin('sites as ps', 'ps.id', '=', 'expenses.site_id')
+                    ->leftjoin('users as u', 'u.id', '=', 'expenses.user_id')
+                    ->leftJoin('asset_head', 'asset_head.id', '=', 'assets.head_id')
+                    ->leftJoin('bills_party', function ($join) {
+                        $join->on('expenses.party_id', '=', 'bills_party.id')
+                             ->where('expenses.party_type', '=', 'bill');
+                    })
+                    ->leftJoin('expense_party', function ($join) {
+                        $join->on('expenses.party_id', '=', 'expense_party.id')
+                             ->where('expenses.party_type', '=', 'expense');
+                    })
+                    ->selectRaw('assets.*, ws.name as working_site, ps.name as purchase_site, asset_head.name as head_name, expenses.date as purchase_date, u.name as user_name, CASE WHEN expenses.party_type = "bill" THEN bills_party.name WHEN expenses.party_type = "expense" THEN expense_party.name END AS supplier_name');
+
+                if ($report_code == 1 && $head_id) $query->where('assets.head_id', $head_id);
+                if ($report_code == 2 && $site_id) $query->where('expenses.site_id', $site_id);
+                if ($start_date && $end_date) $query->whereBetween('expenses.date', [$start_date, $end_date]);
+                
+                $csv_headers = ['ID', 'Name', 'Head', 'Working Site', 'Purchase Site', 'Supplier', 'Purchase Date', 'Cost Price'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->name, $data->head_name, $data->working_site, $data->purchase_site, $data->supplier_name, $data->purchase_date, $data->cost_price]);
+                };
+
+            } elseif (in_array($report_code, [4, 5, 6])) {
+                // Sale Reports
+                $query = DB::table('assets')
+                    ->leftJoin('asset_head', 'asset_head.id', 'assets.head_id')
+                    ->leftjoin('sites as ss', 'ss.id', '=', 'assets.site_id')
+                    ->leftjoin('asset_transaction as at', 'at.asset_id', '=', 'assets.id')
+                    ->selectRaw('assets.*, ss.name as site_name, asset_head.name as head_name, at.create_datetime as sale_date')
+                    ->where('at.transaction_type', 'Sold');
+
+                if ($report_code == 4 && $head_id) $query->where('assets.head_id', $head_id);
+                if ($report_code == 5 && $site_id) $query->where('assets.site_id', $site_id);
+                if ($start_date && $end_date) $query->whereBetween('at.create_datetime', [$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
+
+                $csv_headers = ['ID', 'Name', 'Head', 'Sale Site', 'Sale Date', 'Cost Price', 'Sale Price'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->name, $data->head_name, $data->site_name, $data->sale_date, $data->cost_price, $data->sale_price]);
+                };
+
+            } elseif (in_array($report_code, [7, 8])) {
+                // Transfer Reports
+                $query = DB::table('asset_transaction')
+                    ->leftJoin('assets', 'assets.id', '=', 'asset_transaction.asset_id')
+                    ->leftJoin('asset_head', 'asset_head.id', '=', 'assets.head_id')
+                    ->leftJoin('sites as fs', 'fs.id', '=', 'asset_transaction.from_site')
+                    ->leftJoin('sites as ts', 'ts.id', '=', 'asset_transaction.to_site')
+                    ->selectRaw('asset_transaction.*, assets.name as asset_name, asset_head.name as head_name, fs.name as from_site_name, ts.name as to_site_name')
+                    ->where('asset_transaction.transaction_type', 'Transfer');
+
+                if ($report_code == 7 && $head_id) $query->where('assets.head_id', $head_id);
+                if ($start_date && $end_date) $query->whereBetween('asset_transaction.create_datetime', [$start_date . ' 00:00:00', $end_date . ' 23:59:59']);
+
+                $csv_headers = ['Transaction ID', 'Asset', 'Head', 'From Site', 'To Site', 'Transfer Date', 'Remark'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->asset_name, $data->head_name, $data->from_site_name, $data->to_site_name, $data->create_datetime, $data->remark]);
+                };
+
+            } elseif ($report_code == 9) {
+                // Asset Complete Report According To Site
+                $query = DB::table('assets')
+                    ->leftjoin('sites', 'sites.id', '=', 'assets.site_id')
+                    ->leftjoin('asset_head', 'asset_head.id', '=', 'assets.head_id')
+                    ->select('assets.*', 'sites.name as site_name', 'asset_head.name as head_name');
+
+                if ($site_id) $query->where('assets.site_id', $site_id);
+
+                $csv_headers = ['ID', 'Name', 'Head', 'Current Site', 'Cost Price', 'Status'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->name, $data->head_name, $data->site_name, $data->cost_price, $data->status]);
+                };
+            }
+
+            if (!$query) return response()->json(['status' => 'Error', 'message' => 'Invalid report type'], 400);
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "asset_report_" . $report_code . "_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results, $csv_headers, $csv_callback) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, $csv_headers);
+                    foreach ($results as $row) {
+                        $csv_callback($file, $row);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $query->get()]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function machineryReport(Request $request)
     {
         try {
@@ -1513,6 +1628,93 @@ class ApiAssetMachineryController extends Controller
 
             DB::table('machinery_expense_head')->where('id', $id)->delete();
             addActivity($id, 'machinery_expense_head', "Machinery Expense Head Deleted via API", 6, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Expense Head deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function listAssetExpenseHeads(Request $request)
+    {
+        try {
+            $search = $request->get('search');
+            $export = $request->get('export');
+
+            $query = DB::table('assets_expense_head')
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'assets_expense_head.head_id')
+                ->select('assets_expense_head.*', 'expense_head.name as head_name')
+                ->orderBy('assets_expense_head.id', 'desc');
+
+            if ($search) {
+                $query->where('expense_head.name', 'LIKE', "%{$search}%");
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "asset_expense_heads_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Expense Head Name']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->head_name]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            return response()->json(['status' => 'Ok', 'data' => $query->paginate(20)]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeAssetExpenseHead(Request $request)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->merge($json);
+        }
+
+        $request->validate([
+            'head_id' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            // Manual check for existence in tenant DB
+            $head_exists = DB::table('expense_head')->where('id', $request->head_id)->exists();
+            if (!$head_exists) {
+                return response()->json([
+                    'message' => 'The given data was invalid.',
+                    'errors' => ['head_id' => ['The selected head id is invalid.']]
+                ], 422);
+            }
+
+            $exists = DB::table('assets_expense_head')->where('head_id', $request->head_id)->exists();
+            if ($exists) return response()->json(['status' => 'Error', 'message' => 'Expense Head already added to assets'], 400);
+
+            $id = DB::table('assets_expense_head')->insertGetId(['head_id' => $request->head_id]);
+            addActivity($id, 'assets_expense_head', "New Asset Expense Head Added via API", 6, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Expense Head added successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteAssetExpenseHead(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            DB::table('assets_expense_head')->where('id', $id)->delete();
+            addActivity($id, 'assets_expense_head', "Asset Expense Head Deleted via API", 6, $user->id, $conn);
 
             return response()->json(['status' => 'Ok', 'message' => 'Expense Head deleted successfully']);
         } catch (\Exception $e) {

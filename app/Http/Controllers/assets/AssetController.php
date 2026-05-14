@@ -603,7 +603,21 @@ public function asset_of_site_report(Request $request){
                 $pdf = Pdf::loadView('layouts.asset.pdfs.compTrans', compact('data', 'start_date', 'end_date'));
                 return $pdf->download($file_name);
             }
-        } 
+        } else if ($report_code == 9) {
+            $site = DB::connection($user_db_conn_name)->table('sites')->where('id', $sitename)->first();
+            addActivity(0, 'assets', "Asset Report Generated Of Site - " . $site->name, 5);
+
+            if ($type == 1) {
+                $file_name = "Assets Report Of Site - " . $site->name . ".xlsx";
+                return Excel::download(new AssetsExport($user_db_conn_name, null, null, 9, $sitename, null), $file_name);
+            } else {
+                $file_name = "Assets Report Of Site - " . $site->name . ".pdf";
+                $data =  DB::connection($user_db_conn_name)->table('assets')->leftjoin('sites', 'sites.id', '=', 'assets.site_id')->leftjoin('asset_head', 'asset_head.id', '=', 'assets.head_id')->select('assets.*', 'sites.name as site', 'asset_head.name as head')->where('assets.site_id', '=', $sitename)->get();;
+                $site_name = $site->name;
+                $pdf = Pdf::loadView('layouts.asset.pdfs.siteAssetReport', compact('data', 'site_name'));
+                return $pdf->download($file_name);
+            }
+        }
     }
 
     public function exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, $sitename = null, $headname = null)

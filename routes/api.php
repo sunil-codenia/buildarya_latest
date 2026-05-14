@@ -309,6 +309,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/assets', [ApiAssetMachineryController::class, 'storeAsset']);
         Route::post('/assets/{id}/transfer', [ApiAssetMachineryController::class, 'transferAsset']);
         Route::post('/assets/{id}/sell', [ApiAssetMachineryController::class, 'sellAsset']);
+        Route::match(['get', 'post'], '/assets/report', [ApiAssetMachineryController::class, 'assetReport']);
 
         // Asset Heads (Management)
         Route::get('/asset-heads', [ApiAssetMachineryController::class, 'listAssetHeads']);
@@ -347,6 +348,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/machinery-expense-heads', [ApiAssetMachineryController::class, 'listMachineryExpenseHeads']);
         Route::post('/machinery-expense-heads', [ApiAssetMachineryController::class, 'storeMachineryExpenseHead']);
         Route::delete('/machinery-expense-heads/{id}', [ApiAssetMachineryController::class, 'deleteMachineryExpenseHead']);
+
+        // Asset Expense Heads
+        Route::get('/asset-expense-heads', [ApiAssetMachineryController::class, 'listAssetExpenseHeads']);
+        Route::post('/asset-expense-heads', [ApiAssetMachineryController::class, 'storeAssetExpenseHead']);
+        Route::delete('/asset-expense-heads/{id}', [ApiAssetMachineryController::class, 'deleteAssetExpenseHead']);
 
         // Users (Management)
         Route::get('/users', [ApiManagementController::class, 'listUsers']);
