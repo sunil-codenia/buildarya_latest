@@ -1161,8 +1161,21 @@ class ApiAssetMachineryController extends Controller
     public function machineryServices(Request $request, $id)
     {
         try {
+            $search = $request->get('search');
             $export = $request->get('export');
-            $query = DB::table('machinery_services')->where('machinery_id', $id)->orderBy('create_date', 'desc');
+
+            $query = DB::table('machinery_services')
+                ->leftJoin('users', 'users.id', '=', 'machinery_services.user_id')
+                ->select('machinery_services.*', 'users.name as user_name')
+                ->where('machinery_id', $id)
+                ->orderBy('create_date', 'desc');
+
+            if ($search) {
+                $query->where(function($q) use ($search) {
+                    $q->where('maintainence_item', 'LIKE', "%{$search}%")
+                      ->orWhere('remark', 'LIKE', "%{$search}%");
+                });
+            }
 
             if ($export == 'csv') {
                 $results = $query->get();
@@ -1170,9 +1183,9 @@ class ApiAssetMachineryController extends Controller
                 $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
                 $callback = function() use ($results) {
                     $file = fopen('php://output', 'w');
-                    fputcsv($file, ['ID', 'Service Date', 'Next Service', 'Items', 'Remark']);
+                    fputcsv($file, ['ID', 'Service Date', 'Next Service', 'Items', 'Remark', 'User']);
                     foreach ($results as $row) {
-                        fputcsv($file, [$row->id, $row->create_date, $row->next_service_on, $row->maintainence_item, $row->remark]);
+                        fputcsv($file, [$row->id, $row->create_date, $row->next_service_on, $row->maintainence_item, $row->remark, $row->user_name]);
                     }
                     fclose($file);
                 };
@@ -1190,7 +1203,6 @@ class ApiAssetMachineryController extends Controller
         $request->validate([
             'create_date' => 'required|date',
             'maintainence_item' => 'required',
-            'image1' => 'required|file'
         ]);
 
         try {
@@ -1199,11 +1211,23 @@ class ApiAssetMachineryController extends Controller
             $images = [];
 
             for ($i = 1; $i <= 5; $i++) {
-                if ($request->hasFile('image'.$i)) {
-                    $file = $request->file('image'.$i);
+                $imageKey = 'image' . $i;
+                $file = $request->file($imageKey);
+                
+                // Flexible check for keys with whitespace/tabs
+                if (!$file) {
+                    foreach ($_FILES as $key => $fileInfo) {
+                        if (trim($key) === $imageKey) {
+                            $file = $request->file($key);
+                            break;
+                        }
+                    }
+                }
+
+                if ($file) {
                     $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
                     $file->move(public_path('images/app_images/' . $conn . '/machinery_service'), $imageName);
-                    $images['image'.$i] = "images/app_images/" . $conn . "/machinery_service/" . $imageName;
+                    $images[$imageKey] = "images/app_images/" . $conn . "/machinery_service/" . $imageName;
                 }
             }
 
@@ -1220,6 +1244,80 @@ class ApiAssetMachineryController extends Controller
             addActivity($serviceId, 'machinery_services', "New Service Record via API", 6, $user->id, $conn);
 
             return response()->json(['status' => 'Ok', 'message' => 'Service record added successfully', 'id' => $serviceId]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getMachineryService($machinery_id, $id)
+    {
+        try {
+            $service = DB::table('machinery_services')->where('id', $id)->where('machinery_id', $machinery_id)->first();
+            if (!$service) return response()->json(['status' => 'Error', 'message' => 'Service record not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $service]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateMachineryService(Request $request, $machinery_id, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            $service = DB::table('machinery_services')->where('id', $id)->where('machinery_id', $machinery_id)->first();
+
+            if (!$service) return response()->json(['status' => 'Error', 'message' => 'Service record not found'], 404);
+
+            $data = $request->only(['create_date', 'next_service_on', 'maintainence_item', 'remark']);
+            $data = array_filter($data, function($value) { return !is_null($value); });
+
+            $images = [];
+            for ($i = 1; $i <= 5; $i++) {
+                $imageKey = 'image' . $i;
+                $file = $request->file($imageKey);
+                
+                if (!$file) {
+                    foreach ($_FILES as $key => $fileInfo) {
+                        if (trim($key) === $imageKey) {
+                            $file = $request->file($key);
+                            break;
+                        }
+                    }
+                }
+
+                if ($file) {
+                    $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                    $file->move(public_path('images/app_images/' . $conn . '/machinery_service'), $imageName);
+                    $images[$imageKey] = "images/app_images/" . $conn . "/machinery_service/" . $imageName;
+                }
+            }
+
+            $data = array_merge($data, $images);
+
+            if (!empty($data)) {
+                DB::table('machinery_services')->where('id', $id)->update($data);
+                addActivity($id, 'machinery_services', "Service Record Updated via API", 6, $user->id, $conn);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => 'Service record updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteMachineryService(Request $request, $machinery_id, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            $service = DB::table('machinery_services')->where('id', $id)->where('machinery_id', $machinery_id)->first();
+
+            if (!$service) return response()->json(['status' => 'Error', 'message' => 'Service record not found'], 404);
+
+            DB::table('machinery_services')->where('id', $id)->delete();
+            addActivity(0, 'machinery_services', "Service Record Deleted via API", 6, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Service record deleted successfully']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }

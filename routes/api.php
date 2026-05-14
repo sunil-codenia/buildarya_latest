@@ -338,6 +338,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('/machinery/{machinery_id}/documents/{id}', [ApiAssetMachineryController::class, 'deleteMachineryDocument'])->where(['machinery_id' => '[0-9]+', 'id' => '[0-9]+']);
         Route::get('/machinery/{id}/services', [ApiAssetMachineryController::class, 'machineryServices'])->where('id', '[0-9]+');
         Route::post('/machinery/{id}/services', [ApiAssetMachineryController::class, 'storeMachineryService'])->where('id', '[0-9]+');
+        Route::get('/machinery/{machinery_id}/services/{id}', [ApiAssetMachineryController::class, 'getMachineryService'])->where(['machinery_id' => '[0-9]+', 'id' => '[0-9]+']);
+        Route::post('/machinery/{machinery_id}/services/{id}', [ApiAssetMachineryController::class, 'updateMachineryService'])->where(['machinery_id' => '[0-9]+', 'id' => '[0-9]+']);
+        Route::delete('/machinery/{machinery_id}/services/{id}', [ApiAssetMachineryController::class, 'deleteMachineryService'])->where(['machinery_id' => '[0-9]+', 'id' => '[0-9]+']);
         Route::get('/machinery/{id}/transfer-history', [ApiAssetMachineryController::class, 'machineryTransferHistory'])->where('id', '[0-9]+');
         Route::post('/machinery/{id}/transfer', [ApiAssetMachineryController::class, 'transferMachinery'])->where('id', '[0-9]+');
         Route::post('/machinery/{id}/sell', [ApiAssetMachineryController::class, 'sellMachinery'])->where('id', '[0-9]+');
