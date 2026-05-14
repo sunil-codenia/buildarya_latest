@@ -875,6 +875,35 @@ class ApiAssetMachineryController extends Controller
                     fputcsv($file, [$data->id, $data->machinery_name, $data->head_name, $data->site_name, $data->date, $data->nature_of_work, $data->remark]);
                 };
 
+            } elseif (in_array($report_code, [9, 10])) {
+                // Document Reports
+                $query = DB::table('machinery_document')
+                    ->leftJoin('machinery_details', 'machinery_details.id', '=', 'machinery_document.machinery_id')
+                    ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
+                    ->selectRaw('machinery_document.*, machinery_details.name as machinery_name, machinery_head.name as head_name');
+
+                if ($report_code == 9 && $head_id) $query->where('machinery_details.head_id', $head_id);
+                if ($start_date && $end_date) $query->whereBetween('machinery_document.issue_date', [$start_date, $end_date]);
+
+                $csv_headers = ['ID', 'Machinery', 'Head', 'Document Name', 'Issue Date', 'Expiry Date', 'Remark'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->machinery_name, $data->head_name, $data->name, $data->issue_date, $data->end_date, $data->remark]);
+                };
+
+            } elseif ($report_code == 13) {
+                // Machinery Complete Report According To Site
+                $query = DB::table('machinery_details')
+                    ->leftJoin('machinery_head', 'machinery_head.id', '=', 'machinery_details.head_id')
+                    ->leftJoin('sites', 'sites.id', '=', 'machinery_details.site_id')
+                    ->select('machinery_details.*', 'sites.name as site_name', 'machinery_head.name as head_name');
+                
+                if ($site_id) $query->where('machinery_details.site_id', $site_id);
+
+                $csv_headers = ['ID', 'Name', 'Head', 'Current Site', 'Status', 'Cost Price'];
+                $csv_callback = function($file, $data) {
+                    fputcsv($file, [$data->id, $data->name, $data->head_name, $data->site_name, $data->status, $data->cost_price]);
+                };
+
             } else {
                 // Default Machinery List
                 $query = DB::table('machinery_details')
@@ -915,8 +944,11 @@ class ApiAssetMachineryController extends Controller
                     ['id' => 6, 'name' => 'Complete Sale Report', 'requires' => 'none'],
                     ['id' => 7, 'name' => 'Transfer Report by Head', 'requires' => 'head_id'],
                     ['id' => 8, 'name' => 'Complete Transfer Report', 'requires' => 'none'],
+                    ['id' => 9, 'name' => 'Documents Report by Head', 'requires' => 'head_id'],
+                    ['id' => 10, 'name' => 'Complete Documents Report', 'requires' => 'none'],
                     ['id' => 11, 'name' => 'Service Report by Head', 'requires' => 'head_id'],
                     ['id' => 12, 'name' => 'Complete Service Report', 'requires' => 'none'],
+                    ['id' => 13, 'name' => 'Machinery Complete Report by Site', 'requires' => 'site_id'],
                 ]
             ];
 
