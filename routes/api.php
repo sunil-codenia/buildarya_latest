@@ -435,6 +435,21 @@ Route::prefix('v1')->group(function () {
         Route::post('/sales/invoices', [ApiSalesController::class, 'storeInvoice']);
         Route::post('/sales/adjustments', [ApiSalesController::class, 'storeAdjustment']);
 
+        // Sales Invoice Heads
+        Route::get('/sales/invoice-heads', [ApiSalesController::class, 'listInvoiceHeads']);
+        Route::post('/sales/invoice-heads', [ApiSalesController::class, 'storeInvoiceHead']);
+        Route::get('/sales/invoice-heads/{id}', [ApiSalesController::class, 'invoiceHeadDetails'])->where('id', '[0-9]+');
+        Route::post('/sales/invoice-heads/{id}', [ApiSalesController::class, 'updateInvoiceHead'])->where('id', '[0-9]+');
+        Route::delete('/sales/invoice-heads/{id}', [ApiSalesController::class, 'deleteInvoiceHead'])->where('id', '[0-9]+');
+
+        // Sales Parties
+        Route::get('/sales/parties', [ApiSalesController::class, 'listParties']);
+        Route::post('/sales/parties', [ApiSalesController::class, 'storeParty']);
+        Route::get('/sales/parties/{id}', [ApiSalesController::class, 'partyDetails'])->where('id', '[0-9]+');
+        Route::post('/sales/parties/{id}', [ApiSalesController::class, 'updateParty'])->where('id', '[0-9]+');
+        Route::delete('/sales/parties/{id}', [ApiSalesController::class, 'deleteParty'])->where('id', '[0-9]+');
+        Route::post('/sales/parties/{id}/status', [ApiSalesController::class, 'updatePartyStatus'])->where('id', '[0-9]+');
+
         // Payment Vouchers
         Route::get('/vouchers', [ApiPaymentVoucherController::class, 'index']);
         Route::post('/vouchers', [ApiPaymentVoucherController::class, 'store']);

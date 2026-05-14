@@ -186,4 +186,305 @@ class ApiSalesController extends Controller
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
+
+    // ==========================================
+    // SALES INVOICE HEADS
+    // ==========================================
+
+    public function listInvoiceHeads(Request $request)
+    {
+        try {
+            $search = trim($request->get('search'));
+            $export = $request->get('export');
+            $query = DB::table('sales_dedadd')->orderBy('id', 'desc');
+
+            if (!empty($search)) {
+                $query->where('name', 'LIKE', "%{$search}%");
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "sales_invoice_heads_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name', 'Type']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->name, $row->type]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $heads = $query->paginate(20);
+            return response()->json(['status' => 'Ok', 'data' => $heads]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeInvoiceHead(Request $request)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'name' => 'required',
+            'type' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $id = DB::table('sales_dedadd')->insertGetId([
+                'name' => $request->name,
+                'type' => $request->type
+            ]);
+
+            addActivity($id, 'sales_dedadd', "New Sales Invoice Head Created via API: " . $request->name, 7, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Invoice Head created successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function invoiceHeadDetails(Request $request, $id)
+    {
+        try {
+            $head = DB::table('sales_dedadd')->where('id', $id)->first();
+            if (!$head) return response()->json(['status' => 'Failed', 'message' => 'Invoice Head not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $head]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateInvoiceHead(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'name' => 'required',
+            'type' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            DB::table('sales_dedadd')->where('id', $id)->update([
+                'name' => $request->name,
+                'type' => $request->type
+            ]);
+
+            addActivity($id, 'sales_dedadd', "Sales Invoice Head Updated via API", 7, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Invoice Head updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteInvoiceHead(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $check = DB::table('sales_manage_invoice')->where('type_id', $id)->count();
+            if ($check > 0) {
+                return response()->json(['status' => 'Error', 'message' => 'This Head Cannot Be Deleted. Head Is Used In Invoices!'], 400);
+            }
+
+            $head = DB::table('sales_dedadd')->where('id', $id)->first();
+            if (!$head) return response()->json(['status' => 'Failed', 'message' => 'Invoice Head not found'], 404);
+
+            DB::table('sales_dedadd')->where('id', $id)->delete();
+            addActivity(0, 'sales_dedadd', "Sales Invoice Head Deleted via API: " . $head->name, 7, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Invoice Head deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    // ==========================================
+    // SALES PARTIES
+    // ==========================================
+
+    public function listParties(Request $request)
+    {
+        try {
+            $search = trim($request->get('search'));
+            $export = $request->get('export');
+            $query = DB::table('sales_party')->orderBy('id', 'desc');
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('phone', 'LIKE', "%{$search}%")
+                      ->orWhere('gst', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "sales_parties_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name', 'Phone', 'GST', 'State', 'Status']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->name, $row->phone, $row->gst, $row->state, $row->status]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $parties = $query->paginate(20);
+            return response()->json(['status' => 'Ok', 'data' => $parties]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeParty(Request $request)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'name' => 'required',
+            'address' => 'required',
+            'gst' => 'required',
+            'phone' => 'required',
+            'state' => 'required',
+            'state_code' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $data = [
+                'name' => $request->name,
+                'address' => $request->address,
+                'phone' => $request->phone,
+                'gst' => $request->gst,
+                'state' => $request->state,
+                'state_code' => $request->state_code,
+                'status' => 'Active'
+            ];
+
+            $id = DB::table('sales_party')->insertGetId($data);
+            addActivity($id, 'sales_party', "New Sales Party Created via API: " . $request->name, 7, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Party created successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function partyDetails(Request $request, $id)
+    {
+        try {
+            $party = DB::table('sales_party')->where('id', $id)->first();
+            if (!$party) return response()->json(['status' => 'Failed', 'message' => 'Party not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $party]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateParty(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'name' => 'required',
+            'address' => 'required',
+            'gst' => 'required',
+            'phone' => 'required',
+            'state' => 'required',
+            'state_code' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $data = [
+                'name' => $request->name,
+                'address' => $request->address,
+                'phone' => $request->phone,
+                'gst' => $request->gst,
+                'state' => $request->state,
+                'state_code' => $request->state_code
+            ];
+
+            DB::table('sales_party')->where('id', $id)->update($data);
+            addActivity($id, 'sales_party', "Sales Party Updated via API", 7, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Party updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteParty(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $check = DB::table('sales_invoice')->where('party_id', $id)->count();
+            if ($check > 0) {
+                return response()->json(['status' => 'Error', 'message' => 'This Party Cannot Be Deleted. Party Has Invoices In Its Name!'], 400);
+            }
+
+            $party = DB::table('sales_party')->where('id', $id)->first();
+            if (!$party) return response()->json(['status' => 'Failed', 'message' => 'Party not found'], 404);
+
+            DB::table('sales_party')->where('id', $id)->delete();
+            addActivity(0, 'sales_party', "Sales Party Deleted via API: " . $party->name, 7, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Party deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updatePartyStatus(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'status' => 'required|in:Active,Deactive'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            DB::table('sales_party')->where('id', $id)->update(['status' => $request->status]);
+            addActivity($id, 'sales_party', "Sales Party Status Updated via API: " . $request->status, 7, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Party status updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }
