@@ -506,6 +506,69 @@ class ApiSalesController extends Controller
         }
     }
 
+    public function salesReport(Request $request)
+    {
+        $type = $request->get("type");
+        $party_id = $request->get("party_id");
+        $project_id = $request->get("project_id");
+        $company_id = $request->get("company_id");
+        $head_id = $request->get("head_id");
+        $financial_year = $request->get("financial_year");
+
+        try {
+            $query = DB::table("sales_invoice as si")
+                ->leftJoin("sales_company as sc", "sc.id", "=", "si.company_id")
+                ->leftJoin("sales_project as sp", "sp.id", "=", "si.project_id")
+                ->leftJoin("sales_party as sparty", "sparty.id", "=", "si.party_id")
+                ->select("si.*", "sc.name as company_name", "sp.name as project_name", "sparty.name as party_name");
+
+            if ($type == 1) {
+                $query->where("si.party_id", $party_id);
+            } else if ($type == 2) {
+                $query->where("si.project_id", $project_id);
+            } else if ($type == 3) {
+                $query->where("si.financial_year", $financial_year);
+            } else if ($type == 4) {
+                $query->where("si.financial_year", $financial_year)->where("si.company_id", $company_id);
+            } else if ($type == 5) {
+                $query->where("si.financial_year", $financial_year)
+                    ->whereIn("si.id", function ($q) use ($head_id) {
+                        $q->select("invoice_id")->from("sales_manage_invoice")->where("type_id", $head_id);
+                    });
+            }
+
+            $invoices = $query->get();
+            if ($invoices->isEmpty()) {
+                return response()->json(["status" => "Failed", "message" => "No data found for the selected criteria"], 404);
+            }
+
+            $filename = "sales_report_" . time() . ".csv";
+            $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+            $callback = function() use ($invoices) {
+                $file = fopen("php://output", "w");
+                fputcsv($file, ["ID", "Invoice No", "Date", "Project", "Party", "Company", "FY", "Status", "Taxable Value", "Gross Amount"]);
+                foreach ($invoices as $row) {
+                    fputcsv($file, [
+                        $row->id,
+                        $row->invoice_no,
+                        $row->date,
+                        $row->project_name,
+                        $row->party_name,
+                        $row->company_name,
+                        $row->financial_year,
+                        $row->status,
+                        $row->taxable_value,
+                        $row->amount
+                    ]);
+                }
+                fclose($file);
+            };
+
+            return response()->stream($callback, 200, $headers);
+        } catch (\Exception $e) {
+            return response()->json(["status" => "Error", "message" => $e->getMessage()], 500);
+        }
+    }
     public function listAdjustments(Request $request)
     {
         try {

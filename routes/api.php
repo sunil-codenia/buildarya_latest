@@ -13,6 +13,7 @@ use App\Http\Controllers\api\CompanyRegistrationController;
 use App\Http\Controllers\api\CompanyPlanController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\api\ApiAuthController;
+use App\Http\Controllers\api\ApiPaymentVoucherController;
 use App\Http\Controllers\api\ApiDashboardController;
 use App\Http\Controllers\api\ApiExpenseController;
 use App\Http\Controllers\api\ApiMaterialController;
@@ -22,7 +23,6 @@ use App\Http\Controllers\api\ApiResourceController;
 use App\Http\Controllers\api\ApiSiteBillsController;
 use App\Http\Controllers\api\ApiAssetMachineryController;
 use App\Http\Controllers\api\ApiSalesController;
-use App\Http\Controllers\api\ApiPaymentVoucherController;
 use App\Http\Controllers\api\ApiContactController;
 
 /*
@@ -427,6 +427,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/documents/summary', [ApiDocumentController::class, 'summary']);
         Route::get('/documents', [ApiDocumentController::class, 'index']);
 
+        // Payment Vouchers
+        Route::get("/payment-vouchers/pending", [ApiPaymentVoucherController::class, "listPending"]);
+        Route::post("/payment-vouchers", [ApiPaymentVoucherController::class, "store"]);
+        Route::post("/payment-vouchers/bulk", [ApiPaymentVoucherController::class, "bulkStore"]);
+
         // Sales
         Route::get('/sales/projects', [ApiSalesController::class, 'listProjects']);
         Route::post('/sales/projects', [ApiSalesController::class, 'storeProject']);
@@ -448,10 +453,15 @@ Route::prefix('v1')->group(function () {
         Route::delete("/sales-project/{id}/invoices/{invoice_id}/adjustments/{adjustment_id}", [ApiSalesController::class, "deleteAdjustment"]);
 
         Route::get('/sales/invoices', [ApiSalesController::class, 'listInvoices']);
+        Route::get("/sales/report", [ApiSalesController::class, "salesReport"]);
         Route::get('/sales/invoices/{id}', [ApiSalesController::class, 'invoiceDetails']);
         Route::post('/sales/invoices', [ApiSalesController::class, 'storeInvoice']);
         Route::get('/sales/adjustments', [ApiSalesController::class, 'listAdjustments']);
         Route::post('/sales/adjustments', [ApiSalesController::class, 'storeAdjustment']);
+
+        // Payment Vouchers
+        Route::get("/payment-vouchers/pending", [ApiPaymentVoucherController::class, "listPending"]);
+        Route::post("/payment-vouchers", [ApiPaymentVoucherController::class, "store"]);
 
         // Sales Invoice Heads
         Route::get('/sales/invoice-heads', [ApiSalesController::class, 'listInvoiceHeads']);
@@ -459,6 +469,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/sales/invoice-heads/{id}', [ApiSalesController::class, 'invoiceHeadDetails'])->where('id', '[0-9]+');
         Route::post('/sales/invoice-heads/{id}', [ApiSalesController::class, 'updateInvoiceHead'])->where('id', '[0-9]+');
         Route::delete('/sales/invoice-heads/{id}', [ApiSalesController::class, 'deleteInvoiceHead'])->where('id', '[0-9]+');
+
+        // Payment Vouchers
+        Route::get("/payment-vouchers/pending", [ApiPaymentVoucherController::class, "listPending"]);
+        Route::post("/payment-vouchers", [ApiPaymentVoucherController::class, "store"]);
 
         // Sales Parties
         Route::get('/sales/parties', [ApiSalesController::class, 'listParties']);
