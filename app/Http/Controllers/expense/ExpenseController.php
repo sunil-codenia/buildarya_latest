@@ -18,16 +18,35 @@ class ExpenseController extends Controller
     public function verified_expense(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        // Pre-fetch mappings for the view logic
+        $asset_expense_heads = DB::connection($user_db_conn_name)->table('assets_expense_head')->pluck('head_id')->toArray();
+        $machinery_expense_heads = DB::connection($user_db_conn_name)->table('machinery_expense_head')->pluck('head_id')->toArray();
+        $asset_heads = DB::connection($user_db_conn_name)->table('asset_head')->pluck('name', 'id')->toArray();
+        $machinery_heads = DB::connection($user_db_conn_name)->table('machinery_head')->pluck('name', 'id')->toArray();
+
+        return view('layouts.expense.verified', compact('asset_expense_heads', 'machinery_expense_heads', 'asset_heads', 'machinery_heads'));
+    }
+
+    public function get_verified_expense_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
-
-        $role_details = getRoleDetailsById($role_id);
         $view_duration = $request->session()->get('view_duration');
+        $role_details = DB::connection($user_db_conn_name)->table('roles')->where('id', $role_id)->first();
         $visiblity_at_site = $role_details->visiblity_at_site;
 
-        $dates = getdurationdates($view_duration);
-        $min_date = $dates['min'];
-        $max_date = $dates['max'];
+        $from_date = $request->get('from_date');
+        $to_date = $request->get('to_date');
+        if ($from_date && $to_date) {
+            $min_date = $from_date;
+            $max_date = $to_date;
+        } else {
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+        }
 
         $filters = [['expenses.status', '!=', 'Pending']];
         if ($visiblity_at_site == 'current' && $site_id != 'all') {
@@ -35,55 +54,186 @@ class ExpenseController extends Controller
         }
 
         $query = DB::connection($user_db_conn_name)->table('expenses')
-            ->leftJoin('expense_party', function ($join) {
+            ->leftjoin('expense_party', function($join) {
                 $join->on('expense_party.id', '=', 'expenses.party_id')
-                    ->where('expenses.party_type', '=', 'expense');
+                     ->where('expenses.party_type', '=', 'expense');
             })
-            ->leftJoin('bills_party', function ($join) {
+            ->leftjoin('bills_party', function($join) {
                 $join->on('bills_party.id', '=', 'expenses.party_id')
-                    ->where('expenses.party_type', '=', 'bill');
+                     ->where('expenses.party_type', '=', 'bill');
             })
-            ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
-            ->leftJoin('sites', 'sites.id', '=', 'expenses.site_id')
-            ->leftJoin('users', 'users.id', '=', 'expenses.user_id')
-            ->select(
-                'expenses.*',
-                'sites.name as site',
-                'users.name as user',
-                'expense_head.name as head',
-                DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END as party_name')
-            )
+            ->leftjoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
+            ->leftjoin('sites', 'sites.id', '=', 'expenses.site_id')
+            ->leftjoin('users', 'users.id', '=', 'expenses.user_id')
+            ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
+                DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
             ->where($filters)
-            ->whereBetween('expenses.create_datetime', [$min_date, $max_date]);
+            ->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
 
         if ($visiblity_at_site == 'current' && $site_id == 'all') {
             apply_site_filter($query, $site_id, 'expenses.site_id');
         }
 
-        if ($request->get('search')) {
-            $search = $request->get('search');
-            $query->where(function ($q) use ($search) {
-                $q->where('expenses.particular', 'like', "%$search%")
-                    ->orWhere('expenses.amount', 'like', "%$search%")
-                    ->orWhere('sites.name', 'like', "%$search%")
-                    ->orWhere('users.name', 'like', "%$search%")
-                    ->orWhere('expense_head.name', 'like', "%$search%")
-                    ->orWhere('expense_party.name', 'like', "%$search%")
-                    ->orWhere('bills_party.name', 'like', "%$search%");
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
+                $q->where('expense_head.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expense_party.name', 'LIKE', "%{$search}%")
+                  ->orWhere('bills_party.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.particular', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.amount', 'LIKE', "%{$search}%")
+                  ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                  ->orWhere('users.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.location', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.remark', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.date', 'LIKE', "%{$search}%");
             });
         }
 
-        $data = $query->orderBy('expenses.create_datetime', 'desc')
-            ->paginate(10)
-            ->withQueryString();
+        // Individual Column Searching
+        $columns_search = $request->input('columns');
+        if ($columns_search) {
+            foreach ($columns_search as $index => $column) {
+                $search_val = $column['search']['value'];
+                if (!empty($search_val)) {
+                    switch ($index) {
+                        case 2: // Party
+                            $query->where(function($q) use ($search_val) {
+                                $q->where('expense_party.name', 'LIKE', "%{$search_val}%")
+                                  ->orWhere('bills_party.name', 'LIKE', "%{$search_val}%");
+                            });
+                            break;
+                        case 3: $query->where('expense_head.name', 'LIKE', "%{$search_val}%"); break;
+                        case 4: $query->where('expenses.particular', 'LIKE', "%{$search_val}%"); break;
+                        case 5: $query->where('expenses.amount', 'LIKE', "%{$search_val}%"); break;
+                        case 6: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
+                        case 7: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
+                        case 8: $query->where('expenses.location', 'LIKE', "%{$search_val}%"); break;
+                        case 9: $query->where('expenses.status', 'LIKE', "%{$search_val}%"); break;
+                        case 10: $query->where('expenses.remark', 'LIKE', "%{$search_val}%"); break;
+                        case 11: $query->where('expenses.date', 'LIKE', "%{$search_val}%"); break;
+                    }
+                }
+            }
+        }
 
-        // Pre-fetch mappings to avoid N+1 queries in the view
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'desc');
+        
+        $columns = [
+            2 => 'party_name',
+            3 => 'expense_head.name',
+            4 => 'expenses.particular',
+            5 => 'expenses.amount',
+            6 => 'sites.name',
+            7 => 'users.name',
+            11 => 'expenses.date'
+        ];
+        
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('expenses.create_datetime', 'desc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+        
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+
+        $formattedData = [];
+        $i = $start + 1;
+        
+        $can_certify = checkmodulepermission(2, 'can_certify') == 1;
+        $can_edit = checkmodulepermission(2, 'can_edit') == 1;
+
         $asset_expense_heads = DB::connection($user_db_conn_name)->table('assets_expense_head')->pluck('head_id')->toArray();
         $machinery_expense_heads = DB::connection($user_db_conn_name)->table('machinery_expense_head')->pluck('head_id')->toArray();
         $asset_heads = DB::connection($user_db_conn_name)->table('asset_head')->pluck('name', 'id')->toArray();
         $machinery_heads = DB::connection($user_db_conn_name)->table('machinery_head')->pluck('name', 'id')->toArray();
 
-        return view('layouts.expense.verified', compact('data', 'asset_expense_heads', 'machinery_expense_heads', 'asset_heads', 'machinery_heads'));
+        foreach ($data as $row) {
+            $ddid = $row->id;
+            
+            $checkbox = '<div class="checkbox"><input id="check_'.$ddid.'" name="check_list[]" class="item_checkbox" type="checkbox" value="'.$ddid.'" onclick="updateSelectAllVerified()"><label for="check_'.$ddid.'">&nbsp;</label></div>';
+            
+            $partyName = htmlspecialchars((string) $row->party_name);
+            $headName = htmlspecialchars((string) $row->head);
+            $particular = htmlspecialchars((string) $row->particular);
+            $amount = htmlspecialchars((string) $row->amount);
+            $site = htmlspecialchars((string) $row->site);
+            $user = htmlspecialchars((string) $row->user);
+            $location = htmlspecialchars((string) $row->location);
+            $status = htmlspecialchars((string) $row->status);
+            $remark = htmlspecialchars((string) $row->remark);
+            $date = htmlspecialchars((string) $row->date);
+            
+            $imageLink = $row->image;
+            $image = '<img class="lazy" data-src="'.$imageLink.'" src="'.$imageLink.'" onclick="enlargeImage(\''.$imageLink.'\')" height="50px" width="50px" />';
+            
+            $actionHtml = '';
+            if ($row->status == 'Approved') {
+                if ($can_certify) {
+                    $actionHtml .= '<button title="Reject" type="button" onclick="rejectexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-block"></i></button>';
+                }
+            } else {
+                if (in_array($row->head_id, $asset_expense_heads)) {
+                    if (!empty($row->asset_head)) {
+                        $actionHtml .= 'Asset Category - ' . ($asset_heads[$row->asset_head] ?? 'N/A') . '<br>';
+                    }
+                    if ($can_certify) {
+                        $actionHtml .= '<button type="button" onclick="openassignassetheadmodel(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-wrench"></i></button>';
+                    }
+                } elseif (in_array($row->head_id, $machinery_expense_heads)) {
+                    if (!empty($row->machinery_head)) {
+                        $actionHtml .= 'Machinery Category - ' . ($machinery_heads[$row->machinery_head] ?? 'N/A') . '<br>';
+                    }
+                    if ($can_certify) {
+                        $actionHtml .= '<button type="button" onclick="openassignmachineryheadmodel(\''.$ddid.'\')" style="all:unset"><img src="'.asset('/images/gears.png').'" style="width:20px" /></button>';
+                    }
+                }
+
+                if ($can_certify) {
+                    $actionHtml .= '<button title="Approve" type="button" onclick="approveexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-check-circle"></i></button>';
+                }
+                $actionHtml .= '&nbsp;';
+                if ($can_edit) {
+                    $actionHtml .= '<button title="Edit" type="button" onclick="editexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>';
+                }
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $partyName,
+                $headName,
+                $particular,
+                $amount,
+                $site,
+                $user,
+                $location,
+                $status,
+                $remark,
+                $date,
+                $image,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
     }
 
     public function verified_expense_export(Request $request, $type)
@@ -334,11 +484,19 @@ class ExpenseController extends Controller
         }
 
         $query = DB::connection($user_db_conn_name)->table('expenses')
-            ->leftjoin('expense_party', 'expense_party.id', '=', 'expenses.party_id')
+            ->leftjoin('expense_party', function($join) {
+                $join->on('expense_party.id', '=', 'expenses.party_id')
+                     ->where('expenses.party_type', '=', 'expense');
+            })
+            ->leftjoin('bills_party', function($join) {
+                $join->on('bills_party.id', '=', 'expenses.party_id')
+                     ->where('expenses.party_type', '=', 'bill');
+            })
             ->leftjoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
             ->leftjoin('sites', 'sites.id', '=', 'expenses.site_id')
             ->leftjoin('users', 'users.id', '=', 'expenses.user_id')
-            ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_party.name as party', 'expense_head.name as head')
+            ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
+                DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
             ->where($filters)
             ->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
 
@@ -347,15 +505,44 @@ class ExpenseController extends Controller
         $search = $request->input('search.value');
         if (!empty($search)) {
             $query->where(function($q) use ($search) {
-                // We must search on alias or base names
                 $q->where('expense_head.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expense_party.name', 'LIKE', "%{$search}%")
+                  ->orWhere('bills_party.name', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.particular', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.amount', 'LIKE', "%{$search}%")
                   ->orWhere('sites.name', 'LIKE', "%{$search}%")
                   ->orWhere('users.name', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.location', 'LIKE', "%{$search}%")
-                  ->orWhere('expenses.remark', 'LIKE', "%{$search}%");
+                  ->orWhere('expenses.remark', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.date', 'LIKE', "%{$search}%");
             });
+        }
+
+        // Individual Column Searching
+        $columns_search = $request->input('columns');
+        if ($columns_search) {
+            foreach ($columns_search as $index => $column) {
+                $search_val = $column['search']['value'];
+                if (!empty($search_val)) {
+                    switch ($index) {
+                        case 2: // Party
+                            $query->where(function($q) use ($search_val) {
+                                $q->where('expense_party.name', 'LIKE', "%{$search_val}%")
+                                  ->orWhere('bills_party.name', 'LIKE', "%{$search_val}%");
+                            });
+                            break;
+                        case 3: $query->where('expense_head.name', 'LIKE', "%{$search_val}%"); break;
+                        case 4: $query->where('expenses.particular', 'LIKE', "%{$search_val}%"); break;
+                        case 5: $query->where('expenses.amount', 'LIKE', "%{$search_val}%"); break;
+                        case 6: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
+                        case 7: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
+                        case 8: $query->where('expenses.location', 'LIKE', "%{$search_val}%"); break;
+                        case 9: $query->where('expenses.status', 'LIKE', "%{$search_val}%"); break;
+                        case 10: $query->where('expenses.remark', 'LIKE', "%{$search_val}%"); break;
+                        case 11: $query->where('expenses.date', 'LIKE', "%{$search_val}%"); break;
+                    }
+                }
+            }
         }
 
         $filteredRecords = $query->count();
@@ -416,28 +603,14 @@ class ExpenseController extends Controller
             $image = '<img class="lazy" data-src="'.$imageLink.'" src="'.$imageLink.'" onclick="enlargeImage(\''.$imageLink.'\')" height="50px" width="50px" />';
             
             $actionHtml = '';
-            if (is_asset_head($row->head_id) || is_machinery_head($row->head_id)) {
-                if (is_asset_head($row->head_id)) {
-                    if (!empty($row->asset_head)) {
-                        $assetVal = getAssetHeadsById($row->asset_head);
-                        $assetName = $assetVal ? $assetVal->name : '';
-                        $actionHtml .= 'Asset Category - ' . htmlspecialchars((string)$assetName) . '<br>';
-                    }
-                    if ($can_certify) {
-                        $actionHtml .= '<button type="button" onclick="openassignassetheadmodel(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-wrench"></i></button>';
-                    }
-                } elseif (is_machinery_head($row->head_id)) {
-                    if (!empty($row->machinery_head)) {
-                        $machineVal = getMachineryHeadsById($row->machinery_head);
-                        $machineName = $machineVal ? $machineVal->name : '';
-                        $actionHtml .= 'Machinery Category - ' . htmlspecialchars((string)$machineName) . '<br>';
-                    }
-                    if ($can_certify) {
-                        $actionHtml .= '<button type="button" onclick="openassignmachineryheadmodel(\''.$ddid.'\')" style="all:unset"><img src="'.asset('/images/gears.png').'" style="width:20px" /></button>';
-                    }
-                }
+            if ($can_certify) {
+                $actionHtml .= '<button title="Approve" type="button" onclick="approveexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-check-circle"></i></button>';
+                $actionHtml .= '&nbsp;';
+                $actionHtml .= '<button title="Reject" type="button" onclick="rejectexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-block"></i></button>';
+                $actionHtml .= '&nbsp;';
+                $actionHtml .= '<button title="Return" type="button" onclick="returnexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-undo"></i></button>';
+                $actionHtml .= '&nbsp;';
             }
-            $actionHtml .= '&nbsp;';
             if ($can_edit) {
                 $actionHtml .= '<button title="Edit" type="button" onclick="editexpense(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>';
             }
@@ -507,11 +680,19 @@ class ExpenseController extends Controller
         }
 
         $query = DB::connection($user_db_conn_name)->table('expenses')
-            ->leftjoin('expense_party', 'expense_party.id', '=', 'expenses.party_id')
+            ->leftjoin('expense_party', function($join) {
+                $join->on('expense_party.id', '=', 'expenses.party_id')
+                     ->where('expenses.party_type', '=', 'expense');
+            })
+            ->leftjoin('bills_party', function($join) {
+                $join->on('bills_party.id', '=', 'expenses.party_id')
+                     ->where('expenses.party_type', '=', 'bill');
+            })
             ->leftjoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
             ->leftjoin('sites', 'sites.id', '=', 'expenses.site_id')
             ->leftjoin('users', 'users.id', '=', 'expenses.user_id')
-            ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_party.name as party', 'expense_head.name as head')
+            ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
+                DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
             ->where($filters)
             ->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
 
@@ -521,14 +702,47 @@ class ExpenseController extends Controller
         if (!empty($search)) {
             $query->where(function($q) use ($search) {
                 $q->where('expense_head.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expense_party.name', 'LIKE', "%{$search}%")
+                  ->orWhere('bills_party.name', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.particular', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.amount', 'LIKE', "%{$search}%")
                   ->orWhere('sites.name', 'LIKE', "%{$search}%")
                   ->orWhere('users.name', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.location', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.remark', 'LIKE', "%{$search}%")
-                  ->orWhere('expenses.return_comment', 'LIKE', "%{$search}%");
+                  ->orWhere('expenses.return_comment', 'LIKE', "%{$search}%")
+                  ->orWhere('expenses.date', 'LIKE', "%{$search}%");
             });
+        }
+
+        // Individual Column Searching
+        $columns_search = $request->input('columns');
+        if ($columns_search) {
+            foreach ($columns_search as $index => $column) {
+                $search_val = $column['search']['value'];
+                if (!empty($search_val)) {
+                    switch ($index) {
+                        case 2: // Party
+                            $query->where(function($q) use ($search_val) {
+                                $q->where('expense_party.name', 'LIKE', "%{$search_val}%")
+                                  ->orWhere('bills_party.name', 'LIKE', "%{$search_val}%");
+                            });
+                            break;
+                        case 3: $query->where('expense_head.name', 'LIKE', "%{$search_val}%"); break;
+                        case 4: $query->where('expenses.particular', 'LIKE', "%{$search_val}%"); break;
+                        case 5: $query->where('expenses.amount', 'LIKE', "%{$search_val}%"); break;
+                        case 6: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
+                        case 7: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
+                        case 8: $query->where('expenses.location', 'LIKE', "%{$search_val}%"); break;
+                        case 9: $query->where('expenses.status', 'LIKE', "%{$search_val}%"); break;
+                        case 10: $query->where(function($q) use ($search_val) {
+                                    $q->where('expenses.remark', 'LIKE', "%{$search_val}%")
+                                      ->orWhere('expenses.return_comment', 'LIKE', "%{$search_val}%");
+                                 }); break;
+                        case 11: $query->where('expenses.date', 'LIKE', "%{$search_val}%"); break;
+                    }
+                }
+            }
         }
 
         $filteredRecords = $query->count();
@@ -537,6 +751,7 @@ class ExpenseController extends Controller
         $orderDir = $request->input('order.0.dir', 'desc');
         
         $columns = [
+            2 => 'party_name',
             3 => 'expense_head.name',
             4 => 'expenses.particular',
             5 => 'expenses.amount',
@@ -572,7 +787,7 @@ class ExpenseController extends Controller
             
             $checkbox = '<input type="checkbox" name="check_list[]" class="check_item" value="'.$ddid.'" onclick="event.stopPropagation(); updateSelectAll()">';
             
-            $partyName = htmlspecialchars(getExpensePartyNameByPartyType($row->party_id, $row->party_type));
+            $partyName = htmlspecialchars((string)$row->party_name);
             $headName = htmlspecialchars((string) $row->head);
             $particular = htmlspecialchars((string) $row->particular);
             $amount = htmlspecialchars((string) $row->amount);
@@ -767,22 +982,36 @@ class ExpenseController extends Controller
         $remarks = $request->input('remark');
         $dates = $request->input('date');
 
+        if (empty($ids)) {
+            return redirect()->back()->with('error', 'No expenses selected to update.');
+        }
+
         try {
             foreach ($ids as $key => $id) {
+                if (!isset($dates[$key])) continue;
+                
                 if ($dates[$key] < $min_date || $dates[$key] > $max_date) {
                     return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $dates[$key]);
                 }
-                $head_id = $head_ids[$key];
+                
+                $head_id = $head_ids[$key] ?? null;
+                if (!$head_id) continue;
+
                 $current_status = $status;
                 if (is_machinery_head($head_id) || is_asset_head($head_id)) {
                     $current_status = 'Pending';
                 }
 
-                $party = explode("||", $party_ids[$key]);
+                $party_raw = $party_ids[$key] ?? null;
+                if (!$party_raw) continue;
+                
+                $party = explode("||", $party_raw);
+                if (count($party) < 2) continue;
 
                 $expense = DB::connection($user_db_conn_name)->table('expenses')->where('id', $id)->first();
-                $imagePath = $expense->image;
+                if (!$expense) continue;
 
+                $imagePath = $expense->image;
                 $imageKey = 'image_' . $key;
                 if ($request->hasFile($imageKey)) {
                     if (File::exists($expense->image) && $expense->image != 'images/expense.png') {
@@ -795,14 +1024,14 @@ class ExpenseController extends Controller
                 }
 
                 $updateData = [
-                    'site_id' => $site_ids[$key],
+                    'site_id' => $site_ids[$key] ?? $expense->site_id,
                     'user_id' => $user_id,
                     'party_id' => $party[0],
                     'party_type' => $party[1],
                     'head_id' => $head_id,
-                    'particular' => $particulars[$key],
-                    'amount' => $amounts[$key],
-                    'remark' => $remarks[$key],
+                    'particular' => $particulars[$key] ?? '',
+                    'amount' => $amounts[$key] ?? 0,
+                    'remark' => $remarks[$key] ?? '',
                     'image' => $imagePath,
                     'status' => $current_status,
                     'date' => $dates[$key],
@@ -812,12 +1041,14 @@ class ExpenseController extends Controller
                 addActivity($id, 'expenses', "Expense Data Updated via Bulk Edit", 2);
 
                 if ($current_status == 'Approved') {
+                    $party_status = null;
                     if ($party[1] == 'bill') {
-                        $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $party[0])->get()[0];
+                        $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $party[0])->first();
                     } else {
-                        $party_status = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $party[0])->get()[0];
+                        $party_status = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $party[0])->first();
                     }
-                    if ($party_status->status == 'Active') {
+                    
+                    if ($party_status && $party_status->status == 'Active') {
                         $this->approve_expense($id, $user_db_conn_name);
                     }
                 }

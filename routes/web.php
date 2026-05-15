@@ -115,6 +115,7 @@ Route::group(['middleware' => ['auth']], function () {
         Route::post('/pending_expense/bulk_edit_expense', [ExpenseController::class, 'bulk_edit_expense']);
         Route::post('/pending_expense/update_bulk', [ExpenseController::class, 'updateBulkExpenses']);
         Route::get('/verified_expense', [ExpenseController::class, 'verified_expense']);
+        Route::post('/verified_expense_ajax', [ExpenseController::class, 'get_verified_expense_ajax']);
         Route::post('/bulk_approve_verified', [ExpenseController::class, 'bulk_approve_verified']);
         Route::post('/bulk_reject_verified', [ExpenseController::class, 'bulk_reject_verified']);
         Route::get('/verified_expense/export/{type}', [ExpenseController::class, 'verified_expense_export']);

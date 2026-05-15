@@ -14,27 +14,12 @@
                     @if (checkmodulepermission(2, 'can_view') == 1)
                         <div class="row mb-2 mt-2">
                             <div class="col-md-8 col-xs-12">
-                                <a href="{{ url('/verified_expense/export/csv?search=' . request('search')) }}"
+                                <a href="{{ url('/verified_expense/export/csv') }}"
                                     class="btn btn-round waves-effect waves-light btn-custom-color">CSV</a>
-                                <a href="{{ url('/verified_expense/export/xlsx?search=' . request('search')) }}"
+                                <a href="{{ url('/verified_expense/export/xlsx') }}"
                                     class="btn btn-round waves-effect waves-light btn-custom-color">Excel</a>
-                                <a href="{{ url('/verified_expense/export/pdf?search=' . request('search')) }}"
+                                <a href="{{ url('/verified_expense/export/pdf') }}"
                                     class="btn btn-round waves-effect waves-light btn-custom-color">PDF</a>
-                            </div>
-                            <div class="col-md-4 col-xs-12 text-right">
-                                <form action="{{ url('/verified_expense') }}" method="GET"
-                                    class="form-inline float-right">
-                                    <div class="form-group mb-0">
-                                        <input type="text" name="search" class="form-control"
-                                            placeholder="Search all data..." value="{{ request('search') }}"
-                                            style="width: 200px; border: 1px solid #ccc; border-radius: 20px; padding: 5px 15px;">
-                                    </div>
-                                    <button type="submit" class="btn btn-info btn-round ml-2">Search</button>
-                                    @if (request('search'))
-                                        <a href="{{ url('/verified_expense') }}"
-                                            class="btn btn-warning btn-round ml-1">Reset</a>
-                                    @endif
-                                </form>
                             </div>
                         </div>
 
@@ -73,7 +58,7 @@
                                         display: block !important;
                                     }
                                 </style>
-                                <table id="verifiedExpenseTableCustom" class="table table-hover table-bordered">
+                                <table id="verifiedExpenseTable" class="table table-hover table-bordered">
                                     <thead>
                                         <tr>
                                             <th style="width: 20px;">
@@ -87,7 +72,6 @@
                                             <th>Head</th>
                                             <th>Particular</th>
                                             <th>Amount</th>
-
                                             <th>Site</th>
                                             <th>User</th>
                                             <th>Location</th>
@@ -97,128 +81,28 @@
                                             <th>Image</th>
                                             <th>Action</th>
                                         </tr>
-                                    </thead>
-                                <tbody>
-
-
-                                    @php
-
-                                        $i = ($data->currentPage() - 1) * $data->perPage() + 1;
-                                    @endphp
-                                    @foreach ($data as $dd)
-                                        @php
-                                            $dd = (array)$dd;
-                                            $ddid = $dd['id'];
-                                        @endphp
-                                        <tr>
-                                            <td style="padding-left: 10px;">
-                                                <div class="checkbox">
-                                                    <input id="check_{{ $ddid }}" name="check_list[]" class="item_checkbox" type="checkbox" value="{{ $ddid }}" onclick="updateSelectAllVerified()">
-                                                    <label for="check_{{ $ddid }}">&nbsp;</label>
-                                                </div>
-                                            </td>
-                                            <td>{{ $i++ }}</td>
-                                            <td>
-                                                {{ $dd['party_name'] }}
-                                            </td>
-                                            <td>
-                                                {{ $dd['head'] }}
-                                            </td>
-                                            <td>
-                                                {{ $dd['particular'] }}
-                                            </td>
-                                            <td>
-                                                {{ $dd['amount'] }}
-                                            </td>
-
-                                            <td>
-                                                {{ $dd['site'] }}
-                                            </td>
-                                            <td>
-                                                {{ $dd['user'] }}
-                                            </td>
-                                            <td>
-                                                {{ $dd['location'] }}
-                                            </td>
-                                            <td>
-                                                {{ $dd['status'] }}
-                                            </td>
-                                            <td>
-                                                {{ $dd['remark'] }}
-                                            </td>
-                                            <td>
-                                                {{ $dd['date'] }}
-                                            </td>
-                                            <td>
-                                                @php
-                                                    $image = $dd['image'];
-
-                                                @endphp
-                                                <img class="lazy" data-src="{{ $dd['image'] }}"
-                                                    onclick="enlargeImage('{{ $image }}')" height="50px"
-                                                    width="50px" />
-                                            </td>
-                                            <td>
-
-
-                                                @if ($dd['status'] == 'Approved')
-                                                    @if (checkmodulepermission(2, 'can_certify') == 1)
-                                                        <button title="Reject" type="button"
-                                                            onclick="rejectexpense('{{ $ddid }}')"
-                                                            style="all:unset"><i class="zmdi zmdi-block"></i> </button>
-                                                    @endif
-                                                @else
-                                                    @if (in_array($dd['head_id'], $asset_expense_heads))
-                                                        @if (!empty($dd['asset_head']))
-                                                            Asset Category -
-                                                            {{ $asset_heads[$dd['asset_head']] ?? 'N/A' }}<br>
-                                                        @endif
-                                                        @if (checkmodulepermission(2, 'can_certify') == 1)
-                                                            <button type="button"
-                                                                onclick="openassignassetheadmodel('{{ $ddid }}')"
-                                                                style="all:unset"><i class="zmdi  zmdi-wrench"></i>
-                                                            </button>
-                                                        @endif
-                                                    @elseif(in_array($dd['head_id'], $machinery_expense_heads))
-                                                        @if (!empty($dd['machinery_head']))
-                                                            Machinery Category -
-                                                            {{ $machinery_heads[$dd['machinery_head']] ?? 'N/A' }}<br>
-                                                        @endif
-                                                        @if (checkmodulepermission(2, 'can_certify') == 1)
-                                                            <button type="button"
-                                                                onclick="openassignmachineryheadmodel('{{ $ddid }}')"
-                                                                style="all:unset"><img
-                                                                    src="{{ asset('/images/gears.png') }}"
-                                                                    style="width:20px" /> </button>
-                                                        @endif
-                                                    @endif
-
-
-
-                                                    @if (checkmodulepermission(2, 'can_certify') == 1)
-                                                        <button title="Aprovel" type="button"
-                                                            onclick="approveexpense('{{ $ddid }}')"
-                                                            style="all:unset"><i class="zmdi zmdi-check-circle"></i>
-                                                        </button>
-                                                    @endif
-                                                    &nbsp;
-                                                    @if (checkmodulepermission(2, 'can_edit') == 1)
-                                                        <button title="Edit" type="button" onclick="editexpense('{{ $ddid }}')"
-                                                            style="all:unset"><i class="zmdi zmdi-edit"></i> </button>
-                                                    @endif
-                                                @endif
-                                            </td>
+                                        <tr class="search-row">
+                                            <th></th>
+                                            <th></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Party" data-column="2"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Head" data-column="3"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Particular" data-column="4"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Amount" data-column="5"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Site" data-column="6"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="User" data-column="7"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Loc" data-column="8"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Status" data-column="9"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Remark" data-column="10"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Date" data-column="11"></th>
+                                            <th></th>
+                                            <th></th>
                                         </tr>
-                                    @endforeach
-
-                                </tbody>
-
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                    </tbody>
+                                </table>
                         </div>
                     </form>
-                    <div class="card-footer text-center">
-                        {{ $data->links('pagination::bootstrap-4') }}
-                    </div>
             @else
                         <div class="alert alert-danger">You Don't Have Permission To View</div>
                     @endif
@@ -226,7 +110,110 @@
             </div>
         </div>
     </div>
+@endsection
+
+@section('scripts')
     <script>
+        $(document).ready(function() {
+            var newExportAction = function (e, dt, button, config) {
+                var self = this;
+                var oldStart = dt.settings()[0]._iDisplayStart;
+                dt.one('preXhr', function (e, s, data) {
+                    data.start = 0;
+                    data.length = -1;
+                    dt.one('preDraw', function (e, settings) {
+                        if (button[0].className.indexOf('buttons-copy') >= 0) {
+                            $.fn.dataTable.ext.buttons.copyHtml5.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-excel') >= 0) {
+                            $.fn.dataTable.ext.buttons.excelHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.excelHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.excelFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-csv') >= 0) {
+                            $.fn.dataTable.ext.buttons.csvHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.csvHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.csvFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-pdf') >= 0) {
+                            $.fn.dataTable.ext.buttons.pdfHtml5.available(dt, config) ?
+                                $.fn.dataTable.ext.buttons.pdfHtml5.action.call(self, e, dt, button, config) :
+                                $.fn.dataTable.ext.buttons.pdfFlash.action.call(self, e, dt, button, config);
+                        } else if (button[0].className.indexOf('buttons-print') >= 0) {
+                            $.fn.dataTable.ext.buttons.print.action(e, dt, button, config);
+                        }
+                        dt.one('preXhr', function (e, s, data) {
+                            settings._iDisplayStart = oldStart;
+                            data.start = oldStart;
+                        });
+                        setTimeout(dt.ajax.reload, 0);
+                        return false;
+                    });
+                });
+                dt.ajax.reload();
+            };
+
+            var table = $('#verifiedExpenseTable').DataTable({
+                serverSide: true,
+                processing: true,
+                ajax: {
+                    url: "{{ url('/verified_expense_ajax') }}",
+                    type: "POST",
+                    data: {
+                        _token: "{{ csrf_token() }}"
+                    }
+                },
+                columnDefs: [
+                    { orderable: false, targets: [0, 1, 12, 13] }
+                ],
+                responsive: true,
+                dom: 'lBfrtip<"actions">',
+                buttons: [
+                    {
+                        extend: 'csvHtml5',
+                        action: newExportAction,
+                        className: 'btn btn-round btn-custom-color'
+                    },
+                    {
+                        extend: 'excelHtml5',
+                        action: newExportAction,
+                        className: 'btn btn-round btn-custom-color'
+                    },
+                    {
+                        extend: 'pdfHtml5',
+                        action: newExportAction,
+                        className: 'btn btn-round btn-custom-color'
+                    }
+                ],
+                "oLanguage": {
+                    "oPaginate": {
+                        "sFirst": '<i class="zmdi zmdi-fast-rewind"></i>',
+                        "sLast": '<i class="zmdi zmdi-fast-forward"></i>',
+                        "sPrevious": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-left"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>',
+                        "sNext": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-arrow-right"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>'
+                    },
+                    "sInfo": "Showing ( <b>_START_ - _END_ </b>) Of <b> _TOTAL_ </b> Entries <br> Page<b> _PAGE_ </b>of <b>_PAGES_</b> Pages",
+                    "sSearch": '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>',
+                    "sSearchPlaceholder": "Search...",
+                    "sLengthMenu": "Results :  _MENU_",
+                    "sPadding": '2rem'
+                },
+                pagingType: "full_numbers",
+                drawCallback: function(settings) {
+                    updateSelectAllVerified();
+                    $("img.lazy").each(function () {
+                        if ($(this).attr("data-src")) {
+                           $(this).attr("src", $(this).attr("data-src"));
+                        }
+                    });
+                }
+            });
+
+            // Apply column search
+            $('.column-search').on('keyup change', function() {
+                var colIndex = $(this).data('column');
+                table.column(colIndex).search(this.value).draw();
+            });
+        });
+
+
         function rejectexpense(id) {
             Swal.fire({
                 title: 'Are you sure?',
@@ -343,10 +330,9 @@
                     break;
                 }
             }
-            source.checked = allChecked;
+            if(source) source.checked = allChecked;
             toggleBulkActions();
         }
-
 
         function submitBulkEdit() {
             $("#bulkActionForm").attr('action', "{{ url('/pending_expense/bulk_edit_expense') }}");

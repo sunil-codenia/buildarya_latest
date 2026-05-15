@@ -13,6 +13,32 @@
 
 <link rel="stylesheet" href="{{ asset('/css/main.css') }}"/>
 <link rel="stylesheet" href="{{ asset('/css/color_skins.css') }}"/>
+<style>
+    @media screen and (max-width: 767px) {
+        .page-header {
+            height: auto !important;
+            min-height: 100vh !important;
+            display: flex !important;
+            align-items: center !important;
+            padding: 40px 0 !important;
+        }
+        .content-center {
+            position: static !important;
+            top: 0 !important;
+            left: 0 !important;
+            transform: none !important;
+            margin-top: 0 !important;
+        }
+        .card-plain {
+            margin-top: 0 !important;
+        }
+        .logo-container {
+            width: 100% !important;
+            max-width: 280px !important;
+            margin: 0 auto 20px !important;
+        }
+    }
+</style>
 </head>   <!-- include header -->
 @if(Session::has('key'))
 @php
@@ -49,7 +75,7 @@ exit();
                     @csrf
 
                     <div class="header">
-                        <div class="logo-container" style="width: 320px; margin: 0 auto 30px;">
+                        <div class="logo-container" style="max-width: 320px; width: 100%; margin: 0 auto 30px;">
                             <img src="{{asset('images/buildarya.png')}}" alt="Buildarya Logo" style="width: 100%;">
                         </div>
                         <h5>Log in</h5>

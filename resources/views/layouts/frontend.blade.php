@@ -182,7 +182,12 @@
             <a href="{{ url('/privacy-policy') }}" class="py-4 px-4 text-lg font-medium text-fg border-b border-border">Privacy Policy</a>
             <a href="{{ url('/terms-and-conditions') }}" class="py-4 px-4 text-lg font-medium text-fg border-b border-border">Terms & Conditions</a>
         </nav>
-        <a href="{{ url('/contact') }}" class="mt-8 btn-accent text-center py-4 rounded-xl text-base font-semibold">Book Free Demo</a>
+        <div class="mt-8 flex flex-col gap-3">
+            <a href="{{ url('/login') }}" class="inline-flex items-center justify-center gap-2 px-5 py-4 rounded-xl text-base font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200">
+                Login
+            </a>
+            <a href="{{ url('/contact') }}" class="btn-accent text-center py-4 rounded-xl text-base font-semibold">Book Free Demo</a>
+        </div>
     </div>
 
     <!-- Content -->

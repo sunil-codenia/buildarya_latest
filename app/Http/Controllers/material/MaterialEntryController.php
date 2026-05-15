@@ -60,8 +60,35 @@ class MaterialEntryController extends Controller
                     ->orWhere('material_entry.bill_no', 'LIKE', "%{$search}%")
                     ->orWhere('sites.name', 'LIKE', "%{$search}%")
                     ->orWhere('users.name', 'LIKE', "%{$search}%")
-                    ->orWhere('material_entry.remark', 'LIKE', "%{$search}%");
+                    ->orWhere('material_entry.remark', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.date', 'LIKE', "%{$search}%");
             });
+        }
+
+        // Individual Column Searching
+        $columns_search = $request->input('columns');
+        if ($columns_search) {
+            foreach ($columns_search as $index => $column) {
+                $search_val = $column['search']['value'];
+                if (!empty($search_val)) {
+                    switch ($index) {
+                        case 2: $query->where('material_supplier.name', 'LIKE', "%{$search_val}%"); break;
+                        case 3: $query->where('materials.name', 'LIKE', "%{$search_val}%"); break;
+                        case 4: $query->where('units.name', 'LIKE', "%{$search_val}%"); break;
+                        case 5: $query->where('material_entry.qty', 'LIKE', "%{$search_val}%"); break;
+                        case 6: $query->where('material_entry.rate', 'LIKE', "%{$search_val}%"); break;
+                        case 7: $query->where('material_entry.amount', 'LIKE', "%{$search_val}%"); break;
+                        case 8: $query->where('material_entry.vehical', 'LIKE', "%{$search_val}%"); break;
+                        case 9: $query->where('material_entry.status', 'LIKE', "%{$search_val}%"); break;
+                        case 10: $query->where('material_entry.remark', 'LIKE', "%{$search_val}%"); break;
+                        case 11: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
+                        case 12: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
+                        case 13: $query->where('material_entry.location', 'LIKE', "%{$search_val}%"); break;
+                        case 14: $query->where('material_entry.bill_no', 'LIKE', "%{$search_val}%"); break;
+                        case 15: $query->where('material_entry.date', 'LIKE', "%{$search_val}%"); break;
+                    }
+                }
+            }
         }
 
         $filteredRecords = $query->count();
@@ -230,8 +257,32 @@ class MaterialEntryController extends Controller
                     ->orWhere('sites.name', 'LIKE', "%{$search}%")
                     ->orWhere('users.name', 'LIKE', "%{$search}%")
                     ->orWhere('material_entry.vehical', 'LIKE', "%{$search}%")
-                    ->orWhere('material_entry.remark', 'LIKE', "%{$search}%");
+                    ->orWhere('material_entry.remark', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.date', 'LIKE', "%{$search}%");
             });
+        }
+
+        // Individual Column Searching
+        $columns_search = $request->input('columns');
+        if ($columns_search) {
+            foreach ($columns_search as $index => $column) {
+                $search_val = $column['search']['value'];
+                if (!empty($search_val)) {
+                    switch ($index) {
+                        case 2: $query->where('material_supplier.name', 'LIKE', "%{$search_val}%"); break;
+                        case 3: $query->where('materials.name', 'LIKE', "%{$search_val}%"); break;
+                        case 4: $query->where('units.name', 'LIKE', "%{$search_val}%"); break;
+                        case 5: $query->where('material_entry.qty', 'LIKE', "%{$search_val}%"); break;
+                        case 6: $query->where('material_entry.vehical', 'LIKE', "%{$search_val}%"); break;
+                        case 7: $query->where('material_entry.status', 'LIKE', "%{$search_val}%"); break;
+                        case 8: $query->where('material_entry.remark', 'LIKE', "%{$search_val}%"); break;
+                        case 9: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
+                        case 10: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
+                        case 11: $query->where('material_entry.location', 'LIKE', "%{$search_val}%"); break;
+                        case 12: $query->where('material_entry.date', 'LIKE', "%{$search_val}%"); break;
+                    }
+                }
+            }
         }
 
         $filteredRecords = $query->count();
@@ -393,7 +444,11 @@ class MaterialEntryController extends Controller
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $id = $data['id'];
-        $material_entry = DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->get()[0];
+        $material_entry = DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->first();
+
+        if (!$material_entry) {
+            return redirect('/pending_material')->with('error', 'Material entry not found!');
+        }
 
         if (isset($request->image)) {
             if (File::exists($material_entry->image) && $material_entry->image != 'images/expense.png') {
@@ -420,7 +475,19 @@ class MaterialEntryController extends Controller
             'date' => $data['date'],
         ];
         try {
-            DB::connection($user_db_conn_name)->table('material_entry')->upsert($rawd, 'id');
+            DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->update([
+                'supplier' => $data['supplier'],
+                'material_id' => $data['material_id'],
+                'unit' => $data['unit'],
+                'qty' => $data['qty'],
+                'vehical' => $data['vehical'],
+                'image' => $imagePath,
+                'remark' => $data['remark'],
+                'site_id' => $data['site_id'],
+                'status' => $status,
+                'user_id' => $user_id,
+                'date' => $data['date'],
+            ]);
             addActivity($id, 'material_entry', "Material Entry Data Updated ", 3);
             if ($status == 'Approved') {
                 $this->approve_material_entry($id, $user_db_conn_name);
@@ -429,7 +496,7 @@ class MaterialEntryController extends Controller
                 ->with('success', 'Material Entries Updated successfully!');
         } catch (\Exception $e) {
             return redirect('/verified_material')
-                ->with('error', 'Error While Updating Material Entries. Please Try Again After Reconciling The Statement.!');
+                ->with('error', 'Error While Updating Material Entries: ' . $e->getMessage());
         }
     }
     public function reject_material_by_id(Request $request)

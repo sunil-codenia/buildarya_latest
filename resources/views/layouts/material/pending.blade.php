@@ -60,6 +60,23 @@
                                         <th>Image</th>
                                         <th style="width: 40px;">Action</th>
                                     </tr>
+                                    <tr class="search-row">
+                                        <th></th>
+                                        <th></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Supplier" data-column="2"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Material" data-column="3"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Unit" data-column="4"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Qty" data-column="5"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Vehicle" data-column="6"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Status" data-column="7"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Remark" data-column="8"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Site" data-column="9"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="User" data-column="10"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Loc" data-column="11"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Date" data-column="12"></th>
+                                        <th></th>
+                                        <th></th>
+                                    </tr>
                                 </thead>
                                 <tbody>
                                 </tbody>
@@ -200,7 +217,7 @@
             dt.ajax.reload();
         };
 
-        $('#pendingMaterialTable').DataTable({
+        var table = $('#pendingMaterialTable').DataTable({
             serverSide: true,
             processing: true,
             ajax: {
@@ -263,6 +280,12 @@
             drawCallback: function(settings) {
                 toggleBulkActions();
             }
+        });
+
+        // Apply column search
+        $('.column-search').on('keyup change', function() {
+            var colIndex = $(this).data('column');
+            table.column(colIndex).search(this.value).draw();
         });
     });
 </script>

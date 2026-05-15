@@ -52,6 +52,22 @@
                                             <th>Image</th>
                                             <th>Action</th>
                                         </tr>
+                                        <tr class="search-row">
+                                            <th></th>
+                                            <th></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Party" data-column="2"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Head" data-column="3"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Particular" data-column="4"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Amount" data-column="5"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Site" data-column="6"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="User" data-column="7"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Loc" data-column="8"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Status" data-column="9"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Remark" data-column="10"></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Date" data-column="11"></th>
+                                            <th></th>
+                                            <th></th>
+                                        </tr>
                                     </thead>
                                     <tbody>
                                         <!-- Populated via AJAX -->
@@ -185,6 +201,98 @@
 @endsection
 @section('scripts')
     <script>
+        function approveexpense(id) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You Want To Approve This Expense ?",
+                icon: 'success',
+                showCancelButton: true,
+                toast: true,
+                position: 'center',
+                showConfirmButton: true,
+                timer: 8000,
+                timerProgressBar: true,
+                confirmButtonColor: '#17ce0a',
+                cancelButtonColor: '#000000',
+                confirmButtonText: 'Approve',
+                cancelButtonText: 'Cancel',
+                customClass: {
+                    container: 'model-width-450px'
+                },
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    var url = "{{ url('/approve_expense_by_id?id=') }}" + id;
+                    window.location.href = url;
+                }
+            });
+        }
+
+        function rejectexpense(id) {
+            Swal.fire({
+                title: 'Are you sure?',
+                text: "You Want To Reject This Expense?",
+                icon: 'warning',
+                showCancelButton: true,
+                toast: true,
+                position: 'center',
+                showConfirmButton: true,
+                timer: 8000,
+                timerProgressBar: true,
+                confirmButtonColor: '#ff0000',
+                cancelButtonColor: '#000000',
+                confirmButtonText: 'Reject',
+                cancelButtonText: 'Cancel',
+                customClass: {
+                    container: 'model-width-450px'
+                },
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    var url = "{{ url('/reject_expense_by_id?id=') }}" + id;
+                    window.location.href = url;
+                }
+            });
+        }
+
+        function returnexpense(id) {
+            Swal.fire({
+                title: 'Return Expense',
+                text: "Enter reason for returning this expense:",
+                input: 'textarea',
+                inputPlaceholder: 'Reason...',
+                showCancelButton: true,
+                confirmButtonText: 'Return',
+                showLoaderOnConfirm: true,
+                preConfirm: (comment) => {
+                    if (!comment) {
+                        Swal.showValidationMessage('Please enter a reason');
+                    }
+                    return $.ajax({
+                        url: "{{ url('/return_expense_action') }}",
+                        type: "POST",
+                        data: {
+                            _token: "{{ csrf_token() }}",
+                            check_list: [id],
+                            return_comment: comment
+                        }
+                    }).then(response => {
+                        if (response.status !== 'success') {
+                            throw new Error(response.message);
+                        }
+                        return response;
+                    }).catch(error => {
+                        Swal.showValidationMessage(`Request failed: ${error}`);
+                    });
+                },
+                allowOutsideClick: () => !Swal.isLoading()
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire('Success!', 'Expense has been returned.', 'success').then(() => {
+                        $('#pendingExpenseTable').DataTable().ajax.reload();
+                    });
+                }
+            });
+        }
+
         function selectAll(source) {
             var checkboxes = document.getElementsByClassName('check_item');
             for (var i = 0; i < checkboxes.length; i++) {
@@ -203,7 +311,7 @@
                     break;
                 }
             }
-            source.checked = allChecked;
+            if(source) source.checked = allChecked;
         }
 
         function editexpense(id) {
@@ -306,6 +414,11 @@
             });
         }
 
+        function openassignassetheadmodel(id) {
+            $('#asset_head_expense_id').val(id);
+            $('#assignassethead').modal();
+        }
+
         function openassignmachineryheadmodel(id) {
             $('#machinery_head_expense_id').val(id);
             $('#assignmachineryhead').modal();
@@ -347,7 +460,7 @@
                 dt.ajax.reload();
             };
 
-            $('#pendingExpenseTable').DataTable({
+            var table = $('#pendingExpenseTable').DataTable({
                 serverSide: true,
                 processing: true,
                 ajax: {
@@ -408,6 +521,12 @@
                         }
                     });
                 }
+            });
+
+            // Apply column search
+            $('.column-search').on('keyup change', function() {
+                var colIndex = $(this).data('column');
+                table.column(colIndex).search(this.value).draw();
             });
         });
     </script>

@@ -18,14 +18,30 @@ class ApiSalesController extends Controller
     {
         try {
             $search = trim($request->get('search'));
+            $export = $request->get('export');
             $query = DB::table('sales_project')->orderBy('id', 'desc');
 
             if (!empty($search)) {
                 $query->where('name', 'LIKE', "%{$search}%");
             }
 
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "sales_projects_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name', 'Details', 'Status', 'Created At']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [$row->id, $row->name, $row->details, $row->status, $row->create_datetime]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
             $projects = $query->paginate(20);
-            return response()->json(['status' => 'Ok', 'data' => $projects, 'applied_search' => $search]);
+            return response()->json(['status' => 'Ok', 'data' => $projects]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
@@ -33,18 +49,133 @@ class ApiSalesController extends Controller
 
     public function storeProject(Request $request)
     {
-        $request->validate(['name' => 'required|unique:sales_project,name']);
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate(['name' => 'required']);
+        
         try {
             $user = $request->user();
             $conn = config('database.default');
+            
+            $imagePath = "";
+            if ($request->hasFile('attachment')) {
+                $imageName = time() . rand(10000, 1000000) . '.' . $request->file('attachment')->extension();
+                $request->file('attachment')->move(public_path('images/app_images/'.$conn.'/projects'), $imageName);
+                $imagePath = "images/app_images/".$conn."/projects/" . $imageName;
+            }
+
             $id = DB::table('sales_project')->insertGetId([
                 'name' => $request->name,
                 'details' => $request->details,
+                'attachment' => $imagePath,
                 'status' => 'Active',
                 'create_datetime' => Carbon::now()
             ]);
+
             addActivity($id, 'sales_project', "New Sales Project Created via API: " . $request->name, 7, $user->id, $conn);
             return response()->json(['status' => 'Ok', 'message' => 'Project created successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function projectDetails(Request $request, $id)
+    {
+        try {
+            $project = DB::table('sales_project')->where('id', $id)->first();
+            if (!$project) return response()->json(['status' => 'Failed', 'message' => 'Project not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $project]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateProject(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate(['name' => 'required']);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            $project = DB::table('sales_project')->where('id', $id)->first();
+            
+            if (!$project) return response()->json(['status' => 'Failed', 'message' => 'Project not found'], 404);
+
+            $imagePath = $project->attachment;
+            if ($request->hasFile('attachment')) {
+                if (!empty($project->attachment) && File::exists(public_path($project->attachment))) {
+                    File::delete(public_path($project->attachment));
+                }
+                $imageName = time() . rand(10000, 1000000) . '.' . $request->file('attachment')->extension();
+                $request->file('attachment')->move(public_path('images/app_images/'.$conn.'/projects'), $imageName);
+                $imagePath = "images/app_images/".$conn."/projects/" . $imageName;
+            }
+
+            DB::table('sales_project')->where('id', $id)->update([
+                'name' => $request->name,
+                'details' => $request->details,
+                'attachment' => $imagePath
+            ]);
+
+            addActivity($id, 'sales_project', "Sales Project Updated via API", 7, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Project updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteProject(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $check = DB::table('sales_invoice')->where('project_id', $id)->count();
+            if ($check > 0) {
+                return response()->json(['status' => 'Error', 'message' => 'This Project Cannot Be Deleted. Project Has Invoices In Its Name!'], 400);
+            }
+
+            $project = DB::table('sales_project')->where('id', $id)->first();
+            if (!$project) return response()->json(['status' => 'Failed', 'message' => 'Project not found'], 404);
+
+            if (!empty($project->attachment) && File::exists(public_path($project->attachment))) {
+                File::delete(public_path($project->attachment));
+            }
+
+            DB::table('sales_project')->where('id', $id)->delete();
+            addActivity(0, 'sales_project', "Sales Project Deleted via API: " . $project->name, 7, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Project deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateProjectStatus(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate(['status' => 'required|in:Active,Deactive']);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            DB::table('sales_project')->where('id', $id)->update(['status' => $request->status]);
+            addActivity($id, 'sales_project', "Sales Project Status Updated via API: " . $request->status, 7, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Project status updated successfully']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }

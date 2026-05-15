@@ -25,6 +25,15 @@ $dataarray = json_decode($data, true);
         padding: 0 !important;
         vertical-align: middle;
     }
+    .column-search {
+        width: 100% !important;
+        padding: 5px !important;
+        height: auto !important;
+        font-size: 12px !important;
+    }
+    .search-row th {
+        padding: 5px !important;
+    }
 </style>
 <div class="row clearfix">
 @if($edit)
@@ -146,6 +155,16 @@ $dataarray = json_decode($data, true);
                                     <th><strong>Cost Category</strong></th>
                                     <th style="width: 100px;">Status</th>
                                     <th style="width: 100px;">Action</th>
+                                </tr>
+                                <tr class="search-row">
+                                    <th></th>
+                                    <th></th>
+                                    <th><input type="text" class="form-control column-search" placeholder="Search Name" /></th>
+                                    <th><input type="text" class="form-control column-search" placeholder="Search Address" /></th>
+                                    <th><input type="text" class="form-control column-search" placeholder="Search PAN" /></th>
+                                    <th><input type="text" class="form-control column-search" placeholder="Search Category" /></th>
+                                    <th><input type="text" class="form-control column-search" placeholder="Search Status" /></th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -402,7 +421,7 @@ $dataarray = json_decode($data, true);
                 dt.ajax.reload();
             };
 
-            $('#expensePartyTable').DataTable({
+            var table = $('#expensePartyTable').DataTable({
                 serverSide: true,
                 processing: true,
                 ajax: {
@@ -459,6 +478,16 @@ $dataarray = json_decode($data, true);
                     }
                     toggleBulkActions();
                 }
+            });
+
+            // Column Search Logic
+            table.columns().every(function() {
+                var that = this;
+                $('input', $('.search-row th').get(this.index())).on('keyup change clear', function() {
+                    if (that.search() !== this.value) {
+                        that.search(this.value).draw();
+                    }
+                });
             });
         });
 </script>

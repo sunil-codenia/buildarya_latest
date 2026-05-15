@@ -17,8 +17,12 @@ class UserController extends Controller
     public function get_users_ajax(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $current_role = $request->session()->get('role');
         
-        $query = DB::connection($user_db_conn_name)->table('users');
+        $query = DB::connection($user_db_conn_name)->table('users')
+            ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
+            ->select('users.*', 'roles.name as role_name');
+
         $companyName = $request->session()->get('comp_name', 'N/A');
 
         $totalRecords = $query->count();
@@ -28,8 +32,60 @@ class UserController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('users.name', 'LIKE', "%{$search}%")
                     ->orWhere('users.username', 'LIKE', "%{$search}%")
-                    ->orWhere('users.contact_no', 'LIKE', "%{$search}%");
+                    ->orWhere('users.contact_no', 'LIKE', "%{$search}%")
+                    ->orWhere('users.pan_no', 'LIKE', "%{$search}%")
+                    ->orWhere('roles.name', 'LIKE', "%{$search}%");
             });
+        }
+
+        // Individual Column Searching
+        $columns_search = $request->input('columns');
+        if ($columns_search) {
+            foreach ($columns_search as $index => $column) {
+                $search_val = $column['search']['value'];
+                if (!empty($search_val)) {
+                    switch ($index) {
+                        case 3: // Name/Role
+                            $query->where(function ($q) use ($search_val) {
+                                $q->where('users.name', 'LIKE', "%{$search_val}%")
+                                  ->orWhere('roles.name', 'LIKE', "%{$search_val}%");
+                            });
+                            break;
+                        case 4: // Site
+                            $query->whereExists(function ($q) use ($search_val) {
+                                $q->select(DB::raw(1))
+                                  ->from('sites')
+                                  ->whereRaw("FIND_IN_SET(sites.id, users.site_id)")
+                                  ->where('sites.name', 'LIKE', "%{$search_val}%");
+                            });
+                            break;
+                        case 7: // Status
+                            $query->where('users.status', 'LIKE', "%{$search_val}%");
+                            break;
+                        case 8: // Username
+                            $query->where('users.username', 'LIKE', "%{$search_val}%");
+                            break;
+                        case 9: // Contact
+                            $query->where('users.contact_no', 'LIKE', "%{$search_val}%");
+                            break;
+                        case 10: // PAN
+                            $query->where('users.pan_no', 'LIKE', "%{$search_val}%");
+                            break;
+                        case 11: // Pass (if role 1) or Created (if not)
+                            if ($current_role == 1) {
+                                $query->where('users.pass', 'LIKE', "%{$search_val}%");
+                            } else {
+                                $query->where('users.create_datetime', 'LIKE', "%{$search_val}%");
+                            }
+                            break;
+                        case 12: // Created (if role 1)
+                            if ($current_role == 1) {
+                                $query->where('users.create_datetime', 'LIKE', "%{$search_val}%");
+                            }
+                            break;
+                    }
+                }
+            }
         }
 
         $filteredRecords = $query->count();
@@ -38,11 +94,18 @@ class UserController extends Controller
         $orderDir = $request->input('order.0.dir', 'asc');
 
         $columns = [
-            1 => 'users.name',
-            5 => 'users.status',
-            6 => 'users.username',
-            10 => 'users.create_datetime'
+            3 => 'users.name',
+            7 => 'users.status',
+            8 => 'users.username',
+            9 => 'users.contact_no',
+            10 => 'users.pan_no',
         ];
+
+        if ($current_role == 1) {
+            $columns[12] = 'users.create_datetime';
+        } else {
+            $columns[11] = 'users.create_datetime';
+        }
 
         if (isset($columns[$orderColumnIndex])) {
             $query->orderBy($columns[$orderColumnIndex], $orderDir);
@@ -61,8 +124,7 @@ class UserController extends Controller
 
         $all_sites = DB::connection($user_db_conn_name)->table('sites')->pluck('name', 'id')->toArray();
         $all_possible_members = [];
-        // Note: For multi-site users, "Team" display might need rethinking or simplified.
-        // For now, we'll keep the team as others in their FIRST assigned site.
+        
         $site_ids_first = $users->map(fn($u) => explode(',', (string)$u->site_id)[0] ?? null)->unique()->filter()->toArray();
         if (!empty($site_ids_first)) {
             $all_possible_members = DB::connection($user_db_conn_name)->table('users')
@@ -72,18 +134,15 @@ class UserController extends Controller
                 ->groupBy('site_id');
         }
 
-
-
         $formattedData = [];
         $i = $start + 1;
-        $current_role = session()->get('role');
 
         foreach ($users as $user) {
             $ddid = $user->id;
             
             $image = '<img class="rounded avatar" style="max-height: 40px;" src="'.asset($user->image).'" alt="im">';
             
-            $role_name = getRoleDetailsById($user->role_id)->name;
+            $role_name = $user->role_name ?? 'N/A';
             $nameInfo = '<a class="single-user-name" href="#">'.htmlspecialchars($user->name).'</a><br><small>'.htmlspecialchars($role_name).'</small>';
             
             $assigned_site_ids = explode(',', (string)$user->site_id);

@@ -26,13 +26,26 @@ class DashboardController extends Controller
      */
     public function storeApk(Request $request)
     {
+        // Check if request is empty (often happens when post_max_size is exceeded)
+        if ($request->isMethod('post') && empty($request->all()) && empty($request->file())) {
+            $postLimit = ini_get('post_max_size');
+            return back()->with('error', "The uploaded file exceeds the server's post_max_size limit (currently $postLimit). Please increase this limit in your php.ini file.");
+        }
+
         $request->validate([
-            'apk_file' => 'required|file',
+            'apk_file' => 'required|file|max:102400', // Limit to 100MB in validation
+        ], [
+            'apk_file.max' => 'The APK file must not be greater than 100MB.',
+            'apk_file.file' => 'The uploaded file is invalid. This might be due to server-side size limits.',
         ]);
 
         if ($request->hasFile('apk_file')) {
             $file = $request->file('apk_file');
             
+            if (!$file->isValid()) {
+                return back()->with('error', 'The uploaded file is not valid. Error: ' . $file->getErrorMessage());
+            }
+
             // Validate extension manually if mimes fails
             if ($file->getClientOriginalExtension() != 'apk') {
                 return back()->with('error', 'Only .apk files are allowed.');

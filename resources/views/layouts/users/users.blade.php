@@ -245,6 +245,24 @@
                                             <th>Created</th>
                                             <th style="width:100px;">Action</th>
                                         </tr>
+                                        <tr class="search-row">
+                                            <th></th>
+                                            <th></th>
+                                            <th></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Name" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Site" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Company" /></th>
+                                            <th></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Status" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Username" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Contact" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search PAN" /></th>
+                                            @if (Session::get('role') == 1)
+                                                <th><input type="text" class="form-control column-search" placeholder="Search Pass" /></th>
+                                            @endif
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Created" /></th>
+                                            <th></th>
+                                        </tr>
                                     </thead>
                                     <tbody>
                                     </tbody>
@@ -564,7 +582,7 @@
             dt.ajax.reload();
         };
 
-        $('#userTable').DataTable({
+        var table = $('#userTable').DataTable({
             serverSide: true,
             processing: true,
             ajax: {
@@ -632,6 +650,16 @@
             }
         });
 
+        // Column Search Logic
+        table.columns().every(function() {
+            var that = this;
+            $('input', $('.search-row th').get(this.index())).on('keyup change clear', function() {
+                if (that.search() !== this.value) {
+                    that.search(this.value).draw();
+                }
+            });
+        });
+
         $(document).on('change', '.date-range-from, .date-range-to', function() {
             var container = $(this).closest('.form-group, .col-sm-6');
             var from = container.find('.date-range-from').val();
@@ -657,6 +685,15 @@
         padding: 0;
         line-height: 35px;
         text-align: center;
+    }
+    .column-search {
+        width: 100% !important;
+        padding: 5px !important;
+        height: auto !important;
+        font-size: 12px !important;
+    }
+    .search-row th {
+        padding: 5px !important;
     }
     .mr-1 { margin-right: 0.25rem; }
     .mr-3 { margin-right: 1rem; }

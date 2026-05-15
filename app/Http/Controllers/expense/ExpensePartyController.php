@@ -45,7 +45,9 @@ class ExpensePartyController extends Controller
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
-        $query = DB::connection($user_db_conn_name)->table('expense_party');
+        $query = DB::connection($user_db_conn_name)->table('expense_party')
+            ->leftJoin('expense_head', 'expense_head.id', '=', 'expense_party.cost_category_id')
+            ->select('expense_party.*', 'expense_head.name as category_name');
 
         // Total records
         $totalRecords = $query->count();
@@ -54,10 +56,38 @@ class ExpensePartyController extends Controller
         $search = $request->input('search.value');
         if (!empty($search)) {
             $query->where(function($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('address', 'LIKE', "%{$search}%")
-                  ->orWhere('pan_no', 'LIKE', "%{$search}%");
+                $q->where('expense_party.name', 'LIKE', "%{$search}%")
+                  ->orWhere('expense_party.address', 'LIKE', "%{$search}%")
+                  ->orWhere('expense_party.pan_no', 'LIKE', "%{$search}%")
+                  ->orWhere('expense_head.name', 'LIKE', "%{$search}%");
             });
+        }
+
+        // Individual Column Searching
+        $columns_search = $request->input('columns');
+        if ($columns_search) {
+            foreach ($columns_search as $index => $column) {
+                $search_val = $column['search']['value'];
+                if (!empty($search_val)) {
+                    switch ($index) {
+                        case 2: // Name
+                            $query->where('expense_party.name', 'LIKE', "%{$search_val}%");
+                            break;
+                        case 3: // Address
+                            $query->where('expense_party.address', 'LIKE', "%{$search_val}%");
+                            break;
+                        case 4: // PAN
+                            $query->where('expense_party.pan_no', 'LIKE', "%{$search_val}%");
+                            break;
+                        case 5: // Cost Category
+                            $query->where('expense_head.name', 'LIKE', "%{$search_val}%");
+                            break;
+                        case 6: // Status
+                            $query->where('expense_party.status', 'LIKE', "%{$search_val}%");
+                            break;
+                    }
+                }
+            }
         }
 
         $filteredRecords = $query->count();
@@ -67,16 +97,17 @@ class ExpensePartyController extends Controller
         $orderDir = $request->input('order.0.dir', 'asc');
         
         $columns = [
-            2 => 'name',
-            3 => 'address',
-            4 => 'pan_no',
-            5 => 'status'
+            2 => 'expense_party.name',
+            3 => 'expense_party.address',
+            4 => 'expense_party.pan_no',
+            5 => 'expense_head.name',
+            6 => 'expense_party.status'
         ];
         
         if (isset($columns[$orderColumnIndex])) {
             $query->orderBy($columns[$orderColumnIndex], $orderDir);
         } else {
-            $query->orderBy('id', 'desc');
+            $query->orderBy('expense_party.id', 'desc');
         }
 
         // Pagination
@@ -86,9 +117,6 @@ class ExpensePartyController extends Controller
         if ($length != -1) {
             $query->skip($start)->take($length);
         }
-
-        $query->leftJoin('expense_head', 'expense_head.id', '=', 'expense_party.cost_category_id')
-            ->select('expense_party.*', 'expense_head.name as category_name');
 
         $data = $query->get();
 

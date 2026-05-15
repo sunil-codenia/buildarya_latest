@@ -1,5 +1,17 @@
 @extends('app')
 @section('content')
+    <style>
+        .column-search {
+            width: 100% !important;
+            padding: 5px !important;
+            height: auto !important;
+            font-size: 12px !important;
+        }
+        .search-row th {
+            padding: 5px !important;
+        }
+    </style>
+
     @include('templates.blockheader', ['pagename' => 'Returned Expenses '])
 
     <div class="row clearfix">
@@ -40,6 +52,22 @@
                                             <th>Date</th>
                                             <th>Image</th>
                                             <th>Action</th>
+                                        </tr>
+                                        <tr class="search-row">
+                                            <th></th>
+                                            <th></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Party" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Head" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Particular" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Amount" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Site" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search User" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Location" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Status" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Remark" /></th>
+                                            <th><input type="text" class="form-control column-search" placeholder="Search Date" /></th>
+                                            <th></th>
+                                            <th></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -178,7 +206,7 @@
         }
 
         $(document).ready(function() {
-            $('#returnExpenseTable').DataTable({
+            var table = $('#returnExpenseTable').DataTable({
                 serverSide: true,
                 processing: true,
                 ajax: {
@@ -206,6 +234,16 @@
                         }
                     });
                 }
+            });
+
+            // Column Search Logic
+            table.columns().every(function() {
+                var that = this;
+                $('input', $('.search-row th').get(this.index())).on('keyup change clear', function() {
+                    if (that.search() !== this.value) {
+                        that.search(this.value).draw();
+                    }
+                });
             });
         });
     </script>

@@ -430,6 +430,10 @@ Route::prefix('v1')->group(function () {
         // Sales
         Route::get('/sales/projects', [ApiSalesController::class, 'listProjects']);
         Route::post('/sales/projects', [ApiSalesController::class, 'storeProject']);
+        Route::get('/sales/projects/{id}', [ApiSalesController::class, 'projectDetails'])->where('id', '[0-9]+');
+        Route::post('/sales/projects/{id}', [ApiSalesController::class, 'updateProject'])->where('id', '[0-9]+');
+        Route::delete('/sales/projects/{id}', [ApiSalesController::class, 'deleteProject'])->where('id', '[0-9]+');
+        Route::post('/sales/projects/{id}/status', [ApiSalesController::class, 'updateProjectStatus'])->where('id', '[0-9]+');
         Route::get('/sales/invoices', [ApiSalesController::class, 'listInvoices']);
         Route::get('/sales/invoices/{id}', [ApiSalesController::class, 'invoiceDetails']);
         Route::post('/sales/invoices', [ApiSalesController::class, 'storeInvoice']);
