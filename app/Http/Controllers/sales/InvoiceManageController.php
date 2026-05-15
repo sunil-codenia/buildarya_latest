@@ -82,7 +82,7 @@ class InvoiceManageController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data['types'] = DB::connection($user_db_conn_name)->table('sales_dedadd')->get();
         $data['manage'] = DB::connection($user_db_conn_name)->table('sales_manage_invoice')->leftJoin('sales_dedadd','sales_dedadd.id','=','sales_manage_invoice.type_id')->where('sales_manage_invoice.invoice_id','=',$invoice_id)->select('sales_manage_invoice.*','sales_dedadd.name as type_name','sales_dedadd.type as type')->get();
-        $data['invoice'] = DB::connection($user_db_conn_name)->table('sales_invoice')->leftJoin('sales_project','sales_project.id','=','sales_invoice.project_id')->where('sales_invoice.id','=',$invoice_id)->select('sales_invoice.*','sales_project.name as project')->get()[0];
+        $data['invoice'] = DB::connection($user_db_conn_name)->table('sales_invoice')->leftJoin('sales_project', 'sales_project.id', '=', 'sales_invoice.project_id')->leftJoin('sales_party', 'sales_party.id', '=', 'sales_invoice.party_id')->leftJoin('sales_company', 'sales_company.id', '=', 'sales_invoice.company_id')->where('sales_invoice.id', '=', $invoice_id)->select('sales_invoice.*', 'sales_project.name as project', 'sales_company.name as company', 'sales_party.name as party')->get()[0];
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('sales_manage_invoice')->where('id','=',$id)->get();
         return  view('layouts.sales.manage_invoice')->with('data',json_encode($data));
     }

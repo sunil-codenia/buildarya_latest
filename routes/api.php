@@ -438,6 +438,14 @@ Route::prefix('v1')->group(function () {
         // Nested Sales Project Invoices
         Route::get('/sales-project/{id}/invoices', [ApiSalesController::class, 'listInvoices']);
         Route::post('/sales-project/{id}/invoices', [ApiSalesController::class, 'storeInvoice']);
+        Route::get("/sales-project/{id}/invoices/{invoice_id}", [ApiSalesController::class, "invoiceDetails"]);
+        Route::post("/sales-project/{id}/invoices/{invoice_id}", [ApiSalesController::class, "updateInvoice"]);
+        Route::delete("/sales-project/{id}/invoices/{invoice_id}", [ApiSalesController::class, "deleteInvoice"]);
+        Route::post("/sales-project/{id}/invoices/{invoice_id}/status", [ApiSalesController::class, "updateInvoiceStatus"]);
+        Route::post("/sales-project/{id}/invoices/{invoice_id}/adjustments", [ApiSalesController::class, "storeAdjustment"]);
+        Route::get("/sales-project/{id}/invoices/{invoice_id}/adjustments/{adjustment_id}", [ApiSalesController::class, "adjustmentDetails"]);
+        Route::post("/sales-project/{id}/invoices/{invoice_id}/adjustments/{adjustment_id}", [ApiSalesController::class, "updateAdjustment"]);
+        Route::delete("/sales-project/{id}/invoices/{invoice_id}/adjustments/{adjustment_id}", [ApiSalesController::class, "deleteAdjustment"]);
 
         Route::get('/sales/invoices', [ApiSalesController::class, 'listInvoices']);
         Route::get('/sales/invoices/{id}', [ApiSalesController::class, 'invoiceDetails']);

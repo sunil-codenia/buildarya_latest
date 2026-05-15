@@ -313,26 +313,194 @@ class ApiSalesController extends Controller
         }
     }
 
-    public function invoiceDetails(Request $request, $id)
+    public function updateInvoice(Request $request, $id, $invoice_id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'company_id' => 'required',
+            'party_id' => 'required',
+            'invoice_no' => 'required',
+            'amount' => 'required',
+            'date' => 'required|date'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            $invoice = DB::table('sales_invoice')->where('id', $invoice_id)->first();
+
+            if (!$invoice) return response()->json(['status' => 'Failed', 'message' => 'Invoice not found'], 404);
+
+            // Manual check for duplicate invoice_no if changed
+            if ($request->invoice_no != $invoice->invoice_no) {
+                $exists = DB::table('sales_invoice')->where('invoice_no', $request->invoice_no)->exists();
+                if ($exists) {
+                    return response()->json(['status' => 'Error', 'message' => 'Invoice No already exists!'], 400);
+                }
+            }
+
+            $pdfPath = $invoice->pdf;
+            if ($request->hasFile('pdf')) {
+                if (!empty($invoice->pdf) && File::exists(public_path($invoice->pdf))) {
+                    File::delete(public_path($invoice->pdf));
+                }
+                $pdfName = time() . rand(10000, 1000000) . '.' . $request->file('pdf')->extension();
+                $request->file('pdf')->move(public_path('images/app_images/' . $conn . '/invoices'), $pdfName);
+                $pdfPath = "images/app_images/" . $conn . "/invoices/" . $pdfName;
+            }
+
+            $imagePath = $invoice->image;
+            if ($request->hasFile('image')) {
+                if (!empty($invoice->image) && File::exists(public_path($invoice->image))) {
+                    File::delete(public_path($invoice->image));
+                }
+                $imageName = time() . rand(10000, 1000000) . '.' . $request->file('image')->extension();
+                $request->file('image')->move(public_path('images/app_images/' . $conn . '/invoices'), $imageName);
+                $imagePath = "images/app_images/" . $conn . "/invoices/" . $imageName;
+            }
+
+            $data = [
+                'company_id' => $request->company_id,
+                'party_id' => $request->party_id,
+                'financial_year' => $request->financial_year ?? $invoice->financial_year,
+                'invoice_no' => $request->invoice_no,
+                'gst_rate' => $request->gst_rate ?? $invoice->gst_rate,
+                'taxable_value' => $request->taxable_value ?? $request->amount,
+                'amount' => $request->amount,
+                'pdf' => $pdfPath,
+                'image' => $imagePath,
+                'date' => $request->date
+            ];
+
+            DB::table('sales_invoice')->where('id', $invoice_id)->update($data);
+            addActivity($invoice_id, 'sales_invoice', "Sale Invoice Updated via API", 7, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Invoice updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteInvoice(Request $request, $id, $invoice_id)
     {
         try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            // Check if used in adjustments
+            $check = DB::table('sales_manage_invoice')->where('invoice_id', $invoice_id)->count();
+            if ($check > 0) {
+                return response()->json(['status' => 'Error', 'message' => 'This Invoice Cannot Be Deleted. It has associated adjustments!'], 400);
+            }
+
+            $invoice = DB::table('sales_invoice')->where('id', $invoice_id)->first();
+            if (!$invoice) return response()->json(['status' => 'Failed', 'message' => 'Invoice not found'], 404);
+
+            if (!empty($invoice->pdf) && File::exists(public_path($invoice->pdf))) {
+                File::delete(public_path($invoice->pdf));
+            }
+            if (!empty($invoice->image) && File::exists(public_path($invoice->image))) {
+                File::delete(public_path($invoice->image));
+            }
+
+            DB::table('sales_invoice')->where('id', $invoice_id)->delete();
+            addActivity(0, 'sales_invoice', "Sale Invoice Deleted via API: " . $invoice->invoice_no, 7, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Invoice deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateInvoiceStatus(Request $request, $id, $invoice_id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate(['status' => 'required|in:Active,Deactive']);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            DB::table('sales_invoice')->where('id', $invoice_id)->update(['status' => $request->status]);
+            addActivity($invoice_id, 'sales_invoice', "Sale Invoice Status Updated via API: " . $request->status, 7, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Invoice status updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function invoiceDetails(Request $request, $id, $invoice_id = null)
+    {
+        try {
+            $target_id = $invoice_id ?? $id;
             $invoice = DB::table('sales_invoice')
                 ->leftJoin('sales_project', 'sales_project.id', '=', 'sales_invoice.project_id')
                 ->leftJoin('sales_party', 'sales_party.id', '=', 'sales_invoice.party_id')
                 ->leftJoin('sales_company', 'sales_company.id', '=', 'sales_invoice.company_id')
-                ->where('sales_invoice.id', $id)
+                ->where('sales_invoice.id', $target_id)
                 ->select('sales_invoice.*', 'sales_project.name as project_name', 'sales_company.name as company_name', 'sales_party.name as party_name')
                 ->first();
 
             if (!$invoice) return response()->json(['status' => 'Failed', 'message' => 'Invoice not found'], 404);
 
-            $adjustments = DB::table('sales_manage_invoice')
-                ->leftJoin('sales_dedadd', 'sales_dedadd.id', '=', 'sales_manage_invoice.type_id')
-                ->where('sales_manage_invoice.invoice_id', $id)
-                ->select('sales_manage_invoice.*', 'sales_dedadd.name as type_name', 'sales_dedadd.type as adjustment_type')
+            $adjustments = DB::table("sales_manage_invoice")
+                ->leftJoin("sales_dedadd", "sales_dedadd.id", "=", "sales_manage_invoice.type_id")
+                ->where("sales_manage_invoice.invoice_id", $target_id)
+                ->select("sales_manage_invoice.*", "sales_dedadd.name as type_name", "sales_dedadd.type as type")
                 ->get();
 
-            return response()->json(['status' => 'Ok', 'data' => ['invoice' => $invoice, 'adjustments' => $adjustments]]);
+            $debits = [];
+            $credits = [];
+            $total_debit = 0;
+            $total_credit = 0;
+
+            foreach ($adjustments as $adj) {
+                if ($adj->type == "add") {
+                    $debits[] = $adj;
+                    $total_debit += $adj->amount;
+                } else {
+                    $credits[] = $adj;
+                    $total_credit += $adj->amount;
+                }
+            }
+
+            $gross_value = floatval($invoice->amount);
+            $balance = $gross_value + $total_debit - $total_credit;
+
+            return response()->json([
+                "status" => "Ok",
+                "data" => [
+                    "invoice" => $invoice,
+                    "summary" => [
+                        "invoice_no" => $invoice->invoice_no,
+                        "project" => $invoice->project_name,
+                        "company" => $invoice->company_name,
+                        "taxable_value" => $invoice->taxable_value,
+                        "gst_rate" => $invoice->gst_rate,
+                        "gross_value" => $invoice->amount,
+                        "date" => $invoice->date,
+                        "financial_year" => $invoice->financial_year,
+                        "party" => $invoice->party_name,
+                        "status" => $invoice->status
+                    ],
+                    "debits" => $debits,
+                    "credits" => $credits,
+                    "totals" => [
+                        "total_debit" => $total_debit,
+                        "total_credit" => $total_credit,
+                        "balance" => $balance
+                    ]
+                ]
+            ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
@@ -350,7 +518,7 @@ class ApiSalesController extends Controller
                 ->leftJoin('sales_invoice', 'sales_invoice.id', '=', 'sales_manage_invoice.invoice_id')
                 ->leftJoin('sales_dedadd', 'sales_dedadd.id', '=', 'sales_manage_invoice.type_id')
                 ->leftJoin('sales_project', 'sales_project.id', '=', 'sales_invoice.project_id')
-                ->select('sales_manage_invoice.*', 'sales_dedadd.name as type_name', 'sales_dedadd.type as adjustment_type', 'sales_invoice.invoice_no', 'sales_project.name as project_name')
+                ->select("sales_manage_invoice.*", "sales_dedadd.name as type_name", "sales_dedadd.type as adjustment_type", "sales_invoice.invoice_no", "sales_project.name as project_name")
                 ->orderBy('sales_manage_invoice.id', 'desc');
 
             if (!empty($project_id)) {
@@ -398,38 +566,158 @@ class ApiSalesController extends Controller
         }
     }
 
-    public function storeAdjustment(Request $request)
+    public function storeAdjustment(Request $request, $id = null, $invoice_id = null)
     {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $inv_id = $invoice_id ?? $request->invoice_id;
+        $request->merge(["invoice_id" => $inv_id]);
+
         $request->validate([
-            'invoice_id' => 'required',
-            'type_id' => 'required',
-            'amount' => 'required',
-            'date' => 'required|date'
+            "invoice_id" => "required",
+            "type_id" => "required",
+            "amount" => "required",
+            "date" => "required|date"
         ]);
 
         try {
             $user = $request->user();
-            $conn = config('database.default');
+            $conn = config("database.default");
+
+            $pdfPath = "";
+            if ($request->hasFile("pdf")) {
+                $pdfName = time() . rand(10000, 1000000) . "." . $request->file("pdf")->extension();
+                $request->file("pdf")->move(public_path("images/app_images/" . $conn . "/invoices"), $pdfName);
+                $pdfPath = "images/app_images/" . $conn . "/invoices/" . $pdfName;
+            }
+
+            $imagePath = "";
+            if ($request->hasFile("image")) {
+                $imageName = time() . rand(10000, 1000000) . "." . $request->file("image")->extension();
+                $request->file("image")->move(public_path("images/app_images/" . $conn . "/invoices"), $imageName);
+                $imagePath = "images/app_images/" . $conn . "/invoices/" . $imageName;
+            }
 
             $data = [
-                'invoice_id' => $request->invoice_id,
-                'type_id' => $request->type_id,
-                'amount' => $request->amount,
-                'date' => $request->date,
-                'image' => "", // Mobile uploads can be added here if needed
-                'pdf' => "",
-                'create_datetime' => Carbon::now()
+                "invoice_id" => $request->invoice_id,
+                "type_id" => $request->type_id,
+                "amount" => $request->amount,
+                "date" => $request->date,
+                "image" => $imagePath,
+                "pdf" => $pdfPath,
+                "create_datetime" => Carbon::now()
             ];
 
-            $id = DB::table('sales_manage_invoice')->insertGetId($data);
-            addActivity($id, 'sales_manage_invoice', "Sales Invoice Adjustment Added via API", 7, $user->id, $conn);
+            $id = DB::table("sales_manage_invoice")->insertGetId($data);
+            addActivity($id, "sales_manage_invoice", "Sales Invoice Adjustment Added via API", 7, $user->id, $conn);
 
-            return response()->json(['status' => 'Ok', 'message' => 'Adjustment added successfully', 'id' => $id]);
+            return response()->json(["status" => "Ok", "message" => "Adjustment added successfully", "id" => $id]);
         } catch (\Exception $e) {
-            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+            return response()->json(["status" => "Error", "message" => $e->getMessage()], 500);
         }
     }
 
+    public function updateAdjustment(Request $request, $id, $invoice_id, $adjustment_id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            "type_id" => "required",
+            "amount" => "required",
+            "date" => "required|date"
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config("database.default");
+
+            $adj = DB::table("sales_manage_invoice")->where("id", $adjustment_id)->first();
+            if (!$adj) return response()->json(["status" => "Failed", "message" => "Adjustment not found"], 404);
+
+            $pdfPath = $adj->pdf;
+            if ($request->hasFile("pdf")) {
+                if (!empty($adj->pdf) && File::exists(public_path($adj->pdf))) {
+                    File::delete(public_path($adj->pdf));
+                }
+                $pdfName = time() . rand(10000, 1000000) . "." . $request->file("pdf")->extension();
+                $request->file("pdf")->move(public_path("images/app_images/" . $conn . "/invoices"), $pdfName);
+                $pdfPath = "images/app_images/" . $conn . "/invoices/" . $pdfName;
+            }
+
+            $imagePath = $adj->image;
+            if ($request->hasFile("image")) {
+                if (!empty($adj->image) && File::exists(public_path($adj->image))) {
+                    File::delete(public_path($adj->image));
+                }
+                $imageName = time() . rand(10000, 1000000) . "." . $request->file("image")->extension();
+                $request->file("image")->move(public_path("images/app_images/" . $conn . "/invoices"), $imageName);
+                $imagePath = "images/app_images/" . $conn . "/invoices/" . $imageName;
+            }
+
+            $data = [
+                "type_id" => $request->type_id,
+                "amount" => $request->amount,
+                "date" => $request->date,
+                "image" => $imagePath,
+                "pdf" => $pdfPath
+            ];
+
+            DB::table("sales_manage_invoice")->where("id", $adjustment_id)->update($data);
+            addActivity($adjustment_id, "sales_manage_invoice", "Sales Invoice Adjustment Updated via API", 7, $user->id, $conn);
+
+            return response()->json(["status" => "Ok", "message" => "Adjustment updated successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(["status" => "Error", "message" => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteAdjustment(Request $request, $id, $invoice_id, $adjustment_id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config("database.default");
+
+            $adj = DB::table("sales_manage_invoice")->where("id", $adjustment_id)->first();
+            if (!$adj) return response()->json(["status" => "Failed", "message" => "Adjustment not found"], 404);
+
+            if (!empty($adj->pdf) && File::exists(public_path($adj->pdf))) {
+                File::delete(public_path($adj->pdf));
+            }
+            if (!empty($adj->image) && File::exists(public_path($adj->image))) {
+                File::delete(public_path($adj->image));
+            }
+
+            DB::table("sales_manage_invoice")->where("id", $adjustment_id)->delete();
+            addActivity(0, "sales_manage_invoice", "Sales Invoice Adjustment Deleted via API: Amount " . $adj->amount, 7, $user->id, $conn);
+
+            return response()->json(["status" => "Ok", "message" => "Adjustment deleted successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(["status" => "Error", "message" => $e->getMessage()], 500);
+        }
+    }
+
+    public function adjustmentDetails(Request $request, $id, $invoice_id, $adjustment_id)
+    {
+        try {
+            $adj = DB::table("sales_manage_invoice")
+                ->leftJoin("sales_dedadd", "sales_dedadd.id", "=", "sales_manage_invoice.type_id")
+                ->where("sales_manage_invoice.id", $adjustment_id)
+                ->select("sales_manage_invoice.*", "sales_dedadd.name as type_name", "sales_dedadd.type as type")
+                ->first();
+
+            if (!$adj) return response()->json(["status" => "Failed", "message" => "Adjustment not found"], 404);
+
+            return response()->json(["status" => "Ok", "data" => $adj]);
+        } catch (\Exception $e) {
+            return response()->json(["status" => "Error", "message" => $e->getMessage()], 500);
+        }
+    }
     // ==========================================
     // SALES INVOICE HEADS
     // ==========================================
