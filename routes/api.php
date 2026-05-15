@@ -434,9 +434,15 @@ Route::prefix('v1')->group(function () {
         Route::post('/sales/projects/{id}', [ApiSalesController::class, 'updateProject'])->where('id', '[0-9]+');
         Route::delete('/sales/projects/{id}', [ApiSalesController::class, 'deleteProject'])->where('id', '[0-9]+');
         Route::post('/sales/projects/{id}/status', [ApiSalesController::class, 'updateProjectStatus'])->where('id', '[0-9]+');
+
+        // Nested Sales Project Invoices
+        Route::get('/sales-project/{id}/invoices', [ApiSalesController::class, 'listInvoices']);
+        Route::post('/sales-project/{id}/invoices', [ApiSalesController::class, 'storeInvoice']);
+
         Route::get('/sales/invoices', [ApiSalesController::class, 'listInvoices']);
         Route::get('/sales/invoices/{id}', [ApiSalesController::class, 'invoiceDetails']);
         Route::post('/sales/invoices', [ApiSalesController::class, 'storeInvoice']);
+        Route::get('/sales/adjustments', [ApiSalesController::class, 'listAdjustments']);
         Route::post('/sales/adjustments', [ApiSalesController::class, 'storeAdjustment']);
 
         // Sales Invoice Heads

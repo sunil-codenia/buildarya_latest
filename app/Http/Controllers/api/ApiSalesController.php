@@ -185,10 +185,13 @@ class ApiSalesController extends Controller
     // SALES INVOICES
     // ==========================================
 
-    public function listInvoices(Request $request)
+    public function listInvoices(Request $request, $id = null)
     {
         try {
-            $project_id = $request->get('project_id');
+            $project_id = $id ?? $request->get('project_id');
+            $search = trim($request->get('search'));
+            $export = $request->get('export');
+
             $query = DB::table('sales_invoice')
                 ->leftJoin('sales_company', 'sales_company.id', '=', 'sales_invoice.company_id')
                 ->leftJoin('sales_party', 'sales_party.id', '=', 'sales_invoice.party_id')
@@ -196,8 +199,41 @@ class ApiSalesController extends Controller
                 ->select('sales_invoice.*', 'sales_company.name as company_name', 'sales_party.name as party_name', 'sales_project.name as project_name')
                 ->orderBy('sales_invoice.id', 'desc');
 
-            if ($project_id) {
+            if (!empty($project_id)) {
                 $query->where('sales_invoice.project_id', $project_id);
+            }
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('sales_invoice.invoice_no', 'LIKE', "%{$search}%")
+                      ->orWhere('sales_party.name', 'LIKE', "%{$search}%")
+                      ->orWhere('sales_project.name', 'LIKE', "%{$search}%")
+                      ->orWhere('sales_company.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "sales_receipts_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Date', 'Invoice No', 'Project', 'Party', 'Company', 'Amount', 'Status']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [
+                            $row->id, 
+                            $row->date, 
+                            $row->invoice_no, 
+                            $row->project_name, 
+                            $row->party_name, 
+                            $row->company_name, 
+                            $row->amount, 
+                            $row->status
+                        ]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
             }
 
             $invoices = $query->paginate(20);
@@ -207,13 +243,23 @@ class ApiSalesController extends Controller
         }
     }
 
-    public function storeInvoice(Request $request)
+    public function storeInvoice(Request $request, $id = null)
     {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        // Use ID from URL if present
+        if ($id) {
+            $request->request->add(['project_id' => $id]);
+        }
+
         $request->validate([
             'project_id' => 'required',
             'company_id' => 'required',
             'party_id' => 'required',
-            'invoice_no' => 'required|unique:sales_invoice,invoice_no',
+            'invoice_no' => 'required',
             'amount' => 'required',
             'date' => 'required|date'
         ]);
@@ -221,6 +267,12 @@ class ApiSalesController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
+
+            // Check for duplicate invoice_no manually to avoid unique validator issues with soft deletes/tenants if any
+            $exists = DB::table('sales_invoice')->where('invoice_no', $request->invoice_no)->exists();
+            if ($exists) {
+                return response()->json(['status' => 'Error', 'message' => 'Invoice No already exists!'], 400);
+            }
             
             $pdfPath = "";
             if ($request->hasFile('pdf')) {
@@ -242,8 +294,8 @@ class ApiSalesController extends Controller
                 'party_id' => $request->party_id,
                 'financial_year' => $request->financial_year ?? getCurrentFinancialYear(),
                 'invoice_no' => $request->invoice_no,
-                'gst_rate' => $request->gst_rate,
-                'taxable_value' => $request->taxable_value,
+                'gst_rate' => $request->gst_rate ?? 0,
+                'taxable_value' => $request->taxable_value ?? $request->amount,
                 'amount' => $request->amount,
                 'pdf' => $pdfPath,
                 'image' => $imagePath,
@@ -281,6 +333,66 @@ class ApiSalesController extends Controller
                 ->get();
 
             return response()->json(['status' => 'Ok', 'data' => ['invoice' => $invoice, 'adjustments' => $adjustments]]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function listAdjustments(Request $request)
+    {
+        try {
+            $project_id = $request->get('project_id');
+            $invoice_id = $request->get('invoice_id');
+            $search = trim($request->get('search'));
+            $export = $request->get('export');
+
+            $query = DB::table('sales_manage_invoice')
+                ->leftJoin('sales_invoice', 'sales_invoice.id', '=', 'sales_manage_invoice.invoice_id')
+                ->leftJoin('sales_dedadd', 'sales_dedadd.id', '=', 'sales_manage_invoice.type_id')
+                ->leftJoin('sales_project', 'sales_project.id', '=', 'sales_invoice.project_id')
+                ->select('sales_manage_invoice.*', 'sales_dedadd.name as type_name', 'sales_dedadd.type as adjustment_type', 'sales_invoice.invoice_no', 'sales_project.name as project_name')
+                ->orderBy('sales_manage_invoice.id', 'desc');
+
+            if (!empty($project_id)) {
+                $query->where('sales_invoice.project_id', $project_id);
+            }
+            if (!empty($invoice_id)) {
+                $query->where('sales_manage_invoice.invoice_id', $invoice_id);
+            }
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('sales_invoice.invoice_no', 'LIKE', "%{$search}%")
+                      ->orWhere('sales_dedadd.name', 'LIKE', "%{$search}%")
+                      ->orWhere('sales_project.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "sales_payments_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Date', 'Invoice No', 'Project', 'Type', 'Adjustment Type', 'Amount']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [
+                            $row->id, 
+                            $row->date, 
+                            $row->invoice_no, 
+                            $row->project_name, 
+                            $row->type_name, 
+                            $row->adjustment_type, 
+                            $row->amount
+                        ]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $adjustments = $query->paginate(20);
+            return response()->json(['status' => 'Ok', 'data' => $adjustments]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
