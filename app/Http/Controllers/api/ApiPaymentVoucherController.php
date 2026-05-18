@@ -11,23 +11,369 @@ use Carbon\Carbon;
 class ApiPaymentVoucherController extends Controller
 {
     /**
+     * Helper to build the base query for payment vouchers with Joins to resolve related names.
+     */
+    private function getVouchersQuery($conn)
+    {
+        return DB::connection($conn)->table('payment_vouchers as pv')
+            ->leftJoin('sales_company as sc', 'sc.id', '=', 'pv.company_id')
+            ->leftJoin('sites as vs', 'vs.id', '=', 'pv.site_id')
+            ->leftJoin('users as cu', 'cu.id', '=', 'pv.created_by')
+            ->leftJoin('users as au', 'au.id', '=', 'pv.approved_by')
+            ->leftJoin('users as pu', 'pu.id', '=', 'pv.paid_by')
+            ->leftJoin('bills_party', function ($join) {
+                $join->on('pv.party_id', '=', 'bills_party.id')
+                    ->where('pv.party_type', '=', 'bill');
+            })
+            ->leftJoin('material_supplier', function ($join) {
+                $join->on('pv.party_id', '=', 'material_supplier.id')
+                    ->where('pv.party_type', '=', 'material');
+            })
+            ->leftJoin('sites as ps', function ($join) {
+                $join->on('pv.party_id', '=', 'ps.id')
+                    ->where('pv.party_type', '=', 'site');
+            })
+            ->leftJoin('other_parties', function ($join) {
+                $join->on('pv.party_id', '=', 'other_parties.id')
+                    ->where('pv.party_type', '=', 'other');
+            })
+            ->selectRaw('pv.*, sc.name as company_name, vs.name as site_name, cu.name as created_user, au.name as approved_user, pu.name as paid_user, CASE WHEN pv.party_type = "bill" THEN bills_party.name WHEN pv.party_type = "material" THEN material_supplier.name WHEN pv.party_type = "other" THEN other_parties.name WHEN pv.party_type = "site" THEN ps.name END AS party_name');
+    }
+
+    /**
+     * Helper to stream payment voucher list as CSV.
+     */
+    private function exportCsv($vouchers, $filenamePrefix)
+    {
+        $headers = [
+            "Content-type"        => "text/csv",
+            "Content-Disposition" => "attachment; filename={$filenamePrefix}_" . date('Y-m-d') . ".csv",
+            "Pragma"              => "no-cache",
+            "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+            "Expires"             => "0"
+        ];
+
+        $columns = [
+            'ID', 'Voucher No', 'Site Name', 'Company Name', 'Party Type', 'Party Name', 
+            'Amount', 'Date', 'Status', 'Payment Details', 'Payment Date', 'Remark', 
+            'Created By User', 'Approved By User', 'Paid By User', 'Created At'
+        ];
+
+        $callback = function() use($vouchers, $columns) {
+            $file = fopen('php://output', 'w');
+            fputcsv($file, $columns);
+
+            foreach ($vouchers as $v) {
+                fputcsv($file, [
+                    $v->id,
+                    $v->voucher_no,
+                    $v->site_name,
+                    $v->company_name,
+                    $v->party_type,
+                    $v->party_name,
+                    $v->amount,
+                    $v->date,
+                    $v->status,
+                    $v->payment_details,
+                    $v->payment_date,
+                    $v->remark,
+                    $v->created_user,
+                    $v->approved_user,
+                    $v->paid_user,
+                    $v->create_datetime
+                ]);
+            }
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
      * List Pending Payment Vouchers
      */
     public function listPending(Request $request)
     {
         try {
-            $user = $request->user();
-            $query = DB::table('payment_vouchers')
-                ->leftJoin('sites', 'sites.id', '=', 'payment_vouchers.site_id')
-                ->leftJoin('sales_company', 'sales_company.id', '=', 'payment_vouchers.company_id')
-                ->select('payment_vouchers.*', 'sites.name as site_name', 'sales_company.name as company_name')
-                ->where('payment_vouchers.status', 'Pending');
+            $conn = config('database.default');
+            $query = $this->getVouchersQuery($conn)->where('pv.status', 'Pending');
 
-            $vouchers = $query->orderBy('payment_vouchers.create_datetime', 'desc')->paginate(20);
-            return response()->json(['status' => 'Ok', 'data' => $vouchers]);
+            // Apply Search
+            $search = trim($request->get('search'));
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('pv.voucher_no', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.payment_details', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.remark', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.amount', 'LIKE', "%{$search}%")
+                      ->orWhere('sc.name', 'LIKE', "%{$search}%")
+                      ->orWhere('vs.name', 'LIKE', "%{$search}%")
+                      ->orWhere('bills_party.name', 'LIKE', "%{$search}%")
+                      ->orWhere('material_supplier.name', 'LIKE', "%{$search}%")
+                      ->orWhere('ps.name', 'LIKE', "%{$search}%")
+                      ->orWhere('other_parties.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $query->orderBy('pv.create_datetime', 'desc');
+
+            // Check if CSV format is requested
+            if ($request->get('format') === 'csv') {
+                return $this->exportCsv($query->get(), 'pending_vouchers');
+            }
+
+            // Paginated Response
+            $perPage = intval($request->get('per_page', 20));
+            $vouchers = $query->paginate($perPage);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $vouchers,
+                'applied_search' => $search
+            ]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * List Verified Payment Vouchers (Approved or Rejected)
+     */
+    public function listVerified(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $query = $this->getVouchersQuery($conn)->whereIn('pv.status', ['Approved', 'Rejected']);
+
+            // Apply Search
+            $search = trim($request->get('search'));
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('pv.voucher_no', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.payment_details', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.remark', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.amount', 'LIKE', "%{$search}%")
+                      ->orWhere('sc.name', 'LIKE', "%{$search}%")
+                      ->orWhere('vs.name', 'LIKE', "%{$search}%")
+                      ->orWhere('bills_party.name', 'LIKE', "%{$search}%")
+                      ->orWhere('material_supplier.name', 'LIKE', "%{$search}%")
+                      ->orWhere('ps.name', 'LIKE', "%{$search}%")
+                      ->orWhere('other_parties.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $query->orderBy('pv.create_datetime', 'desc');
+
+            // Check if CSV format is requested
+            if ($request->get('format') === 'csv') {
+                return $this->exportCsv($query->get(), 'verified_vouchers');
+            }
+
+            // Paginated Response
+            $perPage = intval($request->get('per_page', 20));
+            $vouchers = $query->paginate($perPage);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $vouchers,
+                'applied_search' => $search
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * List Paid Payment Vouchers
+     */
+    public function listPaid(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $query = $this->getVouchersQuery($conn)->where('pv.status', 'Paid');
+
+            // Apply Search
+            $search = trim($request->get('search'));
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('pv.voucher_no', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.payment_details', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.remark', 'LIKE', "%{$search}%")
+                      ->orWhere('pv.amount', 'LIKE', "%{$search}%")
+                      ->orWhere('sc.name', 'LIKE', "%{$search}%")
+                      ->orWhere('vs.name', 'LIKE', "%{$search}%")
+                      ->orWhere('bills_party.name', 'LIKE', "%{$search}%")
+                      ->orWhere('material_supplier.name', 'LIKE', "%{$search}%")
+                      ->orWhere('ps.name', 'LIKE', "%{$search}%")
+                      ->orWhere('other_parties.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $query->orderBy('pv.create_datetime', 'desc');
+
+            // Check if CSV format is requested
+            if ($request->get('format') === 'csv') {
+                return $this->exportCsv($query->get(), 'paid_vouchers');
+            }
+
+            // Paginated Response
+            $perPage = intval($request->get('per_page', 20));
+            $vouchers = $query->paginate($perPage);
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $vouchers,
+                'applied_search' => $search
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Bulk Approve Pending Payment Vouchers
+     */
+    public function bulkApprove(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? null;
+            
+            if (empty($ids)) {
+                return response()->json(['status' => 'Error', 'message' => 'Voucher IDs are required'], 400);
+            }
+
+            if (!is_array($ids)) {
+                $ids = explode(',', $ids);
+            }
+            $ids = array_map('trim', $ids);
+            
+            $approvedCount = 0;
+            $errors = [];
+
+            foreach ($ids as $id) {
+                try {
+                    $voucher = DB::connection($conn)->table('payment_vouchers')->where('id', $id)->first();
+                    if (!$voucher) {
+                        $errors[] = "Voucher ID {$id}: Not found";
+                        continue;
+                    }
+
+                    if ($voucher->status !== 'Pending') {
+                        $errors[] = "Voucher ID {$id} ({$voucher->voucher_no}): Status is not Pending (current: {$voucher->status})";
+                        continue;
+                    }
+
+                    // Check if Party is Active
+                    $party_status = null;
+                    if ($voucher->party_type == 'bill') {
+                        $party_status = DB::connection($conn)->table('bills_party')->where('id', $voucher->party_id)->first();
+                    } else if ($voucher->party_type == 'material') {
+                        $party_status = DB::connection($conn)->table('material_supplier')->where('id', $voucher->party_id)->first();
+                    } else if ($voucher->party_type == 'other') {
+                        $party_status = DB::connection($conn)->table('other_parties')->where('id', $voucher->party_id)->first();
+                    } else if ($voucher->party_type == 'site') {
+                        $party_status = DB::connection($conn)->table('sites')->where('id', $voucher->party_id)->first();
+                    }
+
+                    if ($party_status && $party_status->status !== 'Active') {
+                        $errors[] = "Voucher ID {$id} ({$voucher->voucher_no}): Party '{$party_status->name}' is not Active";
+                        continue;
+                    }
+
+                    // Approve the voucher
+                    DB::connection($conn)->table('payment_vouchers')
+                        ->where('id', $id)
+                        ->update(['status' => 'Approved', 'approved_by' => $user->id]);
+
+                    addActivity($id, 'payment_vouchers', "Payment Voucher Approved via Bulk API", 8, $user->id, $conn);
+                    $approvedCount++;
+                } catch (\Exception $ex) {
+                    $errors[] = "Voucher ID {$id}: " . $ex->getMessage();
+                }
+            }
+
+            return response()->json([
+                'status' => count($errors) > 0 ? 'Partial' : 'Ok',
+                'message' => "{$approvedCount} payment vouchers approved successfully.",
+                'errors' => $errors
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Bulk Reject Pending Payment Vouchers
+     */
+    public function bulkReject(Request $request)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+            
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? null;
+            
+            if (empty($ids)) {
+                return response()->json(['status' => 'Error', 'message' => 'Voucher IDs are required'], 400);
+            }
+
+            if (!is_array($ids)) {
+                $ids = explode(',', $ids);
+            }
+            $ids = array_map('trim', $ids);
+            
+            $rejectedCount = 0;
+            $errors = [];
+
+            foreach ($ids as $id) {
+                try {
+                    $voucher = DB::connection($conn)->table('payment_vouchers')->where('id', $id)->first();
+                    if (!$voucher) {
+                        $errors[] = "Voucher ID {$id}: Not found";
+                        continue;
+                    }
+
+                    if ($voucher->status !== 'Pending') {
+                        $errors[] = "Voucher ID {$id} ({$voucher->voucher_no}): Status is not Pending (current: {$voucher->status})";
+                        continue;
+                    }
+
+                    // Reject the voucher
+                    DB::connection($conn)->table('payment_vouchers')
+                        ->where('id', $id)
+                        ->update(['status' => 'Rejected', 'approved_by' => $user->id]);
+
+                    addActivity($id, 'payment_vouchers', "Payment Voucher Rejected via Bulk API", 8, $user->id, $conn);
+                    $rejectedCount++;
+                } catch (\Exception $ex) {
+                    $errors[] = "Voucher ID {$id}: " . $ex->getMessage();
+                }
+            }
+
+            return response()->json([
+                'status' => count($errors) > 0 ? 'Partial' : 'Ok',
+                'message' => "{$rejectedCount} payment vouchers rejected successfully.",
+                'errors' => $errors
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Handle Store or Bulk Store dynamically
+     */
+    public function storeOrBulkStore(Request $request)
+    {
+        if ($request->has('site_id') && is_array($request->input('site_id'))) {
+            return $this->bulkStore($request);
+        }
+        return $this->store($request);
     }
 
     /**
@@ -39,7 +385,6 @@ class ApiPaymentVoucherController extends Controller
             'site_id' => 'required',
             'company_id' => 'required',
             'party_id' => 'required',
-            'party_type' => 'required|in:bill,material,other,site',
             'voucher_no' => 'required',
             'amount' => 'required',
             'date' => 'required|date'
@@ -48,6 +393,21 @@ class ApiPaymentVoucherController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
+
+            // Extract party_id and party_type
+            $rawPartyId = $request->party_id;
+            $partyId = $rawPartyId;
+            $partyType = $request->party_type;
+
+            if (is_string($rawPartyId) && str_contains($rawPartyId, '||')) {
+                $parts = explode('||', $rawPartyId);
+                $partyId = $parts[0];
+                $partyType = $parts[1];
+            }
+
+            if (empty($partyType)) {
+                $partyType = 'material'; // default fallback
+            }
 
             $imagePath = "images/expense.png";
             if ($request->hasFile('image')) {
@@ -62,13 +422,13 @@ class ApiPaymentVoucherController extends Controller
             $data = [
                 'company_id' => $request->company_id,
                 'site_id' => $request->site_id,
-                'party_type' => $request->party_type,
-                'party_id' => $request->party_id,
+                'party_type' => $partyType,
+                'party_id' => $partyId,
                 'voucher_no' => $request->voucher_no,
                 'amount' => $request->amount,
                 'date' => $request->date,
                 'payment_details' => $request->payment_details ?? "",
-                'remark' => $request->remark ?? "",
+                'remark' => $request->remark ?? $request->remarks ?? "",
                 'created_by' => $user->id,
                 'image' => $imagePath,
                 'status' => $status,
@@ -101,7 +461,6 @@ class ApiPaymentVoucherController extends Controller
             'site_id' => 'required|array',
             'company_id' => 'required|array',
             'party_id' => 'required|array',
-            'party_type' => 'required|array',
             'voucher_no' => 'required|array',
             'amount' => 'required|array',
             'date' => 'required|array'
@@ -124,16 +483,31 @@ class ApiPaymentVoucherController extends Controller
                         $imagePath = "images/app_images/" . $conn . "/paymentvoucher/" . $imageName;
                     }
 
+                    // Extract party_id and party_type
+                    $rawPartyId = $request->party_id[$i] ?? null;
+                    $partyId = $rawPartyId;
+                    $partyType = $request->party_type[$i] ?? null;
+
+                    if (is_string($rawPartyId) && str_contains($rawPartyId, '||')) {
+                        $parts = explode('||', $rawPartyId);
+                        $partyId = $parts[0];
+                        $partyType = $parts[1];
+                    }
+
+                    if (empty($partyType)) {
+                        $partyType = 'material'; // default fallback
+                    }
+
                     $data = [
                         'company_id' => $request->company_id[$i] ?? null,
                         'site_id' => $request->site_id[$i] ?? null,
-                        'party_type' => $request->party_type[$i] ?? null,
-                        'party_id' => $request->party_id[$i] ?? null,
+                        'party_type' => $partyType,
+                        'party_id' => $partyId,
                         'voucher_no' => $request->voucher_no[$i] ?? null,
                         'amount' => $request->amount[$i] ?? null,
                         'date' => $request->date[$i] ?? null,
                         'payment_details' => $request->payment_details[$i] ?? "",
-                        'remark' => $request->remark[$i] ?? "",
+                        'remark' => $request->remark[$i] ?? $request->remarks[$i] ?? "",
                         'created_by' => $user->id,
                         'image' => $imagePath,
                         'status' => $status,
@@ -184,6 +558,53 @@ class ApiPaymentVoucherController extends Controller
         if ($party_status && $party_status->status == 'Active') {
             DB::table('payment_vouchers')->where('id', $id)->update(['status' => 'Approved', 'approved_by' => $userId]);
             addActivity($id, 'payment_vouchers', "Payment Voucher Approved Automatically via API", 8, $userId, $conn);
+        }
+    }
+
+    /**
+     * Generate Voucher PDF
+     */
+    public function generateVoucherPdf(Request $request, $id = null)
+    {
+        try {
+            $target_id = $id ?? $request->get('id');
+            if (empty($target_id)) {
+                return response()->json(['status' => 'Error', 'message' => 'Voucher ID is required'], 400);
+            }
+
+            $conn = config('database.default');
+            
+            // Set session variables for helpers and blade compatibility in stateless API environment
+            if (!session()->has('comp_db_conn_name')) {
+                session()->put('comp_db_conn_name', $conn);
+            }
+            if (!session()->has('primary_color')) {
+                session()->put('primary_color', ['#8c52ff']);
+            }
+            if (!session()->has('secondry_color')) {
+                session()->put('secondry_color', ['#3f51b5']);
+            }
+
+            // Fetch payment voucher details
+            $payment_vouchers = DB::select("SELECT `payment_vouchers`.*, `sales_company`.`name` as `company_name`, `sites`.`name` as `site_name` FROM `payment_vouchers` LEFT JOIN `sites` ON `payment_vouchers`.`site_id` = `sites`.`id` LEFT JOIN `sales_company` ON `payment_vouchers`.`company_id` = `sales_company`.`id` WHERE `payment_vouchers`.`id` = ?", [$target_id]);
+
+            if (empty($payment_vouchers)) {
+                return response()->json(['status' => 'Error', 'message' => 'Payment Voucher not found'], 404);
+            }
+
+            $payment_voucher = $payment_vouchers[0];
+            $company = DB::table('sales_company')->where('id', $payment_voucher->company_id)->first();
+
+            if (!$company) {
+                $company = DB::table('sales_company')->first();
+            }
+
+            $file_name = $payment_voucher->voucher_no . ".pdf";
+            
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.paymentvoucher.pdfs.pv_pdf', compact(['payment_voucher', 'company']));
+            return $pdf->download($file_name);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
 }

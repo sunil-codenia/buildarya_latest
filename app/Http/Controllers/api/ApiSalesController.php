@@ -313,8 +313,9 @@ class ApiSalesController extends Controller
         }
     }
 
-    public function updateInvoice(Request $request, $id, $invoice_id)
+    public function updateInvoice(Request $request, $id, $invoice_id = null)
     {
+        $target_id = $invoice_id ?? $id;
         if (!empty($request->getContent())) {
             $json = json_decode($request->getContent(), true);
             if ($json) $request->request->add($json);
@@ -331,7 +332,7 @@ class ApiSalesController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
-            $invoice = DB::table('sales_invoice')->where('id', $invoice_id)->first();
+            $invoice = DB::table('sales_invoice')->where('id', $target_id)->first();
 
             if (!$invoice) return response()->json(['status' => 'Failed', 'message' => 'Invoice not found'], 404);
 
@@ -376,8 +377,8 @@ class ApiSalesController extends Controller
                 'date' => $request->date
             ];
 
-            DB::table('sales_invoice')->where('id', $invoice_id)->update($data);
-            addActivity($invoice_id, 'sales_invoice', "Sale Invoice Updated via API", 7, $user->id, $conn);
+            DB::table('sales_invoice')->where('id', $target_id)->update($data);
+            addActivity($target_id, 'sales_invoice', "Sale Invoice Updated via API", 7, $user->id, $conn);
 
             return response()->json(['status' => 'Ok', 'message' => 'Invoice updated successfully']);
         } catch (\Exception $e) {
@@ -385,19 +386,20 @@ class ApiSalesController extends Controller
         }
     }
 
-    public function deleteInvoice(Request $request, $id, $invoice_id)
+    public function deleteInvoice(Request $request, $id, $invoice_id = null)
     {
+        $target_id = $invoice_id ?? $id;
         try {
             $user = $request->user();
             $conn = config('database.default');
 
             // Check if used in adjustments
-            $check = DB::table('sales_manage_invoice')->where('invoice_id', $invoice_id)->count();
+            $check = DB::table('sales_manage_invoice')->where('invoice_id', $target_id)->count();
             if ($check > 0) {
                 return response()->json(['status' => 'Error', 'message' => 'This Invoice Cannot Be Deleted. It has associated adjustments!'], 400);
             }
 
-            $invoice = DB::table('sales_invoice')->where('id', $invoice_id)->first();
+            $invoice = DB::table('sales_invoice')->where('id', $target_id)->first();
             if (!$invoice) return response()->json(['status' => 'Failed', 'message' => 'Invoice not found'], 404);
 
             if (!empty($invoice->pdf) && File::exists(public_path($invoice->pdf))) {
@@ -407,7 +409,7 @@ class ApiSalesController extends Controller
                 File::delete(public_path($invoice->image));
             }
 
-            DB::table('sales_invoice')->where('id', $invoice_id)->delete();
+            DB::table('sales_invoice')->where('id', $target_id)->delete();
             addActivity(0, 'sales_invoice', "Sale Invoice Deleted via API: " . $invoice->invoice_no, 7, $user->id, $conn);
 
             return response()->json(['status' => 'Ok', 'message' => 'Invoice deleted successfully']);
@@ -416,8 +418,9 @@ class ApiSalesController extends Controller
         }
     }
 
-    public function updateInvoiceStatus(Request $request, $id, $invoice_id)
+    public function updateInvoiceStatus(Request $request, $id, $invoice_id = null)
     {
+        $target_id = $invoice_id ?? $id;
         if (!empty($request->getContent())) {
             $json = json_decode($request->getContent(), true);
             if ($json) $request->request->add($json);
@@ -429,8 +432,8 @@ class ApiSalesController extends Controller
             $user = $request->user();
             $conn = config('database.default');
 
-            DB::table('sales_invoice')->where('id', $invoice_id)->update(['status' => $request->status]);
-            addActivity($invoice_id, 'sales_invoice', "Sale Invoice Status Updated via API: " . $request->status, 7, $user->id, $conn);
+            DB::table('sales_invoice')->where('id', $target_id)->update(['status' => $request->status]);
+            addActivity($target_id, 'sales_invoice', "Sale Invoice Status Updated via API: " . $request->status, 7, $user->id, $conn);
 
             return response()->json(['status' => 'Ok', 'message' => 'Invoice status updated successfully']);
         } catch (\Exception $e) {

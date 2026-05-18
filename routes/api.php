@@ -427,10 +427,23 @@ Route::prefix('v1')->group(function () {
         Route::get('/documents/summary', [ApiDocumentController::class, 'summary']);
         Route::get('/documents', [ApiDocumentController::class, 'index']);
 
-        // Payment Vouchers
+        // Payment Vouchers API Suite
         Route::get("/payment-vouchers/pending", [ApiPaymentVoucherController::class, "listPending"]);
+        Route::get("/payment-vouchers/verified", [ApiPaymentVoucherController::class, "listVerified"]);
+        Route::get("/payment-vouchers/paid", [ApiPaymentVoucherController::class, "listPaid"]);
+        Route::post("/payment-vouchers/bulk-approve", [ApiPaymentVoucherController::class, "bulkApprove"]);
+        Route::post("/payment-vouchers/bulk-reject", [ApiPaymentVoucherController::class, "bulkReject"]);
         Route::post("/payment-vouchers", [ApiPaymentVoucherController::class, "store"]);
         Route::post("/payment-vouchers/bulk", [ApiPaymentVoucherController::class, "bulkStore"]);
+        Route::get("/payment-vouchers/pdf", [ApiPaymentVoucherController::class, "generateVoucherPdf"]);
+        Route::get("/payment-vouchers/{id}/pdf", [ApiPaymentVoucherController::class, "generateVoucherPdf"]);
+        
+        // Relaxed Aliases for robustness (handles singular, plural, hyphens, underscores, GET/POST, and /create suffixes)
+        Route::match(['get', 'post'], "/payment_voucher", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
+        Route::match(['get', 'post'], "/payment-voucher", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
+        Route::match(['get', 'post'], "/payment_voucher/create", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
+        Route::match(['get', 'post'], "/payment-voucher/create", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
+        Route::match(['get', 'post'], "/payment-vouchers/create", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
 
         // Sales
         Route::get('/sales/projects', [ApiSalesController::class, 'listProjects']);
@@ -456,6 +469,9 @@ Route::prefix('v1')->group(function () {
         Route::get("/sales/report", [ApiSalesController::class, "salesReport"]);
         Route::get('/sales/invoices/{id}', [ApiSalesController::class, 'invoiceDetails']);
         Route::post('/sales/invoices', [ApiSalesController::class, 'storeInvoice']);
+        Route::post("/sales/invoices/{id}", [ApiSalesController::class, "updateInvoice"]);
+        Route::delete("/sales/invoices/{id}", [ApiSalesController::class, "deleteInvoice"]);
+        Route::post("/sales/invoices/{id}/status", [ApiSalesController::class, "updateInvoiceStatus"]);
         Route::get('/sales/adjustments', [ApiSalesController::class, 'listAdjustments']);
         Route::post('/sales/adjustments', [ApiSalesController::class, 'storeAdjustment']);
 
