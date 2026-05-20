@@ -821,4 +821,78 @@ class ApiPaymentVoucherController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Reject an already Paid Payment Voucher (Reverse Payment)
+     */
+    public function rejectPaid(Request $request, $id = null)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            // Allow ID either via route parameter or via request body/query
+            $targetId = $id ?? $request->get('id');
+            
+            if (!$targetId) {
+                return response()->json(['status' => 'Error', 'message' => 'Voucher ID is required'], 400);
+            }
+
+            $paymentvoucher = DB::connection($conn)->table('payment_vouchers')->where('id', $targetId)->first();
+            if (!$paymentvoucher) {
+                return response()->json(['status' => 'Error', 'message' => 'Payment Voucher not found'], 404);
+            }
+
+            if ($paymentvoucher->status !== 'Paid') {
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'Only Paid vouchers can be rejected/reversed using this endpoint. Current status is: ' . $paymentvoucher->status
+                ], 400);
+            }
+
+            $party_type = $paymentvoucher->party_type;
+
+            // Delete payment receipt image if exists and not default
+            $image_path = $paymentvoucher->payment_image;
+            if ($image_path && $image_path !== 'images/expense.png') {
+                $absolutePath = public_path($image_path);
+                if (File::exists($absolutePath)) {
+                    File::delete($absolutePath);
+                }
+            }
+
+            // Remove transaction statement entries
+            if ($party_type == 'site') {
+                DB::connection($conn)->table('sites_transaction')->where('payment_voucher_id', $targetId)->delete();
+            } else if ($party_type == 'bill') {
+                DB::connection($conn)->table('bill_party_statement')->where('payment_voucher_id', $targetId)->delete();
+            } else if ($party_type == 'material') {
+                DB::connection($conn)->table('material_supplier_statement')->where('payment_voucher_id', $targetId)->delete();
+            } else if ($party_type == 'other') {
+                DB::connection($conn)->table('other_party_statement')->where('payment_voucher_id', $targetId)->delete();
+            }
+
+            // Update status to Rejected
+            DB::connection($conn)->table('payment_vouchers')->where('id', '=', $targetId)->update([
+                'status' => 'Rejected', 
+                'approved_by' => $user->id,
+                'paid_by' => null,
+                'payment_details' => null,
+                'payment_date' => null,
+                'payment_image' => null
+            ]);
+
+            addActivity($targetId, 'payment_vouchers', "Already Paid Payment Vouchers Rejected via API", 8, $user->id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Paid Payment Voucher successfully rejected and payment reversed!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'Error',
+                'message' => 'Error while rejecting paid payment voucher: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

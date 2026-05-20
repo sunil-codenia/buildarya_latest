@@ -24,6 +24,7 @@ use App\Http\Controllers\api\ApiSiteBillsController;
 use App\Http\Controllers\api\ApiAssetMachineryController;
 use App\Http\Controllers\api\ApiSalesController;
 use App\Http\Controllers\api\ApiContactController;
+use App\Http\Controllers\api\ApiOtherPartyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -445,6 +446,10 @@ Route::prefix('v1')->group(function () {
         Route::post("/payment-vouchers/wallet-pay/{id}", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
         Route::post("/payment-vouchers/verified/pay/{id}", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
         Route::post("/payment-vouchers/verified/{id}/pay", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/{id}/reject-paid", [ApiPaymentVoucherController::class, "rejectPaid"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/reject-paid/{id}", [ApiPaymentVoucherController::class, "rejectPaid"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/paid/{id}/reject", [ApiPaymentVoucherController::class, "rejectPaid"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/paid/reject/{id}", [ApiPaymentVoucherController::class, "rejectPaid"])->where('id', '[0-9]+');
         
         // Relaxed Aliases for robustness (handles singular, plural, hyphens, underscores, GET/POST, and /create suffixes)
         Route::match(['get', 'post'], "/payment_voucher", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
@@ -452,6 +457,29 @@ Route::prefix('v1')->group(function () {
         Route::match(['get', 'post'], "/payment_voucher/create", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
         Route::match(['get', 'post'], "/payment-voucher/create", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
         Route::match(['get', 'post'], "/payment-vouchers/create", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
+
+        // Other Parties API Suite
+        Route::get("/other-parties", [ApiOtherPartyController::class, "index"]);
+        Route::post("/other-parties", [ApiOtherPartyController::class, "store"]);
+        Route::get("/other-parties/{id}", [ApiOtherPartyController::class, "show"])->where('id', '[0-9]+');
+        Route::post("/other-parties/{id}", [ApiOtherPartyController::class, "update"])->where('id', '[0-9]+');
+        Route::delete("/other-parties/{id}", [ApiOtherPartyController::class, "destroy"])->where('id', '[0-9]+');
+        Route::post("/other-parties/{id}/status", [ApiOtherPartyController::class, "toggleStatus"])->where('id', '[0-9]+');
+
+        // Other Parties Robust Aliases
+        Route::get("/other-party", [ApiOtherPartyController::class, "index"]);
+        Route::post("/other-party", [ApiOtherPartyController::class, "store"]);
+        Route::get("/other-party/{id}", [ApiOtherPartyController::class, "show"])->where('id', '[0-9]+');
+        Route::post("/other-party/{id}", [ApiOtherPartyController::class, "update"])->where('id', '[0-9]+');
+        Route::delete("/other-party/{id}", [ApiOtherPartyController::class, "destroy"])->where('id', '[0-9]+');
+        Route::post("/other-party/{id}/status", [ApiOtherPartyController::class, "toggleStatus"])->where('id', '[0-9]+');
+
+        Route::get("/otherparties", [ApiOtherPartyController::class, "index"]);
+        Route::post("/otherparties", [ApiOtherPartyController::class, "store"]);
+        Route::get("/otherparty", [ApiOtherPartyController::class, "index"]);
+        Route::post("/addotherparty", [ApiOtherPartyController::class, "store"]);
+        Route::post("/updateotherparty", [ApiOtherPartyController::class, "update"]);
+        Route::get("/delete_otherparty", [ApiOtherPartyController::class, "destroy"]);
 
         // Sales
         Route::get('/sales/projects', [ApiSalesController::class, 'listProjects']);
