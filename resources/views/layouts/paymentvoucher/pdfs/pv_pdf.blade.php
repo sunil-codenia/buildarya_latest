@@ -110,8 +110,7 @@
     $pv = $payment_voucher;
     $partyinfo = getPaymentVoucherPartyInfo($pv->party_id, $pv->party_type);
     $balance = getPaymentVoucherPartyBalance($pv->party_id, $pv->party_type);
-    $party = $partyinfo['party_status'];
-
+    $party = $partyinfo['party_status'] ?? null;
 @endphp
 
 <body style="background-color:{{ session()->get('primary_color')[0] }}; border-radius: 25px;">
@@ -125,10 +124,10 @@
     </div>
 
     <div class="tmain">
-        <h3 style="font-size:30px;">{{ $company->name }}</h3>
-        <h4 style="font-size:15px;margin-top:-25px; text-wrap:wrap; ">Address: {{ $company->address }} </h4>
-        <p style="font-size:15px;">Mobile:{{ $company->phone }} &#160;&#160; GSTIN:
-            {{ $company->gst }}</p>
+        <h3 style="font-size:30px;">{{ optional($company)->name ?? 'N/A' }}</h3>
+        <h4 style="font-size:15px;margin-top:-25px; text-wrap:wrap; ">Address: {{ optional($company)->address ?? 'N/A' }} </h4>
+        <p style="font-size:15px;">Mobile:{{ optional($company)->phone ?? 'N/A' }} &#160;&#160; GSTIN:
+            {{ optional($company)->gst ?? 'N/A' }}</p>
 
 
         <table class="customers">
@@ -137,7 +136,7 @@
                 <td style="width:50%; text-align:center;">
                     <h5>Site : <span class="normal_text">{{ $pv->site_name }} </span></h5>
 
-                    <h5>Voucher Party : <span class="normal_text">{{ $party->name }} </span></h5>
+                    <h5>Voucher Party : <span class="normal_text">{{ optional($party)->name ?? 'N/A' }} </span></h5>
                 </td>
                 <td style="width:50%; text-align:center;">
                     <h5>Voucher No. : <span class="normal_text">{{ $pv->voucher_no }}</span></h5>
@@ -156,14 +155,14 @@
                 </td>
                 <td rowspan="2" style="width:33% !important;">
                     <h5>Party Banking Details :</h5>
-                    @if ($pv->party_type == 'bill')
-                        <h6>Bank Name - <span class="normal_text">{{ $party->bankname }}</span><br>A/C No. - <span class="normal_text">{{ $party->bank_ac }}</span> <br>IFSC Code -
-                            <span class="normal_text"> {{ $party->ifsc }}</span> <br> A/C Holder
-                            Name - <span class="normal_text">{{ $party->ac_holder_name }}</span></h6>
-                    @elseif($pv->party_type == 'material' || $pv->party_type == 'other')
-                        <h6>Bank Name - <span class="normal_text">{{ $party->bank_name }}</span><br>A/C No. - <span class="normal_text">{{ $party->bank_ac }}</span> <br>IFSC Code -
-                            <span class="normal_text">{{ $party->bank_ifsc }}</span> <br> A/C Holder
-                            Name - <span class="normal_text">{{ $party->bank_ac_holder }}</span></h6>
+                    @if ($pv->party_type == 'bill' && $party)
+                        <h6>Bank Name - <span class="normal_text">{{ optional($party)->bankname ?? 'N/A' }}</span><br>A/C No. - <span class="normal_text">{{ optional($party)->bank_ac ?? 'N/A' }}</span> <br>IFSC Code -
+                            <span class="normal_text"> {{ optional($party)->ifsc ?? 'N/A' }}</span> <br> A/C Holder
+                            Name - <span class="normal_text">{{ optional($party)->ac_holder_name ?? 'N/A' }}</span></h6>
+                    @elseif(($pv->party_type == 'material' || $pv->party_type == 'other') && $party)
+                        <h6>Bank Name - <span class="normal_text">{{ optional($party)->bank_name ?? 'N/A' }}</span><br>A/C No. - <span class="normal_text">{{ optional($party)->bank_ac ?? 'N/A' }}</span> <br>IFSC Code -
+                            <span class="normal_text">{{ optional($party)->bank_ifsc ?? 'N/A' }}</span> <br> A/C Holder
+                            Name - <span class="normal_text">{{ optional($party)->bank_ac_holder ?? 'N/A' }}</span></h6>
                     @else
                         <h6>No Banking Details Found</h6>
                     @endif

@@ -527,6 +527,9 @@ class PaymentVoucherController extends Controller
         $user_db_conn_name = session()->get('comp_db_conn_name');
         $payment_voucher = DB::connection($user_db_conn_name)->select("SELECT `payment_vouchers`.*, `sales_company`.`name` as `company_name`, `sites`.`name` as `site_name` FROM `payment_vouchers` LEFT JOIN `sites` ON `payment_vouchers`.`site_id` = `sites`.`id` LEFT JOIN `sales_company` ON `payment_vouchers`.`company_id` = `sales_company`.`id` WHERE `payment_vouchers`.`id` = $id")[0];
         $company = DB::connection($user_db_conn_name)->table('sales_company')->where('id',$payment_voucher->company_id)->first();
+        if (!$company) {
+            $company = DB::connection($user_db_conn_name)->table('sales_company')->first();
+        }
         $file_name = $payment_voucher->voucher_no.".pdf";
 // return view('layouts.paymentvoucher.pdfs.pv_pdf',compact(['payment_voucher','company']));
 

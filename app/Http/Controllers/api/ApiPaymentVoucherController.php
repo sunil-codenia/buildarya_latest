@@ -118,7 +118,7 @@ class ApiPaymentVoucherController extends Controller
             $query->orderBy('pv.create_datetime', 'desc');
 
             // Check if CSV format is requested
-            if ($request->get('format') === 'csv') {
+            if ($request->get('format') === 'csv' || $request->get('export') === 'csv') {
                 return $this->exportCsv($query->get(), 'pending_vouchers');
             }
 
@@ -165,7 +165,7 @@ class ApiPaymentVoucherController extends Controller
             $query->orderBy('pv.create_datetime', 'desc');
 
             // Check if CSV format is requested
-            if ($request->get('format') === 'csv') {
+            if ($request->get('format') === 'csv' || $request->get('export') === 'csv') {
                 return $this->exportCsv($query->get(), 'verified_vouchers');
             }
 
@@ -212,7 +212,7 @@ class ApiPaymentVoucherController extends Controller
             $query->orderBy('pv.create_datetime', 'desc');
 
             // Check if CSV format is requested
-            if ($request->get('format') === 'csv') {
+            if ($request->get('format') === 'csv' || $request->get('export') === 'csv') {
                 return $this->exportCsv($query->get(), 'paid_vouchers');
             }
 
@@ -233,7 +233,7 @@ class ApiPaymentVoucherController extends Controller
     /**
      * Bulk Approve Pending Payment Vouchers
      */
-    public function bulkApprove(Request $request)
+    public function bulkApprove(Request $request, $id = null)
     {
         try {
             $user = $request->user('sanctum');
@@ -241,6 +241,10 @@ class ApiPaymentVoucherController extends Controller
             
             $input = json_decode($request->getContent(), true) ?? $request->all();
             $ids = $input['ids'] ?? null;
+            
+            if (empty($ids) && !empty($id)) {
+                $ids = [$id];
+            }
             
             if (empty($ids)) {
                 return response()->json(['status' => 'Error', 'message' => 'Voucher IDs are required'], 400);
@@ -309,7 +313,7 @@ class ApiPaymentVoucherController extends Controller
     /**
      * Bulk Reject Pending Payment Vouchers
      */
-    public function bulkReject(Request $request)
+    public function bulkReject(Request $request, $id = null)
     {
         try {
             $user = $request->user('sanctum');
@@ -317,6 +321,10 @@ class ApiPaymentVoucherController extends Controller
             
             $input = json_decode($request->getContent(), true) ?? $request->all();
             $ids = $input['ids'] ?? null;
+            
+            if (empty($ids) && !empty($id)) {
+                $ids = [$id];
+            }
             
             if (empty($ids)) {
                 return response()->json(['status' => 'Error', 'message' => 'Voucher IDs are required'], 400);
@@ -604,6 +612,113 @@ class ApiPaymentVoucherController extends Controller
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.paymentvoucher.pdfs.pv_pdf', compact(['payment_voucher', 'company']));
             return $pdf->download($file_name);
         } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get Payment Voucher by ID
+     */
+    public function show(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+            $voucher = $this->getVouchersQuery($conn)->where('pv.id', $id)->first();
+            
+            if (!$voucher) {
+                return response()->json(['status' => 'Error', 'message' => 'Payment Voucher not found'], 404);
+            }
+            
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $voucher
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update Payment Voucher by ID
+     */
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'site_id' => 'required',
+            'company_id' => 'required',
+            'party_id' => 'required',
+            'voucher_no' => 'required',
+            'amount' => 'required',
+            'date' => 'required|date'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $voucher = DB::table('payment_vouchers')->where('id', $id)->first();
+            if (!$voucher) {
+                return response()->json(['status' => 'Error', 'message' => 'Payment Voucher not found'], 404);
+            }
+
+            // Extract party_id and party_type
+            $rawPartyId = $request->party_id;
+            $partyId = $rawPartyId;
+            $partyType = $request->party_type;
+
+            if (is_string($rawPartyId) && str_contains($rawPartyId, '||')) {
+                $parts = explode('||', $rawPartyId);
+                $partyId = $parts[0];
+                $partyType = $parts[1];
+            }
+
+            if (empty($partyType)) {
+                $partyType = $voucher->party_type; // Fallback to current
+            }
+
+            $imagePath = $voucher->image;
+            if ($request->hasFile('image')) {
+                // Delete old image if it's not default
+                if ($voucher->image && $voucher->image !== 'images/expense.png') {
+                    $oldPath = public_path($voucher->image);
+                    if (File::exists($oldPath)) {
+                        File::delete($oldPath);
+                    }
+                }
+                $imageName = time() . rand(10000, 1000000) . '.' . $request->file('image')->extension();
+                $request->file('image')->move(public_path('images/app_images/' . $conn . '/paymentvoucher'), $imageName);
+                $imagePath = "images/app_images/" . $conn . "/paymentvoucher/" . $imageName;
+            }
+
+            $status = getInitialEntryStatusByRole($user->role_id);
+
+            $data = [
+                'company_id' => $request->company_id,
+                'site_id' => $request->site_id,
+                'party_type' => $partyType,
+                'party_id' => $partyId,
+                'voucher_no' => $request->voucher_no,
+                'amount' => $request->amount,
+                'date' => $request->date,
+                'payment_details' => $request->payment_details ?? $voucher->payment_details ?? "",
+                'remark' => $request->remark ?? $request->remarks ?? $voucher->remark ?? "",
+                'image' => $imagePath,
+                'status' => $status
+            ];
+
+            DB::table('payment_vouchers')->where('id', $id)->update($data);
+            addActivity($id, 'payment_vouchers', "Payment Voucher Updated via API", 8, $user->id, $conn);
+
+            // Auto-approval logic if status is Approved
+            if ($status == 'Approved') {
+                $this->handleAutoApproval($id, $conn, $user->id);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => 'Payment Voucher updated successfully']);
+        } catch (\Exception $e) {
+            if ($e->getCode() == 23000) {
+                return response()->json(['status' => 'Error', 'message' => 'Voucher No Already Exists!'], 400);
+            }
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
