@@ -628,6 +628,10 @@ class ApiPaymentVoucherController extends Controller
             if (!$voucher) {
                 return response()->json(['status' => 'Error', 'message' => 'Payment Voucher not found'], 404);
             }
+
+            if ($request->get('format') === 'csv' || $request->get('export') === 'csv' || $request->get('exprot') === 'csv') {
+                return $this->exportCsv([$voucher], 'voucher_' . $id);
+            }
             
             return response()->json([
                 'status' => 'Ok',
@@ -720,6 +724,101 @@ class ApiPaymentVoucherController extends Controller
                 return response()->json(['status' => 'Error', 'message' => 'Voucher No Already Exists!'], 400);
             }
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Pay/Complete Voucher Payment (Wallet API)
+     */
+    public function payVoucher(Request $request, $id)
+    {
+        $request->validate([
+            'payment_details' => 'required|string',
+            'payment_date' => 'required|date'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $paymentvoucher = DB::connection($conn)->table('payment_vouchers')->where('id', $id)->first();
+            if (!$paymentvoucher) {
+                return response()->json(['status' => 'Error', 'message' => 'Payment Voucher not found'], 404);
+            }
+
+            if ($paymentvoucher->status !== 'Approved') {
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'Only verified (Approved) payment vouchers can be paid. Current status is: ' . $paymentvoucher->status
+                ], 400);
+            }
+
+            $party_type = $paymentvoucher->party_type;
+
+            if ($request->hasFile('image')) {
+                $imageName = time() . rand(10000, 1000000) . '.' . $request->file('image')->extension();
+                $request->file('image')->move(public_path('images/app_images/' . $conn . '/paymentvoucher'), $imageName);
+                $imagePath = "images/app_images/" . $conn . "/paymentvoucher/" . $imageName;
+            } else {
+                $imagePath = "images/expense.png";
+            }
+
+            // Update payment voucher status to Paid
+            DB::connection($conn)->table('payment_vouchers')->where('id', '=', $id)->update([
+                'status' => 'Paid', 
+                'paid_by' => $user->id, 
+                'payment_details' => $request->payment_details, 
+                'payment_date' => $request->payment_date, 
+                'payment_image' => $imagePath
+            ]);
+
+            addActivity($id, 'payment_vouchers', "Payment Vouchers Paid via API", 8, $user->id, $conn);
+
+            // Statement Ledger Updates
+            if ($party_type == 'site') {
+                $tdata = [
+                    'site_id' => $paymentvoucher->party_id,
+                    'type' => 'Credit',
+                    'payment_voucher_id' => $id
+                ];
+                DB::connection($conn)->table('sites_transaction')->where('payment_voucher_id', $id)->delete();
+                DB::connection($conn)->table('sites_transaction')->insert($tdata);
+            } else if ($party_type == 'bill') {
+                $tdata = [
+                    'party_id' => $paymentvoucher->party_id,
+                    'type' => 'Credit',
+                    'particular' => $request->payment_details,
+                    'payment_voucher_id' => $id
+                ];
+                DB::connection($conn)->table('bill_party_statement')->where('payment_voucher_id', $id)->delete();
+                DB::connection($conn)->table('bill_party_statement')->insert($tdata);
+            } else if ($party_type == 'material') {
+                $tdata = [
+                    'supplier_id' => $paymentvoucher->party_id,
+                    'type' => 'Credit',
+                    'payment_voucher_id' => $id
+                ];
+                DB::connection($conn)->table('material_supplier_statement')->where('payment_voucher_id', $id)->delete();
+                DB::connection($conn)->table('material_supplier_statement')->insert($tdata);
+            } else if ($party_type == 'other') {
+                $tdata = [
+                    'party_id' => $paymentvoucher->party_id,
+                    'type' => 'Credit',
+                    'payment_voucher_id' => $id
+                ];
+                DB::connection($conn)->table('other_party_statement')->where('payment_voucher_id', $id)->delete();
+                DB::connection($conn)->table('other_party_statement')->insert($tdata);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'message' => 'Payment Voucher Paid Successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'Error',
+                'message' => 'Error While Paying Payment Voucher: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

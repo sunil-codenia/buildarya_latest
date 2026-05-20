@@ -439,6 +439,12 @@ Route::prefix('v1')->group(function () {
         Route::get("/payment-vouchers/{id}/pdf", [ApiPaymentVoucherController::class, "generateVoucherPdf"]);
         Route::get("/payment-vouchers/{id}", [ApiPaymentVoucherController::class, "show"])->where('id', '[0-9]+');
         Route::post("/payment-vouchers/{id}", [ApiPaymentVoucherController::class, "update"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/{id}/pay", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/{id}/wallet-pay", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/pay/{id}", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/wallet-pay/{id}", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/verified/pay/{id}", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
+        Route::post("/payment-vouchers/verified/{id}/pay", [ApiPaymentVoucherController::class, "payVoucher"])->where('id', '[0-9]+');
         
         // Relaxed Aliases for robustness (handles singular, plural, hyphens, underscores, GET/POST, and /create suffixes)
         Route::match(['get', 'post'], "/payment_voucher", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
