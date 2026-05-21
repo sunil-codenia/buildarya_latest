@@ -895,4 +895,88 @@ class ApiPaymentVoucherController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Generate Payment Voucher Report (All Scenarios in CSV / JSON)
+     */
+    public function generateReport(Request $request)
+    {
+        $request->validate([
+            'start_date' => 'required|date',
+            'end_date' => 'required|date'
+        ]);
+
+        try {
+            $conn = config('database.default');
+            $query = $this->getVouchersQuery($conn);
+
+            $start_date = $request->start_date;
+            $end_date = $request->end_date;
+
+            // Apply Date Range
+            $query->whereBetween('pv.date', [$start_date, $end_date]);
+
+            // Scenario Detection based on inputs:
+            // 1 = Date Only, 2 = Party Only, 3 = Site Only, 4 = Both
+            $report_type = 1;
+            
+            $party_id = $request->get('party_id');
+            $site_id = $request->get('site_id');
+
+            $partySelected = !empty($party_id);
+            $siteSelected = !empty($site_id);
+
+            if ($partySelected && $siteSelected) {
+                $report_type = 4;
+            } else if ($partySelected) {
+                $report_type = 2;
+            } else if ($siteSelected) {
+                $report_type = 3;
+            }
+
+            // Apply filters based on detected scenario
+            if ($report_type == 2 || $report_type == 4) {
+                $partyname = $party_id;
+                $partytype = "";
+                
+                // Handle optional id||type formatting
+                if (strpos($party_id, '||') !== false) {
+                    $parts = explode('||', $party_id);
+                    $partyname = $parts[0];
+                    $partytype = $parts[1];
+                } else {
+                    $partytype = $request->get('party_type');
+                }
+
+                if (!empty($partyname)) {
+                    $query->where('pv.party_id', $partyname);
+                }
+                if (!empty($partytype)) {
+                    $query->where('pv.party_type', $partytype);
+                }
+            }
+
+            if ($report_type == 3 || $report_type == 4) {
+                $query->where('pv.site_id', $site_id);
+            }
+
+            $query->orderBy('pv.date', 'desc');
+
+            $vouchers = $query->get();
+
+            // Always stream/download as CSV when format=csv or export=csv is specified
+            if ($request->get('format') === 'csv' || $request->get('export') === 'csv' || $request->get('exprot') === 'csv') {
+                $prefix = 'payment_report_type_' . $report_type;
+                return $this->exportCsv($vouchers, $prefix);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'detected_scenario' => $report_type,
+                'data' => $vouchers
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }

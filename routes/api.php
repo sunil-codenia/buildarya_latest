@@ -25,6 +25,7 @@ use App\Http\Controllers\api\ApiAssetMachineryController;
 use App\Http\Controllers\api\ApiSalesController;
 use App\Http\Controllers\api\ApiContactController;
 use App\Http\Controllers\api\ApiOtherPartyController;
+use App\Http\Controllers\api\ApiSettingsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -451,6 +452,10 @@ Route::prefix('v1')->group(function () {
         Route::post("/payment-vouchers/paid/{id}/reject", [ApiPaymentVoucherController::class, "rejectPaid"])->where('id', '[0-9]+');
         Route::post("/payment-vouchers/paid/reject/{id}", [ApiPaymentVoucherController::class, "rejectPaid"])->where('id', '[0-9]+');
         
+        Route::match(['get', 'post'], "/payment-vouchers/report", [ApiPaymentVoucherController::class, "generateReport"]);
+        Route::match(['get', 'post'], "/payment-voucher/report", [ApiPaymentVoucherController::class, "generateReport"]);
+        Route::match(['get', 'post'], "/payment-vouchers/reports", [ApiPaymentVoucherController::class, "generateReport"]);
+        
         // Relaxed Aliases for robustness (handles singular, plural, hyphens, underscores, GET/POST, and /create suffixes)
         Route::match(['get', 'post'], "/payment_voucher", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
         Route::match(['get', 'post'], "/payment-voucher", [ApiPaymentVoucherController::class, "storeOrBulkStore"]);
@@ -564,5 +569,16 @@ Route::prefix('v1')->group(function () {
         Route::get('/resources/sales-parties', [ApiResourceController::class, 'salesParties']);
         Route::get('/resources/other-parties', [ApiResourceController::class, 'otherParties']);
         Route::get('/resources/adjustment-types', [ApiResourceController::class, 'adjustmentTypes']);
+
+        // Settings API Suite
+        Route::get('/settings', [ApiSettingsController::class, 'index']);
+        Route::post('/settings/theme', [ApiSettingsController::class, 'updateTheme']);
+        Route::post('/settings/menutheme', [ApiSettingsController::class, 'updateMenuTheme']);
+        Route::post('/settings/colors', [ApiSettingsController::class, 'updateColors']);
+        Route::post('/settings/bill-sequence', [ApiSettingsController::class, 'updateBillSequence']);
+        Route::post('/settings/payment-voucher-sequence', [ApiSettingsController::class, 'updatePaymentVoucherSequence']);
+        Route::post('/settings/currency', [ApiSettingsController::class, 'updateCurrency']);
+        Route::post('/settings/upload-sources', [ApiSettingsController::class, 'updateUploadSources']);
+        Route::post('/settings/update-batch', [ApiSettingsController::class, 'updateSettingGeneral']);
     });
 });
