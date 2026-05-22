@@ -295,9 +295,15 @@ function checkmodulepermission($module_id, $permission)
 
 function isSuperAdmin()
 {
-    // Try API Auth first
+    // Try API Auth / Request User first
+    $user = null;
     if (auth('sanctum')->check()) {
         $user = auth('sanctum')->user();
+    } elseif (request()->user()) {
+        $user = request()->user();
+    }
+
+    if ($user) {
         $conn = config('database.default');
         
         // Check User directly

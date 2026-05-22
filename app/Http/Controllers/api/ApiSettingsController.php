@@ -47,14 +47,14 @@ class ApiSettingsController extends Controller
      */
     private function upsertSetting($conn, $name, $value, $uid)
     {
-        DB::connection($conn)->table('settings')->upsert([
+        DB::connection($conn)->table('settings')->updateOrInsert(
+            ['name' => $name],
             [
-                'name' => $name,
                 'value' => (string)$value,
                 'uid' => $uid,
                 'updated_at' => Carbon::now()->toDateTimeString()
             ]
-        ], ['name'], ['value', 'uid', 'updated_at']);
+        );
     }
 
     /**

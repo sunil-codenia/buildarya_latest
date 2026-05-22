@@ -1084,4 +1084,235 @@ class ApiSalesController extends Controller
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
+
+    // ==========================================
+    // SALES COMPANIES
+    // ==========================================
+
+    public function listCompanies(Request $request)
+    {
+        try {
+            $search = trim($request->get('search'));
+            $export = $request->get('export');
+            $query = DB::table('sales_company')->orderBy('id', 'desc');
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('phone', 'LIKE', "%{$search}%")
+                      ->orWhere('gst', 'LIKE', "%{$search}%")
+                      ->orWhere('state', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "sales_companies_" . time() . ".csv";
+                $headers = ["Content-type" => "text/csv", "Content-Disposition" => "attachment; filename=$filename"];
+                $callback = function() use ($results) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Name', 'Address', 'Phone', 'GST', 'State', 'State Code', 'Status', 'Created At']);
+                    foreach ($results as $row) {
+                        fputcsv($file, [
+                            $row->id,
+                            $row->name,
+                            $row->address,
+                            $row->phone,
+                            $row->gst,
+                            $row->state,
+                            $row->state_code,
+                            $row->status,
+                            $row->create_datetime ?? ''
+                        ]);
+                    }
+                    fclose($file);
+                };
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $companies = $query->paginate(20);
+            return response()->json(['status' => 'Ok', 'data' => $companies]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storeCompany(Request $request)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'name' => 'required',
+            'address' => 'required',
+            'phone' => 'required',
+            'gst' => 'required',
+            'state' => 'required',
+            'state_code' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $data = [
+                'name' => $request->name,
+                'address' => $request->address,
+                'phone' => $request->phone,
+                'gst' => $request->gst,
+                'state' => $request->state,
+                'state_code' => $request->state_code,
+                'status' => 'Active',
+                'create_datetime' => Carbon::now()
+            ];
+
+            $id = DB::table('sales_company')->insertGetId($data);
+            addActivity($id, 'sales_company', "New Sales Company Created via API: " . $request->name, 9, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Company created successfully', 'id' => $id]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function companyDetails(Request $request, $id)
+    {
+        try {
+            $company = DB::table('sales_company')->where('id', $id)->first();
+            if (!$company) return response()->json(['status' => 'Failed', 'message' => 'Company not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $company]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateCompany(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'name' => 'required',
+            'address' => 'required',
+            'phone' => 'required',
+            'gst' => 'required',
+            'state' => 'required',
+            'state_code' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $data = [
+                'name' => $request->name,
+                'address' => $request->address,
+                'phone' => $request->phone,
+                'gst' => $request->gst,
+                'state' => $request->state,
+                'state_code' => $request->state_code
+            ];
+
+            DB::table('sales_company')->where('id', $id)->update($data);
+            addActivity($id, 'sales_company', "Sales Company Updated via API: " . $request->name, 9, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Company updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteCompany(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $check = DB::table('sales_invoice')->where('company_id', $id)->count();
+            if ($check > 0) {
+                return response()->json(['status' => 'Error', 'message' => 'This Company Cannot Be Deleted. Company Has Invoices In Its Name!'], 400);
+            }
+
+            $company = DB::table('sales_company')->where('id', $id)->first();
+            if (!$company) return response()->json(['status' => 'Failed', 'message' => 'Company not found'], 404);
+
+            DB::table('sales_company')->where('id', $id)->delete();
+            addActivity(0, 'sales_company', "Sales Company Deleted via API: " . $company->name, 9, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Company deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateCompanyStatus(Request $request, $id)
+    {
+        if (!empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) $request->request->add($json);
+        }
+
+        $request->validate([
+            'status' => 'required'
+        ]);
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $status = $request->status;
+            if (in_array(strtolower($status), ['inactive', 'deactive', 'deactivated'])) {
+                $status = 'Deactive';
+            } else {
+                $status = 'Active';
+            }
+
+            DB::table('sales_company')->where('id', $id)->update(['status' => $status]);
+            addActivity($id, 'sales_company', "Sales Company Status Updated via API: " . $status, 9, $user->id, $conn);
+
+            return response()->json(['status' => 'Ok', 'message' => 'Company status updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function bulkUpdateCompaniesStatus(Request $request)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = $input['ids'] ?? null;
+            $status = $input['status'] ?? null;
+
+            if (empty($ids) || !$status) {
+                return response()->json(['status' => 'Error', 'message' => 'IDs and Status are required'], 400);
+            }
+
+            if (!is_array($ids)) {
+                $ids = explode(',', $ids);
+            }
+            $ids = array_map('trim', $ids);
+
+            // Normalize status
+            if (in_array(strtolower($status), ['inactive', 'deactive', 'deactivated'])) {
+                $status = 'Deactive';
+            } else {
+                $status = 'Active';
+            }
+
+            DB::table('sales_company')->whereIn('id', $ids)->update(['status' => $status]);
+
+            foreach ($ids as $id) {
+                addActivity($id, 'sales_company', "Sales Company status updated to $status via Bulk API", 9, $user->id, $conn);
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "Sales Companies updated to $status successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }

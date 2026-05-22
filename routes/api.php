@@ -539,6 +539,15 @@ Route::prefix('v1')->group(function () {
         Route::delete('/sales/parties/{id}', [ApiSalesController::class, 'deleteParty'])->where('id', '[0-9]+');
         Route::post('/sales/parties/{id}/status', [ApiSalesController::class, 'updatePartyStatus'])->where('id', '[0-9]+');
 
+        // Sales Companies
+        Route::get('/sales/companies', [ApiSalesController::class, 'listCompanies']);
+        Route::post('/sales/companies', [ApiSalesController::class, 'storeCompany']);
+        Route::get('/sales/companies/{id}', [ApiSalesController::class, 'companyDetails'])->where('id', '[0-9]+');
+        Route::post('/sales/companies/{id}', [ApiSalesController::class, 'updateCompany'])->where('id', '[0-9]+');
+        Route::delete('/sales/companies/{id}', [ApiSalesController::class, 'deleteCompany'])->where('id', '[0-9]+');
+        Route::post('/sales/companies/{id}/status', [ApiSalesController::class, 'updateCompanyStatus'])->where('id', '[0-9]+');
+        Route::post('/sales/companies/bulk-status', [ApiSalesController::class, 'bulkUpdateCompaniesStatus']);
+
         // Payment Vouchers
         Route::get('/vouchers', [ApiPaymentVoucherController::class, 'index']);
         Route::post('/vouchers', [ApiPaymentVoucherController::class, 'store']);
@@ -569,6 +578,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/resources/sales-parties', [ApiResourceController::class, 'salesParties']);
         Route::get('/resources/other-parties', [ApiResourceController::class, 'otherParties']);
         Route::get('/resources/adjustment-types', [ApiResourceController::class, 'adjustmentTypes']);
+
+        // Activity Log API
+        Route::get('/activity', [ApiManagementController::class, 'systemActivity']);
+        Route::get('/activity/{id}', [ApiManagementController::class, 'activityDetails'])->where('id', '[0-9]+');
+        Route::match(['get', 'post'], '/moduleActivity', [ApiManagementController::class, 'systemActivity']);
 
         // Settings API Suite
         Route::get('/settings', [ApiSettingsController::class, 'index']);

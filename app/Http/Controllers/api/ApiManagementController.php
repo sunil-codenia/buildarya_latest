@@ -7013,4 +7013,114 @@ class ApiManagementController extends Controller
         DB::connection($conn)->table('bill_party_statement')->where('bill_no', $billId)->delete();
         DB::connection($conn)->table('bill_party_statement')->insert($party_statement);
     }
+
+    public function systemActivity(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $moduleId = $input['module_id'] ?? $request->get('module_id');
+            $search = trim($input['search'] ?? $request->get('search') ?? '');
+            $export = $input['export'] ?? $request->get('export');
+            $limit = intval($input['limit'] ?? $request->get('limit', 20));
+            if ($limit <= 0) $limit = 20;
+
+            // Fetch modules map from master database
+            $moduleMap = DB::connection('mysql')->table('modules')->pluck('name', 'id')->toArray();
+            $allModules = DB::connection('mysql')->table('modules')->select('id', 'name')->orderBy('id', 'asc')->get();
+
+            $query = DB::connection($conn)->table('activity')
+                ->leftJoin('users', 'users.id', '=', 'activity.uid')
+                ->select('activity.*', 'users.name as user_name')
+                ->orderBy('activity.id', 'desc');
+
+            if (!empty($moduleId)) {
+                $query->where('activity.module_id', $moduleId);
+            }
+
+            if (!empty($search)) {
+                $query->where(function($q) use ($search) {
+                    $q->where('activity.action', 'LIKE', "%{$search}%")
+                      ->orWhere('activity.date', 'LIKE', "%{$search}%")
+                      ->orWhere('activity.time', 'LIKE', "%{$search}%")
+                      ->orWhere('users.name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($export == 'csv') {
+                $results = $query->get();
+                $filename = "activities_" . time() . ".csv";
+                $headers = [
+                    "Content-type"        => "text/csv",
+                    "Content-Disposition" => "attachment; filename=$filename",
+                    "Pragma"              => "no-cache",
+                    "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+                    "Expires"             => "0"
+                ];
+
+                $callback = function() use ($results, $moduleMap) {
+                    $file = fopen('php://output', 'w');
+                    fputcsv($file, ['ID', 'Date', 'Time', 'Messages', 'Name', 'Module']);
+                    foreach ($results as $row) {
+                        $moduleName = $moduleMap[$row->module_id] ?? 'N/A';
+                        fputcsv($file, [
+                            $row->id,
+                            $row->date,
+                            $row->time,
+                            $row->action,
+                            $row->user_name ?? 'User Info Unavailable',
+                            $moduleName
+                        ]);
+                    }
+                    fclose($file);
+                };
+
+                return response()->stream($callback, 200, $headers);
+            }
+
+            $activities = $query->paginate($limit);
+            $activities->getCollection()->transform(function($row) use ($moduleMap) {
+                $row->module_name = $moduleMap[$row->module_id] ?? 'N/A';
+                return $row;
+            });
+
+            return response()->json([
+                'status' => 'Ok',
+                'modules' => $allModules,
+                'data' => $activities
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function activityDetails(Request $request, $id)
+    {
+        try {
+            $conn = config('database.default');
+
+            $activity = DB::connection($conn)->table('activity')
+                ->leftJoin('users', 'users.id', '=', 'activity.uid')
+                ->select('activity.*', 'users.name as user_name')
+                ->where('activity.id', $id)
+                ->first();
+
+            if (!$activity) {
+                return response()->json(['status' => 'Error', 'message' => 'Activity not found'], 404);
+            }
+
+            // Fetch modules map from master database
+            $moduleMap = DB::connection('mysql')->table('modules')->pluck('name', 'id')->toArray();
+            $activity->module_name = $moduleMap[$activity->module_id] ?? 'N/A';
+
+            return response()->json([
+                'status' => 'Ok',
+                'data' => $activity
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }

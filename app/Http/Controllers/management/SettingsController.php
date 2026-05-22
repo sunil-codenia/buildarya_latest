@@ -13,9 +13,10 @@ class SettingsController extends Controller
         $db_conn = $request->session()->get('comp_db_conn_name');
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'theme', 'value' => $themecolor, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);        
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'theme'],
+            ['value' => $themecolor, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );        
     $settings = DB::connection($db_conn)->table('settings')->select('name','value')->where('name','theme')->first();
     addActivity(0,'settings',"System Theme Changed",9);
 
@@ -38,9 +39,10 @@ public function index(Request $request){
         $db_conn = $request->session()->get('comp_db_conn_name');
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'menutheme', 'value' => $themecolor, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);        
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'menutheme'],
+            ['value' => $themecolor, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );        
     $settings = DB::connection($db_conn)->table('settings')->select('value')->where('name','menutheme')->first();
     $themecolor = $settings->value;
 if($request->session()->has('menutheme')){
@@ -57,9 +59,10 @@ return redirect('/dashboard');
         $db_conn = $request->session()->get('comp_db_conn_name');
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'bill_sequence', 'value' => $bill_sequence, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);    
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'bill_sequence'],
+            ['value' => $bill_sequence, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );    
         addActivity(0,'settings',"Site Bills Sequence Changed",9);    
         return redirect('/settings')->with('success', 'Bill Sequence Updated!');; 
     }
@@ -69,9 +72,10 @@ return redirect('/dashboard');
         $db_conn = $request->session()->get('comp_db_conn_name');
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'currency', 'value' => $currency, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);       
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'currency'],
+            ['value' => $currency, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );       
         addActivity(0,'settings',"System Currency Changed",9); 
         return redirect('/settings')->with('success', 'Bill Sequence Updated!');; 
     }
@@ -88,24 +92,30 @@ return redirect('/dashboard');
 
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'expense_upload_src', 'value' => $expense_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);   
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'material_first_upload_src', 'value' => $material_first_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);   
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'material_second_upload_src', 'value' => $material_second_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);       
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'machinery_service_upload_src', 'value' => $machinery_service_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);       
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'machinery_doc_upload_src', 'value' => $machinery_doc_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);       
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'document_upload_src', 'value' => $document_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);       
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'expense_upload_src'],
+            ['value' => $expense_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );   
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'material_first_upload_src'],
+            ['value' => $material_first_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );   
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'material_second_upload_src'],
+            ['value' => $material_second_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );       
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'machinery_service_upload_src'],
+            ['value' => $machinery_service_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );       
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'machinery_doc_upload_src'],
+            ['value' => $machinery_doc_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );       
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'document_upload_src'],
+            ['value' => $document_upload_src, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );       
         addActivity(0,'settings',"Mobile App Upload Source Updated!",9); 
         return redirect('/settings')->with('success', 'Upload Sources Updated!');; 
 
@@ -118,9 +128,10 @@ return redirect('/dashboard');
         $db_conn = $request->session()->get('comp_db_conn_name');
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'payment_voucher_sequence', 'value' => $payment_voucher_sequence, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);        
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'payment_voucher_sequence'],
+            ['value' => $payment_voucher_sequence, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );        
         addActivity(0,'settings',"Payment Voucher Sequence Changed",9);
         return redirect('/settings')->with('success', 'Payment Voucher Sequence Updated!');; 
     }
@@ -133,18 +144,22 @@ return redirect('/dashboard');
         $db_conn = $request->session()->get('comp_db_conn_name');
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'primary_color', 'value' => $primary, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);     
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'secondry_color', 'value' => $secondry, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);     
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'gradient_start', 'value' => $start, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);     
-        DB::connection($db_conn)->table('settings')->upsert([
-            ['name' => 'gradient_end', 'value' => $end, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
-        ], ['name'], ['value','uid','updated_at']);        
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'primary_color'],
+            ['value' => $primary, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );     
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'secondry_color'],
+            ['value' => $secondry, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );     
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'gradient_start'],
+            ['value' => $start, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );     
+        DB::connection($db_conn)->table('settings')->updateOrInsert(
+            ['name' => 'gradient_end'],
+            ['value' => $end, 'uid' =>$uid,'updated_at'=> $mytime->toDateTimeString()]
+        );        
     $primary_color = DB::connection($db_conn)->table('settings')->select('name','value')->where('name','primary_color')->first();
     $pcolor = $primary_color->value;
 if($request->session()->has('primary_color')){
