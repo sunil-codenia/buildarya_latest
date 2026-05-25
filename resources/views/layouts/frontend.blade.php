@@ -154,6 +154,34 @@
                 </nav>
 
                 <div class="flex items-center gap-3">
+                    <!-- Language Selection Dropdown -->
+                    <div class="relative inline-block text-left" id="langDropdownContainer">
+                        <button type="button" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200" id="langDropdownButton" aria-expanded="false" aria-haspopup="true">
+                            <svg class="w-5 h-5 text-fg-muted" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-.778.099-1.533.284-2.253"></path>
+                            </svg>
+                            <span class="selected-lang-label uppercase font-bold text-fg">EN</span>
+                            <svg class="w-4 h-4 text-fg-muted" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path>
+                            </svg>
+                        </button>
+                        <div class="origin-top-right absolute right-0 mt-2 w-48 rounded-2xl shadow-card border border-border bg-white divide-y divide-border focus:outline-none hidden z-50 max-h-72 overflow-y-auto" id="langDropdownMenu" role="menu" aria-orientation="vertical" aria-labelledby="langDropdownButton" tabindex="-1">
+                            <div class="py-1" role="none">
+                                <a href="javascript:void(0);" onclick="changeLanguage('en')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">English <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">EN</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('hi')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">हिन्दी <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">HI</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('te')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">తెలుగు <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">TE</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('ta')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">தமிழ் <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">TA</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('mr')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">मराठी <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">MR</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('bn')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">বাংলা <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">BN</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('gu')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">ગુજરાતી <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">GU</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('pa')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">ਪੰਜਾਬੀ <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">PA</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('es')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">Español <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">ES</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('fr')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">Français <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">FR</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('ar')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">العربية <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">AR</span></a>
+                                <a href="javascript:void(0);" onclick="changeLanguage('de')" class="flex items-center justify-between px-4 py-2 text-sm font-semibold text-fg hover:bg-bg-surface" role="menuitem">Deutsch <span class="text-xs font-bold text-white bg-primary px-2 py-0.5 rounded-md">DE</span></a>
+                            </div>
+                        </div>
+                    </div>
                     <a href="{{ url('/login') }}" class="hidden md:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200">
                         Login
                     </a>
@@ -257,6 +285,113 @@
                 document.body.style.overflow = '';
             }
         });
+    </script>
+    
+    <!-- Hidden Google Translate Element (Off-screen) -->
+    <div id="google_translate_element" style="position: absolute !important; top: -9999px !important; left: -9999px !important; width: 0px !important; height: 0px !important; overflow: hidden !important; visibility: hidden !important;"></div>
+
+    <style>
+        .goog-te-banner-frame, .goog-te-banner, .skiptranslate, iframe[id*="translate"], .goog-logo-link {
+            display: none !important;
+        }
+        body {
+            top: 0px !important;
+        }
+        .goog-tooltip, .goog-tooltip:hover {
+            display: none !important;
+        }
+        .goog-text-highlight {
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+    </style>
+
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en',
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+            }, 'google_translate_element');
+        }
+
+        function updateLanguageLabel(langCode) {
+            const label = document.querySelector('.selected-lang-label');
+            if (label) {
+                label.innerText = langCode.toUpperCase();
+            }
+        }
+
+        function changeLanguage(langCode) {
+            if (langCode === 'en') {
+                document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=" + window.location.hostname;
+            } else {
+                document.cookie = "googtrans=/en/" + langCode + "; path=/";
+                document.cookie = "googtrans=/en/" + langCode + "; path=/; domain=" + window.location.hostname;
+            }
+
+            localStorage.setItem('selected_language', langCode);
+            updateLanguageLabel(langCode);
+
+            // POST to change language
+            fetch('/change-language', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ locale: langCode })
+            }).finally(() => {
+                location.reload();
+            });
+        }
+
+        // Toggle dropdown display
+        document.addEventListener('DOMContentLoaded', () => {
+            const btn = document.getElementById('langDropdownButton');
+            const menu = document.getElementById('langDropdownMenu');
+            if (btn && menu) {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    menu.classList.toggle('hidden');
+                });
+                document.addEventListener('click', () => {
+                    menu.classList.add('hidden');
+                });
+            }
+
+            // Sync with session / localStorage
+            const savedLang = localStorage.getItem('selected_language') || 'en';
+            const activeSessionLang = "{{ session()->get('locale', 'en') }}";
+
+            if (savedLang !== activeSessionLang) {
+                changeLanguage(savedLang);
+            } else {
+                updateLanguageLabel(savedLang);
+                if (savedLang !== 'en') {
+                    document.cookie = "googtrans=/en/" + savedLang + "; path=/";
+                    document.cookie = "googtrans=/en/" + savedLang + "; path=/; domain=" + window.location.hostname;
+                    
+                    const checkInterval = setInterval(() => {
+                        const select = document.querySelector('select.goog-te-combo');
+                        if (select) {
+                            clearInterval(checkInterval);
+                            select.value = savedLang;
+                            select.dispatchEvent(new Event('change'));
+                        }
+                    }, 100);
+                }
+            }
+        });
+
+        // Load Translate Script
+        (function() {
+            var gtScript = document.createElement('script');
+            gtScript.type = 'text/javascript';
+            gtScript.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+            document.body.appendChild(gtScript);
+        })();
     </script>
     @yield('scripts')
 </body>

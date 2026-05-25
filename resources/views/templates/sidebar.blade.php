@@ -217,8 +217,6 @@
     </div>
 </aside>
 <!-- Right Sidebar -->
-@if (isSuperAdmin() || checkmodulepermission(9, 'can_edit') == 1)
-
 <aside id="rightsidebar" class="right-sidebar">
     <ul class="nav nav-tabs">
         <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#setting"><i class="zmdi zmdi-settings zmdi-hc-spin"></i></a></li>
@@ -226,6 +224,42 @@
     <div class="tab-content">
         <div class="tab-pane active slideRight" id="setting">
             <div class="slim_scroll">
+                
+                <!-- Premium Language Settings Card -->
+                <div class="card" style="margin-bottom: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); padding: 15px;">
+                    <h6 style="font-weight: 700; color: #333; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <i class="zmdi zmdi-globe" style="font-size: 18px; color: #764ba2;"></i> Language Settings
+                    </h6>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="right_sidebar_lang" style="font-size: 12px; color: #666; font-weight: 600; display: block; margin-bottom: 6px;">Select Language</label>
+                        <select id="right_sidebar_lang" class="form-control" onchange="changeLanguage(this.value)" style="border-radius: 8px; border: 1px solid #ddd; padding: 6px 12px; font-weight: 600; color: #333; display: block; width: 100%;">
+                            <option value="en">English (EN)</option>
+                            <option value="hi">हिन्दी (HI)</option>
+                            <option value="te">తెలుగు (TE)</option>
+                            <option value="ta">தமிழ் (TA)</option>
+                            <option value="mr">मराठी (MR)</option>
+                            <option value="bn">বাংলা (BN)</option>
+                            <option value="gu">ગુજરાતી (GU)</option>
+                            <option value="pa">ਪੰਜਾਬੀ (PA)</option>
+                            <option value="es">Español (ES)</option>
+                            <option value="fr">Français (FR)</option>
+                            <option value="ar">العربية (AR)</option>
+                            <option value="de">Deutsch (DE)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <script type="text/javascript">
+                    document.addEventListener('DOMContentLoaded', function() {
+                        var savedLang = localStorage.getItem('selected_language') || 'en';
+                        var selectEl = document.getElementById('right_sidebar_lang');
+                        if (selectEl) {
+                            selectEl.value = savedLang;
+                        }
+                    });
+                </script>
+
+                @if (isSuperAdmin() || checkmodulepermission(9, 'can_edit') == 1)
                 <div class="card">
                     <h6>Skins</h6>
                     <form method="post" action="{{url('/changecolor')}}" enctype="multipart/form-data">
@@ -256,10 +290,10 @@
                         </li>
                     </ul>
                 </div>
+                @endif
                
             </div>                
         </div>       
         
     </div>
 </aside>
-@endif

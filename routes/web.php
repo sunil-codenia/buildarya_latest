@@ -59,6 +59,8 @@ Route::get('/register_user', [LoginController::class, 'register_user']);
 // temprory routes ends
 
 
+Route::post('/change-language', [DashboardController::class, 'changeLanguage']);
+
 Route::group(['middleware' => ['auth']], function () {
 
     Route::get('/dashboard', [DashboardController::class, 'getCompanyDashboard']);

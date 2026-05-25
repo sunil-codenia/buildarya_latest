@@ -389,4 +389,11 @@ class DashboardController extends Controller
         
         return redirect('/dashboard')->with('error', 'You are not assigned to this site!');
     }
+
+    public function changeLanguage(Request $request)
+    {
+        $langCode = $request->get('locale', 'en');
+        $request->session()->put('locale', $langCode);
+        return response()->json(['status' => 'Ok', 'locale' => $langCode]);
+    }
 }
