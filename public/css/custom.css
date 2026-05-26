@@ -125,8 +125,8 @@ input:checked+.switch:active::before {
     --branding-bg: #131313;
 }
 
-.dashboard-logo-link, 
-.ls-toggle-btn, 
+.dashboard-logo-link,
+.ls-toggle-btn,
 .navbar-brand {
     text-decoration: none !important;
     outline: none !important;
@@ -166,12 +166,14 @@ input:checked+.switch:active::before {
 }
 
 .dashboard-logo {
-    height: 200px !important; /* Huge user-specified height */
+    height: 200px !important;
+    /* Huge user-specified height */
     max-height: none !important;
     width: auto !important;
     transition: all 0.3s ease;
-    transform: translateY(10px); /* Push lower into branding area */
-    filter: drop-shadow(0 6px 12px rgba(0,0,0,0.3));
+    transform: translateY(10px);
+    /* Push lower into branding area */
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.3));
     z-index: 101;
 }
 
@@ -190,7 +192,7 @@ input:checked+.switch:active::before {
     text-transform: uppercase;
     letter-spacing: 2px;
     font-size: 18px;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* Right Icons Side */
@@ -211,9 +213,11 @@ input:checked+.switch:active::before {
     height: 100% !important;
 }
 
-.navbar-right li a, .navbar-right a {
+.navbar-right li a,
+.navbar-right a {
     padding: 0 12px !important;
-    margin: 0 !important; /* Override main.css 5px margin */
+    margin: 0 !important;
+    /* Override main.css 5px margin */
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -227,17 +231,26 @@ input:checked+.switch:active::before {
     font-size: 24px !important;
     color: #ffffff !important;
     transition: all 0.3s ease;
-    line-height: normal !important; /* Ensure icon doesn't shift */
+    line-height: normal !important;
+    /* Ensure icon doesn't shift */
 }
 
 .navbar-right i:hover {
     transform: scale(1.15);
-    text-shadow: 0 0 10px rgba(255,255,255,0.6);
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
 }
 
-.zmdi-power { color: #ffffff !important; }
-.zmdi-power:hover { color: #ff6b6b !important; }
-.zmdi-settings:hover { color: #4facfe !important; }
+.zmdi-power {
+    color: #ffffff !important;
+}
+
+.zmdi-power:hover {
+    color: #ff6b6b !important;
+}
+
+.zmdi-settings:hover {
+    color: #4facfe !important;
+}
 
 /* Adjust Layout Offsets */
 section.content {
@@ -424,7 +437,13 @@ section.content {
         line-height: var(--header-height) !important;
     }
 
-    .ls-toggle-btn, .ls-toggle-btn:before, .ls-toggle-btn:after, .ls-toggle-btn i, .bars, .bars:before, .bars:after {
+    .ls-toggle-btn,
+    .ls-toggle-btn:before,
+    .ls-toggle-btn:after,
+    .ls-toggle-btn i,
+    .bars,
+    .bars:before,
+    .bars:after {
         border: none !important;
         text-decoration: none !important;
         box-shadow: none !important;
@@ -433,7 +452,9 @@ section.content {
     }
 
 
-    .ls-toggle-btn:focus, .ls-toggle-btn:active, .ls-toggle-btn:hover {
+    .ls-toggle-btn:focus,
+    .ls-toggle-btn:active,
+    .ls-toggle-btn:hover {
         outline: none !important;
         box-shadow: none !important;
         background: transparent !important;
@@ -441,12 +462,18 @@ section.content {
 
 
 
-    .navbar, .navbar-header, .navbar-brand, .dashboard-logo-link {
+    .navbar,
+    .navbar-header,
+    .navbar-brand,
+    .dashboard-logo-link {
         border: none !important;
         box-shadow: none !important;
     }
 
-    .navbar:after, .navbar:before, .navbar-header:after, .navbar-header:before {
+    .navbar:after,
+    .navbar:before,
+    .navbar-header:after,
+    .navbar-header:before {
         display: none !important;
     }
 
@@ -487,4 +514,218 @@ section.content {
         max-width: 250px !important;
         margin-bottom: 20px !important;
     }
+}
+
+/* Premium Global Dark Mode Styles */
+body.menu_dark {
+    background-color: #121212 !important;
+    color: #e0e0e0 !important;
+}
+
+body.menu_dark .content, 
+body.menu_dark .content.home {
+    background-color: #121212 !important;
+    color: #e0e0e0 !important;
+}
+
+/* Block Header */
+body.menu_dark .block-header h2,
+body.menu_dark .block-header h2 small,
+body.menu_dark .block-header ul.breadcrumb li a,
+body.menu_dark .block-header ul.breadcrumb li span,
+body.menu_dark .block-header ul.breadcrumb li {
+    color: #ffffff !important;
+}
+
+/* Cards */
+body.menu_dark .card {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+    border: 1px solid #2d2d2d !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+}
+
+body.menu_dark .card .header h2,
+body.menu_dark .card .header h2 small,
+body.menu_dark .card .header .header-dropdown i {
+    color: #ffffff !important;
+}
+
+body.menu_dark .card .body {
+    color: #e0e0e0 !important;
+}
+
+/* Typography, Headings & Text states */
+body.menu_dark h1, body.menu_dark h2, body.menu_dark h3, 
+body.menu_dark h4, body.menu_dark h5, body.menu_dark h6,
+body.menu_dark p, body.menu_dark span, body.menu_dark label,
+body.menu_dark small, body.menu_dark strong, body.menu_dark b, 
+body.menu_dark th, body.menu_dark td, body.menu_dark a {
+    color: #ffffff !important;
+}
+
+/* Keep specific branding / status badge colors correct */
+body.menu_dark .badge {
+    color: #ffffff !important;
+}
+
+body.menu_dark a:hover {
+    color: #bbbbbb !important;
+}
+
+/* Text color helpers */
+body.menu_dark .text-muted,
+body.menu_dark .text-fg-muted {
+    color: #b0b0b0 !important;
+}
+
+/* Form inputs & select boxes */
+body.menu_dark .form-control,
+body.menu_dark input,
+body.menu_dark select,
+body.menu_dark textarea {
+    background-color: #2b2b2b !important;
+    color: #ffffff !important;
+    border: 1px solid #444444 !important;
+}
+
+body.menu_dark .form-control:focus,
+body.menu_dark input:focus,
+body.menu_dark select:focus,
+body.menu_dark textarea:focus {
+    background-color: #333333 !important;
+    border-color: #764ba2 !important;
+    color: #ffffff !important;
+}
+
+/* Tables styling */
+body.menu_dark .table {
+    color: #ffffff !important;
+    background-color: #1e1e1e !important;
+}
+
+body.menu_dark .table tbody tr:hover {
+    background-color: #2a2a2a !important;
+}
+
+body.menu_dark .table th,
+body.menu_dark .table td {
+    border-top: 1px solid #2d2d2d !important;
+    border-bottom: 1px solid #2d2d2d !important;
+    color: #ffffff !important;
+    background-color: #1e1e1e !important;
+}
+
+/* Modals */
+body.menu_dark .modal-content {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+    border: 1px solid #333333 !important;
+}
+
+body.menu_dark .modal-header,
+body.menu_dark .modal-footer {
+    border-color: #2d2d2d !important;
+}
+
+/* Sidebar lists and layout refinements */
+body.menu_dark .sidebar {
+    background-color: #1a1a1a !important;
+}
+
+body.menu_dark .sidebar .menu .list li a {
+    color: #c8c8c8 !important;
+}
+
+body.menu_dark .sidebar .menu .list li a:hover {
+    background-color: #262626 !important;
+    color: #ffffff !important;
+}
+
+body.menu_dark .sidebar .menu .list li.active > a {
+    color: #ffffff !important;
+}
+
+/* Info boxes and stats widgets */
+body.menu_dark .info-box-2,
+body.menu_dark .info-box {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+    border: 1px solid #2d2d2d !important;
+}
+
+body.menu_dark .info-box-2 .content .text,
+body.menu_dark .info-box-2 .content .number {
+    color: #ffffff !important;
+}
+
+/* Dropdowns in dark mode */
+body.menu_dark .dropdown-menu {
+    background-color: #1e1e1e !important;
+    border: 1px solid #333333 !important;
+}
+
+body.menu_dark .dropdown-menu li a {
+    color: #ffffff !important;
+}
+
+body.menu_dark .dropdown-menu li a:hover {
+    background-color: #2d2d2d !important;
+}
+
+/* Tabs */
+body.menu_dark .nav-tabs .nav-link {
+    color: #b0b0b0 !important;
+}
+
+body.menu_dark .nav-tabs .nav-link.active {
+    background-color: #1e1e1e !important;
+    color: #ffffff !important;
+    border-color: #333333 #333333 #1e1e1e !important;
+}
+
+/* DataTables pagination and search text adjustments */
+body.menu_dark .dataTables_wrapper,
+body.menu_dark .dataTables_info,
+body.menu_dark .dataTables_paginate,
+body.menu_dark .dataTables_length,
+body.menu_dark .dataTables_filter {
+    color: #ffffff !important;
+}
+
+body.menu_dark .dataTables_wrapper .dataTables_filter input {
+    background-color: #2b2b2b !important;
+    color: #ffffff !important;
+    border: 1px solid #444444 !important;
+}
+
+body.menu_dark .pagination li a {
+    background-color: #2b2b2b !important;
+    color: #ffffff !important;
+    border-color: #444444 !important;
+}
+
+body.menu_dark .pagination li.active a {
+    background-color: #764ba2 !important;
+    border-color: #764ba2 !important;
+}
+
+/* Morris chart legend and details */
+body.menu_dark .morris-hover {
+    background-color: #242424 !important;
+    color: #ffffff !important;
+    border: 1px solid #444444 !important;
+}
+
+/* Force absolute original header height & disable all Google Translate layout shifts */
+body {
+    top: 0px !important;
+    position: static !important;
+}
+html {
+    top: 0px !important;
+}
+.skiptranslate, .goog-te-banner-frame, iframe.skiptranslate, #goog-gt-tt {
+    display: none !important;
+    visibility: hidden !important;
 }

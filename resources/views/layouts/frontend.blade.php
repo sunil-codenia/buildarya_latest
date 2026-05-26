@@ -287,8 +287,8 @@
         });
     </script>
     
-    <!-- Hidden Google Translate Element (Off-screen) -->
-    <div id="google_translate_element" style="position: absolute !important; top: -9999px !important; left: -9999px !important; width: 0px !important; height: 0px !important; overflow: hidden !important; visibility: hidden !important;"></div>
+    <!-- Invisible but rendered Google Translate Element (Non-zero height/width forces Google script to render it) -->
+    <div id="google_translate_element" style="position: absolute !important; top: 0px !important; left: 0px !important; width: 10px !important; height: 10px !important; opacity: 0.01 !important; overflow: hidden !important; z-index: -1000 !important;"></div>
 
     <style>
         .goog-te-banner-frame, .goog-te-banner, .skiptranslate, iframe[id*="translate"], .goog-logo-link {
@@ -322,14 +322,23 @@
             }
         }
 
-        function changeLanguage(langCode) {
+        // Set translation cookies across multiple paths and subdomains
+        function setGoogTransCookie(langCode) {
+            var cookieValue = "/en/" + langCode;
             if (langCode === 'en') {
                 document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
                 document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=" + window.location.hostname;
             } else {
-                document.cookie = "googtrans=/en/" + langCode + "; path=/";
-                document.cookie = "googtrans=/en/" + langCode + "; path=/; domain=" + window.location.hostname;
+                document.cookie = "googtrans=" + cookieValue + "; path=/;";
+                document.cookie = "googtrans=" + cookieValue + "; path=/; domain=" + window.location.hostname;
+                if (!/^[0-9.]+$/.test(window.location.hostname)) {
+                    document.cookie = "googtrans=" + cookieValue + "; path=/; domain=." + window.location.hostname;
+                }
             }
+        }
+
+        function changeLanguage(langCode) {
+            setGoogTransCookie(langCode);
 
             localStorage.setItem('selected_language', langCode);
             updateLanguageLabel(langCode);
@@ -370,8 +379,7 @@
             } else {
                 updateLanguageLabel(savedLang);
                 if (savedLang !== 'en') {
-                    document.cookie = "googtrans=/en/" + savedLang + "; path=/";
-                    document.cookie = "googtrans=/en/" + savedLang + "; path=/; domain=" + window.location.hostname;
+                    setGoogTransCookie(savedLang);
                     
                     const checkInterval = setInterval(() => {
                         const select = document.querySelector('select.goog-te-combo');
