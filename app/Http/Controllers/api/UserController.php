@@ -273,14 +273,106 @@ class UserController extends Controller
         return json_encode($data);
     }
 
+    public function get_profile(Request $request)
+    {
+        try {
+            $conn = $request->get('conn') ?? $request->post('conn');
+            $user_id = $request->get('uid') ?? $request->post('uid');
+
+            // Fallback: Find connection and user ID according to the login details/Bearer token proper
+            if ((!$conn || !$user_id) && $request->bearerToken()) {
+                $tokenStr = $request->bearerToken();
+                $tokenId = null;
+                if (strpos($tokenStr, '|') !== false) {
+                    [$tokenId, $tokenStr] = explode('|', $tokenStr, 2);
+                }
+                $token = DB::connection('mysql')->table('personal_access_tokens')->where('id', $tokenId)->first();
+                if ($token) {
+                    $conn = $conn ?? $token->name;
+                    $user_id = $user_id ?? $token->tokenable_id;
+                }
+            }
+
+            if (!$conn || !$user_id) {
+                return response()->json([
+                    "status" => "Failed",
+                    "status_code" => "300",
+                    "message" => "Database Connection (conn) and User ID (uid) are required!"
+                ]);
+            }
+
+            $user = DB::connection($conn)->table('users')
+                ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
+                ->select('users.*', 'roles.name as role_name')
+                ->where('users.id', $user_id)
+                ->first();
+
+            if (!$user) {
+                return response()->json([
+                    "status" => "Failed",
+                    "status_code" => "300",
+                    "message" => "User not found in the specified database!"
+                ]);
+            }
+
+            // Clean profile fields
+            $profileData = [
+                "id" => $user->id,
+                "name" => $user->name,
+                "username" => $user->username,
+                "contact_no" => $user->contact_no,
+                "pan_no" => $user->pan_no ?? "",
+                "image" => $user->image ? asset($user->image) : asset("images/noprofile.jpg"),
+                "role_id" => $user->role_id,
+                "role_name" => $user->role_name ?? "N/A",
+                "status" => $user->status
+            ];
+
+            return response()->json([
+                "status" => "Ok",
+                "status_code" => "200",
+                "data" => $profileData
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                "status" => "Failed",
+                "status_code" => "300",
+                "message" => "Failed to get profile data! " . $e->getMessage()
+            ]);
+        }
+    }
+
     public function update_profile(Request $request)
     {
+        // Auto-correct potential trailing underscores from Postman typos
+        if ($request->has('current_password_') && !$request->has('current_password')) {
+            $request->merge(['current_password' => $request->input('current_password_')]);
+        }
+        if ($request->has('new_password_') && !$request->has('new_password')) {
+            $request->merge(['new_password' => $request->input('new_password_')]);
+        }
+        
+        \Illuminate\Support\Facades\Log::info('update_profile hit. Inputs: ', $request->all());
         try {
             $conn = $request->post('conn');
             $user_id = $request->post('uid');
 
+            // Fallback: Find connection and user ID according to the login details/Bearer token proper
+            if ((!$conn || !$user_id) && $request->bearerToken()) {
+                $tokenStr = $request->bearerToken();
+                $tokenId = null;
+                if (strpos($tokenStr, '|') !== false) {
+                    [$tokenId, $tokenStr] = explode('|', $tokenStr, 2);
+                }
+                $token = DB::connection('mysql')->table('personal_access_tokens')->where('id', $tokenId)->first();
+                if ($token) {
+                    $conn = $conn ?? $token->name;
+                    $user_id = $user_id ?? $token->tokenable_id;
+                }
+            }
+
             if (!$conn || !$user_id) {
-                return json_encode([
+                return response()->json([
                     "status" => "Failed",
                     "status_code" => "300",
                     "message" => "Database Connection (conn) and User ID (uid) are required!"
@@ -288,38 +380,89 @@ class UserController extends Controller
             }
 
             // Verify if user exists in the specified connection
-            $user_exists = DB::connection($conn)->table('users')->where('id', $user_id)->first();
-            if (!$user_exists) {
-                return json_encode([
+            $user = DB::connection($conn)->table('users')->where('id', $user_id)->first();
+            if (!$user) {
+                return response()->json([
                     "status" => "Failed",
                     "status_code" => "300",
                     "message" => "User not found in the specified database!"
                 ]);
             }
             
+            // Validate inputs
+            $validationRules = [];
+            if ($request->has('name')) $validationRules['name'] = 'required|min:3';
+            if ($request->has('username')) $validationRules['username'] = 'required|min:5';
+            if ($request->has('contact_no')) $validationRules['contact_no'] = 'required|digits:10';
+            
+            // Check for file uploads
+            $imageFile = $request->file('image') ?? $request->file('profile_image') ?? $request->file('profile_picture');
+            if ($imageFile) {
+                $validationRules['image'] = 'image|mimes:jpeg,png,jpg,gif|max:4096';
+                $validationRules['profile_image'] = 'image|mimes:jpeg,png,jpg,gif|max:4096';
+                $validationRules['profile_picture'] = 'image|mimes:jpeg,png,jpg,gif|max:4096';
+            }
+            
+            if ($request->has('new_password')) {
+                $validationRules['current_password'] = 'required';
+                $validationRules['new_password'] = 'required|min:5';
+            }
+
+            if (!empty($validationRules)) {
+                $validator = \Illuminate\Support\Facades\Validator::make($request->all(), $validationRules);
+                if ($validator->fails()) {
+                    return response()->json([
+                        "status" => "Failed",
+                        "status_code" => "300",
+                        "message" => $validator->errors()->first(),
+                        "errors" => $validator->errors()->toArray(),
+                        "received_inputs" => $request->all()
+                    ]);
+                }
+            }
+
             $updateData = [];
             if ($request->has('name')) $updateData['name'] = $request->post('name');
             if ($request->has('username')) $updateData['username'] = $request->post('username');
             if ($request->has('contact_no')) $updateData['contact_no'] = $request->post('contact_no');
-            if ($request->has('pan_no')) $updateData['pan_no'] = $request->post('pan_no');
+            if ($request->has('pan_no')) $updateData['pan_no'] = $request->post('pan_no') ?? "";
 
-            if ($request->hasFile('image')) {
+            // Profile Image Upload Handling (Supports direct file upload & base64 encoding)
+            if ($imageFile) {
                 $dir = public_path('images/app_images/'.$conn.'/users');
                 if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
-                $imageName = time() . rand(10000, 1000000) . '.' . $request->image->extension();
-                $request->image->move($dir, $imageName);
+                $imageName = time() . rand(10000, 1000000) . '.' . $imageFile->getClientOriginalExtension();
+                $imageFile->move($dir, $imageName);
                 $updateData['image'] = "images/app_images/".$conn."/users/" . $imageName;
+            } else {
+                // Support base64 profile image string uploads (e.g. data:image/png;base64,iVBORw0KGgo...)
+                $base64Image = $request->post('image') ?? $request->post('profile_image') ?? $request->post('profile_picture');
+                if ($base64Image && preg_match('/^data:image\/(\w+);base64,/', $base64Image, $typeMatch)) {
+                    $base64Data = substr($base64Image, strpos($base64Image, ',') + 1);
+                    $extension = strtolower($typeMatch[1]); // e.g. png, jpeg, jpg, gif
+
+                    if (in_array($extension, ['jpg', 'jpeg', 'gif', 'png'])) {
+                        $decodedData = base64_decode($base64Data);
+                        if ($decodedData !== false) {
+                            $dir = public_path('images/app_images/'.$conn.'/users');
+                            if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                            $imageName = time() . rand(10000, 1000000) . '.' . $extension;
+                            file_put_contents($dir . '/' . $imageName, $decodedData);
+                            $updateData['image'] = "images/app_images/".$conn."/users/" . $imageName;
+                        }
+                    }
+                }
             }
 
+            // Username uniqueness check
             if (isset($updateData['username'])) {
-                // Check if username is already taken
                 $exists = DB::connection($conn)->table('users')
                     ->where('username', $updateData['username'])
                     ->where('id', '!=', $user_id)
                     ->exists();
 
                 if ($exists) {
-                    return json_encode([
+                    return response()->json([
                         "status" => "Failed",
                         "status_code" => "300",
                         "message" => "Username already taken!"
@@ -327,25 +470,46 @@ class UserController extends Controller
                 }
             }
 
-            if (!empty($updateData)) {
-                DB::connection($conn)->table('users')->where('id', $user_id)->update($updateData);
-                addActivity($user_id, 'users', "Profile Updated", 1, $user_id, $conn);
+            // Password update handling
+            if ($request->has('new_password')) {
+                if ($user->pass !== $request->post('current_password')) {
+                    return response()->json([
+                        "status" => "Failed",
+                        "status_code" => "300",
+                        "message" => "Current password does not match!"
+                    ]);
+                }
+                $updateData['pass'] = $request->post('new_password');
             }
 
-            $data = [
+            if (!empty($updateData)) {
+                DB::connection($conn)->table('users')->where('id', $user_id)->update($updateData);
+                addActivity($user_id, 'users', "Profile Updated via API", 1, $user_id, $conn);
+            }
+
+            // Get fresh profile data for response
+            $updatedUser = DB::connection($conn)->table('users')->where('id', $user_id)->first();
+
+            return response()->json([
                 "status" => "Ok",
                 "status_code" => "200",
                 "message" => "Profile Updated Successfully!",
-                "image" => $updateData['image'] ?? null
-            ];
+                "data" => [
+                    "id" => $updatedUser->id,
+                    "name" => $updatedUser->name,
+                    "username" => $updatedUser->username,
+                    "contact_no" => $updatedUser->contact_no,
+                    "pan_no" => $updatedUser->pan_no ?? "",
+                    "image" => $updatedUser->image ? asset($updatedUser->image) : asset("images/noprofile.jpg")
+                ]
+            ]);
         } catch (\Exception $e) {
-            $data = [
+            return response()->json([
                 "status" => "Failed",
                 "status_code" => "300",
                 "message" => "Profile Updation Failed! " . $e->getMessage()
-            ];
+            ]);
         }
-        return json_encode($data);
     }
     public function get_sites(Request $request)
     {

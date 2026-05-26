@@ -72,6 +72,7 @@ Route::post('/update_fcm_id', [UserController::class, 'update_fcm_id']);
 
   Route::post('/update_profile_picture', [UserController::class, 'update_profile_picture']);
   Route::post('/update_profile', [UserController::class, 'update_profile']);
+  Route::match(['get', 'post'], '/get_profile', [UserController::class, 'get_profile']);
 
 Route::post('/get_chat_data', [ChatController::class, 'index']);
 
@@ -129,6 +130,14 @@ Route::post('my_doc_upload_file', [UserController::class, 'my_doc_upload_file'])
 Route::prefix('v1')->group(function () {
     // Public routes (tenant not needed yet as login handles switching)
     Route::post('/login', [ApiAuthController::class, 'login']);
+    
+    // Support for both /api/v1/get_profile and /api/v1/api/get_profile
+    Route::match(['get', 'post'], '/get_profile', [UserController::class, 'get_profile']);
+    Route::match(['get', 'post'], '/api/get_profile', [UserController::class, 'get_profile']);
+    
+    // Support for both /api/v1/update_profile and /api/v1/api/update_profile
+    Route::post('/update_profile', [UserController::class, 'update_profile']);
+    Route::post('/api/update_profile', [UserController::class, 'update_profile']);
 
     // Protected routes (tenant middleware handles DB switching)
     Route::middleware(['api-tenant-bootstrap', 'auth:sanctum', 'tenant'])->group(function () {
