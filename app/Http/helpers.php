@@ -281,6 +281,11 @@ function getAccessSitesByRole($id)
 
 function checkmodulepermission($module_id, $permission)
 {
+    // SuperAdmin always has full access – mirrors canViewModule() logic
+    if (isSuperAdmin()) {
+        return 1;
+    }
+
     if (session()->get('role_perms_set') === false) {
         return 1;
     }

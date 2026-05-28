@@ -122,6 +122,9 @@ class CompanyRegistrationController extends Controller
                         // Column might already exist if template was updated
                     }
 
+                    // Step 4.2: Create Task and Attendance tables dynamically
+                    $this->createCompanyModulesTables($connName);
+
                     $isNewCompany = true;
 
                     // =========================
@@ -497,6 +500,71 @@ class CompanyRegistrationController extends Controller
         } catch (\Exception $e) {
             DB::purge($tempConnName);
             throw new \Exception("Failed to import template schema: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Create attendance and tasks tables dynamically in the new company database.
+     */
+    private function createCompanyModulesTables($connName)
+    {
+        try {
+            \Log::info("Creating attendance and tasks tables dynamically inside connection: {$connName}");
+            
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `attendance` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id` INT NOT NULL,
+                    `site_id` INT DEFAULT NULL,
+                    `date` DATE NOT NULL,
+                    `in_time` DATETIME DEFAULT NULL,
+                    `out_time` DATETIME DEFAULT NULL,
+                    `status` ENUM('Present', 'Absent', 'Half Day', 'Leave', 'Holiday') NOT NULL DEFAULT 'Present',
+                    `in_location` TEXT DEFAULT NULL,
+                    `out_location` TEXT DEFAULT NULL,
+                    `image` VARCHAR(500) DEFAULT NULL,
+                    `out_image` VARCHAR(500) DEFAULT NULL,
+                    `remarks` TEXT DEFAULT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`user_id`),
+                    INDEX (`site_id`),
+                    INDEX (`date`),
+                    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+            
+            DB::connection($connName)->statement("DROP TABLE IF EXISTS `tasks`;");
+            
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `tasks` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `title` VARCHAR(255) NOT NULL,
+                    `description` TEXT DEFAULT NULL,
+                    `site_id` INT DEFAULT NULL,
+                    `assigned_to` INT DEFAULT NULL,
+                    `assigned_by` INT DEFAULT NULL,
+                    `priority` ENUM('Low', 'Medium', 'High', 'Urgent') NOT NULL DEFAULT 'Medium',
+                    `status` ENUM('Pending', 'In Progress', 'Completed', 'On Hold', 'Cancelled') NOT NULL DEFAULT 'Pending',
+                    `due_date` DATE DEFAULT NULL,
+                    `completed_at` TIMESTAMP NULL DEFAULT NULL,
+                    `remarks` TEXT DEFAULT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`site_id`),
+                    INDEX (`assigned_to`),
+                    INDEX (`assigned_by`),
+                    FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE SET NULL,
+                    FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+                    FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+            
+            \Log::info("Attendance and tasks tables successfully created for connection: {$connName}");
+        } catch (\Exception $e) {
+            \Log::error("Failed to dynamically create modules tables: " . $e->getMessage());
+            throw new \Exception("Failed to dynamically create modules tables: " . $e->getMessage());
         }
     }
 

@@ -26,6 +26,8 @@ use App\Http\Controllers\api\ApiSalesController;
 use App\Http\Controllers\api\ApiContactController;
 use App\Http\Controllers\api\ApiOtherPartyController;
 use App\Http\Controllers\api\ApiSettingsController;
+use App\Http\Controllers\api\ApiAttendanceController;
+use App\Http\Controllers\api\ApiTaskController;
 
 /*
 |--------------------------------------------------------------------------
@@ -432,11 +434,45 @@ Route::prefix('v1')->group(function () {
         Route::post('expense-parties/bulk-delete', [ApiManagementController::class, 'bulkDeleteExpenseParties']);
         Route::post('expense-parties/bulk-status', [ApiManagementController::class, 'bulkUpdateExpensePartiesStatus']);
         Route::post('/documents', [ApiDocumentController::class, 'store']);
+        Route::post('/documents/{id}', [ApiDocumentController::class, 'update']);
+        Route::post('/documents/update/{id}', [ApiDocumentController::class, 'update']);
         Route::delete('/documents/{id}', [ApiDocumentController::class, 'destroy']);
+        Route::delete('/documents', [ApiDocumentController::class, 'destroy']);
+        Route::post('/documents/delete/{id}', [ApiDocumentController::class, 'destroy']);
+        Route::post('/documents/delete', [ApiDocumentController::class, 'destroy']);
 
         // Documents
+        Route::get('/documents/pending', [ApiDocumentController::class, 'pending']);
+        Route::get('/documents/my-documents', [ApiDocumentController::class, 'myDocuments']);
+        Route::get('/documents/system-documents', [ApiDocumentController::class, 'systemDocuments']);
+        Route::get('/documents/heads', [ApiDocumentController::class, 'heads']);
+        Route::post('/documents/heads', [ApiDocumentController::class, 'storeHead']);
+        Route::get('/documents/heads/{id}', [ApiDocumentController::class, 'showHead']);
+        Route::post('/documents/heads/{id}', [ApiDocumentController::class, 'updateHead']);
+        Route::post('/documents/heads/update/{id}', [ApiDocumentController::class, 'updateHead']);
+        Route::delete('/documents/heads/{id}', [ApiDocumentController::class, 'destroyHead']);
+        Route::post('/documents/heads/delete/{id}', [ApiDocumentController::class, 'destroyHead']);
+        Route::get('/documents/dashboard', [ApiDocumentController::class, 'dashboard']);
         Route::get('/documents/summary', [ApiDocumentController::class, 'summary']);
+        Route::get('/documents/export-pdf', [ApiDocumentController::class, 'exportPdf']);
+        Route::post('/documents/approve', [ApiDocumentController::class, 'approve']);
         Route::get('/documents', [ApiDocumentController::class, 'index']);
+        Route::get('/documents/{id}', [ApiDocumentController::class, 'show']);
+
+        // Attendance API Suite
+        Route::post('/attendance/clock-in', [ApiAttendanceController::class, 'clockIn']);
+        Route::post('/attendance/clock-out', [ApiAttendanceController::class, 'clockOut']);
+        Route::get('/attendance/history', [ApiAttendanceController::class, 'history']);
+        Route::get('/attendance/summary', [ApiAttendanceController::class, 'summary']);
+        Route::post('/attendance/log', [ApiAttendanceController::class, 'logManual']);
+
+        // Task Management API Suite
+        Route::get('/tasks', [ApiTaskController::class, 'index']);
+        Route::post('/tasks', [ApiTaskController::class, 'store']);
+        Route::get('/tasks/{id}', [ApiTaskController::class, 'show']);
+        Route::post('/tasks/{id}', [ApiTaskController::class, 'update']);
+        Route::post('/tasks/update/{id}', [ApiTaskController::class, 'update']);
+        Route::delete('/tasks/{id}', [ApiTaskController::class, 'destroy']);
 
         // Payment Vouchers API Suite
         Route::get("/payment-vouchers/pending", [ApiPaymentVoucherController::class, "listPending"]);

@@ -188,6 +188,16 @@
             <li class="{{ Request::is('contacts') ? 'active open' : '' }}"><a href="{{url('/contacts')}}"><i class="zmdi zmdi-account-box-phone"></i><span>Contact Management</span></a></li> 
             @endif
 
+            {{-- Module 13: Attendance Management --}}
+            @if (canViewModule(13))
+            <li class="{{ Request::is('attendance*') ? 'active open' : '' }}"><a href="{{url('/attendance')}}"><i class="zmdi zmdi-calendar-check"></i><span>Attendance Management</span></a></li> 
+            @endif
+
+            {{-- Module 14: Task Management --}}
+            @if (canViewModule(14))
+            <li class="{{ Request::is('tasks*') ? 'active open' : '' }}"><a href="{{url('/tasks')}}"><i class="zmdi zmdi-playlist-plus"></i><span>Task Management</span></a></li> 
+            @endif
+
             {{-- Module 9: Management/Settings - SuperAdmin or can_view --}}
             @if (canViewModule(9))
             <li class="{{ Request::is('settings') || Request::is('sales_companies') || Request::is('activity') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-settings"></i><span>Management</span> </a>

@@ -35,6 +35,8 @@ use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ExcelImportController;
 use App\Http\Controllers\material\StockController;
+use App\Http\Controllers\AttendanceWebController;
+use App\Http\Controllers\TaskWebController;
 
 use App\Http\Controllers\FrontendController;
 
@@ -518,6 +520,23 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/getDocListByHeadId', [DocumentController::class, 'getDocListByHeadId']);
         Route::get('deleteDoc', [DocumentController::class, 'deleteDoc']);
         Route::get('approveDoc', [DocumentController::class, 'approveDoc']);
+    });
+
+    // attendance module
+    Route::group(['middleware' => ['module.access:13']], function () {
+        Route::get('/attendance', [AttendanceWebController::class, 'index']);
+        Route::post('/attendance/manual', [AttendanceWebController::class, 'storeManual']);
+        Route::delete('/attendance/delete/{id}', [AttendanceWebController::class, 'delete']);
+        Route::post('/attendance/clock-in', [AttendanceWebController::class, 'webClockIn']);
+        Route::post('/attendance/clock-out', [AttendanceWebController::class, 'webClockOut']);
+    });
+
+    // tasks module
+    Route::group(['middleware' => ['module.access:14']], function () {
+        Route::get('/tasks', [TaskWebController::class, 'index']);
+        Route::post('/tasks', [TaskWebController::class, 'store']);
+        Route::get('/tasks/status/{id}', [TaskWebController::class, 'updateStatus']);
+        Route::delete('/tasks/delete/{id}', [TaskWebController::class, 'delete']);
     });
 
     // excelimport file------------

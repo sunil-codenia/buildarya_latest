@@ -883,6 +883,8 @@ class ApiManagementController extends Controller
                 8 => 'Payment Vouchers',
                 11 => 'Document Management',
                 10 => 'Contact Management',
+                13 => 'Attendance Management',
+                14 => 'Task Management',
                 9 => 'Management'
             ];
 
