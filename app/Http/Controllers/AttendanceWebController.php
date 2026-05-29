@@ -110,6 +110,45 @@ class AttendanceWebController extends Controller
         return redirect()->back()->with('success', 'Attendance record saved successfully!');
     }
 
+    public function updateManual(Request $request, $id)
+    {
+        // Enforce can_edit module permission
+        if (checkmodulepermission(13, 'can_edit') != 1) {
+            return redirect()->back()->with('errorcode', 'You do not have permission to edit attendance logs.');
+        }
+
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return redirect('/login');
+        }
+
+        $request->validate([
+            'user_id' => 'required',
+            'site_id' => 'required',
+            'status' => 'required|in:Present,Absent,Half Day,Leave',
+            'clock_in' => 'nullable',
+            'clock_out' => 'nullable',
+            'date' => 'required|date'
+        ]);
+
+        $dateString = Carbon::parse($request->date)->toDateString();
+
+        $data = [
+            'user_id' => $request->user_id,
+            'site_id' => $request->site_id,
+            'status' => $request->status,
+            'date' => $dateString,
+            'in_time' => $request->clock_in ? Carbon::parse($dateString . ' ' . $request->clock_in)->toDateTimeString() : null,
+            'out_time' => $request->clock_out ? Carbon::parse($dateString . ' ' . $request->clock_out)->toDateTimeString() : null,
+            'remarks' => 'Manual Update',
+            'updated_at' => Carbon::now()->toDateTimeString()
+        ];
+
+        DB::connection($conn)->table('attendance')->where('id', $id)->update($data);
+
+        return redirect()->back()->with('success', 'Attendance record updated successfully!');
+    }
+
     public function delete($id)
     {
         // Enforce can_delete module permission

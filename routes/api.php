@@ -447,6 +447,14 @@ Route::prefix('v1')->group(function () {
         Route::get('/documents/system-documents', [ApiDocumentController::class, 'systemDocuments']);
         Route::get('/documents/heads', [ApiDocumentController::class, 'heads']);
         Route::post('/documents/heads', [ApiDocumentController::class, 'storeHead']);
+        
+        // Options routes must be above {id} routes to prevent collision
+        Route::post('/documents/heads/options', [ApiDocumentController::class, 'storeHeadOption']);
+        Route::post('/documents/heads/options/{id}', [ApiDocumentController::class, 'updateHeadOption']);
+        Route::post('/documents/heads/options/update/{id}', [ApiDocumentController::class, 'updateHeadOption']);
+        Route::delete('/documents/heads/options/{id}', [ApiDocumentController::class, 'destroyHeadOption']);
+        Route::post('/documents/heads/options/delete/{id}', [ApiDocumentController::class, 'destroyHeadOption']);
+        
         Route::get('/documents/heads/{id}', [ApiDocumentController::class, 'showHead']);
         Route::post('/documents/heads/{id}', [ApiDocumentController::class, 'updateHead']);
         Route::post('/documents/heads/update/{id}', [ApiDocumentController::class, 'updateHead']);
@@ -465,6 +473,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/attendance/history', [ApiAttendanceController::class, 'history']);
         Route::get('/attendance/summary', [ApiAttendanceController::class, 'summary']);
         Route::post('/attendance/log', [ApiAttendanceController::class, 'logManual']);
+        Route::get('/attendance/{id}', [ApiAttendanceController::class, 'show']);
+        Route::post('/attendance/update/{id}', [ApiAttendanceController::class, 'update']);
+        Route::delete('/attendance/{id}', [ApiAttendanceController::class, 'destroy']);
 
         // Task Management API Suite
         Route::get('/tasks', [ApiTaskController::class, 'index']);

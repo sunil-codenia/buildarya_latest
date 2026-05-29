@@ -526,6 +526,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::group(['middleware' => ['module.access:13']], function () {
         Route::get('/attendance', [AttendanceWebController::class, 'index']);
         Route::post('/attendance/manual', [AttendanceWebController::class, 'storeManual']);
+        Route::post('/attendance/update/{id}', [AttendanceWebController::class, 'updateManual']);
         Route::delete('/attendance/delete/{id}', [AttendanceWebController::class, 'delete']);
         Route::post('/attendance/clock-in', [AttendanceWebController::class, 'webClockIn']);
         Route::post('/attendance/clock-out', [AttendanceWebController::class, 'webClockOut']);

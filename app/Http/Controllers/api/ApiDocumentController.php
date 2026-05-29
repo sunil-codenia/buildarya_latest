@@ -711,6 +711,125 @@ class ApiDocumentController extends Controller
     }
 
     /**
+     * Store a new Document Head Option
+     */
+    public function storeHeadOption(Request $request)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $user_id = $tenant['uid'];
+            
+            $head_id = $request->input('head_id');
+            $name = $request->input('name');
+            
+            if (!$head_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Document Head ID is required!']);
+            }
+            if (!$name) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Option Name is required!']);
+            }
+            
+            $names = is_array($name) ? $name : [$name];
+            $inserted = [];
+            
+            foreach ($names as $n) {
+                if ($n) {
+                    $id = DB::connection($conn)->table('doc_head_option')->insertGetId([
+                        'head_id' => $head_id,
+                        'name' => $n
+                    ]);
+                    addActivity($id, 'doc_head_option', "New Document Head Option Created via API - " . $n, 11, $user_id, $conn);
+                    $inserted[] = DB::connection($conn)->table('doc_head_option')->where('id', $id)->first();
+                }
+            }
+            
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'message' => 'Document Head Options Created Successfully!',
+                'data' => count($inserted) == 1 ? $inserted[0] : $inserted
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Failed to create document head option: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Update an existing Document Head Option
+     */
+    public function updateHeadOption(Request $request, $id = null)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $user_id = $tenant['uid'];
+            
+            $opt_id = $id ?? $request->input('id') ?? $request->get('id');
+            $name = $request->input('name');
+            
+            if (!$opt_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Document Head Option ID is required!']);
+            }
+            if (!$name) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Option Name is required!']);
+            }
+            
+            $option = DB::connection($conn)->table('doc_head_option')->where('id', $opt_id)->first();
+            if (!$option) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Document Head Option not found!']);
+            }
+            
+            DB::connection($conn)->table('doc_head_option')->where('id', $opt_id)->update(['name' => $name]);
+            addActivity($opt_id, 'doc_head_option', "Document Head Option Updated via API - " . $name, 11, $user_id, $conn);
+            
+            $updatedOption = DB::connection($conn)->table('doc_head_option')->where('id', $opt_id)->first();
+            
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'message' => 'Document Head Option Updated Successfully!',
+                'data' => $updatedOption
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Failed to update document head option: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Delete an existing Document Head Option
+     */
+    public function destroyHeadOption(Request $request, $id = null)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $user_id = $tenant['uid'];
+            
+            $opt_id = $id ?? $request->input('id') ?? $request->get('id');
+            if (!$opt_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Document Head Option ID is required!']);
+            }
+            
+            $option = DB::connection($conn)->table('doc_head_option')->where('id', $opt_id)->first();
+            if (!$option) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Document Head Option not found!']);
+            }
+            
+            DB::connection($conn)->table('doc_head_option')->where('id', $opt_id)->delete();
+            addActivity(0, 'doc_head', "Document Head Option Deleted via API - " . $option->name, 11, $user_id, $conn);
+            
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'message' => 'Document Head Option Deleted Successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Failed to delete document head option: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
      * Get Document Summary (Heads and Options grouped)
      */
     public function summary(Request $request)

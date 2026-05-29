@@ -114,7 +114,7 @@
                                     <th>Clock In</th>
                                     <th>Clock Out</th>
                                     <th>GPS Location</th>
-                                    @if(checkmodulepermission(13, 'can_delete') == 1)
+                                    @if(checkmodulepermission(13, 'can_delete') == 1 || checkmodulepermission(13, 'can_edit') == 1)
                                         <th>Action</th>
                                     @endif
                                 </tr>
@@ -240,15 +240,22 @@
                                                 </div>
                                             @endif
                                         </td>
-                                        @if(checkmodulepermission(13, 'can_delete') == 1)
-                                            <td>
-                                                <form action="{{ url('/attendance/delete/'.$log->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this record?')">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-neutral btn-sm btn-round text-danger" style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
-                                                        <i class="zmdi zmdi-delete"></i>
+                                        @if(checkmodulepermission(13, 'can_delete') == 1 || checkmodulepermission(13, 'can_edit') == 1)
+                                            <td class="d-flex">
+                                                @if(checkmodulepermission(13, 'can_edit') == 1)
+                                                    <button type="button" class="btn btn-neutral btn-sm btn-round text-primary mr-2" style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);" onclick="openEditModal({{ $log->id }}, '{{ $log->user_id }}', '{{ $log->site_id }}', '{{ $log->date }}', '{{ $log->status }}', '{{ $log->in_time ? date('H:i', strtotime($log->in_time)) : '' }}', '{{ $log->out_time ? date('H:i', strtotime($log->out_time)) : '' }}')">
+                                                        <i class="zmdi zmdi-edit"></i>
                                                     </button>
-                                                </form>
+                                                @endif
+                                                @if(checkmodulepermission(13, 'can_delete') == 1)
+                                                    <form action="{{ url('/attendance/delete/'.$log->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this record?')">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-neutral btn-sm btn-round text-danger" style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                                                            <i class="zmdi zmdi-delete"></i>
+                                                        </button>
+                                                    </form>
+                                                @endif
                                             </td>
                                         @endif
                                     </tr>
@@ -325,6 +332,79 @@
             </div>
         </div>
     </div>
+
+    <!-- Edit Manual Attendance Modal -->
+    @if(checkmodulepermission(13, 'can_edit') == 1)
+        <div class="modal fade" id="editAttendanceModal" tabindex="-1" role="dialog">
+            <div class="modal-dialog" role="document">
+                <form id="editAttendanceForm" method="POST" class="form">
+                    @csrf
+                    <div class="modal-content" style="border-radius: 15px; overflow: hidden; border: none;">
+                        <div class="modal-header p-4" style="background: linear-gradient(135deg, #1f4068 0%, #162447 100%); color: white;">
+                            <h4 class="title m-0" style="font-weight: bold;"><i class="zmdi zmdi-edit mr-2"></i> Edit Attendance Log</h4>
+                        </div>
+                        <div class="modal-body p-4">
+                            <div class="form-group mb-3">
+                                <label class="font-weight-bold" style="color: #555;">Select User</label>
+                                <select name="user_id" id="edit_user_id" class="form-control show-tick" data-live-search="true" required>
+                                    <option value="" disabled selected>-- Choose User --</option>
+                                    @foreach($users as $user)
+                                        <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->username }})</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label class="font-weight-bold" style="color: #555;">Select Site</label>
+                                <select name="site_id" id="edit_site_id" class="form-control show-tick" data-live-search="true" required>
+                                    <option value="" disabled selected>-- Choose Site --</option>
+                                    @foreach($sites as $site)
+                                        <option value="{{ $site->id }}">{{ $site->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="font-weight-bold" style="color: #555;">Date</label>
+                                        <input type="date" name="date" id="edit_date" class="form-control" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="font-weight-bold" style="color: #555;">Status</label>
+                                        <select name="status" id="edit_status" class="form-control show-tick" required>
+                                            <option value="Present">Present</option>
+                                            <option value="Absent">Absent</option>
+                                            <option value="Half Day">Half Day</option>
+                                            <option value="Leave">On Leave</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="font-weight-bold" style="color: #555;">Clock In Time</label>
+                                        <input type="time" name="clock_in" id="edit_clock_in" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
+                                        <label class="font-weight-bold" style="color: #555;">Clock Out Time</label>
+                                        <input type="time" name="clock_out" id="edit_clock_out" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer p-4" style="border-top: 1px solid #f1f2f6;">
+                            <button type="button" class="btn btn-secondary btn-round waves-effect" data-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-primary btn-round waves-effect" style="background: linear-gradient(135deg, #1f4068 0%, #162447 100%); border: none;">Save Changes</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 
     <!-- Manual Entry Modal -->
     @if(checkmodulepermission(13, 'can_add') == 1)
@@ -654,6 +734,26 @@
     function previewLogPhoto(url) {
         $('#previewModalImage').attr('src', url);
         $('#photoPreviewModal').modal('show');
+    }
+
+    function openEditModal(id, userId, siteId, date, status, clockIn, clockOut) {
+        $('#editAttendanceForm').attr('action', '{{ url("/attendance/update") }}/' + id);
+        
+        $('#edit_user_id').val(userId);
+        if ($('#edit_user_id').hasClass('show-tick')) { $('#edit_user_id').selectpicker('refresh'); }
+        
+        $('#edit_site_id').val(siteId);
+        if ($('#edit_site_id').hasClass('show-tick')) { $('#edit_site_id').selectpicker('refresh'); }
+        
+        $('#edit_date').val(date);
+        
+        $('#edit_status').val(status);
+        if ($('#edit_status').hasClass('show-tick')) { $('#edit_status').selectpicker('refresh'); }
+        
+        $('#edit_clock_in').val(clockIn);
+        $('#edit_clock_out').val(clockOut);
+        
+        $('#editAttendanceModal').modal('show');
     }
 </script>
 @endsection

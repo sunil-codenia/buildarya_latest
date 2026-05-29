@@ -386,4 +386,122 @@ class ApiAttendanceController extends Controller
             ]);
         }
     }
+
+    /**
+     * Get details of a single attendance record by ID
+     */
+    public function show(Request $request, $id)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $uid = $tenant['uid'];
+
+            $record = DB::connection($conn)->table('attendance')->where('id', $id)->first();
+
+            if (!$record) {
+                return response()->json(['status' => 'Failed', 'status_code' => '404', 'message' => 'Record not found.']);
+            }
+
+            $perm = DB::connection($conn)->table('user_permission')
+                ->where('user_id', $uid)
+                ->where('module_id', 13)
+                ->first();
+
+            $canManage = ($perm && ($perm->can_add == 1 || $perm->can_edit == 1 || $perm->can_view == 1));
+            
+            if (!$canManage && $record->user_id != $uid) {
+                return response()->json(['status' => 'Failed', 'status_code' => '403', 'message' => 'Unauthorized access.']);
+            }
+
+            return response()->json(['status' => 'Ok', 'status_code' => '200', 'data' => $record]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '500', 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Update an attendance record by ID
+     */
+    public function update(Request $request, $id)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $uid = $tenant['uid'];
+
+            $record = DB::connection($conn)->table('attendance')->where('id', $id)->first();
+
+            if (!$record) {
+                return response()->json(['status' => 'Failed', 'status_code' => '404', 'message' => 'Record not found.']);
+            }
+
+            $perm = DB::connection($conn)->table('user_permission')
+                ->where('user_id', $uid)
+                ->where('module_id', 13)
+                ->first();
+
+            $canManage = ($perm && ($perm->can_edit == 1 || $perm->can_add == 1));
+            
+            if (!$canManage && $record->user_id != $uid) {
+                return response()->json(['status' => 'Failed', 'status_code' => '403', 'message' => 'Unauthorized access.']);
+            }
+
+            $updateData = [];
+            if ($request->has('site_id')) $updateData['site_id'] = $request->input('site_id');
+            if ($request->has('status')) $updateData['status'] = $request->input('status');
+            if ($request->has('in_time')) $updateData['in_time'] = $request->input('in_time');
+            if ($request->has('out_time')) $updateData['out_time'] = $request->input('out_time');
+            if ($request->has('date')) $updateData['date'] = $request->input('date');
+            if ($request->has('user_id') && $canManage) $updateData['user_id'] = $request->input('user_id');
+            if ($request->has('remarks')) $updateData['remarks'] = $request->input('remarks');
+
+            if (!empty($updateData)) {
+                $updateData['updated_at'] = now();
+                DB::connection($conn)->table('attendance')->where('id', $id)->update($updateData);
+                addActivity($id, 'attendance', "Attendance updated via API.", 13, $uid, $conn);
+            }
+
+            $updatedRecord = DB::connection($conn)->table('attendance')->where('id', $id)->first();
+            return response()->json(['status' => 'Ok', 'status_code' => '200', 'data' => $updatedRecord, 'message' => 'Attendance updated successfully.']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '500', 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Delete an attendance record by ID
+     */
+    public function destroy(Request $request, $id)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $uid = $tenant['uid'];
+
+            $record = DB::connection($conn)->table('attendance')->where('id', $id)->first();
+
+            if (!$record) {
+                return response()->json(['status' => 'Failed', 'status_code' => '404', 'message' => 'Record not found.']);
+            }
+
+            $perm = DB::connection($conn)->table('user_permission')
+                ->where('user_id', $uid)
+                ->where('module_id', 13)
+                ->first();
+
+            $canDelete = ($perm && $perm->can_delete == 1);
+            
+            if (!$canDelete && $record->user_id != $uid) {
+                return response()->json(['status' => 'Failed', 'status_code' => '403', 'message' => 'Unauthorized to delete this record.']);
+            }
+
+            DB::connection($conn)->table('attendance')->where('id', $id)->delete();
+            addActivity(0, 'attendance', "Attendance record deleted via API.", 13, $uid, $conn);
+
+            return response()->json(['status' => 'Ok', 'status_code' => '200', 'message' => 'Attendance deleted successfully.']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '500', 'message' => $e->getMessage()]);
+        }
+    }
 }
