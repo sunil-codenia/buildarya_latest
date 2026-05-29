@@ -196,12 +196,15 @@ class ApiAttendanceController extends Controller
             
             $targetUserId = $request->input('user_id');
 
+            $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
+            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $tenant['uid'])
                 ->where('module_id', 13)
                 ->first();
 
-            $canManage = ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
+            $canManage = $isSuperAdmin || ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
 
             if (!$canManage) {
                 $targetUserId = $tenant['uid'];
@@ -265,12 +268,15 @@ class ApiAttendanceController extends Controller
 
             $targetUserId = $request->input('user_id');
 
+            $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
+            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $tenant['uid'])
                 ->where('module_id', 13)
                 ->first();
 
-            $canManage = ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
+            $canManage = $isSuperAdmin || ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
 
             if (!$canManage) {
                 $targetUserId = $tenant['uid'];
@@ -403,12 +409,15 @@ class ApiAttendanceController extends Controller
                 return response()->json(['status' => 'Failed', 'status_code' => '404', 'message' => 'Record not found.']);
             }
 
+            $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
+            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $uid)
                 ->where('module_id', 13)
                 ->first();
 
-            $canManage = ($perm && ($perm->can_add == 1 || $perm->can_edit == 1 || $perm->can_view == 1));
+            $canManage = $isSuperAdmin || ($perm && ($perm->can_add == 1 || $perm->can_edit == 1 || $perm->can_view == 1));
             
             if (!$canManage && $record->user_id != $uid) {
                 return response()->json(['status' => 'Failed', 'status_code' => '403', 'message' => 'Unauthorized access.']);
@@ -436,12 +445,15 @@ class ApiAttendanceController extends Controller
                 return response()->json(['status' => 'Failed', 'status_code' => '404', 'message' => 'Record not found.']);
             }
 
+            $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
+            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $uid)
                 ->where('module_id', 13)
                 ->first();
 
-            $canManage = ($perm && ($perm->can_edit == 1 || $perm->can_add == 1));
+            $canManage = $isSuperAdmin || ($perm && ($perm->can_edit == 1 || $perm->can_add == 1));
             
             if (!$canManage && $record->user_id != $uid) {
                 return response()->json(['status' => 'Failed', 'status_code' => '403', 'message' => 'Unauthorized access.']);
@@ -485,12 +497,15 @@ class ApiAttendanceController extends Controller
                 return response()->json(['status' => 'Failed', 'status_code' => '404', 'message' => 'Record not found.']);
             }
 
+            $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
+            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $uid)
                 ->where('module_id', 13)
                 ->first();
 
-            $canDelete = ($perm && $perm->can_delete == 1);
+            $canDelete = $isSuperAdmin || ($perm && $perm->can_delete == 1);
             
             if (!$canDelete && $record->user_id != $uid) {
                 return response()->json(['status' => 'Failed', 'status_code' => '403', 'message' => 'Unauthorized to delete this record.']);

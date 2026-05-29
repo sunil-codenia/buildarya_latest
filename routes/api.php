@@ -611,6 +611,24 @@ Route::prefix('v1')->group(function () {
         Route::post('/vouchers/credit-site', [ApiPaymentVoucherController::class, 'creditSiteBalance']);
 
         // Contacts
+        Route::get('/contacts/categories', [ApiContactController::class, 'categories']);
+        
+        Route::get('/contacts/companies', [ApiContactController::class, 'companies']);
+        Route::get('/contacts/companies/export-csv', [ApiContactController::class, 'exportCompaniesCsv']);
+        Route::post('/contacts/companies', [ApiContactController::class, 'storeCompany']);
+        // Company Contacts List (Individuals)
+        Route::post('/contacts/companies/contacts', [ApiContactController::class, 'storeCompanyContact']);
+        Route::post('/contacts/companies/contacts/{id}', [ApiContactController::class, 'updateCompanyContact']);
+        Route::post('/contacts/companies/contacts/update/{id}', [ApiContactController::class, 'updateCompanyContact']);
+        Route::delete('/contacts/companies/contacts/{id}', [ApiContactController::class, 'destroyCompanyContact']);
+        Route::post('/contacts/companies/contacts/delete/{id}', [ApiContactController::class, 'destroyCompanyContact']);
+
+        Route::get('/contacts/companies/{id}', [ApiContactController::class, 'showCompany']);
+        Route::post('/contacts/companies/{id}', [ApiContactController::class, 'updateCompany']);
+        Route::post('/contacts/companies/update/{id}', [ApiContactController::class, 'updateCompany']);
+        Route::delete('/contacts/companies/{id}', [ApiContactController::class, 'destroyCompany']);
+        Route::post('/contacts/companies/delete/{id}', [ApiContactController::class, 'destroyCompany']);
+
         Route::get('/contacts', [ApiContactController::class, 'index']);
         Route::post('/contacts', [ApiContactController::class, 'store']);
         Route::post('/contacts/{id}', [ApiContactController::class, 'update']);
