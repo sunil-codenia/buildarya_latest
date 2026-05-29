@@ -125,7 +125,7 @@
                                     <th>Priority</th>
                                     <th>Due Date</th>
                                     <th>Status</th>
-                                    @if(checkmodulepermission(14, 'can_delete') == 1)
+                                    @if(checkmodulepermission(14, 'can_edit') == 1 || checkmodulepermission(14, 'can_delete') == 1)
                                         <th>Actions</th>
                                     @endif
                                 </tr>
@@ -190,15 +190,32 @@
                                                 <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;">{{ $task->status }}</span>
                                             @endif
                                         </td>
-                                        @if(checkmodulepermission(14, 'can_delete') == 1)
+                                        @if(checkmodulepermission(14, 'can_edit') == 1 || checkmodulepermission(14, 'can_delete') == 1)
                                             <td>
-                                                <form action="{{ url('/tasks/delete/'.$task->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this task?')">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-neutral btn-sm btn-round text-danger" style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
-                                                        <i class="zmdi zmdi-delete"></i>
+                                                <div class="d-flex align-items-center">
+                                                @if(checkmodulepermission(14, 'can_edit') == 1)
+                                                    <button type="button" class="btn btn-neutral btn-sm btn-round text-primary mr-2 edit-task-btn" 
+                                                        data-id="{{ $task->id }}" 
+                                                        data-title="{{ $task->title }}"
+                                                        data-description="{{ $task->description }}"
+                                                        data-assigned="{{ $task->assigned_to }}"
+                                                        data-site="{{ $task->site_id }}"
+                                                        data-priority="{{ $task->priority }}"
+                                                        data-due="{{ $task->due_date ? date('Y-m-d', strtotime($task->due_date)) : '' }}"
+                                                        style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                                                        <i class="zmdi zmdi-edit"></i>
                                                     </button>
-                                                </form>
+                                                @endif
+                                                @if(checkmodulepermission(14, 'can_delete') == 1)
+                                                    <form action="{{ url('/tasks/delete/'.$task->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this task?')" style="margin: 0;">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="btn btn-neutral btn-sm btn-round text-danger" style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                                                            <i class="zmdi zmdi-delete"></i>
+                                                        </button>
+                                                    </form>
+                                                @endif
+                                                </div>
                                             </td>
                                         @endif
                                     </tr>
@@ -283,4 +300,95 @@
             </form>
         </div>
     </div>
+    <!-- Edit Task Modal -->
+    <div class="modal fade" id="editTaskModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <form id="editTaskForm" method="POST" class="form">
+                @csrf
+                <div class="modal-content" style="border-radius: 15px; overflow: hidden; border: none;">
+                    <div class="modal-header p-4" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white;">
+                        <h4 class="title m-0" style="font-weight: bold;"><i class="zmdi zmdi-edit mr-2"></i> Edit Task</h4>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Task Title</label>
+                            <input type="text" name="title" id="edit_title" class="form-control" required placeholder="What needs to be done?">
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Description</label>
+                            <textarea name="description" id="edit_description" class="form-control" rows="3" placeholder="Add details..."></textarea>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Assign To</label>
+                            <select name="assigned_to" id="edit_assigned_to" class="form-control show-tick" required>
+                                <option value="" disabled>-- Choose User --</option>
+                                @foreach($users as $user)
+                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Assigned Site</label>
+                            <select name="site_id" id="edit_site_id" class="form-control show-tick" required>
+                                <option value="" disabled>-- Choose Site --</option>
+                                @foreach($sites as $site)
+                                    <option value="{{ $site->id }}">{{ $site->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="font-weight-bold" style="color: #555;">Priority</label>
+                                    <select name="priority" id="edit_priority" class="form-control show-tick" required>
+                                        <option value="Low">Low</option>
+                                        <option value="Medium">Medium</option>
+                                        <option value="High">High</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="font-weight-bold" style="color: #555;">Due Date</label>
+                                    <input type="date" name="due_date" id="edit_due_date" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer p-4" style="border-top: 1px solid #f1f2f6;">
+                        <button type="button" class="btn btn-secondary btn-round waves-effect" data-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-primary btn-round waves-effect" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border: none;">Save Changes</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const editButtons = document.querySelectorAll('.edit-task-btn');
+        editButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                const id = this.dataset.id;
+                document.getElementById('editTaskForm').action = "{{ url('/tasks/update') }}/" + id;
+                
+                document.getElementById('edit_title').value = this.dataset.title;
+                document.getElementById('edit_description').value = this.dataset.description;
+                document.getElementById('edit_due_date').value = this.dataset.due || '';
+                
+                document.getElementById('edit_assigned_to').value = this.dataset.assigned;
+                document.getElementById('edit_site_id').value = this.dataset.site;
+                document.getElementById('edit_priority').value = this.dataset.priority;
+                
+                if (typeof $ !== 'undefined' && $.fn.selectpicker) {
+                    $('#edit_assigned_to, #edit_site_id, #edit_priority').selectpicker('refresh');
+                }
+                
+                if (typeof $ !== 'undefined') {
+                    $('#editTaskModal').modal('show');
+                }
+            });
+        });
+    });
+    </script>
 @endsection

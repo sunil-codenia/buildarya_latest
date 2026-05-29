@@ -123,6 +123,42 @@ class TaskWebController extends Controller
         return redirect()->back()->with('success', 'Task created successfully!');
     }
 
+    public function update(Request $request, $id)
+    {
+        // Enforce can_edit module permission
+        if (checkmodulepermission(14, 'can_edit') != 1) {
+            return redirect()->back()->with('errorcode', 'You do not have permission to edit tasks.');
+        }
+
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return redirect('/login');
+        }
+
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'site_id' => 'required',
+            'assigned_to' => 'required',
+            'priority' => 'required|in:Low,Medium,High',
+            'due_date' => 'nullable|date'
+        ]);
+
+        $data = [
+            'title' => $request->title,
+            'description' => $request->description,
+            'site_id' => $request->site_id,
+            'assigned_to' => $request->assigned_to,
+            'priority' => $request->priority,
+            'due_date' => $request->due_date,
+            'updated_at' => Carbon::now()->toDateTimeString()
+        ];
+
+        DB::connection($conn)->table('tasks')->where('id', $id)->update($data);
+
+        return redirect()->back()->with('success', 'Task updated successfully!');
+    }
+
     public function updateStatus(Request $request, $id)
     {
         $conn = session()->get('comp_db_conn_name');

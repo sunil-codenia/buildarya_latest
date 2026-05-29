@@ -536,6 +536,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::group(['middleware' => ['module.access:14']], function () {
         Route::get('/tasks', [TaskWebController::class, 'index']);
         Route::post('/tasks', [TaskWebController::class, 'store']);
+        Route::post('/tasks/update/{id}', [TaskWebController::class, 'update']);
         Route::get('/tasks/status/{id}', [TaskWebController::class, 'updateStatus']);
         Route::delete('/tasks/delete/{id}', [TaskWebController::class, 'delete']);
     });

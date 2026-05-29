@@ -58,12 +58,15 @@ class ApiTaskController extends Controller
             $search = $request->input('search');
             $perPage = $request->input('per_page', 15);
 
+            $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1);
+
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $tenant['uid'])
                 ->where('module_id', 14)
                 ->first();
 
-            $canManage = ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
+            $canManage = $isSuperAdmin || ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
 
             if (!$canManage) {
                 $assigned_to = $tenant['uid'];
