@@ -316,10 +316,13 @@ class ApiTaskController extends Controller
                     $status = 'Progress';
                 }
                 $updateData['status'] = $status;
-                if ($status === 'Completed') {
-                    $updateData['completed_at'] = now();
-                } else {
-                    $updateData['completed_at'] = null;
+                
+                if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'completed_at')) {
+                    if ($status === 'Completed') {
+                        $updateData['completed_at'] = now();
+                    } else {
+                        $updateData['completed_at'] = null;
+                    }
                 }
             }
             if ($request->has('due_date')) {
