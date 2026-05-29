@@ -197,7 +197,7 @@ class ApiAttendanceController extends Controller
             $targetUserId = $request->input('user_id');
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
-            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1);
 
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $tenant['uid'])
@@ -269,7 +269,7 @@ class ApiAttendanceController extends Controller
             $targetUserId = $request->input('user_id');
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
-            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1);
 
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $tenant['uid'])
@@ -410,7 +410,7 @@ class ApiAttendanceController extends Controller
             }
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
-            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1);
 
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $uid)
@@ -446,7 +446,7 @@ class ApiAttendanceController extends Controller
             }
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
-            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1);
 
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $uid)
@@ -498,7 +498,7 @@ class ApiAttendanceController extends Controller
             }
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
-            $isSuperAdmin = $userRecord && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1' || $userRecord->role_id == 1 || strtolower($userRecord->type) === 'superadmin');
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1);
 
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $uid)
