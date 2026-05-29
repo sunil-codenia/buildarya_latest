@@ -182,6 +182,9 @@ class ApiTaskController extends Controller
             if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'parent_task_id')) {
                 $data['parent_task_id'] = 0;
             }
+            if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'created_by')) {
+                $data['created_by'] = $uid;
+            }
 
             $task_id = DB::connection($conn)->table('tasks')->insertGetId($data);
 
