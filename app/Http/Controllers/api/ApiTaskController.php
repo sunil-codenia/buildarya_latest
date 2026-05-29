@@ -177,7 +177,7 @@ class ApiTaskController extends Controller
                 $data['unit_type'] = '';
             }
             if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'task_type')) {
-                $data['task_type'] = '';
+                $data['task_type'] = 'TASK';
             }
             if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'parent_task_id')) {
                 $data['parent_task_id'] = 0;
