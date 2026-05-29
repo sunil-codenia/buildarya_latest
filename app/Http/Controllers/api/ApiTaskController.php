@@ -52,8 +52,22 @@ class ApiTaskController extends Controller
             $assigned_by = $request->input('assigned_by');
             $priority = $request->input('priority');
             $status = $request->input('status');
-            $due_date_start = $request->input('due_date_start');
-            $due_date_end = $request->input('due_date_end');
+            $due_date_start = $request->input('due_date_start') ?? $request->input('start_date');
+            $due_date_end = $request->input('due_date_end') ?? $request->input('end_date');
+
+            $search = $request->input('search');
+            $perPage = $request->input('per_page', 15);
+
+            $perm = DB::connection($conn)->table('user_permission')
+                ->where('user_id', $tenant['uid'])
+                ->where('module_id', 14)
+                ->first();
+
+            $canManage = ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
+
+            if (!$canManage) {
+                $assigned_to = $tenant['uid'];
+            }
 
             $query = DB::connection($conn)->table('tasks')
                 ->leftJoin('sites', 'sites.id', '=', 'tasks.site_id')
@@ -89,8 +103,15 @@ class ApiTaskController extends Controller
             if ($due_date_end) {
                 $query->where('tasks.due_date', '<=', $due_date_end);
             }
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('tasks.title', 'like', '%' . $search . '%')
+                      ->orWhere('tasks.description', 'like', '%' . $search . '%')
+                      ->orWhere('sites.name', 'like', '%' . $search . '%');
+                });
+            }
 
-            $tasks = $query->orderBy('tasks.id', 'desc')->get();
+            $tasks = $query->orderBy('tasks.id', 'desc')->paginate($perPage);
 
             return response()->json([
                 'status' => 'Ok',
@@ -146,7 +167,7 @@ class ApiTaskController extends Controller
                 'updated_at' => now()
             ]);
 
-            addActivity($task_id, 'tasks', "New task created: " . $title, 11, $uid, $conn);
+            addActivity($task_id, 'tasks', "New task created: " . $title, 14, $uid, $conn);
 
             $record = DB::connection($conn)->table('tasks')->where('id', $task_id)->first();
 
@@ -293,7 +314,7 @@ class ApiTaskController extends Controller
 
             DB::connection($conn)->table('tasks')->where('id', $task_id)->update($updateData);
 
-            addActivity($task_id, 'tasks', "Task updated: " . ($updateData['title'] ?? $task->title), 11, $uid, $conn);
+            addActivity($task_id, 'tasks', "Task updated: " . ($updateData['title'] ?? $task->title), 14, $uid, $conn);
 
             $record = DB::connection($conn)->table('tasks')->where('id', $task_id)->first();
 
@@ -342,7 +363,7 @@ class ApiTaskController extends Controller
 
             DB::connection($conn)->table('tasks')->where('id', $task_id)->delete();
 
-            addActivity(0, 'tasks', "Task deleted: " . $task->title, 11, $uid, $conn);
+            addActivity(0, 'tasks', "Task deleted: " . $task->title, 14, $uid, $conn);
 
             return response()->json([
                 'status' => 'Ok',
