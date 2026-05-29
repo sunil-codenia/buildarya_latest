@@ -88,7 +88,7 @@ class ApiAttendanceController extends Controller
                 'updated_at' => now()
             ]);
 
-            addActivity($attendance_id, 'attendance', "User clocked in for " . $date, 11, $uid, $conn);
+            addActivity($attendance_id, 'attendance', "User clocked in for " . $date, 13, $uid, $conn);
 
             $record = DB::connection($conn)->table('attendance')->where('id', $attendance_id)->first();
 
@@ -166,7 +166,7 @@ class ApiAttendanceController extends Controller
                     'updated_at' => now()
                 ]);
 
-            addActivity($attendance->id, 'attendance', "User clocked out for " . $date, 11, $uid, $conn);
+            addActivity($attendance->id, 'attendance', "User clocked out for " . $date, 13, $uid, $conn);
 
             $record = DB::connection($conn)->table('attendance')->where('id', $attendance->id)->first();
 
@@ -194,7 +194,19 @@ class ApiAttendanceController extends Controller
             $tenant = $this->resolveTenant($request);
             $conn = $tenant['conn'];
             
-            $targetUserId = $request->input('user_id') ?? $tenant['uid'];
+            $targetUserId = $request->input('user_id');
+
+            $perm = DB::connection($conn)->table('user_permission')
+                ->where('user_id', $tenant['uid'])
+                ->where('module_id', 13)
+                ->first();
+
+            $canManage = ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
+
+            if (!$canManage) {
+                $targetUserId = $tenant['uid'];
+            }
+
             $startDate = $request->input('start_date');
             $endDate = $request->input('end_date');
             $siteId = $request->input('site_id');
@@ -251,23 +263,33 @@ class ApiAttendanceController extends Controller
             $tenant = $this->resolveTenant($request);
             $conn = $tenant['conn'];
 
-            $targetUserId = $request->input('user_id') ?? $tenant['uid'];
+            $targetUserId = $request->input('user_id');
+
+            $perm = DB::connection($conn)->table('user_permission')
+                ->where('user_id', $tenant['uid'])
+                ->where('module_id', 13)
+                ->first();
+
+            $canManage = ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
+
+            if (!$canManage) {
+                $targetUserId = $tenant['uid'];
+            } elseif (empty($targetUserId)) {
+                $targetUserId = null; // Admin fetching global summary
+            }
+
             $month = $request->input('month') ?? Carbon::now()->format('m');
             $year = $request->input('year') ?? Carbon::now()->format('Y');
 
-            if (!$targetUserId) {
-                return response()->json([
-                    'status' => 'Failed',
-                    'status_code' => '300',
-                    'message' => 'User ID is required!'
-                ]);
+            $query = DB::connection($conn)->table('attendance')
+                ->whereMonth('date', $month)
+                ->whereYear('date', $year);
+
+            if ($targetUserId) {
+                $query->where('user_id', $targetUserId);
             }
 
-            $records = DB::connection($conn)->table('attendance')
-                ->where('user_id', $targetUserId)
-                ->whereMonth('date', $month)
-                ->whereYear('date', $year)
-                ->get();
+            $records = $query->get();
 
             $metrics = [
                 'total_present' => $records->where('status', 'Present')->count(),
@@ -341,11 +363,11 @@ class ApiAttendanceController extends Controller
                     ->update($data);
                 
                 $id = $existing->id;
-                addActivity($id, 'attendance', "Manual override updated for user $targetUserId on $date", 11, $uid, $conn);
+                addActivity($id, 'attendance', "Manual override updated for user $targetUserId on $date", 13, $uid, $conn);
             } else {
                 $data['created_at'] = now();
                 $id = DB::connection($conn)->table('attendance')->insertGetId($data);
-                addActivity($id, 'attendance', "Manual attendance logged for user $targetUserId on $date", 11, $uid, $conn);
+                addActivity($id, 'attendance', "Manual attendance logged for user $targetUserId on $date", 13, $uid, $conn);
             }
 
             $record = DB::connection($conn)->table('attendance')->where('id', $id)->first();
