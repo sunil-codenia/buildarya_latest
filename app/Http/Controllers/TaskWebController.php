@@ -89,11 +89,6 @@ class TaskWebController extends Controller
             'title' => $request->title,
             'description' => $request->description,
             'site_id' => $request->site_id,
-            'project_id' => 0,
-            'total_units' => 0,
-            'unit_type' => '',
-            'task_type' => '',
-            'parent_task_id' => 0,
             'assigned_to' => $request->assigned_to,
             'assigned_by' => session()->get('uid') ?? 1,
             'priority' => $request->priority,
@@ -102,6 +97,23 @@ class TaskWebController extends Controller
             'created_at' => Carbon::now()->toDateTimeString(),
             'updated_at' => Carbon::now()->toDateTimeString()
         ];
+
+        // Safely add legacy columns to prevent strict mode errors on live, while avoiding unknown column errors on local
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'project_id')) {
+            $data['project_id'] = 0;
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'total_units')) {
+            $data['total_units'] = 0;
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'unit_type')) {
+            $data['unit_type'] = '';
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'task_type')) {
+            $data['task_type'] = '';
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'parent_task_id')) {
+            $data['parent_task_id'] = 0;
+        }
 
         DB::connection($conn)->table('tasks')->insert($data);
 

@@ -153,15 +153,10 @@ class ApiTaskController extends Controller
             $due_date = $request->input('due_date');
             $remarks = $request->input('remarks');
 
-            $task_id = DB::connection($conn)->table('tasks')->insertGetId([
+            $data = [
                 'title' => $title,
                 'description' => $description,
                 'site_id' => $site_id,
-                'project_id' => 0,
-                'total_units' => 0,
-                'unit_type' => '',
-                'task_type' => '',
-                'parent_task_id' => 0,
                 'assigned_to' => $assigned_to,
                 'assigned_by' => $uid,
                 'priority' => $priority,
@@ -170,7 +165,25 @@ class ApiTaskController extends Controller
                 'remarks' => $remarks,
                 'created_at' => now(),
                 'updated_at' => now()
-            ]);
+            ];
+
+            if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'project_id')) {
+                $data['project_id'] = 0;
+            }
+            if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'total_units')) {
+                $data['total_units'] = 0;
+            }
+            if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'unit_type')) {
+                $data['unit_type'] = '';
+            }
+            if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'task_type')) {
+                $data['task_type'] = '';
+            }
+            if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'parent_task_id')) {
+                $data['parent_task_id'] = 0;
+            }
+
+            $task_id = DB::connection($conn)->table('tasks')->insertGetId($data);
 
             addActivity($task_id, 'tasks', "New task created: " . $title, 14, $uid, $conn);
 
