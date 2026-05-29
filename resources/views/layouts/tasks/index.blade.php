@@ -67,7 +67,7 @@
                                 style="border-radius: 8px; border: 1px solid #dee2e6; font-size: 13px; width: 145px; height: 36px;">
                                 <option value="">All Statuses</option>
                                 <option value="Pending" {{ request('status') == 'Pending' ? 'selected' : '' }}>Pending</option>
-                                <option value="In Progress" {{ request('status') == 'In Progress' ? 'selected' : '' }}>In Progress</option>
+                                <option value="Progress" {{ request('status') == 'Progress' ? 'selected' : '' }}>In Progress</option>
                                 <option value="Completed" {{ request('status') == 'Completed' ? 'selected' : '' }}>Completed</option>
                             </select>
 
@@ -162,32 +162,32 @@
                                                 $isAssignedUser = (session('uid') == $task->assigned_to);
                                                 $canChangeStatus = ($isAdmin || $isAssignedUser) && !$isPastDue;
                                                 $statusClass = 'btn-secondary';
-                                                if($task->status == 'In Progress') $statusClass = 'btn-warning';
+                                                if($task->status == 'Progress' || $task->status == 'In Progress') $statusClass = 'btn-warning';
                                                 elseif($task->status == 'Completed') $statusClass = 'btn-success';
                                                 $badgeClass = 'badge-secondary';
-                                                if($task->status == 'In Progress') $badgeClass = 'badge-warning';
+                                                if($task->status == 'Progress' || $task->status == 'In Progress') $badgeClass = 'badge-warning';
                                                 elseif($task->status == 'Completed') $badgeClass = 'badge-success';
                                             @endphp
 
                                             @if($canChangeStatus)
                                                 <div class="dropdown">
                                                     <button class="btn {{ $statusClass }} btn-sm dropdown-toggle btn-round" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                                        {{ $task->status }}
+                                                        {{ $task->status == 'Progress' ? 'In Progress' : $task->status }}
                                                     </button>
                                                     <div class="dropdown-menu">
                                                         <a class="dropdown-item" href="{{ url('/tasks/status/'.$task->id.'?status=Pending') }}">Pending</a>
-                                                        <a class="dropdown-item" href="{{ url('/tasks/status/'.$task->id.'?status=In Progress') }}">In Progress</a>
+                                                        <a class="dropdown-item" href="{{ url('/tasks/status/'.$task->id.'?status=Progress') }}">In Progress</a>
                                                         <a class="dropdown-item" href="{{ url('/tasks/status/'.$task->id.'?status=Completed') }}">Completed</a>
                                                     </div>
                                                 </div>
                                             @elseif($isPastDue && ($isAdmin || $isAssignedUser))
                                                 {{-- Past due-date task: show status badge with lock icon --}}
                                                 <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;" title="Cannot change status: Due date has passed">
-                                                    <i class="zmdi zmdi-lock mr-1"></i> {{ $task->status }}
+                                                    <i class="zmdi zmdi-lock mr-1"></i> {{ $task->status == 'Progress' ? 'In Progress' : $task->status }}
                                                 </span>
                                             @else
                                                 {{-- Not assigned to this user --}}
-                                                <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;">{{ $task->status }}</span>
+                                                <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;">{{ $task->status == 'Progress' ? 'In Progress' : $task->status }}</span>
                                             @endif
                                         </td>
                                         @if(checkmodulepermission(14, 'can_edit') == 1 || checkmodulepermission(14, 'can_delete') == 1)

@@ -58,7 +58,7 @@ class TaskWebController extends Controller
         // Calculate Stats
         $totalTasks = $tasks->count();
         $pending = $tasks->where('status', 'Pending')->count();
-        $inProgress = $tasks->where('status', 'In Progress')->count();
+        $inProgress = $tasks->where('status', 'Progress')->count();
         $completed = $tasks->where('status', 'Completed')->count();
 
         return view('layouts.tasks.index', compact('tasks', 'sites', 'users', 'totalTasks', 'pending', 'inProgress', 'completed', 'isAdmin'));
@@ -186,7 +186,7 @@ class TaskWebController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|in:Pending,In Progress,Completed'
+            'status' => 'required|in:Pending,Progress,Completed'
         ]);
 
         DB::connection($conn)->table('tasks')->where('id', $id)->update([

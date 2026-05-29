@@ -312,6 +312,9 @@ class ApiTaskController extends Controller
             }
             if ($request->has('status')) {
                 $status = $request->input('status');
+                if ($status === 'In Progress') {
+                    $status = 'Progress';
+                }
                 $updateData['status'] = $status;
                 if ($status === 'Completed') {
                     $updateData['completed_at'] = now();
