@@ -157,6 +157,7 @@ class ApiTaskController extends Controller
                 'title' => $title,
                 'description' => $description,
                 'site_id' => $site_id,
+                'project_id' => 0,
                 'assigned_to' => $assigned_to,
                 'assigned_by' => $uid,
                 'priority' => $priority,

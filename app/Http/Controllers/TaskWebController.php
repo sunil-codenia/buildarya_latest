@@ -89,6 +89,7 @@ class TaskWebController extends Controller
             'title' => $request->title,
             'description' => $request->description,
             'site_id' => $request->site_id,
+            'project_id' => 0,
             'assigned_to' => $request->assigned_to,
             'assigned_by' => session()->get('uid') ?? 1,
             'priority' => $request->priority,
