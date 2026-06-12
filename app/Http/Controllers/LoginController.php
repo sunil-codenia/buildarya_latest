@@ -175,6 +175,11 @@ class LoginController extends Controller
     }
     public function register_new_user(Request $request)
     {
+        if (checkUserLimit()) {
+            return view('/registration')
+                ->with('errorcode', 'Upgrade your plan');
+        }
+
         $imagePath = "images/noprofile.jpg";
         $name = $request->name;
         $username = $request->username;

@@ -38,6 +38,9 @@ CREATE TABLE `companies` (
   `db_port` varchar(20) NOT NULL DEFAULT '3306',
   `username` varchar(200) NOT NULL,
   `status` varchar(200) NOT NULL DEFAULT 'Active',
+  `expired` date DEFAULT NULL,
+  `max_users` int(11) DEFAULT NULL,
+  `max_sites` int(11) DEFAULT NULL,
   `create_datetime` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -45,8 +48,8 @@ CREATE TABLE `companies` (
 -- Dumping data for table `companies`
 --
 
-INSERT INTO `companies` (`id`, `name`, `uid`, `db_name`, `db_pass`, `db_host`, `db_conn_name`, `db_port`, `username`, `status`, `create_datetime`) VALUES
-(1, 'TestCompany', 'testcomp', 'test_constructon', '', 'localhost', 'test_comp_mysql', '3306', 'root', 'Active', '2022-01-23 09:26:44');
+INSERT INTO `companies` (`id`, `name`, `uid`, `db_name`, `db_pass`, `db_host`, `db_conn_name`, `db_port`, `username`, `status`, `expired`, `max_users`, `max_sites`, `create_datetime`) VALUES
+(1, 'TestCompany', 'testcomp', 'test_constructon', '', 'localhost', 'test_comp_mysql', '3306', 'root', 'Active', NULL, NULL, NULL, '2022-01-23 09:26:44');
 
 --
 -- Indexes for dumped tables

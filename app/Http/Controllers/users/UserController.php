@@ -226,6 +226,10 @@ class UserController extends Controller
     
     public function addnewuser(Request $request)
     {
+        if (checkUserLimit()) {
+            return redirect('/users')
+                ->with('error', 'Upgrade your plan');
+        }
 
 
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');

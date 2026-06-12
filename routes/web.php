@@ -538,7 +538,8 @@ Route::group(['middleware' => ['auth']], function () {
         Route::post('/tasks', [TaskWebController::class, 'store']);
         Route::post('/tasks/update/{id}', [TaskWebController::class, 'update']);
         Route::get('/tasks/status/{id}', [TaskWebController::class, 'updateStatus']);
-        Route::delete('/tasks/delete/{id}', [TaskWebController::class, 'delete']);
+        Route::get('/tasks/chat/messages/{user_id}', [TaskWebController::class, 'fetchMessages']);
+        Route::post('/tasks/chat/send', [TaskWebController::class, 'sendMessage']);
     });
 
     // excelimport file------------

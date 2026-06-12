@@ -113,6 +113,26 @@ class MigrateCompanyTables extends Command
                 $failed++;
             }
 
+            // ─── TASK CHATS TABLE ────────────────────────────────────────────
+            try {
+                DB::connection($connName)->statement("
+                    CREATE TABLE IF NOT EXISTS `task_chats` (
+                        `id`           INT AUTO_INCREMENT PRIMARY KEY,
+                        `user_id`      INT NOT NULL,
+                        `sender_id`    INT NOT NULL,
+                        `message`      TEXT NOT NULL,
+                        `created_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX `idx_chat_user_id` (`user_id`),
+                        INDEX `idx_chat_sender_id` (`sender_id`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                ");
+                $this->line("    ✓ task_chats table OK");
+            } catch (\Exception $e) {
+                $this->error("    ✗ task_chats table FAILED: " . $e->getMessage());
+                $failed++;
+            }
+
             $success++;
             DB::purge($connName);
         }

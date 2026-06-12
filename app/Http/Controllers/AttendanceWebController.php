@@ -22,13 +22,20 @@ class AttendanceWebController extends Controller
         // Fetch all sites and users
         $sites = DB::connection($conn)->table('sites')->get();
         $users = DB::connection($conn)->table('users')->get();
+        $billParties = DB::connection($conn)->table('bills_party')->where('status', 'Active')->get();
 
         // Fetch attendance logs for the selected date
         $attendanceLogs = DB::connection($conn)->table('attendance')
             ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
+            ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
             ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id')
             ->where('attendance.date', $date)
-            ->select('attendance.*', 'users.name as user_name', 'users.username as user_username', 'sites.name as site_name')
+            ->select(
+                'attendance.*', 
+                DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
+                DB::raw('COALESCE(users.username, "Labour Contractor") as user_username'),
+                'sites.name as site_name'
+            )
             ->get();
 
         // Calculate Stats
@@ -48,6 +55,7 @@ class AttendanceWebController extends Controller
             'attendanceLogs', 
             'sites', 
             'users', 
+            'billParties',
             'date', 
             'totalUsers', 
             'present', 
@@ -72,25 +80,53 @@ class AttendanceWebController extends Controller
 
         $request->validate([
             'user_id' => 'required',
+            'bills_party_id' => 'required_if:user_id,labour_contractor',
             'site_id' => 'required',
             'status' => 'required|in:Present,Absent,Half Day,Leave',
             'clock_in' => 'nullable',
             'clock_out' => 'nullable',
-            'date' => 'required|date'
+            'date' => 'required|date',
+            'image' => 'nullable|image|max:5120'
         ]);
 
         $dateString = Carbon::parse($request->date)->toDateString();
 
+        $userId = $request->user_id;
+        $billsPartyId = null;
+        if ($userId === 'labour_contractor') {
+            $userId = null;
+            $billsPartyId = $request->bills_party_id;
+        }
+
+        $comp_id = session()->get('comp_id');
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            $dirPath = public_path("images/app_images/{$comp_id}/attendance");
+            if (!File::exists($dirPath)) {
+                File::makeDirectory($dirPath, 0755, true);
+            }
+            $fileName = time() . '_manual_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($dirPath, $fileName);
+            $imagePath = "images/app_images/{$comp_id}/attendance/{$fileName}";
+        }
+
         // Check if attendance already exists
-        $existing = DB::connection($conn)->table('attendance')
-            ->where('user_id', $request->user_id)
-            ->where('date', $dateString)
-            ->first();
+        $query = DB::connection($conn)->table('attendance')
+            ->where('date', $dateString);
+        if ($userId) {
+            $query->where('user_id', $userId);
+        } else {
+            $query->where('bills_party_id', $billsPartyId);
+        }
+        $existing = $query->first();
 
         $data = [
-            'user_id' => $request->user_id,
+            'user_id' => $userId,
+            'bills_party_id' => $billsPartyId,
             'site_id' => $request->site_id,
             'status' => $request->status,
+            'image' => $imagePath,
             'in_time' => $request->clock_in ? Carbon::parse($dateString . ' ' . $request->clock_in)->toDateTimeString() : null,
             'out_time' => $request->clock_out ? Carbon::parse($dateString . ' ' . $request->clock_out)->toDateTimeString() : null,
             'in_location' => $request->gps_lat ?? 'Manual',
@@ -100,6 +136,9 @@ class AttendanceWebController extends Controller
         ];
 
         if ($existing) {
+            if (!$imagePath) {
+                unset($data['image']);
+            }
             DB::connection($conn)->table('attendance')->where('id', $existing->id)->update($data);
         } else {
             $data['date'] = $dateString;
@@ -124,17 +163,40 @@ class AttendanceWebController extends Controller
 
         $request->validate([
             'user_id' => 'required',
+            'bills_party_id' => 'required_if:user_id,labour_contractor',
             'site_id' => 'required',
             'status' => 'required|in:Present,Absent,Half Day,Leave',
             'clock_in' => 'nullable',
             'clock_out' => 'nullable',
-            'date' => 'required|date'
+            'date' => 'required|date',
+            'image' => 'nullable|image|max:5120'
         ]);
 
         $dateString = Carbon::parse($request->date)->toDateString();
 
+        $userId = $request->user_id;
+        $billsPartyId = null;
+        if ($userId === 'labour_contractor') {
+            $userId = null;
+            $billsPartyId = $request->bills_party_id;
+        }
+
+        $comp_id = session()->get('comp_id');
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            $dirPath = public_path("images/app_images/{$comp_id}/attendance");
+            if (!File::exists($dirPath)) {
+                File::makeDirectory($dirPath, 0755, true);
+            }
+            $fileName = time() . '_manual_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($dirPath, $fileName);
+            $imagePath = "images/app_images/{$comp_id}/attendance/{$fileName}";
+        }
+
         $data = [
-            'user_id' => $request->user_id,
+            'user_id' => $userId,
+            'bills_party_id' => $billsPartyId,
             'site_id' => $request->site_id,
             'status' => $request->status,
             'date' => $dateString,
@@ -143,6 +205,10 @@ class AttendanceWebController extends Controller
             'remarks' => 'Manual Update',
             'updated_at' => Carbon::now()->toDateTimeString()
         ];
+
+        if ($imagePath) {
+            $data['image'] = $imagePath;
+        }
 
         DB::connection($conn)->table('attendance')->where('id', $id)->update($data);
 

@@ -58,59 +58,58 @@
                         @endif
                     </div>
 
-                    {{-- Row 2: Filters in a clean horizontal bar --}}
+                    {{-- Row 2: Filters in a clean horizontal grid --}}
                     <form method="GET" action="{{ url('/tasks') }}">
-                        <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
-
+                        <div class="row clearfix align-items-end">
                             {{-- Status --}}
-                            <select name="status" class="form-control form-control-sm"
-                                style="border-radius: 8px; border: 1px solid #dee2e6; font-size: 13px; width: 145px; height: 36px;">
-                                <option value="">All Statuses</option>
-                                <option value="Pending" {{ request('status') == 'Pending' ? 'selected' : '' }}>Pending</option>
-                                <option value="Progress" {{ request('status') == 'Progress' ? 'selected' : '' }}>In Progress</option>
-                                <option value="Completed" {{ request('status') == 'Completed' ? 'selected' : '' }}>Completed</option>
-                            </select>
+                            <div class="col-lg-3 col-md-3 col-sm-6 mb-3">
+                                <label style="font-weight: 600; color: #555; font-size: 12px; margin-bottom: 5px;">Status</label>
+                                <select name="status" class="form-control show-tick">
+                                    <option value="">All Statuses</option>
+                                    <option value="Pending" {{ request('status') == 'Pending' ? 'selected' : '' }}>Pending</option>
+                                    <option value="Progress" {{ request('status') == 'Progress' ? 'selected' : '' }}>In Progress</option>
+                                    <option value="Completed" {{ request('status') == 'Completed' ? 'selected' : '' }}>Completed</option>
+                                </select>
+                            </div>
 
                             {{-- Priority --}}
-                            <select name="priority" class="form-control form-control-sm"
-                                style="border-radius: 8px; border: 1px solid #dee2e6; font-size: 13px; width: 135px; height: 36px;">
-                                <option value="">All Priorities</option>
-                                <option value="Low" {{ request('priority') == 'Low' ? 'selected' : '' }}>Low</option>
-                                <option value="Medium" {{ request('priority') == 'Medium' ? 'selected' : '' }}>Medium</option>
-                                <option value="High" {{ request('priority') == 'High' ? 'selected' : '' }}>High</option>
-                            </select>
-
-                            {{-- Separator --}}
-                            <span style="color: #ccc; font-size: 12px; font-weight: 600;">DUE DATE:</span>
+                            <div class="col-lg-3 col-md-3 col-sm-6 mb-3">
+                                <label style="font-weight: 600; color: #555; font-size: 12px; margin-bottom: 5px;">Priority</label>
+                                <select name="priority" class="form-control show-tick">
+                                    <option value="">All Priorities</option>
+                                    <option value="Low" {{ request('priority') == 'Low' ? 'selected' : '' }}>Low</option>
+                                    <option value="Medium" {{ request('priority') == 'Medium' ? 'selected' : '' }}>Medium</option>
+                                    <option value="High" {{ request('priority') == 'High' ? 'selected' : '' }}>High</option>
+                                </select>
+                            </div>
 
                             {{-- From Date --}}
-                            <input type="date" name="from_date" class="form-control form-control-sm" value="{{ request('from_date') }}"
-                                title="From Date"
-                                style="border-radius: 8px; border: 1px solid #dee2e6; font-size: 13px; width: 150px; height: 36px;">
-
-                            <span style="color: #aaa; font-size: 13px;">→</span>
+                            <div class="col-lg-2 col-md-2 col-sm-6 mb-3">
+                                <label style="font-weight: 600; color: #555; font-size: 12px; margin-bottom: 5px;">From Date</label>
+                                <input type="date" name="from_date" class="form-control" value="{{ request('from_date') }}">
+                            </div>
 
                             {{-- To Date --}}
-                            <input type="date" name="to_date" class="form-control form-control-sm" value="{{ request('to_date') }}"
-                                title="To Date"
-                                style="border-radius: 8px; border: 1px solid #dee2e6; font-size: 13px; width: 150px; height: 36px;">
+                            <div class="col-lg-2 col-md-2 col-sm-6 mb-3">
+                                <label style="font-weight: 600; color: #555; font-size: 12px; margin-bottom: 5px;">To Date</label>
+                                <input type="date" name="to_date" class="form-control" value="{{ request('to_date') }}">
+                            </div>
 
-                            {{-- Filter Button --}}
-                            <button type="submit" class="btn btn-sm"
-                                style="height: 36px; padding: 0 18px; border-radius: 8px; font-weight: 600; font-size: 13px; border: none;
-                                       background: linear-gradient(135deg, #667eea, #764ba2); color: white;
-                                       box-shadow: 0 3px 10px rgba(102,126,234,0.35);">
-                                <i class="zmdi zmdi-filter-list mr-1"></i> Filter
-                            </button>
-
-                            {{-- Clear Button --}}
-                            @if(request()->hasAny(['status','priority','from_date','to_date']))
-                                <a href="{{ url('/tasks') }}" class="btn btn-sm"
-                                    style="height: 36px; padding: 0 14px; border-radius: 8px; font-weight: 600; font-size: 13px;
-                                           border: 1px solid #dc3545; color: #dc3545; background: transparent;">
-                                    <i class="zmdi zmdi-close mr-1"></i> Clear
-                                </a>
-                            @endif
+                            {{-- Filter and Clear Buttons --}}
+                            <div class="col-lg-2 col-md-2 col-sm-12 mb-3 d-flex" style="gap: 5px;">
+                                <button type="submit" class="btn btn-primary btn-block m-0 d-flex align-items-center justify-content-center"
+                                    style="height: 38px; border-radius: 4px; font-weight: 600; font-size: 13px; border: none;
+                                           background: linear-gradient(135deg, #eda61a 0%, #f5af19 100%); color: white;
+                                           box-shadow: 0 4px 15px rgba(237,166,26,0.25);">
+                                    <i class="zmdi zmdi-filter-list mr-1"></i> Filter
+                                </button>
+                                @if(request()->hasAny(['status','priority','from_date','to_date']))
+                                    <a href="{{ url('/tasks') }}" class="btn btn-neutral m-0 d-flex align-items-center justify-content-center"
+                                        style="height: 38px; width: 42px; border-radius: 4px; border: 1px solid #dc3545; color: #dc3545; background: transparent; padding: 0;">
+                                        <i class="zmdi zmdi-close"></i>
+                                    </a>
+                                @endif
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -234,6 +233,183 @@
             </div>
         </div>
     </div>
+
+    <!-- Discussion & Support Chat -->
+    <div class="row clearfix m-t-20">
+        <div class="col-lg-12 col-md-12 col-sm-12">
+            <div class="card" style="border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: none; overflow: hidden;">
+                <div class="header p-4" style="background: linear-gradient(135deg, #1f4068 0%, #162447 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="m-0" style="color: white !important;"><i class="zmdi zmdi-comments mr-2"></i> <strong>Task Discussion & Support Chat</strong></h2>
+                    <span class="badge badge-warning p-2" style="font-size: 11px;">Persistent History</span>
+                </div>
+                <div class="body p-0">
+                    <div class="row no-gutters">
+                        @if($isAdmin)
+                            <!-- Users List Sidebar (Admin only) -->
+                            <div class="col-lg-4 col-md-4 col-sm-12" style="border-right: 1px solid #eee; background: #fdfdfd; max-height: 500px; overflow-y: auto;">
+                                <div class="p-3" style="border-bottom: 1px solid #f0f0f0;">
+                                    <input type="text" id="chatUserSearch" class="form-control form-control-sm" placeholder="Search user..." style="border-radius: 20px;">
+                                </div>
+                                <div class="list-group list-group-flush" id="chatUsersList">
+                                    @foreach($users as $user)
+                                        @if($user->id != session('uid'))
+                                            <a href="javascript:void(0);" class="list-group-item list-group-item-action d-flex align-items-center p-3 chat-user-item" data-id="{{ $user->id }}" data-name="{{ $user->name }}">
+                                                <div class="avatar-circle mr-3" style="background-color: #e2e8f0; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #162447;">
+                                                    {{ strtoupper(substr($user->name, 0, 2)) }}
+                                                </div>
+                                                <div style="flex-grow: 1;">
+                                                    <h6 class="m-0 font-weight-bold chat-user-name" style="font-size: 14px; color: #333;">{{ $user->name }}</h6>
+                                                    <small class="text-muted">{{ $user->username }}</small>
+                                                </div>
+                                                <i class="zmdi zmdi-chevron-right text-muted"></i>
+                                            </a>
+                                        @endif
+                                    @endforeach
+                                </div>
+                            </div>
+                            
+                            <!-- Chat Area (Admin Mode) -->
+                            <div class="col-lg-8 col-md-8 col-sm-12 d-flex flex-column" style="height: 500px; overflow: hidden;">
+                                <div id="adminNoChatSelected" class="d-flex flex-column align-items-center justify-content-center text-center p-5" style="flex-grow: 1; height: 100%;">
+                                    <i class="zmdi zmdi-comments text-muted mb-3" style="font-size: 4rem; opacity: 0.3;"></i>
+                                    <h5 class="text-muted">Select a user from the list to start chatting</h5>
+                                </div>
+                                <div id="adminChatContainer" class="d-flex flex-column" style="display: none !important; flex-grow: 1; height: 100%; max-height: 100%; overflow: hidden;">
+                                    <div class="p-3" style="border-bottom: 1px solid #eee; background: #fafafa; display: flex; align-items: center;">
+                                        <div class="avatar-circle mr-3" style="background-color: #eda61a; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: white;">
+                                            <span id="activeChatAvatar">--</span>
+                                        </div>
+                                        <h6 class="m-0 font-weight-bold" id="activeChatName" style="color: #333;">Select User</h6>
+                                    </div>
+                                    <div class="p-4 chat-history-box" id="adminChatHistory" style="flex-grow: 1; overflow-y: auto; background: #f4f6f9; min-height: 0;">
+                                        <!-- Messages will load dynamically -->
+                                    </div>
+                                    <form id="adminChatForm" class="p-3" style="border-top: 1px solid #eee; background: #fff; margin: 0; position: relative;" enctype="multipart/form-data">
+                                        <div id="adminChatEmojiPicker" class="emoji-picker-popover" style="display: none; position: absolute; bottom: 60px; left: 10px; z-index: 1000; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); padding: 10px; width: 280px;">
+                                            <div class="emoji-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; height: 180px; overflow-y: auto;">
+                                                <!-- Emojis will be dynamically rendered here -->
+                                            </div>
+                                        </div>
+                                        <div class="input-group">
+                                            <div class="input-group-prepend">
+                                                <button type="button" class="btn btn-neutral m-0" id="adminChatImageBtn" style="border: 1px solid #ddd; border-right: none; border-radius: 30px 0 0 30px; height: 45px; width: 45px; display: flex; align-items: center; justify-content: center; background: #f9f9f9;"><i class="zmdi zmdi-camera" style="font-size: 18px; color: #555;"></i></button>
+                                                <button type="button" class="btn btn-neutral m-0" id="adminChatEmojiBtn" style="border: 1px solid #ddd; border-right: none; border-left: none; border-radius: 0; height: 45px; width: 45px; display: flex; align-items: center; justify-content: center; background: #f9f9f9;"><i class="zmdi zmdi-mood" style="font-size: 18px; color: #555;"></i></button>
+                                            </div>
+                                            <input type="file" id="adminChatImage" name="image" accept="image/*" style="display: none;">
+                                            <input type="text" id="adminChatMessage" class="form-control" placeholder="Type your message..." style="border-radius: 0; border: 1px solid #ddd; border-left: none; height: 45px; padding-left: 10px;">
+                                            <div class="input-group-append">
+                                                <button type="submit" class="btn btn-primary m-0" style="background: #162447; border: none; border-radius: 0 30px 30px 0; width: 80px; height: 45px; display: flex; align-items: center; justify-content: center;"><i class="zmdi zmdi-send" style="font-size: 18px; color: white;"></i></button>
+                                            </div>
+                                        </div>
+                                        <div id="adminChatImagePreviewContainer" class="mt-2 p-2" style="display: none; border: 1px dashed #ddd; border-radius: 10px; position: relative; display: inline-block;">
+                                            <img id="adminChatImagePreview" src="" style="max-height: 80px; border-radius: 5px;">
+                                            <button type="button" id="adminChatImageClear" style="position: absolute; top: -5px; right: -5px; background: red; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer;">&times;</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        @else
+                            <!-- Regular User Mode (Direct Chat with Admin) -->
+                            <div class="col-lg-12 col-md-12 col-sm-12 d-flex flex-column" style="height: 500px; overflow: hidden;">
+                                <div class="p-3" style="border-bottom: 1px solid #eee; background: #fafafa; display: flex; align-items: center;">
+                                    <div class="avatar-circle mr-3" style="background-color: #162447; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: white;">
+                                        AD
+                                    </div>
+                                    <h6 class="m-0 font-weight-bold" style="color: #333;">Chat with Administration / Support</h6>
+                                </div>
+                                <div class="p-4 chat-history-box" id="userChatHistory" style="flex-grow: 1; overflow-y: auto; background: #f4f6f9; min-height: 0;">
+                                    <!-- Messages will load dynamically -->
+                                </div>
+                                <form id="userChatForm" class="p-3" style="border-top: 1px solid #eee; background: #fff; margin: 0; position: relative;" enctype="multipart/form-data">
+                                    <div id="userChatEmojiPicker" class="emoji-picker-popover" style="display: none; position: absolute; bottom: 60px; left: 10px; z-index: 1000; background: white; border: 1px solid #ccc; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.15); padding: 10px; width: 280px;">
+                                        <div class="emoji-grid" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; height: 180px; overflow-y: auto;">
+                                            <!-- Emojis will be dynamically rendered here -->
+                                        </div>
+                                    </div>
+                                    <div class="input-group">
+                                        <div class="input-group-prepend">
+                                            <button type="button" class="btn btn-neutral m-0" id="userChatImageBtn" style="border: 1px solid #ddd; border-right: none; border-radius: 30px 0 0 30px; height: 45px; width: 45px; display: flex; align-items: center; justify-content: center; background: #f9f9f9;"><i class="zmdi zmdi-camera" style="font-size: 18px; color: #555;"></i></button>
+                                            <button type="button" class="btn btn-neutral m-0" id="userChatEmojiBtn" style="border: 1px solid #ddd; border-right: none; border-left: none; border-radius: 0; height: 45px; width: 45px; display: flex; align-items: center; justify-content: center; background: #f9f9f9;"><i class="zmdi zmdi-mood" style="font-size: 18px; color: #555;"></i></button>
+                                        </div>
+                                        <input type="file" id="userChatImage" name="image" accept="image/*" style="display: none;">
+                                        <input type="text" id="userChatMessage" class="form-control" placeholder="Type your message..." style="border-radius: 0; border: 1px solid #ddd; border-left: none; height: 45px; padding-left: 10px;">
+                                        <div class="input-group-append">
+                                            <button type="submit" class="btn btn-primary m-0" style="background: #eda61a; border: none; border-radius: 0 30px 30px 0; width: 80px; height: 45px; display: flex; align-items: center; justify-content: center;"><i class="zmdi zmdi-send" style="font-size: 18px; color: white;"></i></button>
+                                        </div>
+                                    </div>
+                                    <div id="userChatImagePreviewContainer" class="mt-2 p-2" style="display: none; border: 1px dashed #ddd; border-radius: 10px; position: relative; display: inline-block;">
+                                        <img id="userChatImagePreview" src="" style="max-height: 80px; border-radius: 5px;">
+                                        <button type="button" id="userChatImageClear" style="position: absolute; top: -5px; right: -5px; background: red; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer;">&times;</button>
+                                    </div>
+                                </form>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+    .chat-history-box {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+    }
+    .message-bubble {
+        padding: 10px 15px;
+        border-radius: 15px;
+        margin-bottom: 12px;
+        font-size: 13.5px;
+        line-height: 1.4;
+        word-break: break-word;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+    }
+    .message-bubble.sent {
+        background: #1f4068;
+        color: white;
+        align-self: flex-end;
+        border-bottom-right-radius: 2px;
+    }
+    .message-bubble.received {
+        background: white;
+        color: #333;
+        align-self: flex-start;
+        border-bottom-left-radius: 2px;
+        border: 1px solid #e9ecef;
+    }
+    .message-time {
+        font-size: 10px;
+        margin-top: 4px;
+        opacity: 0.7;
+        text-align: right;
+    }
+    .chat-user-item.active {
+        background-color: #edf2f7 !important;
+        border-left: 4px solid #eda61a;
+    }
+    .chat-user-item:hover {
+        background-color: #f7fafc;
+        text-decoration: none;
+    }
+    .chat-uploaded-image {
+        max-width: 220px;
+        max-height: 180px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid rgba(0,0,0,0.1);
+        display: block;
+        margin-bottom: 5px;
+        transition: transform 0.2s;
+    }
+    .chat-uploaded-image:hover {
+        transform: scale(1.02);
+    }
+    .emoji-item:hover {
+        background-color: #f0f2f5;
+        transform: scale(1.2);
+    }
+    </style>
 @endsection
 
 @section('models')
@@ -364,6 +540,7 @@
         </div>
     </div>
     
+@section('scripts')
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const editButtons = document.querySelectorAll('.edit-task-btn');
@@ -388,6 +565,316 @@
                     $('#editTaskModal').modal('show');
                 }
             });
+        });
+    });
+
+    $(document).ready(function() {
+        let activeChatUserId = null;
+        let chatInterval = null;
+        const isAdmin = {{ $isAdmin ? 'true' : 'false' }};
+        const currentUserId = {{ session('uid') ?? 'null' }};
+
+        // User Search in Sidebar
+        $('#chatUserSearch').on('keyup', function() {
+            let value = $(this).val().toLowerCase();
+            $('#chatUsersList .chat-user-item').filter(function() {
+                $(this).toggle($(this).find('.chat-user-name').text().toLowerCase().indexOf(value) > -1);
+            });
+        });
+
+        // Format Date/Time helper
+        function formatTime(dateStr) {
+            let date = new Date(dateStr);
+            let hours = date.getHours();
+            let minutes = date.getMinutes();
+            let ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; // the hour '0' should be '12'
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            return hours + ':' + minutes + ' ' + ampm;
+        }
+
+        // Render messages
+        function renderMessages(messages, historyBoxId) {
+            let $historyBox = $('#' + historyBoxId);
+            
+            // Store current scroll position to check if user was scrolled to bottom
+            let isAtBottom = $historyBox[0].scrollHeight - $historyBox.scrollTop() <= $historyBox.outerHeight() + 50;
+            let wasEmpty = $historyBox.children().length === 0;
+
+            $historyBox.empty();
+            if (messages.length === 0) {
+                $historyBox.append('<div class="text-center text-muted p-5"><i class="zmdi zmdi-info-outline" style="font-size: 2rem; opacity: 0.5;"></i><p class="m-t-10">No messages yet. Start the conversation!</p></div>');
+                return;
+            }
+            messages.forEach(msg => {
+                let isSent = (msg.sender_id == currentUserId);
+                let bubbleClass = isSent ? 'sent' : 'received';
+                let timeStr = formatTime(msg.created_at);
+                let senderNameHtml = !isSent ? '<div style="font-size: 10px; font-weight: bold; margin-bottom: 2px; color: #555;">' + msg.sender_name + '</div>' : '';
+                
+                let messageHtml = '';
+                if (msg.message !== null && msg.message !== undefined && msg.message !== '') {
+                    messageHtml = '<div>' + escapeHtml(msg.message) + '</div>';
+                }
+                
+                let imageHtml = '';
+                if (msg.image) {
+                    imageHtml = '<div class="message-image-container m-b-5"><a href="/' + msg.image + '" target="_blank"><img src="/' + msg.image + '" class="img-fluid chat-uploaded-image" alt="Uploaded Attachment"></a></div>';
+                }
+
+                $historyBox.append(
+                    '<div class="message-bubble ' + bubbleClass + '">' +
+                        senderNameHtml +
+                        imageHtml +
+                        messageHtml +
+                        '<div class="message-time">' + timeStr + '</div>' +
+                    '</div>'
+                );
+            });
+            
+            if (wasEmpty || isAtBottom) {
+                $historyBox.scrollTop($historyBox[0].scrollHeight);
+            }
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Fetch messages helper
+        function fetchMessages(userId, historyBoxId) {
+            $.ajax({
+                url: '{{ url("/tasks/chat/messages") }}/' + userId,
+                method: 'GET',
+                success: function(res) {
+                    if (res.status === 'success') {
+                        renderMessages(res.messages, historyBoxId);
+                    }
+                }
+            });
+        }
+
+        // Admin selects user to chat
+        $('.chat-user-item').on('click', function() {
+            $('.chat-user-item').removeClass('active');
+            $(this).addClass('active');
+            
+            let userId = $(this).data('id');
+            let userName = $(this).data('name');
+            activeChatUserId = userId;
+
+            // Update header details
+            $('#activeChatName').text(userName);
+            $('#activeChatAvatar').text(userName.substring(0, 2).toUpperCase());
+
+            $('#adminNoChatSelected').attr('style', 'display: none !important;');
+            $('#adminChatContainer').attr('style', 'display: flex !important; flex-grow: 1; height: 100%; max-height: 100%; overflow: hidden;');
+
+            // Reset image attachment preview
+            $('#adminChatImage').val('');
+            $('#adminChatImagePreviewContainer').hide();
+            $('#adminChatImagePreview').attr('src', '');
+
+            // Initial load
+            fetchMessages(userId, 'adminChatHistory');
+
+            // Setup polling
+            if (chatInterval) clearInterval(chatInterval);
+            chatInterval = setInterval(function() {
+                fetchMessages(userId, 'adminChatHistory');
+            }, 3000);
+        });
+
+        // Admin camera/image button trigger
+        $(document).on('click', '#adminChatImageBtn', function() {
+            $('#adminChatImage').click();
+        });
+
+        // Admin file selection preview
+        $(document).on('change', '#adminChatImage', function() {
+            let file = this.files[0];
+            if (file) {
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                    $('#adminChatImagePreview').attr('src', e.target.result);
+                    $('#adminChatImagePreviewContainer').show();
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Admin clear selected image
+        $(document).on('click', '#adminChatImageClear', function() {
+            $('#adminChatImage').val('');
+            $('#adminChatImagePreviewContainer').hide();
+            $('#adminChatImagePreview').attr('src', '');
+        });
+
+        // Admin send message
+        $('#adminChatForm').on('submit', function(e) {
+            e.preventDefault();
+            let msg = $('#adminChatMessage').val().trim();
+            let file = $('#adminChatImage')[0].files[0];
+            if (!msg && !file) return;
+            if (!activeChatUserId) return;
+
+            let formData = new FormData();
+            formData.append('_token', '{{ csrf_token() }}');
+            formData.append('user_id', activeChatUserId);
+            formData.append('message', msg);
+            if (file) {
+                formData.append('image', file);
+            }
+
+            let $submitBtn = $(this).find('button[type="submit"]');
+            $submitBtn.prop('disabled', true);
+
+            $.ajax({
+                url: '{{ url("/tasks/chat/send") }}',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    if (res.status === 'success') {
+                        $('#adminChatMessage').val('');
+                        $('#adminChatImage').val('');
+                        $('#adminChatImagePreviewContainer').hide();
+                        $('#adminChatImagePreview').attr('src', '');
+                        fetchMessages(activeChatUserId, 'adminChatHistory');
+                    }
+                },
+                complete: function() {
+                    $submitBtn.prop('disabled', false);
+                }
+            });
+        });
+
+        // User camera/image button trigger
+        $(document).on('click', '#userChatImageBtn', function() {
+            $('#userChatImage').click();
+        });
+
+        // User file selection preview
+        $(document).on('change', '#userChatImage', function() {
+            let file = this.files[0];
+            if (file) {
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                    $('#userChatImagePreview').attr('src', e.target.result);
+                    $('#userChatImagePreviewContainer').show();
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // User clear selected image
+        $(document).on('click', '#userChatImageClear', function() {
+            $('#userChatImage').val('');
+            $('#userChatImagePreviewContainer').hide();
+            $('#userChatImagePreview').attr('src', '');
+        });
+
+        // Regular user mode initialization
+        if (!isAdmin && currentUserId) {
+            fetchMessages(currentUserId, 'userChatHistory');
+            
+            // Setup polling
+            chatInterval = setInterval(function() {
+                fetchMessages(currentUserId, 'userChatHistory');
+            }, 3000);
+
+            // User send message
+            $('#userChatForm').on('submit', function(e) {
+                e.preventDefault();
+                let msg = $('#userChatMessage').val().trim();
+                let file = $('#userChatImage')[0].files[0];
+                if (!msg && !file) return;
+
+                let formData = new FormData();
+                formData.append('_token', '{{ csrf_token() }}');
+                formData.append('user_id', currentUserId);
+                formData.append('message', msg);
+                if (file) {
+                    formData.append('image', file);
+                }
+
+                let $submitBtn = $(this).find('button[type="submit"]');
+                $submitBtn.prop('disabled', true);
+
+                $.ajax({
+                    url: '{{ url("/tasks/chat/send") }}',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(res) {
+                        if (res.status === 'success') {
+                            $('#userChatMessage').val('');
+                            $('#userChatImage').val('');
+                            $('#userChatImagePreviewContainer').hide();
+                            $('#userChatImagePreview').attr('src', '');
+                            fetchMessages(currentUserId, 'userChatHistory');
+                        }
+                    },
+                    complete: function() {
+                        $submitBtn.prop('disabled', false);
+                    }
+                });
+            });
+        }
+
+        // Emoji picker logic
+        const emojis = ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','🤧','😷','🤒','🤕','🤑','🤠','😈','👿','👹','👺','🤡','💩','👻','💀','☠️','👽','👾','🤖','🎃','😺','😸','😻','😼','😽','🙀','😿','😾','👋','🤚','🖐️','✋','🖖','👌','🤏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','👍','👎','✊','👊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','👂','🦻','👃','🧠','🦷','🦴','👀','👁️','👅','👄','💋','🩸','❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','🌟','⭐','✨','⚡','💥','🔥','🌈','☀️','🌤️','⛅','🌥️','☁️','🌦️','🌧️','⛈️','🌩️','🌨️','❄️','💨','💧','💦','☔','🎈','🎉','🎊','🎁'];
+
+        function initEmojiPicker(btnId, pickerId, inputId) {
+            const $btn = $('#' + btnId);
+            const $picker = $('#' + pickerId);
+            const $input = $('#' + inputId);
+            const $grid = $picker.find('.emoji-grid');
+
+            if ($grid.children().length === 0) {
+                emojis.forEach(emoji => {
+                    $grid.append('<span class="emoji-item" style="font-size: 20px; padding: 5px; cursor: pointer; text-align: center; border-radius: 4px; display: inline-block; transition: all 0.1s ease-in-out;">' + emoji + '</span>');
+                });
+            }
+
+            $btn.on('click', function(e) {
+                e.stopPropagation();
+                $('.emoji-picker-popover').not($picker).hide();
+                $picker.toggle();
+            });
+
+            $grid.on('click', '.emoji-item', function(e) {
+                e.stopPropagation();
+                const emoji = $(this).text();
+                const inputEl = $input[0];
+                const startPos = inputEl.selectionStart;
+                const endPos = inputEl.selectionEnd;
+                const text = $input.val();
+
+                $input.val(text.substring(0, startPos) + emoji + text.substring(endPos));
+                $input.focus();
+                
+                const newCursorPos = startPos + emoji.length;
+                inputEl.setSelectionRange(newCursorPos, newCursorPos);
+                $picker.hide();
+            });
+        }
+
+        initEmojiPicker('adminChatEmojiBtn', 'adminChatEmojiPicker', 'adminChatMessage');
+        initEmojiPicker('userChatEmojiBtn', 'userChatEmojiPicker', 'userChatMessage');
+
+        $(document).on('click', function(e) {
+            if (!$(e.target).closest('.emoji-picker-popover, #adminChatEmojiBtn, #userChatEmojiBtn').length) {
+                $('.emoji-picker-popover').hide();
+            }
         });
     });
     </script>

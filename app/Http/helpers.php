@@ -2382,3 +2382,65 @@ $completeypvFormatted = formatMonthlyDataOfPaymentVoucehrCompleteContent($monthl
 return $completeypvFormatted;
 }
 // widgets helper functions end
+
+function getCurrentCompany()
+{
+    // Try Web session first
+    if (session()->has('comp_db_id')) {
+        $compId = session()->get('comp_db_id');
+        return DB::connection('mysql')->table('companies')->where('id', $compId)->first();
+    }
+    
+    // Otherwise try API context using config('database.default')
+    $connName = config('database.default');
+    if ($connName && $connName !== 'mysql') {
+        return DB::connection('mysql')->table('companies')
+            ->where('db_conn_name', $connName)
+            ->orWhere('db_name', $connName)
+            ->first();
+    }
+    
+    return null;
+}
+
+function checkUserLimit()
+{
+    $company = getCurrentCompany();
+    if (!$company) {
+        return false;
+    }
+    
+    $maxUsers = $company->max_users;
+    if (is_null($maxUsers) || $maxUsers <= 0) {
+        return false;
+    }
+    
+    $connName = session()->get('comp_db_conn_name') ?? config('database.default');
+    if (!$connName) {
+        return false;
+    }
+    
+    $currentUsers = DB::connection($connName)->table('users')->count();
+    return $currentUsers >= $maxUsers;
+}
+
+function checkSiteLimit()
+{
+    $company = getCurrentCompany();
+    if (!$company) {
+        return false;
+    }
+    
+    $maxSites = $company->max_sites;
+    if (is_null($maxSites) || $maxSites <= 0) {
+        return false;
+    }
+    
+    $connName = session()->get('comp_db_conn_name') ?? config('database.default');
+    if (!$connName) {
+        return false;
+    }
+    
+    $currentSites = DB::connection($connName)->table('sites')->count();
+    return $currentSites >= $maxSites;
+}

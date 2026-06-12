@@ -243,7 +243,7 @@
                                         @if(checkmodulepermission(13, 'can_delete') == 1 || checkmodulepermission(13, 'can_edit') == 1)
                                             <td class="d-flex">
                                                 @if(checkmodulepermission(13, 'can_edit') == 1)
-                                                    <button type="button" class="btn btn-neutral btn-sm btn-round text-primary mr-2" style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);" onclick="openEditModal({{ $log->id }}, '{{ $log->user_id }}', '{{ $log->site_id }}', '{{ $log->date }}', '{{ $log->status }}', '{{ $log->in_time ? date('H:i', strtotime($log->in_time)) : '' }}', '{{ $log->out_time ? date('H:i', strtotime($log->out_time)) : '' }}')">
+                                                    <button type="button" class="btn btn-neutral btn-sm btn-round text-primary mr-2" style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);" onclick="openEditModal({{ $log->id }}, '{{ $log->user_id }}', '{{ $log->site_id }}', '{{ $log->date }}', '{{ $log->status }}', '{{ $log->in_time ? date('H:i', strtotime($log->in_time)) : '' }}', '{{ $log->out_time ? date('H:i', strtotime($log->out_time)) : '' }}', '{{ $log->bills_party_id }}', '{{ $log->image }}')">
                                                         <i class="zmdi zmdi-edit"></i>
                                                     </button>
                                                 @endif
@@ -337,7 +337,7 @@
     @if(checkmodulepermission(13, 'can_edit') == 1)
         <div class="modal fade" id="editAttendanceModal" tabindex="-1" role="dialog">
             <div class="modal-dialog" role="document">
-                <form id="editAttendanceForm" method="POST" class="form">
+                <form id="editAttendanceForm" method="POST" class="form" enctype="multipart/form-data">
                     @csrf
                     <div class="modal-content" style="border-radius: 15px; overflow: hidden; border: none;">
                         <div class="modal-header p-4" style="background: linear-gradient(135deg, #1f4068 0%, #162447 100%); color: white;">
@@ -348,10 +348,28 @@
                                 <label class="font-weight-bold" style="color: #555;">Select User</label>
                                 <select name="user_id" id="edit_user_id" class="form-control show-tick" data-live-search="true" required>
                                     <option value="" disabled selected>-- Choose User --</option>
+                                    <option value="labour_contractor" style="font-weight: bold; color: #eda61a;">Labour Contractor</option>
                                     @foreach($users as $user)
                                         <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->username }})</option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div class="form-group mb-3" id="edit_contractor_select_wrapper" style="display: none;">
+                                <label class="font-weight-bold" style="color: #555;">Select Labour Contractor</label>
+                                <select name="bills_party_id" id="edit_bills_party_id" class="form-control show-tick" data-live-search="true">
+                                    <option value="" disabled selected>-- Choose Labour Contractor --</option>
+                                    @foreach($billParties as $party)
+                                        <option value="{{ $party->id }}">{{ $party->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group mb-3" id="edit_contractor_image_wrapper" style="display: none;">
+                                <label class="font-weight-bold" style="color: #555;">Upload Photo</label>
+                                <input type="file" name="image" class="form-control" accept="image/*">
+                                <div id="edit_image_preview_container" style="margin-top: 10px; display: none;">
+                                    <small class="text-muted d-block mb-1">Current Photo:</small>
+                                    <img id="edit_image_preview" src="" style="max-height: 100px; border-radius: 8px; border: 1px solid #ddd;">
+                                </div>
                             </div>
                             <div class="form-group mb-3">
                                 <label class="font-weight-bold" style="color: #555;">Select Site</label>
@@ -410,7 +428,7 @@
     @if(checkmodulepermission(13, 'can_add') == 1)
         <div class="modal fade" id="manualAttendanceModal" tabindex="-1" role="dialog">
             <div class="modal-dialog" role="document">
-                <form action="{{ url('/attendance/manual') }}" method="POST" class="form">
+                <form action="{{ url('/attendance/manual') }}" method="POST" class="form" enctype="multipart/form-data">
                     @csrf
                     <div class="modal-content" style="border-radius: 15px; overflow: hidden; border: none;">
                         <div class="modal-header p-4" style="background: linear-gradient(135deg, #eda61a 0%, #f5af19 100%); color: white;">
@@ -419,12 +437,26 @@
                         <div class="modal-body p-4">
                             <div class="form-group mb-3">
                                 <label class="font-weight-bold" style="color: #555;">Select User</label>
-                                <select name="user_id" class="form-control show-tick" data-live-search="true" required>
+                                <select name="user_id" id="manual_user_id" class="form-control show-tick" data-live-search="true" required>
                                     <option value="" disabled selected>-- Choose User --</option>
+                                    <option value="labour_contractor" style="font-weight: bold; color: #eda61a;">Labour Contractor</option>
                                     @foreach($users as $user)
                                         <option value="{{ $user->id }}">{{ $user->name }} ({{ $user->username }})</option>
                                     @endforeach
                                 </select>
+                            </div>
+                            <div class="form-group mb-3" id="contractor_select_wrapper" style="display: none;">
+                                <label class="font-weight-bold" style="color: #555;">Select Labour Contractor</label>
+                                <select name="bills_party_id" id="manual_bills_party_id" class="form-control show-tick" data-live-search="true">
+                                    <option value="" disabled selected>-- Choose Labour Contractor --</option>
+                                    @foreach($billParties as $party)
+                                        <option value="{{ $party->id }}">{{ $party->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group mb-3" id="contractor_image_wrapper" style="display: none;">
+                                <label class="font-weight-bold" style="color: #555;">Upload Photo</label>
+                                <input type="file" name="image" class="form-control" accept="image/*">
                             </div>
                             <div class="form-group mb-3">
                                 <label class="font-weight-bold" style="color: #555;">Select Site</label>
@@ -487,6 +519,33 @@
        Uses OpenStreetMap Nominatim (free, no API key needed)
     ───────────────────────────────────────────────────────── */
     document.addEventListener('DOMContentLoaded', function () {
+        // Labour Contractor change handlers
+        $('#manual_user_id').on('change', function() {
+            if ($(this).val() === 'labour_contractor') {
+                $('#contractor_select_wrapper').show();
+                $('#contractor_image_wrapper').show();
+                $('#manual_bills_party_id').attr('required', true);
+            } else {
+                $('#contractor_select_wrapper').hide();
+                $('#contractor_image_wrapper').hide();
+                $('#manual_bills_party_id').removeAttr('required').val('');
+            }
+            if ($('#manual_bills_party_id').hasClass('show-tick')) { $('#manual_bills_party_id').selectpicker('refresh'); }
+        });
+
+        $('#edit_user_id').on('change', function() {
+            if ($(this).val() === 'labour_contractor') {
+                $('#edit_contractor_select_wrapper').show();
+                $('#edit_contractor_image_wrapper').show();
+                $('#edit_bills_party_id').attr('required', true);
+            } else {
+                $('#edit_contractor_select_wrapper').hide();
+                $('#edit_contractor_image_wrapper').hide();
+                $('#edit_bills_party_id').removeAttr('required').val('');
+            }
+            if ($('#edit_bills_party_id').hasClass('show-tick')) { $('#edit_bills_party_id').selectpicker('refresh'); }
+        });
+
         const cells = document.querySelectorAll('.location-cell');
 
         cells.forEach(function (cell) {
@@ -736,11 +795,35 @@
         $('#photoPreviewModal').modal('show');
     }
 
-    function openEditModal(id, userId, siteId, date, status, clockIn, clockOut) {
+    function openEditModal(id, userId, siteId, date, status, clockIn, clockOut, billsPartyId, imagePath) {
         $('#editAttendanceForm').attr('action', '{{ url("/attendance/update") }}/' + id);
         
-        $('#edit_user_id').val(userId);
+        // Reset file input
+        $('#edit_contractor_image_wrapper input[type="file"]').val('');
+        
+        if (billsPartyId && billsPartyId !== '') {
+            $('#edit_user_id').val('labour_contractor');
+            $('#edit_contractor_select_wrapper').show();
+            $('#edit_contractor_image_wrapper').show();
+            $('#edit_bills_party_id').val(billsPartyId).attr('required', true);
+            
+            // Show image preview if it exists
+            if (imagePath && imagePath !== '') {
+                $('#edit_image_preview').attr('src', '{{ asset("/") }}' + imagePath);
+                $('#edit_image_preview_container').show();
+            } else {
+                $('#edit_image_preview_container').hide();
+            }
+        } else {
+            $('#edit_user_id').val(userId || '');
+            $('#edit_contractor_select_wrapper').hide();
+            $('#edit_contractor_image_wrapper').hide();
+            $('#edit_bills_party_id').val('').removeAttr('required');
+            $('#edit_image_preview_container').hide();
+        }
+        
         if ($('#edit_user_id').hasClass('show-tick')) { $('#edit_user_id').selectpicker('refresh'); }
+        if ($('#edit_bills_party_id').hasClass('show-tick')) { $('#edit_bills_party_id').selectpicker('refresh'); }
         
         $('#edit_site_id').val(siteId);
         if ($('#edit_site_id').hasClass('show-tick')) { $('#edit_site_id').selectpicker('refresh'); }

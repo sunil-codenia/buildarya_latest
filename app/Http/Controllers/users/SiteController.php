@@ -26,6 +26,11 @@ class SiteController extends Controller
 
     public function addsites(Request $request)
     {
+        if (checkSiteLimit()) {
+            return redirect('/sites')
+                ->with('error', 'Upgrade your plan');
+        }
+
         $name = $request->input('name');
         $address = $request->input('address');
         $open_balance = $request->input('open_balance');

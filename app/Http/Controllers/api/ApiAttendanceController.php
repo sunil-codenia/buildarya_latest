@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\File;
 
 class ApiAttendanceController extends Controller
 {
@@ -330,12 +331,32 @@ class ApiAttendanceController extends Controller
             $conn = $tenant['conn'];
             $uid = $tenant['uid'];
 
+            // Check permissions
+            $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1);
+
+            $perm = DB::connection($conn)->table('user_permission')
+                ->where('user_id', $uid)
+                ->where('module_id', 13)
+                ->first();
+
+            $canManage = $isSuperAdmin || ($perm && ($perm->can_add == 1 || $perm->can_edit == 1));
+
+            if (!$canManage) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'status_code' => '300',
+                    'message' => 'You do not have permission to manually log attendance.'
+                ]);
+            }
+
             $targetUserId = $request->input('user_id');
+            $billsPartyId = $request->input('bills_party_id');
             $date = $request->input('date');
-            $status = $request->input('status'); // Present, Absent, Half Day, Leave, Holiday
+            $status = $request->input('status'); // Present, Absent, Half Day, Leave
             $site_id = $request->input('site_id');
-            $in_time = $request->input('in_time');
-            $out_time = $request->input('out_time');
+            $in_time = $request->input('in_time') ?? $request->input('clock_in');
+            $out_time = $request->input('out_time') ?? $request->input('clock_out');
             $remarks = $request->input('remarks');
 
             if (!$targetUserId || !$date || !$status) {
@@ -346,37 +367,109 @@ class ApiAttendanceController extends Controller
                 ]);
             }
 
-            // Check if record already exists for this date & user
-            $existing = DB::connection($conn)->table('attendance')
-                ->where('user_id', $targetUserId)
-                ->where('date', $date)
-                ->first();
+            if ($targetUserId === 'labour_contractor' || $targetUserId === 'labour contractor' || !is_numeric($targetUserId)) {
+                $targetUserId = null;
+                if (!$billsPartyId) {
+                    return response()->json([
+                        'status' => 'Failed',
+                        'status_code' => '300',
+                        'message' => 'Labour Contractor (bills_party_id) is required when user_id is labour contractor!'
+                    ]);
+                }
+            } else {
+                $billsPartyId = null;
+            }
+
+            // Resolve company uid for file upload path
+            $company = DB::connection('mysql')->table('companies')->where('db_conn_name', $conn)->first();
+            $comp_id = $company ? $company->uid : $conn;
+
+            $imagePath = null;
+            if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $dirPath = public_path("images/app_images/{$comp_id}/attendance");
+                if (!File::exists($dirPath)) {
+                    File::makeDirectory($dirPath, 0755, true);
+                }
+                $fileName = time() . '_manual_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->move($dirPath, $fileName);
+                $imagePath = "images/app_images/{$comp_id}/attendance/{$fileName}";
+            }
+
+            $inTimeFormatted = null;
+            if ($in_time) {
+                if (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $in_time)) {
+                    $inTimeFormatted = Carbon::parse($date . ' ' . $in_time)->toDateTimeString();
+                } else {
+                    $inTimeFormatted = Carbon::parse($in_time)->toDateTimeString();
+                }
+            }
+
+            $outTimeFormatted = null;
+            if ($out_time) {
+                if (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $out_time)) {
+                    $outTimeFormatted = Carbon::parse($date . ' ' . $out_time)->toDateTimeString();
+                } else {
+                    $outTimeFormatted = Carbon::parse($out_time)->toDateTimeString();
+                }
+            }
+
+            $in_location = $request->input('in_location') ?? $request->input('gps_lat') ?? $request->input('latitude') ?? 'Manual';
+            $out_location = $request->input('out_location') ?? $request->input('gps_lng') ?? $request->input('longitude') ?? 'Manual';
+
+            // Check if record already exists for this date & (user or contractor)
+            $query = DB::connection($conn)->table('attendance')->where('date', $date);
+            if ($targetUserId) {
+                $query->where('user_id', $targetUserId);
+            } else {
+                $query->where('bills_party_id', $billsPartyId);
+            }
+            $existing = $query->first();
 
             $data = [
                 'user_id' => $targetUserId,
+                'bills_party_id' => $billsPartyId,
                 'site_id' => $site_id,
                 'date' => $date,
                 'status' => $status,
-                'in_time' => $in_time,
-                'out_time' => $out_time,
+                'in_time' => $inTimeFormatted,
+                'out_time' => $outTimeFormatted,
+                'in_location' => $in_location,
+                'out_location' => $out_location,
                 'remarks' => $remarks ? 'Manual Override: ' . $remarks : 'Manual Override',
                 'updated_at' => now()
             ];
 
+            if ($imagePath) {
+                $data['image'] = $imagePath;
+            }
+
             if ($existing) {
+                if ($imagePath && $existing->image && File::exists(public_path($existing->image))) {
+                    File::delete(public_path($existing->image));
+                }
                 DB::connection($conn)->table('attendance')
                     ->where('id', $existing->id)
                     ->update($data);
                 
                 $id = $existing->id;
-                addActivity($id, 'attendance', "Manual override updated for user $targetUserId on $date", 13, $uid, $conn);
+                addActivity($id, 'attendance', "Manual override updated for " . ($targetUserId ? "user $targetUserId" : "contractor $billsPartyId") . " on $date", 13, $uid, $conn);
             } else {
                 $data['created_at'] = now();
                 $id = DB::connection($conn)->table('attendance')->insertGetId($data);
-                addActivity($id, 'attendance', "Manual attendance logged for user $targetUserId on $date", 13, $uid, $conn);
+                addActivity($id, 'attendance', "Manual attendance logged for " . ($targetUserId ? "user $targetUserId" : "contractor $billsPartyId") . " on $date", 13, $uid, $conn);
             }
 
-            $record = DB::connection($conn)->table('attendance')->where('id', $id)->first();
+            $record = DB::connection($conn)->table('attendance')
+                ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
+                ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
+                ->select(
+                    'attendance.*', 
+                    DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
+                    DB::raw('COALESCE(users.username, "Labour Contractor") as user_username')
+                )
+                ->where('attendance.id', $id)
+                ->first();
 
             return response()->json([
                 'status' => 'Ok',
@@ -403,7 +496,16 @@ class ApiAttendanceController extends Controller
             $conn = $tenant['conn'];
             $uid = $tenant['uid'];
 
-            $record = DB::connection($conn)->table('attendance')->where('id', $id)->first();
+            $record = DB::connection($conn)->table('attendance')
+                ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
+                ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
+                ->select(
+                    'attendance.*', 
+                    DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
+                    DB::raw('COALESCE(users.username, "Labour Contractor") as user_username')
+                )
+                ->where('attendance.id', $id)
+                ->first();
 
             if (!$record) {
                 return response()->json(['status' => 'Failed', 'status_code' => '404', 'message' => 'Record not found.']);
@@ -460,12 +562,75 @@ class ApiAttendanceController extends Controller
             }
 
             $updateData = [];
+            
+            // Resolve company uid for file upload path
+            $company = DB::connection('mysql')->table('companies')->where('db_conn_name', $conn)->first();
+            $comp_id = $company ? $company->uid : $conn;
+
+            if ($request->hasFile('image')) {
+                // Delete old image
+                if ($record->image && File::exists(public_path($record->image))) {
+                    File::delete(public_path($record->image));
+                }
+                $file = $request->file('image');
+                $dirPath = public_path("images/app_images/{$comp_id}/attendance");
+                if (!File::exists($dirPath)) {
+                    File::makeDirectory($dirPath, 0755, true);
+                }
+                $fileName = time() . '_manual_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->move($dirPath, $fileName);
+                $updateData['image'] = "images/app_images/{$comp_id}/attendance/{$fileName}";
+            }
+
             if ($request->has('site_id')) $updateData['site_id'] = $request->input('site_id');
             if ($request->has('status')) $updateData['status'] = $request->input('status');
-            if ($request->has('in_time')) $updateData['in_time'] = $request->input('in_time');
-            if ($request->has('out_time')) $updateData['out_time'] = $request->input('out_time');
             if ($request->has('date')) $updateData['date'] = $request->input('date');
-            if ($request->has('user_id') && $canManage) $updateData['user_id'] = $request->input('user_id');
+            
+            $dateVal = $request->input('date') ?? $record->date;
+
+            $in_time = $request->input('in_time') ?? $request->input('clock_in');
+            if ($in_time !== null) {
+                if (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $in_time)) {
+                    $updateData['in_time'] = Carbon::parse($dateVal . ' ' . $in_time)->toDateTimeString();
+                } else {
+                    $updateData['in_time'] = Carbon::parse($in_time)->toDateTimeString();
+                }
+            }
+
+            $out_time = $request->input('out_time') ?? $request->input('clock_out');
+            if ($out_time !== null) {
+                if (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $out_time)) {
+                    $updateData['out_time'] = Carbon::parse($dateVal . ' ' . $out_time)->toDateTimeString();
+                } else {
+                    $updateData['out_time'] = Carbon::parse($out_time)->toDateTimeString();
+                }
+            }
+
+            $in_location = $request->input('in_location') ?? $request->input('gps_lat') ?? $request->input('latitude');
+            if ($in_location !== null) {
+                $updateData['in_location'] = $in_location;
+            }
+
+            $out_location = $request->input('out_location') ?? $request->input('gps_lng') ?? $request->input('longitude');
+            if ($out_location !== null) {
+                $updateData['out_location'] = $out_location;
+            }
+
+            if ($request->has('user_id') && $canManage) {
+                $targetUserId = $request->input('user_id');
+                if ($targetUserId === 'labour_contractor' || $targetUserId === 'labour contractor' || !is_numeric($targetUserId)) {
+                    $updateData['user_id'] = null;
+                    if ($request->has('bills_party_id')) {
+                        $updateData['bills_party_id'] = $request->input('bills_party_id');
+                    }
+                } else {
+                    $updateData['user_id'] = $targetUserId;
+                    $updateData['bills_party_id'] = null;
+                }
+            } elseif ($request->has('bills_party_id') && $canManage) {
+                $updateData['bills_party_id'] = $request->input('bills_party_id');
+            }
+
             if ($request->has('remarks')) $updateData['remarks'] = $request->input('remarks');
 
             if (!empty($updateData)) {
@@ -474,7 +639,17 @@ class ApiAttendanceController extends Controller
                 addActivity($id, 'attendance', "Attendance updated via API.", 13, $uid, $conn);
             }
 
-            $updatedRecord = DB::connection($conn)->table('attendance')->where('id', $id)->first();
+            $updatedRecord = DB::connection($conn)->table('attendance')
+                ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
+                ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
+                ->select(
+                    'attendance.*', 
+                    DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
+                    DB::raw('COALESCE(users.username, "Labour Contractor") as user_username')
+                )
+                ->where('attendance.id', $id)
+                ->first();
+
             return response()->json(['status' => 'Ok', 'status_code' => '200', 'data' => $updatedRecord, 'message' => 'Attendance updated successfully.']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Failed', 'status_code' => '500', 'message' => $e->getMessage()]);

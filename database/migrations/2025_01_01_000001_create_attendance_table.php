@@ -20,7 +20,8 @@ class CreateAttendanceTable extends Migration
             $table->id();
 
             // User & Site references
-            $table->unsignedBigInteger('user_id')->index();
+            $table->unsignedBigInteger('user_id')->nullable()->index();
+            $table->unsignedBigInteger('bills_party_id')->nullable()->index();
             $table->unsignedBigInteger('site_id')->nullable()->index();
 
             // Date & Times
@@ -44,8 +45,9 @@ class CreateAttendanceTable extends Migration
 
             $table->timestamps();
 
-            // Prevent duplicate check-ins per user per day
+            // Prevent duplicate check-ins per user/party per day
             $table->unique(['user_id', 'date'], 'attendance_user_date_unique');
+            $table->unique(['bills_party_id', 'date'], 'attendance_party_date_unique');
         });
     }
 

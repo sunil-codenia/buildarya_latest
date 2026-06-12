@@ -17,6 +17,8 @@ class TaskWebController extends Controller
 
         $uid = session()->get('uid');
 
+        $this->ensureTableExists($conn);
+
         // Fetch all sites and users
         $sites = DB::connection($conn)->table('sites')->get();
         $users = DB::connection($conn)->table('users')->get();
@@ -211,5 +213,121 @@ class TaskWebController extends Controller
 
         DB::connection($conn)->table('tasks')->where('id', $id)->delete();
         return redirect()->back()->with('success', 'Task deleted successfully!');
+    }
+
+    public function fetchMessages(Request $request, $userId)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $uid    = session()->get('uid');
+        $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
+
+        // A non-admin user may only read their own thread.
+        // An admin may read ANY thread (identified by the non-admin user's ID).
+        if (!$isAdmin && (int)$uid !== (int)$userId) {
+            return response()->json(['status' => 'error', 'message' => 'Access denied.'], 403);
+        }
+
+        $this->ensureTableExists($conn);
+
+        $messages = DB::connection($conn)
+            ->table('task_chats')
+            ->leftJoin('users', 'users.id', '=', 'task_chats.sender_id')
+            ->select('task_chats.*', 'users.name as sender_name')
+            ->where('task_chats.user_id', (int)$userId)
+            ->orderBy('task_chats.created_at', 'asc')
+            ->get();
+
+        return response()->json([
+            'status'          => 'success',
+            'messages'        => $messages,
+            'current_user_id' => (int)$uid,
+        ]);
+    }
+
+    public function sendMessage(Request $request)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'user_id' => 'required|integer',
+            'message' => 'nullable|string|max:5000',
+            'image'   => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
+        ]);
+
+        if (!$request->filled('message') && !$request->hasFile('image')) {
+            return response()->json(['status' => 'error', 'message' => 'Please type a message or upload an image.'], 422);
+        }
+
+        $uid     = session()->get('uid');
+        $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
+
+        // The thread key (user_id) must either be the current user's own ID
+        // OR the admin is sending to any user.
+        if (!$isAdmin && (int)$uid !== (int)$request->user_id) {
+            return response()->json(['status' => 'error', 'message' => 'Access denied.'], 403);
+        }
+
+        $this->ensureTableExists($conn);
+
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            if ($file->isValid()) {
+                $path = public_path('uploads/chat');
+                if (!\Illuminate\Support\Facades\File::exists($path)) {
+                    \Illuminate\Support\Facades\File::makeDirectory($path, 0777, true, true);
+                }
+                $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->move($path, $filename);
+                $imagePath = 'uploads/chat/' . $filename;
+            }
+        }
+
+        DB::connection($conn)->table('task_chats')->insert([
+            'user_id'    => (int)$request->user_id,   // always = non-admin user ID (thread key)
+            'sender_id'  => (int)$uid,                // actual sender
+            'message'    => $request->filled('message') ? trim($request->message) : null,
+            'image'      => $imagePath,
+            'created_at' => Carbon::now()->toDateTimeString(),
+            'updated_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        return response()->json(['status' => 'success']);
+    }
+
+    private function ensureTableExists($conn)
+    {
+        try {
+            DB::connection($conn)->statement("
+                CREATE TABLE IF NOT EXISTS `task_chats` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id` INT NOT NULL,
+                    `sender_id` INT NOT NULL,
+                    `message` TEXT NULL,
+                    `image` VARCHAR(255) NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`user_id`),
+                    INDEX (`sender_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+            
+            // Alter to add image column if it doesn't exist
+            if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('task_chats', 'image')) {
+                DB::connection($conn)->statement("ALTER TABLE `task_chats` ADD COLUMN `image` VARCHAR(255) NULL AFTER `message`");
+            }
+            
+            // Alter to make message nullable if it was not
+            DB::connection($conn)->statement("ALTER TABLE `task_chats` MODIFY COLUMN `message` TEXT NULL");
+        } catch (\Exception $e) {
+            \Log::error("Failed to ensure task_chats table schema: " . $e->getMessage());
+        }
     }
 }

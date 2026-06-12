@@ -20,6 +20,10 @@ class CompanyRegistrationController extends Controller
 
             'subscription_plan_id' => 'sometimes|integer',
             'plan_name' => 'sometimes|string|max:255',
+            'max_users' => 'sometimes|integer|min:0',
+            'max_sites' => 'sometimes|integer|min:0',
+            'company.max_users' => 'sometimes|integer|min:0',
+            'company.max_sites' => 'sometimes|integer|min:0',
 
             'modules' => 'sometimes|array',
             'modules.*' => 'integer',
@@ -51,6 +55,8 @@ class CompanyRegistrationController extends Controller
             $moduleIds = $request->input('modules', []);
             $companyName = $request->input('company.name') ?? $request->input('company_name');
             $companyData = $request->input('company', []);
+            $maxUsers = $request->input('company.max_users', $request->input('max_users'));
+            $maxSites = $request->input('company.max_sites', $request->input('max_sites'));
             $uid = null;
             $isNewCompany = false;
             $connName = null;
@@ -105,6 +111,8 @@ class CompanyRegistrationController extends Controller
                         'subscription_platform_name' => $request->input('subscription_plaatform_name'),
                         'plan_name' => $request->input('plan_name'),
                         'expired' => $this->formatExpiryDate($request->input('Expired')),
+                        'max_users' => $maxUsers,
+                        'max_sites' => $maxSites,
                     ]);
 
                     // Step 3: Dynamically register this new connection
@@ -161,11 +169,21 @@ class CompanyRegistrationController extends Controller
 
             // Update existing company if needed
             if (!$isNewCompany) {
-                DB::table('companies')->where('id', $companyId)->update([
+                $companyUpdate = [
                     'subscription_platform_name' => $subPlatform,
                     'plan_name' => $subPlanName,
                     'expired' => $formattedExpiry,
-                ]);
+                ];
+
+                if ($request->has('company.max_users') || $request->has('max_users')) {
+                    $companyUpdate['max_users'] = $request->input('company.max_users', $request->input('max_users'));
+                }
+
+                if ($request->has('company.max_sites') || $request->has('max_sites')) {
+                    $companyUpdate['max_sites'] = $request->input('company.max_sites', $request->input('max_sites'));
+                }
+
+                DB::table('companies')->where('id', $companyId)->update($companyUpdate);
             }
 
             // Sync subscription_plans
@@ -514,7 +532,8 @@ class CompanyRegistrationController extends Controller
             DB::connection($connName)->statement("
                 CREATE TABLE IF NOT EXISTS `attendance` (
                     `id` INT AUTO_INCREMENT PRIMARY KEY,
-                    `user_id` INT NOT NULL,
+                    `user_id` INT NULL DEFAULT NULL,
+                    `bills_party_id` INT NULL DEFAULT NULL,
                     `site_id` INT DEFAULT NULL,
                     `date` DATE NOT NULL,
                     `in_time` DATETIME DEFAULT NULL,
@@ -528,9 +547,13 @@ class CompanyRegistrationController extends Controller
                     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX (`user_id`),
+                    INDEX (`bills_party_id`),
                     INDEX (`site_id`),
                     INDEX (`date`),
+                    UNIQUE KEY `attendance_user_date_unique` (`user_id`, `date`),
+                    UNIQUE KEY `attendance_party_date_unique` (`bills_party_id`, `date`),
                     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`bills_party_id`) REFERENCES `bills_party` (`id`) ON DELETE SET NULL,
                     FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE SET NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
@@ -560,8 +583,23 @@ class CompanyRegistrationController extends Controller
                     FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `task_chats` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id` INT NOT NULL,
+                    `sender_id` INT NOT NULL,
+                    `message` TEXT NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`user_id`),
+                    INDEX (`sender_id`),
+                    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+                    FOREIGN KEY (`sender_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
             
-            \Log::info("Attendance and tasks tables successfully created for connection: {$connName}");
+            \Log::info("Attendance, tasks, and task_chats tables successfully created for connection: {$connName}");
         } catch (\Exception $e) {
             \Log::error("Failed to dynamically create modules tables: " . $e->getMessage());
             throw new \Exception("Failed to dynamically create modules tables: " . $e->getMessage());

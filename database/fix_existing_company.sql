@@ -17,4 +17,4 @@ SET
 WHERE `id` = 1;
 
 -- Verify the fix
-SELECT `id`, `name`, `uid`, `db_name`, `db_conn_name`, `username`, `status` FROM `companies`;
+SELECT `id`, `name`, `uid`, `db_name`, `db_conn_name`, `username`, `status`, `expired`, `max_users`, `max_sites` FROM `companies`;

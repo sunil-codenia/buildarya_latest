@@ -5,6 +5,7 @@
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 SET time_zone = "+00:00";
 SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- --------------------------------------------------------
 
@@ -731,20 +732,26 @@ CREATE TABLE `site_payments` (
 -- --------------------------------------------------------
 
 CREATE TABLE `tasks` (
-  `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
-  `project_id` int(11) NOT NULL,
-  `site_id` int(11) NOT NULL,
-  `parent_task_id` int(11) DEFAULT NULL,
-  `task_type` enum('HEADING','SUBHEADING','TASK') NOT NULL DEFAULT 'TASK',
-  `title` varchar(500) NOT NULL,
-  `description` text DEFAULT NULL,
-  `total_units` varchar(250) NOT NULL,
-  `unit_type` varchar(250) NOT NULL,
-  `priority` enum('LOW','MEDIUM','HIGH','CRITICAL') DEFAULT 'LOW',
-  `status` enum('Awaiting','Progress','Pending','Completed') NOT NULL DEFAULT 'Awaiting',
-  `created_by` int(11) NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `title` VARCHAR(255) NOT NULL,
+  `description` TEXT DEFAULT NULL,
+  `site_id` INT DEFAULT NULL,
+  `assigned_to` INT DEFAULT NULL,
+  `assigned_by` INT DEFAULT NULL,
+  `priority` ENUM('Low', 'Medium', 'High', 'Urgent') NOT NULL DEFAULT 'Medium',
+  `status` ENUM('Pending', 'In Progress', 'Completed', 'On Hold', 'Cancelled') NOT NULL DEFAULT 'Pending',
+  `due_date` DATE DEFAULT NULL,
+  `completed_at` TIMESTAMP NULL DEFAULT NULL,
+  `remarks` TEXT DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX (`site_id`),
+  INDEX (`assigned_to`),
+  INDEX (`assigned_by`),
+  FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1136,3 +1143,5 @@ INSERT INTO `settings` (`name`, `value`, `uid`) VALUES
 ('document_upload_src', 'Both', '');
 
 INSERT INTO `roles` (`id`, `name`, `is_superadmin`, `visibility_at_site`, `data_access`, `view_duration`, `add_duration`) VALUES (1, 'Super Admin', 1, 1, 'all', 'all', 'all');
+
+SET FOREIGN_KEY_CHECKS = 1;

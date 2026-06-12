@@ -75,6 +75,10 @@ class ApiManagementController extends Controller
 
     public function storeUser(Request $request)
     {
+        if (checkUserLimit()) {
+            return response()->json(['status' => 'Error', 'message' => 'Upgrade your plan'], 403);
+        }
+
         $rules = [
             'name' => 'required|min:3',
             'username' => 'required|min:5|unique:users,username',
@@ -452,6 +456,10 @@ class ApiManagementController extends Controller
                 }
             }
             // ------------------------------------------------------------
+            
+            if (checkSiteLimit()) {
+                return response()->json(['status' => 'Error', 'message' => 'Upgrade your plan'], 403);
+            }
             
             $id = DB::connection($conn)->table('sites')->insertGetId([
                 'name' => $request->name,
