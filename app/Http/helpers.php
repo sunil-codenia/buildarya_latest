@@ -290,7 +290,11 @@ function checkmodulepermission($module_id, $permission)
         return 0;
     }
     
-    $perm = session()->get('permissions')[0];
+    $perms = session()->get('permissions');
+    if (!is_array($perms) || !isset($perms[0]) || !is_array($perms[0])) {
+        return 0;
+    }
+    $perm = $perms[0];
     if (!isset($perm[$module_id][$permission])) {
         return 0;
     }

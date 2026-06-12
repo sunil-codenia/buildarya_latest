@@ -223,6 +223,10 @@ class TaskWebController extends Controller
         }
 
         $uid    = session()->get('uid');
+        if (!$uid) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
         $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
 
         // A non-admin user may only read their own thread.
@@ -266,6 +270,10 @@ class TaskWebController extends Controller
         }
 
         $uid     = session()->get('uid');
+        if (!$uid) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
         $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
 
         // The thread key (user_id) must either be the current user's own ID
