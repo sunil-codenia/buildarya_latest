@@ -287,7 +287,7 @@ function checkmodulepermission($module_id, $permission)
     }
 
     if (session()->get('role_perms_set') === false) {
-        return 1;
+        return 0;
     }
     
     $perm = session()->get('permissions')[0];
