@@ -59,25 +59,61 @@ class MigrateCompanyTables extends Command
             try {
                 DB::connection($connName)->statement("
                     CREATE TABLE IF NOT EXISTS `attendance` (
-                        `id`           INT AUTO_INCREMENT PRIMARY KEY,
-                        `user_id`      INT NOT NULL,
-                        `site_id`      INT DEFAULT NULL,
-                        `date`         DATE NOT NULL,
-                        `in_time`      DATETIME DEFAULT NULL,
-                        `out_time`     DATETIME DEFAULT NULL,
-                        `status`       ENUM('Present','Absent','Half Day','Leave','Holiday') NOT NULL DEFAULT 'Present',
-                        `in_location`  TEXT DEFAULT NULL,
-                        `out_location` TEXT DEFAULT NULL,
-                        `image`        VARCHAR(500) DEFAULT NULL,
-                        `out_image`    VARCHAR(500) DEFAULT NULL,
-                        `remarks`      TEXT DEFAULT NULL,
-                        `created_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        `updated_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        `id`             INT AUTO_INCREMENT PRIMARY KEY,
+                        `user_id`        INT NULL DEFAULT NULL,
+                        `bills_party_id` INT NULL DEFAULT NULL,
+                        `site_id`        INT DEFAULT NULL,
+                        `date`           DATE NOT NULL,
+                        `in_time`        DATETIME DEFAULT NULL,
+                        `out_time`       DATETIME DEFAULT NULL,
+                        `status`         ENUM('Present','Absent','Half Day','Leave','Holiday') NOT NULL DEFAULT 'Present',
+                        `in_location`    TEXT DEFAULT NULL,
+                        `out_location`   TEXT DEFAULT NULL,
+                        `image`          VARCHAR(500) DEFAULT NULL,
+                        `out_image`      VARCHAR(500) DEFAULT NULL,
+                        `remarks`        TEXT DEFAULT NULL,
+                        `created_at`     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at`     TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         INDEX `idx_user_id` (`user_id`),
+                        INDEX `idx_bills_party_id` (`bills_party_id`),
                         INDEX `idx_site_id` (`site_id`),
-                        INDEX `idx_date`    (`date`)
+                        INDEX `idx_date`    (`date`),
+                        UNIQUE KEY `attendance_user_date_unique` (`user_id`, `date`),
+                        UNIQUE KEY `attendance_party_date_unique` (`bills_party_id`, `date`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                 ");
+
+                // Alter user_id to make it nullable if it already exists as NOT NULL
+                try {
+                    DB::connection($connName)->statement("ALTER TABLE `attendance` MODIFY COLUMN `user_id` INT NULL DEFAULT NULL");
+                } catch (\Exception $e) {
+                    // Ignore if alter fails or not needed
+                }
+
+                // Add bills_party_id if it does not exist
+                if (!\Illuminate\Support\Facades\Schema::connection($connName)->hasColumn('attendance', 'bills_party_id')) {
+                    try {
+                        DB::connection($connName)->statement("ALTER TABLE `attendance` ADD COLUMN `bills_party_id` INT NULL DEFAULT NULL AFTER `user_id`");
+                        DB::connection($connName)->statement("ALTER TABLE `attendance` ADD INDEX `idx_bills_party_id` (`bills_party_id`)");
+                    } catch (\Exception $e) {
+                        // Ignore if exists
+                    }
+                }
+
+                // Ensure unique key on bills_party_id + date exists
+                try {
+                    DB::connection($connName)->statement("ALTER TABLE `attendance` ADD UNIQUE KEY `attendance_party_date_unique` (`bills_party_id`, `date`)");
+                } catch (\Exception $e) {
+                    // Ignore if unique key already exists
+                }
+
+                // Ensure unique key on user_id + date exists
+                try {
+                    DB::connection($connName)->statement("ALTER TABLE `attendance` ADD UNIQUE KEY `attendance_user_date_unique` (`user_id`, `date`)");
+                } catch (\Exception $e) {
+                    // Ignore if unique key already exists
+                }
+
                 $this->line("    ✓ attendance table OK");
             } catch (\Exception $e) {
                 $this->error("    ✗ attendance table FAILED: " . $e->getMessage());
@@ -120,13 +156,31 @@ class MigrateCompanyTables extends Command
                         `id`           INT AUTO_INCREMENT PRIMARY KEY,
                         `user_id`      INT NOT NULL,
                         `sender_id`    INT NOT NULL,
-                        `message`      TEXT NOT NULL,
+                        `message`      TEXT NULL,
+                        `image`        VARCHAR(255) NULL,
                         `created_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         `updated_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                         INDEX `idx_chat_user_id` (`user_id`),
                         INDEX `idx_chat_sender_id` (`sender_id`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                 ");
+
+                // Alter message to be nullable if it exists as NOT NULL
+                try {
+                    DB::connection($connName)->statement("ALTER TABLE `task_chats` MODIFY COLUMN `message` TEXT NULL");
+                } catch (\Exception $e) {
+                    // Ignore if fails
+                }
+
+                // Add image column if it does not exist
+                if (!\Illuminate\Support\Facades\Schema::connection($connName)->hasColumn('task_chats', 'image')) {
+                    try {
+                        DB::connection($connName)->statement("ALTER TABLE `task_chats` ADD COLUMN `image` VARCHAR(255) NULL AFTER `message`");
+                    } catch (\Exception $e) {
+                        // Ignore if fails
+                    }
+                }
+
                 $this->line("    ✓ task_chats table OK");
             } catch (\Exception $e) {
                 $this->error("    ✗ task_chats table FAILED: " . $e->getMessage());

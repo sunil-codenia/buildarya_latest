@@ -28,6 +28,7 @@ use App\Http\Controllers\api\ApiOtherPartyController;
 use App\Http\Controllers\api\ApiSettingsController;
 use App\Http\Controllers\api\ApiAttendanceController;
 use App\Http\Controllers\api\ApiTaskController;
+use App\Http\Controllers\api\ApiChatController;
 
 /*
 |--------------------------------------------------------------------------
@@ -484,6 +485,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/tasks/{id}', [ApiTaskController::class, 'update']);
         Route::post('/tasks/update/{id}', [ApiTaskController::class, 'update']);
         Route::delete('/tasks/{id}', [ApiTaskController::class, 'destroy']);
+
+        // Chat API Suite
+        Route::get('/chats', [ApiChatController::class, 'index']);
+        Route::post('/chats', [ApiChatController::class, 'store']);
 
         // Payment Vouchers API Suite
         Route::get("/payment-vouchers/pending", [ApiPaymentVoucherController::class, "listPending"]);
