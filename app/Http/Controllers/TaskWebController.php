@@ -311,13 +311,122 @@ class TaskWebController extends Controller
         return response()->json(['status' => 'success']);
     }
 
+    public function fetchTaskMessages(Request $request, $taskId)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $uid = session()->get('uid');
+        if (!$uid) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $task = DB::connection($conn)->table('tasks')->where('id', $taskId)->first();
+        if (!$task) {
+            return response()->json(['status' => 'error', 'message' => 'Task not found.'], 404);
+        }
+
+        $isChatAdmin = isSuperAdmin();
+        $isAssigned = ($task->assigned_to == $uid);
+        $isCreator = ($task->assigned_by == $uid);
+
+        // A user can only fetch messages for a task if they are admin, assignee, or creator.
+        if (!$isChatAdmin && !$isAssigned && !$isCreator) {
+            return response()->json(['status' => 'error', 'message' => 'Access denied.'], 403);
+        }
+
+        $this->ensureTableExists($conn);
+
+        $messages = DB::connection($conn)
+            ->table('task_chats')
+            ->leftJoin('users', 'users.id', '=', 'task_chats.sender_id')
+            ->select('task_chats.*', 'users.name as sender_name')
+            ->where('task_chats.task_id', (int)$taskId)
+            ->orderBy('task_chats.created_at', 'asc')
+            ->get();
+
+        return response()->json([
+            'status'          => 'success',
+            'messages'        => $messages,
+            'current_user_id' => (int)$uid,
+        ]);
+    }
+
+    public function sendTaskMessage(Request $request)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'task_id' => 'required|integer',
+            'message' => 'nullable|string|max:5000',
+            'image'   => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
+        ]);
+
+        if (!$request->filled('message') && !$request->hasFile('image')) {
+            return response()->json(['status' => 'error', 'message' => 'Please type a message or upload an image.'], 422);
+        }
+
+        $uid = session()->get('uid');
+        if (!$uid) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $taskId = $request->task_id;
+        $task = DB::connection($conn)->table('tasks')->where('id', $taskId)->first();
+        if (!$task) {
+            return response()->json(['status' => 'error', 'message' => 'Task not found.'], 404);
+        }
+
+        $isChatAdmin = isSuperAdmin();
+        $isAssigned = ($task->assigned_to == $uid);
+        $isCreator = ($task->assigned_by == $uid);
+
+        // A user can only send messages to a task if they are admin, assignee, or creator.
+        if (!$isChatAdmin && !$isAssigned && !$isCreator) {
+            return response()->json(['status' => 'error', 'message' => 'Access denied.'], 403);
+        }
+
+        $this->ensureTableExists($conn);
+
+        $imagePath = null;
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            if ($file->isValid()) {
+                $path = public_path('uploads/chat');
+                if (!\Illuminate\Support\Facades\File::exists($path)) {
+                    \Illuminate\Support\Facades\File::makeDirectory($path, 0777, true, true);
+                }
+                $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->move($path, $filename);
+                $imagePath = 'uploads/chat/' . $filename;
+            }
+        }
+
+        DB::connection($conn)->table('task_chats')->insert([
+            'task_id'    => (int)$taskId,
+            'user_id'    => (int)$task->assigned_to,
+            'sender_id'  => (int)$uid,
+            'message'    => $request->filled('message') ? trim($request->message) : null,
+            'image'      => $imagePath,
+            'created_at' => Carbon::now()->toDateTimeString(),
+            'updated_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        return response()->json(['status' => 'success']);
+    }
+
     private function ensureTableExists($conn)
     {
         try {
             DB::connection($conn)->statement("
                 CREATE TABLE IF NOT EXISTS `task_chats` (
                     `id` INT AUTO_INCREMENT PRIMARY KEY,
-                    `user_id` INT NOT NULL,
+                    `user_id` INT NULL,
                     `sender_id` INT NOT NULL,
                     `message` TEXT NULL,
                     `image` VARCHAR(255) NULL,
@@ -328,11 +437,19 @@ class TaskWebController extends Controller
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
             
+            // Alter to add task_id column if it doesn't exist
+            if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('task_chats', 'task_id')) {
+                DB::connection($conn)->statement("ALTER TABLE `task_chats` ADD COLUMN `task_id` INT NULL AFTER `id`, ADD INDEX (`task_id`)");
+            }
+
             // Alter to add image column if it doesn't exist
             if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('task_chats', 'image')) {
                 DB::connection($conn)->statement("ALTER TABLE `task_chats` ADD COLUMN `image` VARCHAR(255) NULL AFTER `message`");
             }
             
+            // Alter to make user_id nullable if it was not
+            DB::connection($conn)->statement("ALTER TABLE `task_chats` MODIFY COLUMN `user_id` INT NULL");
+
             // Alter to make message nullable if it was not
             DB::connection($conn)->statement("ALTER TABLE `task_chats` MODIFY COLUMN `message` TEXT NULL");
         } catch (\Exception $e) {

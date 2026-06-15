@@ -616,12 +616,14 @@ class CompanyRegistrationController extends Controller
             DB::connection($connName)->statement("
                 CREATE TABLE IF NOT EXISTS `task_chats` (
                     `id` INT AUTO_INCREMENT PRIMARY KEY,
-                    `user_id` INT NOT NULL,
+                    `task_id` INT NULL DEFAULT NULL,
+                    `user_id` INT NULL DEFAULT NULL,
                     `sender_id` INT NOT NULL,
                     `message` TEXT NULL,
                     `image` VARCHAR(255) NULL,
                     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`task_id`),
                     INDEX (`user_id`),
                     INDEX (`sender_id`),
                     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,

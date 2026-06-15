@@ -206,4 +206,125 @@ class ChatSecurityTest extends TestCase
         ]);
         $response->assertStatus(200);
     }
+
+    public function test_task_chat_security_rules()
+    {
+        $conn = 'company_rsgeotech';
+        
+        // Dynamically add columns if they are missing in the test database schema
+        if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'assigned_to')) {
+            DB::connection($conn)->statement("ALTER TABLE `tasks` ADD COLUMN `assigned_to` INT NULL");
+        }
+        if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'assigned_by')) {
+            DB::connection($conn)->statement("ALTER TABLE `tasks` ADD COLUMN `assigned_by` INT NULL");
+        }
+        
+        // Ensure tasks table and database connections work
+        // Insert a test task
+        $taskData = [
+            'title' => 'Test Task',
+            'description' => 'Test Description',
+            'site_id' => 0,
+            'assigned_to' => 82, // Assigned to user 82 (sunil)
+            'assigned_by' => 5,  // Created by user 5
+            'created_by' => 5,   // Created by user 5
+            'status' => 'Pending',
+            'priority' => 'Medium',
+            'created_at' => now(),
+        ];
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'updated_at')) {
+            $taskData['updated_at'] = now();
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'project_id')) {
+            $taskData['project_id'] = 0;
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'total_units')) {
+            $taskData['total_units'] = 0;
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'unit_type')) {
+            $taskData['unit_type'] = '';
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'task_type')) {
+            $taskData['task_type'] = 'TASK';
+        }
+        if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'parent_task_id')) {
+            $taskData['parent_task_id'] = 0;
+        }
+        $taskId = DB::connection($conn)->table('tasks')->insertGetId($taskData);
+
+        // 1. Participant (Assignee: 82) session data
+        $assigneeSession = [
+            'key' => 'test-session-key',
+            'uid' => 82,
+            'name' => 'sunil',
+            'role' => 8,
+            'is_superadmin' => 'no',
+            'comp_db_conn_name' => $conn,
+            'role_perms_set' => true,
+            'permissions' => [[14 => ['can_view' => 1]]],
+            'company_modules' => [14],
+        ];
+
+        // 2. Participant (Creator/Admin: 5) session data
+        $creatorSession = [
+            'key' => 'test-session-key',
+            'uid' => 5,
+            'name' => 'admin',
+            'role' => 1,
+            'is_superadmin' => 'yes',
+            'comp_db_conn_name' => $conn,
+            'role_perms_set' => true,
+            'permissions' => [[14 => ['can_view' => 1]]],
+            'company_modules' => [14],
+        ];
+
+        // 3. Unauthorized User (User 99) session data
+        $unauthorizedSession = [
+            'key' => 'test-session-key',
+            'uid' => 99,
+            'name' => 'intruder',
+            'role' => 8,
+            'is_superadmin' => 'no',
+            'comp_db_conn_name' => $conn,
+            'role_perms_set' => true,
+            'permissions' => [[14 => ['can_view' => 1]]],
+            'company_modules' => [14],
+        ];
+
+        // --- FETCH MESSAGES TEST ---
+        
+        // Assignee can access task chat messages (should succeed, returns 200)
+        $response = $this->withSession($assigneeSession)->get('/tasks/chat/task-messages/' . $taskId);
+        $response->assertStatus(200);
+
+        // Creator/Admin can access task chat messages (should succeed, returns 200)
+        $response = $this->withSession($creatorSession)->get('/tasks/chat/task-messages/' . $taskId);
+        $response->assertStatus(200);
+
+        // Unauthorized user cannot access task chat messages (should return 403)
+        $response = $this->withSession($unauthorizedSession)->get('/tasks/chat/task-messages/' . $taskId);
+        $response->assertStatus(403);
+        $response->assertJsonFragment(['status' => 'error', 'message' => 'Access denied.']);
+
+        // --- SEND MESSAGES TEST ---
+
+        // Assignee can send messages (should succeed, returns 200)
+        $response = $this->withSession($assigneeSession)->postJson('/tasks/chat/task-send', [
+            'task_id' => $taskId,
+            'message' => 'Hello from assignee',
+        ]);
+        $response->assertStatus(200);
+
+        // Unauthorized user cannot send messages (should return 403)
+        $response = $this->withSession($unauthorizedSession)->postJson('/tasks/chat/task-send', [
+            'task_id' => $taskId,
+            'message' => 'Hello from unauthorized',
+        ]);
+        $response->assertStatus(403);
+        $response->assertJsonFragment(['status' => 'error', 'message' => 'Access denied.']);
+
+        // Cleanup the test task and test chat messages
+        DB::connection($conn)->table('task_chats')->where('task_id', $taskId)->delete();
+        DB::connection($conn)->table('tasks')->where('id', $taskId)->delete();
+    }
 }

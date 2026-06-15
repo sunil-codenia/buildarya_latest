@@ -124,9 +124,7 @@
                                     <th>Priority</th>
                                     <th>Due Date</th>
                                     <th>Status</th>
-                                    @if(checkmodulepermission(14, 'can_edit') == 1 || checkmodulepermission(14, 'can_delete') == 1)
-                                        <th>Actions</th>
-                                    @endif
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -189,9 +187,15 @@
                                                 <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;">{{ $task->status == 'Progress' ? 'In Progress' : $task->status }}</span>
                                             @endif
                                         </td>
-                                        @if(checkmodulepermission(14, 'can_edit') == 1 || checkmodulepermission(14, 'can_delete') == 1)
-                                            <td>
-                                                <div class="d-flex align-items-center">
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <!-- Chat Button -->
+                                                <button type="button" class="btn btn-neutral btn-sm btn-round text-success mr-2 open-task-chat-btn" 
+                                                    data-task-id="{{ $task->id }}" 
+                                                    data-task-title="{{ $task->title }}"
+                                                    style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                                                    <i class="zmdi zmdi-comments"></i> Chat
+                                                </button>
                                                 @if(checkmodulepermission(14, 'can_edit') == 1)
                                                     <button type="button" class="btn btn-neutral btn-sm btn-round text-primary mr-2 edit-task-btn" 
                                                         data-id="{{ $task->id }}" 
@@ -214,9 +218,8 @@
                                                         </button>
                                                     </form>
                                                 @endif
-                                                </div>
-                                            </td>
-                                        @endif
+                                            </div>
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr>
@@ -537,6 +540,53 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+    <!-- Task Chat Modal -->
+    <div class="modal fade" id="taskChatModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content" style="border-radius: 15px; overflow: hidden; border: none; height: 85vh;">
+                <div class="modal-header p-4" style="background: linear-gradient(135deg, #1f4068 0%, #162447 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
+                    <h5 class="modal-title m-0" style="color: white !important;" id="taskChatModalLabel">
+                        <i class="zmdi zmdi-comments mr-2"></i> <strong>Task Chat: <span id="chatTaskTitle"></span></strong>
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: white; opacity: 0.8;">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body p-0 d-flex flex-column" style="height: calc(85vh - 70px); background: #f8f9fa;">
+                    <!-- Messages Area -->
+                    <div id="taskChatMessages" class="flex-grow-1 p-4" style="overflow-y: auto; max-height: calc(85vh - 170px);">
+                        <!-- Messages will load dynamically here -->
+                    </div>
+                    
+                    <!-- Input Area -->
+                    <div class="p-3 bg-white" style="border-top: 1px solid #eee;">
+                        <form id="taskChatForm" enctype="multipart/form-data">
+                            @csrf
+                            <input type="hidden" id="chatTaskId" name="task_id" value="">
+                            <div class="input-group align-items-center">
+                                <!-- Image Preview Container -->
+                                <div id="taskChatImagePreviewContainer" class="w-100 mb-2 d-none" style="position: relative;">
+                                    <img id="taskChatImagePreview" src="" alt="Preview" style="max-height: 80px; border-radius: 8px;">
+                                    <button type="button" id="removeTaskChatImage" class="btn btn-danger btn-sm p-1" style="position: absolute; top: 0; left: 90px; border-radius: 50%; width: 20px; height: 20px; line-height: 10px;">&times;</button>
+                                </div>
+                                
+                                <label for="taskChatImage" class="btn btn-neutral btn-sm btn-round m-0 mr-2 text-primary" style="cursor: pointer; padding: 10px 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                                    <i class="zmdi zmdi-image" style="font-size: 16px;"></i>
+                                    <input type="file" id="taskChatImage" name="image" accept="image/*" class="d-none">
+                                </label>
+                                
+                                <input type="text" id="taskChatMessageInput" name="message" class="form-control mr-2" placeholder="Type a message..." style="border-radius: 20px; border: 1px solid #ddd; padding: 12px 20px;" autocomplete="off">
+                                
+                                <button type="submit" class="btn btn-primary btn-round waves-effect m-0" style="background: linear-gradient(135deg, #1f4068 0%, #162447 100%); border: none; padding: 10px 20px; border-radius: 20px;">
+                                    <i class="zmdi zmdi-send"></i> Send
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -876,6 +926,173 @@
                 $('.emoji-picker-popover').hide();
             }
         });
+
+        // ==========================================
+        // Task-Specific Chat Logic
+        // ==========================================
+        let taskChatInterval = null;
+        let activeTaskId = null;
+
+        // Open task chat modal
+        $(document).on('click', '.open-task-chat-btn', function() {
+            const taskId = $(this).data('task-id');
+            const taskTitle = $(this).data('task-title');
+            
+            activeTaskId = taskId;
+            $('#chatTaskId').val(taskId);
+            $('#chatTaskTitle').text(taskTitle);
+            
+            // Clear message list & form
+            $('#taskChatMessages').html('<div class="text-center p-3 text-muted"><i class="zmdi zmdi-hc-spin zmdi-spinner mr-2"></i>Loading messages...</div>');
+            $('#taskChatMessageInput').val('');
+            $('#taskChatImage').val('');
+            $('#taskChatImagePreviewContainer').addClass('d-none');
+            $('#taskChatImagePreview').attr('src', '');
+            
+            // Show modal
+            $('#taskChatModal').modal('show');
+            
+            // Fetch messages immediately
+            fetchTaskMessages(taskId);
+            
+            // Setup polling every 3 seconds
+            if (taskChatInterval) {
+                clearInterval(taskChatInterval);
+            }
+            taskChatInterval = setInterval(function() {
+                if (activeTaskId) {
+                    fetchTaskMessages(activeTaskId);
+                }
+            }, 3000);
+        });
+
+        // Clear polling when task chat modal is closed
+        $('#taskChatModal').on('hidden.bs.modal', function() {
+            if (taskChatInterval) {
+                clearInterval(taskChatInterval);
+                taskChatInterval = null;
+            }
+            activeTaskId = null;
+        });
+
+        // Image attachment selection preview
+        $('#taskChatImage').on('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    $('#taskChatImagePreview').attr('src', e.target.result);
+                    $('#taskChatImagePreviewContainer').removeClass('d-none');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Remove selected image attachment
+        $('#removeTaskChatImage').on('click', function() {
+            $('#taskChatImage').val('');
+            $('#taskChatImagePreviewContainer').addClass('d-none');
+            $('#taskChatImagePreview').attr('src', '');
+        });
+
+        // Submit task chat message
+        $('#taskChatForm').on('submit', function(e) {
+            e.preventDefault();
+            const taskId = $('#chatTaskId').val();
+            const message = $('#taskChatMessageInput').val().trim();
+            const file = $('#taskChatImage')[0].files[0];
+            
+            if (!message && !file) return;
+
+            const formData = new FormData();
+            formData.append('_token', '{{ csrf_token() }}');
+            formData.append('task_id', taskId);
+            formData.append('message', message);
+            if (file) {
+                formData.append('image', file);
+            }
+
+            const $submitBtn = $(this).find('button[type="submit"]');
+            $submitBtn.prop('disabled', true);
+
+            $.ajax({
+                url: '{{ url("/tasks/chat/task-send") }}',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(res) {
+                    if (res.status === 'success') {
+                        // Clear input and previews
+                        $('#taskChatMessageInput').val('');
+                        $('#taskChatImage').val('');
+                        $('#taskChatImagePreviewContainer').addClass('d-none');
+                        $('#taskChatImagePreview').attr('src', '');
+                        
+                        // Refetch messages immediately
+                        fetchTaskMessages(taskId);
+                    } else {
+                        alert(res.message || 'Failed to send message.');
+                    }
+                },
+                error: function(err) {
+                    alert(err.responseJSON ? err.responseJSON.message : 'Error sending message.');
+                },
+                complete: function() {
+                    $submitBtn.prop('disabled', false);
+                }
+            });
+        });
+
+        // Function to fetch task chat messages
+        function fetchTaskMessages(taskId) {
+            $.ajax({
+                url: '{{ url("/tasks/chat/task-messages") }}/' + taskId,
+                method: 'GET',
+                success: function(res) {
+                    if (res.status === 'success' && activeTaskId == taskId) {
+                        const messages = res.messages;
+                        const currentUserId = res.current_user_id;
+                        let html = '';
+                        
+                        if (messages.length === 0) {
+                            html = '<div class="text-center p-5 text-muted" style="font-size: 13px;"><i class="zmdi zmdi-comments mb-2" style="font-size: 24px; opacity: 0.5;"></i><br>No messages yet. Start the conversation!</div>';
+                        } else {
+                            messages.forEach(function(msg) {
+                                const isSelf = (msg.sender_id === currentUserId);
+                                const alignment = isSelf ? 'justify-content-end' : 'justify-content-start';
+                                const bubbleBg = isSelf ? 'background: #eda61a; color: white;' : 'background: white; color: #333; border: 1px solid #eef0f5;';
+                                const senderName = isSelf ? 'You' : msg.sender_name;
+                                
+                                html += '<div class="d-flex ' + alignment + ' mb-3">';
+                                html += '    <div class="message-bubble p-3" style="max-width: 70%; border-radius: 15px; ' + bubbleBg + ' box-shadow: 0 2px 5px rgba(0,0,0,0.02);">';
+                                html += '        <div class="message-sender font-weight-bold mb-1" style="font-size: 10px; opacity: 0.85;">' + senderName + '</div>';
+                                if (msg.message) {
+                                    html += '        <div class="message-text" style="font-size: 13px; line-height: 1.4; word-break: break-word;">' + msg.message + '</div>';
+                                }
+                                if (msg.image) {
+                                    const imgSrc = '{{ asset("/") }}' + msg.image;
+                                    html += '        <div class="message-image mt-2"><a href="' + imgSrc + '" target="_blank"><img src="' + imgSrc + '" alt="Attachment" style="max-width: 100%; max-height: 200px; border-radius: 8px;"></a></div>';
+                                }
+                                html += '        <div class="message-time text-right mt-1" style="font-size: 9px; opacity: 0.7;">' + formatTime(msg.created_at) + '</div>';
+                                html += '    </div>';
+                                html += '</div>';
+                            });
+                        }
+                        
+                        const $container = $('#taskChatMessages');
+                        const isAtBottom = ($container.scrollTop() + $container.innerHeight() >= $container.prop('scrollHeight') - 50);
+                        
+                        $container.html(html);
+                        
+                        // Auto-scroll to bottom if they were already near bottom, or if this is the first load
+                        if (isAtBottom || $container.find('.zmdi-spinner').length > 0 || $container.scrollTop() === 0) {
+                            $container.scrollTop($container.prop('scrollHeight'));
+                        }
+                    }
+                }
+            });
+        }
     });
     </script>
 @endsection

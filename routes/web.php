@@ -540,6 +540,8 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/tasks/status/{id}', [TaskWebController::class, 'updateStatus']);
         Route::get('/tasks/chat/messages/{user_id}', [TaskWebController::class, 'fetchMessages']);
         Route::post('/tasks/chat/send', [TaskWebController::class, 'sendMessage']);
+        Route::get('/tasks/chat/task-messages/{task_id}', [TaskWebController::class, 'fetchTaskMessages']);
+        Route::post('/tasks/chat/task-send', [TaskWebController::class, 'sendTaskMessage']);
     });
 
     // excelimport file------------
