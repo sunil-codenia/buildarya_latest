@@ -25,6 +25,7 @@ class TaskWebController extends Controller
 
         // Admins (can_add permission) see all tasks; regular users only see their own
         $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
+        $isChatAdmin = isSuperAdmin();
 
         // Query Tasks
         $query = DB::connection($conn)->table('tasks')
@@ -63,7 +64,7 @@ class TaskWebController extends Controller
         $inProgress = $tasks->where('status', 'Progress')->count();
         $completed = $tasks->where('status', 'Completed')->count();
 
-        return view('layouts.tasks.index', compact('tasks', 'sites', 'users', 'totalTasks', 'pending', 'inProgress', 'completed', 'isAdmin'));
+        return view('layouts.tasks.index', compact('tasks', 'sites', 'users', 'totalTasks', 'pending', 'inProgress', 'completed', 'isAdmin', 'isChatAdmin'));
     }
 
     public function store(Request $request)
@@ -227,11 +228,11 @@ class TaskWebController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
+        $isChatAdmin = isSuperAdmin();
 
         // A non-admin user may only read their own thread.
         // An admin may read ANY thread (identified by the non-admin user's ID).
-        if (!$isAdmin && (int)$uid !== (int)$userId) {
+        if (!$isChatAdmin && (int)$uid !== (int)$userId) {
             return response()->json(['status' => 'error', 'message' => 'Access denied.'], 403);
         }
 
@@ -274,11 +275,11 @@ class TaskWebController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
+        $isChatAdmin = isSuperAdmin();
 
         // The thread key (user_id) must either be the current user's own ID
         // OR the admin is sending to any user.
-        if (!$isAdmin && (int)$uid !== (int)$request->user_id) {
+        if (!$isChatAdmin && (int)$uid !== (int)$request->user_id) {
             return response()->json(['status' => 'error', 'message' => 'Access denied.'], 403);
         }
 

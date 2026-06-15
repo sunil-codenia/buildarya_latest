@@ -73,6 +73,7 @@ class LoginController extends Controller
                              "company_modules" => $company_modules
                          ]);
                         foreach ($settings as $setting) {
+                            $request->session()->forget($setting->name);
                             $request->session()->push($setting->name, $setting->value);
                         }
                         $permissions = array();

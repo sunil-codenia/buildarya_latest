@@ -2,10 +2,10 @@
 
 <script >
     var r = document.querySelector(':root');
-    r.style.setProperty('--custom-primary', "{{Session::get('primary_color')[0]}}");
-    r.style.setProperty('--custom-secondary', "{{Session::get('secondry_color')[0]}}");
-    r.style.setProperty('--custom-gradient-start', "{{Session::get('gradient_start')[0]}}");
-    r.style.setProperty('--custom-gradient-end', "{{Session::get('gradient_end')[0]}}");
+    r.style.setProperty('--custom-primary', "{{ is_array(Session::get('primary_color')) ? Session::get('primary_color')[0] : (Session::get('primary_color') ?? '#6f42c1') }}");
+    r.style.setProperty('--custom-secondary', "{{ is_array(Session::get('secondry_color')) ? Session::get('secondry_color')[0] : (Session::get('secondry_color') ?? '#6f42c1') }}");
+    r.style.setProperty('--custom-gradient-start', "{{ is_array(Session::get('gradient_start')) ? Session::get('gradient_start')[0] : (Session::get('gradient_start') ?? '#6f42c1') }}");
+    r.style.setProperty('--custom-gradient-end', "{{ is_array(Session::get('gradient_end')) ? Session::get('gradient_end')[0] : (Session::get('gradient_end') ?? '#6f42c1') }}");
     document.getElementById('body').className.replace("theme-blue","");
 
     // document.querySelector('body').classList.remove('theme-blue');

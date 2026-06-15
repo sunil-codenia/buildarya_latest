@@ -17,6 +17,9 @@ class CompanyRegistrationController extends Controller
             'company.name' => 'sometimes|string|max:255',
             'company_name' => 'sometimes|string|max:255',
             'company.db_conn_name' => 'sometimes|string|max:50',
+            'company.uid' => 'sometimes|string|max:255',
+            'company_uid' => 'sometimes|string|max:255',
+            'uid' => 'sometimes|string|max:255',
 
             'subscription_plan_id' => 'sometimes|integer',
             'plan_name' => 'sometimes|string|max:255',
@@ -52,6 +55,7 @@ class CompanyRegistrationController extends Controller
             // ✅ 1. COMPANY LOGIC
             // =========================
             $companyId = $request->input('company.id') ?? $request->input('company_id');
+            $companyUid = $request->input('company.uid') ?? $request->input('company_uid') ?? $request->input('uid');
             $moduleIds = $request->input('modules', []);
             $companyName = $request->input('company.name') ?? $request->input('company_name');
             $companyData = $request->input('company', []);
@@ -67,19 +71,43 @@ class CompanyRegistrationController extends Controller
                     throw new \Exception("Company with ID $companyId not found.");
                 }
                 $companyId = $company->id;
-                $uid = $company->uid;
+                if ($companyUid) {
+                    $uid = $companyUid;
+                } else {
+                    $uid = $company->uid;
+                }
                 $connName = $company->db_conn_name;
-            } elseif ($companyName) {
-                $company = DB::table('companies')->where('name', $companyName)->first();
+            } elseif ($companyUid || $companyName) {
+                $company = null;
+                if ($companyUid) {
+                    $company = DB::table('companies')->where('uid', $companyUid)->first();
+                }
+                if (!$company && $companyName) {
+                    $company = DB::table('companies')->where('name', $companyName)->first();
+                }
+
                 if ($company) {
                     $companyId = $company->id;
-                    $uid = $company->uid;
+                    if ($companyUid) {
+                        $uid = $companyUid;
+                    } else {
+                        $uid = $company->uid;
+                    }
                     $connName = $company->db_conn_name;
                 } else {
                     // --- CREATE NEW COMPANY ---
                     // DDL statements (CREATE DATABASE, CREATE USER, GRANT) must run
                     // OUTSIDE any transaction because MySQL auto-commits on DDL.
-                    $uid = strtolower(preg_replace('/[^A-Za-z0-9]/', '_', $companyName));
+                    if ($companyUid) {
+                        $uid = $companyUid;
+                    } else {
+                        $uid = strtolower(preg_replace('/[^A-Za-z0-9]/', '_', $companyName));
+                    }
+
+                    if (!$companyName) {
+                        $companyName = $uid;
+                    }
+                    
                     $dbNamePrefix = config('database.name_prefix', 'company_');
                     $dbUserPrefix = config('database.user_prefix', 'company_');
                     
@@ -153,7 +181,7 @@ class CompanyRegistrationController extends Controller
                     \Log::info("Default roles seeded for company {$companyId}");
                 }
             } else {
-                throw new \Exception("Neither company ID nor company name provided.");
+                throw new \Exception("Neither company ID, company UID, nor company name provided.");
             }
 
             // =========================
@@ -173,6 +201,7 @@ class CompanyRegistrationController extends Controller
                     'subscription_platform_name' => $subPlatform,
                     'plan_name' => $subPlanName,
                     'expired' => $formattedExpiry,
+                    'uid' => $uid,
                 ];
 
                 if ($request->has('company.max_users') || $request->has('max_users')) {

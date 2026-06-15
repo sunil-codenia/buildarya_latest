@@ -131,4 +131,79 @@ class ChatSecurityTest extends TestCase
         ]);
         $response->assertStatus(200);
     }
+
+    public function test_non_admin_with_task_add_permission_cannot_access_other_users_messages()
+    {
+        // Mock session for user 82 (sunil) who has can_add permission for Tasks but is not an admin
+        $sessionData = [
+            'key' => 'test-session-key',
+            'uid' => 82,
+            'name' => 'sunil',
+            'role' => 8,
+            'is_superadmin' => 'no',
+            'comp_db_conn_name' => 'company_rsgeotech',
+            'role_perms_set' => true,
+            'permissions' => [
+                [
+                    14 => [
+                        'can_view' => 1,
+                        'can_add' => 1,
+                        'can_edit' => 0,
+                        'can_certify' => 0,
+                        'can_pay' => 0,
+                        'can_delete' => 0,
+                        'can_report' => 0,
+                    ]
+                ]
+            ],
+            'company_modules' => [14],
+        ];
+
+        // Call fetch messages for another user (e.g. user 5) -> should be forbidden (403)
+        $response = $this->withSession($sessionData)->get('/tasks/chat/messages/5');
+        $response->assertStatus(403);
+        $response->assertJsonFragment(['status' => 'error', 'message' => 'Access denied.']);
+
+        // Call fetch messages for their own ID (82) -> should succeed (200)
+        $response = $this->withSession($sessionData)->get('/tasks/chat/messages/82');
+        $response->assertStatus(200);
+    }
+
+    public function test_non_admin_with_task_add_permission_cannot_send_messages_to_other_users()
+    {
+        // Mock session for user 82 (sunil) who has can_add permission for Tasks but is not an admin
+        $sessionData = [
+            'key' => 'test-session-key',
+            'uid' => 82,
+            'name' => 'sunil',
+            'role' => 8,
+            'is_superadmin' => 'no',
+            'comp_db_conn_name' => 'company_rsgeotech',
+            'role_perms_set' => true,
+            'permissions' => [
+                [
+                    14 => [
+                        'can_view' => 1,
+                        'can_add' => 1,
+                    ]
+                ]
+            ],
+            'company_modules' => [14],
+        ];
+
+        // Try to send message as user 82 to user 5 -> should be forbidden (403)
+        $response = $this->withSession($sessionData)->postJson('/tasks/chat/send', [
+            'user_id' => 5,
+            'message' => 'Hello',
+        ]);
+        $response->assertStatus(403);
+        $response->assertJsonFragment(['status' => 'error', 'message' => 'Access denied.']);
+
+        // Send message to themselves (thread 82) -> should succeed (200)
+        $response = $this->withSession($sessionData)->postJson('/tasks/chat/send', [
+            'user_id' => 82,
+            'message' => 'Hello',
+        ]);
+        $response->assertStatus(200);
+    }
 }

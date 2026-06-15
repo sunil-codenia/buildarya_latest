@@ -77,6 +77,22 @@ class ApiAttendanceController extends Controller
                 ]);
             }
 
+            // Resolve company uid for file upload path
+            $company = DB::connection('mysql')->table('companies')->where('db_conn_name', $conn)->first();
+            $comp_id = $company ? $company->uid : $conn;
+
+            $imagePath = null;
+            if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $dirPath = public_path("images/app_images/{$comp_id}/attendance");
+                if (!File::exists($dirPath)) {
+                    File::makeDirectory($dirPath, 0755, true);
+                }
+                $fileName = time() . '_in_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->move($dirPath, $fileName);
+                $imagePath = "images/app_images/{$comp_id}/attendance/{$fileName}";
+            }
+
             $attendance_id = DB::connection($conn)->table('attendance')->insertGetId([
                 'user_id' => $uid,
                 'site_id' => $site_id,
@@ -85,6 +101,7 @@ class ApiAttendanceController extends Controller
                 'status' => 'Present',
                 'in_location' => $in_location,
                 'remarks' => $remarks,
+                'image' => $imagePath,
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
@@ -153,19 +170,42 @@ class ApiAttendanceController extends Controller
                 ]);
             }
 
+            // Resolve company uid for file upload path
+            $company = DB::connection('mysql')->table('companies')->where('db_conn_name', $conn)->first();
+            $comp_id = $company ? $company->uid : $conn;
+
+            $outImagePath = null;
+            $fileInputKey = $request->hasFile('out_image') ? 'out_image' : 'image';
+            if ($request->hasFile($fileInputKey)) {
+                $file = $request->file($fileInputKey);
+                $dirPath = public_path("images/app_images/{$comp_id}/attendance");
+                if (!File::exists($dirPath)) {
+                    File::makeDirectory($dirPath, 0755, true);
+                }
+                $fileName = time() . '_out_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->move($dirPath, $fileName);
+                $outImagePath = "images/app_images/{$comp_id}/attendance/{$fileName}";
+            }
+
             $updatedRemarks = $attendance->remarks;
             if ($remarks) {
                 $updatedRemarks = $updatedRemarks ? $updatedRemarks . ' | Out: ' . $remarks : $remarks;
             }
 
+            $updateData = [
+                'out_time' => $out_time,
+                'out_location' => $out_location,
+                'remarks' => $updatedRemarks,
+                'updated_at' => now()
+            ];
+
+            if ($outImagePath) {
+                $updateData['out_image'] = $outImagePath;
+            }
+
             DB::connection($conn)->table('attendance')
                 ->where('id', $attendance->id)
-                ->update([
-                    'out_time' => $out_time,
-                    'out_location' => $out_location,
-                    'remarks' => $updatedRemarks,
-                    'updated_at' => now()
-                ]);
+                ->update($updateData);
 
             addActivity($attendance->id, 'attendance', "User clocked out for " . $date, 13, $uid, $conn);
 

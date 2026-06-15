@@ -275,16 +275,16 @@
                     <form method="post" action="{{url('/changecolor')}}" enctype="multipart/form-data">
                         @csrf
                         <label for="primary_color">Primary Color</label>&nbsp;
-                    <input type="color" name="primary_color" value="{{Session::get('primary_color')[0]}}" id="primary_color">
+                    <input type="color" name="primary_color" value="{{ is_array(Session::get('primary_color')) ? Session::get('primary_color')[0] : (Session::get('primary_color') ?? '#6f42c1') }}" id="primary_color">
                     <br>
                     <label for="secondry_color">Secondry Color</label>&nbsp;
-                    <input type="color" name="secondry_color" value="{{Session::get('secondry_color')[0]}}" id="secondry_color">
+                    <input type="color" name="secondry_color" value="{{ is_array(Session::get('secondry_color')) ? Session::get('secondry_color')[0] : (Session::get('secondry_color') ?? '#6f42c1') }}" id="secondry_color">
                     <br>
                     <label for="gradient_start">Gradient Start</label>&nbsp;
-                    <input type="color" name="gradient_start" value="{{Session::get('gradient_start')[0]}}" id="gradient_start">
+                    <input type="color" name="gradient_start" value="{{ is_array(Session::get('gradient_start')) ? Session::get('gradient_start')[0] : (Session::get('gradient_start') ?? '#6f42c1') }}" id="gradient_start">
                     <br>
                     <label for="gradient_end">Gradient End</label>&nbsp;
-                    <input type="color" name="gradient_end" value="{{Session::get('gradient_end')[0]}}" id="gradient_end">
+                    <input type="color" name="gradient_end" value="{{ is_array(Session::get('gradient_end')) ? Session::get('gradient_end')[0] : (Session::get('gradient_end') ?? '#6f42c1') }}" id="gradient_end">
                     <br>
                     <button type="submit" class="btn btn-primary btn-simple btn-round waves-effect"><a >Submit</a></button>
                     </form>
@@ -292,11 +292,14 @@
                 <div class="card">
                     <h6>Left Menu</h6>
                     <ul class="list-unstyled theme-light-dark">
+                        @php
+                            $isLight = Session::has('menutheme') && (is_array(Session::get('menutheme')) ? Session::get('menutheme')[0] : Session::get('menutheme')) === 'menu_light';
+                        @endphp
                         <li>
-                            <div class="t-light btn btn-default btn-simple btn-round">Light</div>
+                            <div class="t-light btn btn-default {{ $isLight ? '' : 'btn-simple' }} btn-round">Light</div>
                         </li>
                         <li>
-                            <div class="t-dark btn btn-default btn-round">Dark</div>
+                            <div class="t-dark btn btn-default {{ $isLight ? 'btn-simple' : '' }} btn-round">Dark</div>
                         </li>
                     </ul>
                 </div>

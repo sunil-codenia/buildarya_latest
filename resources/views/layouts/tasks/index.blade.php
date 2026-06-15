@@ -244,7 +244,7 @@
                 </div>
                 <div class="body p-0">
                     <div class="row no-gutters">
-                        @if($isAdmin)
+                        @if($isChatAdmin)
                             <!-- Users List Sidebar (Admin only) -->
                             <div class="col-lg-4 col-md-4 col-sm-12" style="border-right: 1px solid #eee; background: #fdfdfd; max-height: 500px; overflow-y: auto;">
                                 <div class="p-3" style="border-bottom: 1px solid #f0f0f0;">
@@ -571,7 +571,7 @@
     $(document).ready(function() {
         let activeChatUserId = null;
         let chatInterval = null;
-        const isAdmin = {{ $isAdmin ? 'true' : 'false' }};
+        const isAdmin = {{ $isChatAdmin ? 'true' : 'false' }};
         const currentUserId = {{ session('uid') ?? 'null' }};
 
         // User Search in Sidebar

@@ -8,8 +8,8 @@ use Carbon\Carbon;
 use Session;
 class SettingsController extends Controller
 {
-    public function changetheme(Request $request){
-        $themecolor = $request->color;
+    public function changetheme(Request $request, $color){
+        $themecolor = $color;
         $db_conn = $request->session()->get('comp_db_conn_name');
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
@@ -34,8 +34,7 @@ public function index(Request $request){
     $data = DB::connection($user_db_conn_name)->table('settings')->get();
     return  view('layouts.management.settings')->with('data',json_encode($data));
 }
-    public function menutheme(Request $request){
-        $themecolor = $request->themecolor;
+    public function menutheme(Request $request, $themecolor){
         $db_conn = $request->session()->get('comp_db_conn_name');
         $uid = $request->session()->get('uid');
         $mytime = Carbon::now();
