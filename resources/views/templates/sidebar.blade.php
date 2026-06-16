@@ -288,7 +288,7 @@
                     <br>
                     <button type="submit" class="btn btn-primary btn-simple btn-round waves-effect"><a >Submit</a></button>
                     </form>
-                </div>
+                @endif
                 <div class="card">
                     <h6>Left Menu</h6>
                     <ul class="list-unstyled theme-light-dark">
@@ -303,7 +303,6 @@
                         </li>
                     </ul>
                 </div>
-                @endif
                
             </div>                
         </div>       

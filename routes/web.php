@@ -466,11 +466,12 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/reject_Paidpaymentvoucher_by_id', [PaymentVoucherController::class, 'reject_Paidpaymentvoucher_by_id']);
     });
 
+    Route::get('/changetheme/{color}', [SettingsController::class, 'changetheme']);
+    Route::get('/menutheme/{themecolor}', [SettingsController::class, 'menutheme']);
+
     // management routes route
     Route::group(['middleware' => ['module.access:9']], function () {
         Route::get('/settings', [SettingsController::class, 'index']);
-        Route::get('/changetheme/{color}', [SettingsController::class, 'changetheme']);
-        Route::get('/menutheme/{themecolor}', [SettingsController::class, 'menutheme']);
         Route::post('/changecolor', [SettingsController::class, 'changecolor']);
         Route::post('/updatebillsequence', [SettingsController::class, 'updatebillsequence']);
         Route::post('/updatepaymentvouchersequence', [SettingsController::class, 'updatepaymentvouchersequence']);

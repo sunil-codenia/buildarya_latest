@@ -64,7 +64,7 @@
                             {{-- Status --}}
                             <div class="col-lg-3 col-md-3 col-sm-6 mb-3">
                                 <label style="font-weight: 600; color: #555; font-size: 12px; margin-bottom: 5px;">Status</label>
-                                <select name="status" class="form-control show-tick">
+                                <select name="status" class="form-control" style="height: 38px !important; border-radius: 30px !important; padding: 6px 15px !important; border: 1px solid #E3E3E3 !important; background: #fff url('data:image/svg+xml;charset=utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 4 5\'%3E%3Cpath fill=\'%23888\' d=\'M2 0L0 2h4zm0 5L0 3h4z\'/%3E%3C/svg%3E') no-repeat right 15px center !important; background-size: 8px 10px !important; -webkit-appearance: none; -moz-appearance: none; appearance: none;">
                                     <option value="">All Statuses</option>
                                     <option value="Pending" {{ request('status') == 'Pending' ? 'selected' : '' }}>Pending</option>
                                     <option value="Progress" {{ request('status') == 'Progress' ? 'selected' : '' }}>In Progress</option>
@@ -75,7 +75,7 @@
                             {{-- Priority --}}
                             <div class="col-lg-3 col-md-3 col-sm-6 mb-3">
                                 <label style="font-weight: 600; color: #555; font-size: 12px; margin-bottom: 5px;">Priority</label>
-                                <select name="priority" class="form-control show-tick">
+                                <select name="priority" class="form-control" style="height: 38px !important; border-radius: 30px !important; padding: 6px 15px !important; border: 1px solid #E3E3E3 !important; background: #fff url('data:image/svg+xml;charset=utf8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 4 5\'%3E%3Cpath fill=\'%23888\' d=\'M2 0L0 2h4zm0 5L0 3h4z\'/%3E%3C/svg%3E') no-repeat right 15px center !important; background-size: 8px 10px !important; -webkit-appearance: none; -moz-appearance: none; appearance: none;">
                                     <option value="">All Priorities</option>
                                     <option value="Low" {{ request('priority') == 'Low' ? 'selected' : '' }}>Low</option>
                                     <option value="Medium" {{ request('priority') == 'Medium' ? 'selected' : '' }}>Medium</option>

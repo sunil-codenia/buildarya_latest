@@ -481,10 +481,12 @@ Route::prefix('v1')->group(function () {
         // Task Management API Suite
         Route::get('/tasks', [ApiTaskController::class, 'index']);
         Route::post('/tasks', [ApiTaskController::class, 'store']);
-        Route::get('/tasks/{id}', [ApiTaskController::class, 'show']);
-        Route::post('/tasks/{id}', [ApiTaskController::class, 'update']);
-        Route::post('/tasks/update/{id}', [ApiTaskController::class, 'update']);
-        Route::delete('/tasks/{id}', [ApiTaskController::class, 'destroy']);
+        Route::get('/tasks/chats', [ApiChatController::class, 'fetchTaskChats']);
+        Route::post('/tasks/chats', [ApiChatController::class, 'sendTaskChat']);
+        Route::get('/tasks/{id}', [ApiTaskController::class, 'show'])->where('id', '[0-9]+');
+        Route::post('/tasks/{id}', [ApiTaskController::class, 'update'])->where('id', '[0-9]+');
+        Route::post('/tasks/update/{id}', [ApiTaskController::class, 'update'])->where('id', '[0-9]+');
+        Route::delete('/tasks/{id}', [ApiTaskController::class, 'destroy'])->where('id', '[0-9]+');
 
         // Chat API Suite
         Route::get('/chats', [ApiChatController::class, 'index']);

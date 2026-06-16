@@ -286,20 +286,19 @@ function checkmodulepermission($module_id, $permission)
         return 1;
     }
 
+    $perms = session()->get('permissions');
+    if (is_array($perms) && isset($perms[0]) && is_array($perms[0])) {
+        $perm = $perms[0];
+        if (isset($perm[$module_id][$permission])) {
+            return $perm[$module_id][$permission];
+        }
+    }
+
     if (session()->get('role_perms_set') === false) {
         return 0;
     }
     
-    $perms = session()->get('permissions');
-    if (!is_array($perms) || !isset($perms[0]) || !is_array($perms[0])) {
-        return 0;
-    }
-    $perm = $perms[0];
-    if (!isset($perm[$module_id][$permission])) {
-        return 0;
-    }
-    $res  = $perm[$module_id][$permission];
-    return $res;
+    return 0;
 }
 
 function isSuperAdmin()
