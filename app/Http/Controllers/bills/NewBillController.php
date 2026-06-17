@@ -718,6 +718,7 @@ class NewBillController extends Controller
 
                 $partybalance = getBillPartyBalance($partyname);
                 
+                $pdf = Pdf::loadView('layouts.bills.pdfs.partyStatement', compact('party_name', 'data', 'total_credit', 'total_debit', 'partybalance'));
                 return $pdf->download($file_name);
             }
         } else if ($report_code == 13) {

@@ -5916,8 +5916,8 @@ class ApiManagementController extends Controller
         try {
             $conn = config('database.default');
             $search = trim($request->get('search'));
-            $from_date = $request->get('from_date', date('Y-m-01'));
-            $to_date = $request->get('to_date', date('Y-m-t'));
+            $from_date = $request->get('from_date');
+            $to_date = $request->get('to_date');
 
             $query = DB::connection($conn)->table('material_entry')
                 ->leftJoin('materials', 'materials.id', '=', 'material_entry.material_id')
@@ -5940,7 +5940,13 @@ class ApiManagementController extends Controller
                 $query->where('material_entry.status', '!=', 'Pending');
             }
 
-            $query->whereBetween('material_entry.date', [$from_date, $to_date]);
+            if ($from_date && $to_date) {
+                $query->whereBetween('material_entry.date', [$from_date, $to_date]);
+            } elseif ($from_date) {
+                $query->where('material_entry.date', '>=', $from_date);
+            } elseif ($to_date) {
+                $query->where('material_entry.date', '<=', $to_date);
+            }
 
             if (!empty($search)) {
                 $query->where(function ($q) use ($search) {
@@ -6255,8 +6261,8 @@ class ApiManagementController extends Controller
         try {
             $conn = config('database.default');
             $search = trim($request->get('search'));
-            $from_date = $request->get('from_date', date('Y-m-01'));
-            $to_date = $request->get('to_date', date('Y-m-t'));
+            $from_date = $request->get('from_date');
+            $to_date = $request->get('to_date');
 
             $query = DB::connection($conn)->table('material_entry')
                 ->leftJoin('materials', 'materials.id', '=', 'material_entry.material_id')
@@ -6284,7 +6290,13 @@ class ApiManagementController extends Controller
                 $query->where('material_entry.status', '!=', 'Pending');
             }
 
-            $query->whereBetween('material_entry.date', [$from_date, $to_date]);
+            if ($from_date && $to_date) {
+                $query->whereBetween('material_entry.date', [$from_date, $to_date]);
+            } elseif ($from_date) {
+                $query->where('material_entry.date', '>=', $from_date);
+            } elseif ($to_date) {
+                $query->where('material_entry.date', '<=', $to_date);
+            }
 
             if (!empty($search)) {
                 $query->where(function ($q) use ($search) {
