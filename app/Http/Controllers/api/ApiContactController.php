@@ -486,4 +486,220 @@ class ApiContactController extends Controller
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
+
+    public function getCompanyContacts(Request $request, $company_id)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+
+            if (!$company_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company ID is required!']);
+            }
+
+            $company = DB::connection($conn)->table('contact_profile')->where('id', $company_id)->first();
+            if (!$company) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company not found!']);
+            }
+
+            $contacts = DB::connection($conn)->table('contact')->where('profile_id', $company_id)->get();
+
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'data' => [
+                    'company' => $company,
+                    'contacts_list' => $contacts
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function getCompanyContact(Request $request, $company_id, $contact_id)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+
+            if (!$company_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company ID is required!']);
+            }
+            if (!$contact_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Contact ID is required!']);
+            }
+
+            $company = DB::connection($conn)->table('contact_profile')->where('id', $company_id)->first();
+            if (!$company) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company not found!']);
+            }
+
+            $contact = DB::connection($conn)->table('contact')
+                ->where('profile_id', $company_id)
+                ->where('id', $contact_id)
+                ->first();
+
+            if (!$contact) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Contact not found for this company!']);
+            }
+
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'data' => $contact
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function storeCompanyScopedContact(Request $request, $company_id)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $user_id = $tenant['uid'];
+
+            if (!$company_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company ID is required!']);
+            }
+
+            $company = DB::connection($conn)->table('contact_profile')->where('id', $company_id)->first();
+            if (!$company) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company not found!']);
+            }
+
+            $name = $request->input('name');
+            $phone = $request->input('phone') ?? $request->input('number') ?? $request->input('phone_no') ?? $request->input('mobile');
+            $email = $request->input('email');
+            $position = $request->input('position');
+
+            if (!$name) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Contact Name is required!']);
+            }
+            if (!$phone) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Contact Phone is required!']);
+            }
+
+            $contactdata = [
+                'profile_id' => $company_id,
+                'name' => $name,
+                'phone' => $phone,
+                'email' => $email,
+                'position' => $position,
+            ];
+
+            $id = DB::connection($conn)->table('contact')->insertGetId($contactdata);
+            addActivity($id, 'contact', "New Contact Created under Company $company_id via API", 10, $user_id, $conn);
+
+            $newContact = DB::connection($conn)->table('contact')->where('id', $id)->first();
+
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'message' => 'Contact Added Successfully!',
+                'data' => $newContact
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Failed to add contact: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateCompanyScopedContact(Request $request, $company_id, $contact_id)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $user_id = $tenant['uid'];
+
+            if (!$company_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company ID is required!']);
+            }
+            if (!$contact_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Contact ID is required!']);
+            }
+
+            $company = DB::connection($conn)->table('contact_profile')->where('id', $company_id)->first();
+            if (!$company) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company not found!']);
+            }
+
+            $contact = DB::connection($conn)->table('contact')
+                ->where('profile_id', $company_id)
+                ->where('id', $contact_id)
+                ->first();
+
+            if (!$contact) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Contact not found for this company!']);
+            }
+
+            $name = $request->input('name') ?? $contact->name;
+            $phone = $request->input('phone') ?? $request->input('number') ?? $request->input('phone_no') ?? $request->input('mobile') ?? $contact->phone;
+            $email = $request->input('email') ?? $contact->email;
+            $position = $request->input('position') ?? $contact->position;
+
+            $data = [
+                'name' => $name,
+                'phone' => $phone,
+                'position' => $position,
+                'email' => $email
+            ];
+
+            DB::connection($conn)->table('contact')->where('id', $contact_id)->update($data);
+            addActivity($contact_id, 'contact', "Contact Data Updated under Company $company_id via API", 10, $user_id, $conn);
+
+            $updatedContact = DB::connection($conn)->table('contact')->where('id', $contact_id)->first();
+
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'message' => 'Contact Updated Successfully!',
+                'data' => $updatedContact
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Failed to update contact: ' . $e->getMessage()]);
+        }
+    }
+
+    public function destroyCompanyScopedContact(Request $request, $company_id, $contact_id)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+            $user_id = $tenant['uid'];
+
+            if (!$company_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company ID is required!']);
+            }
+            if (!$contact_id) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Contact ID is required!']);
+            }
+
+            $company = DB::connection($conn)->table('contact_profile')->where('id', $company_id)->first();
+            if (!$company) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Company not found!']);
+            }
+
+            $contact = DB::connection($conn)->table('contact')
+                ->where('profile_id', $company_id)
+                ->where('id', $contact_id)
+                ->first();
+
+            if (!$contact) {
+                return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Contact not found for this company!']);
+            }
+
+            DB::connection($conn)->table('contact')->where('id', $contact_id)->delete();
+            addActivity(0, 'contact', "Contact Deleted under Company $company_id via API - " . $contact->name, 10, $user_id, $conn);
+
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'message' => 'Contact Deleted Successfully!'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Failed', 'status_code' => '300', 'message' => 'Failed to delete contact: ' . $e->getMessage()]);
+        }
+    }
 }

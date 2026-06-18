@@ -620,6 +620,16 @@ Route::prefix('v1')->group(function () {
         // Contacts
         Route::get('/contacts/categories', [ApiContactController::class, 'categories']);
         
+        // Company Scoped Contact List APIs
+        Route::get('/company/{company_id}/contactlist', [ApiContactController::class, 'getCompanyContacts']);
+        Route::get('/company/{company_id}/contactlist/{contact_id}', [ApiContactController::class, 'getCompanyContact']);
+        Route::post('/company/{company_id}/contactlist', [ApiContactController::class, 'storeCompanyScopedContact']);
+        Route::post('/company/{company_id}/contactlist/{contact_id}', [ApiContactController::class, 'updateCompanyScopedContact']);
+        Route::put('/company/{company_id}/contactlist/{contact_id}', [ApiContactController::class, 'updateCompanyScopedContact']);
+        Route::post('/company/{company_id}/contactlist/{contact_id}/update', [ApiContactController::class, 'updateCompanyScopedContact']);
+        Route::delete('/company/{company_id}/contactlist/{contact_id}', [ApiContactController::class, 'destroyCompanyScopedContact']);
+        Route::post('/company/{company_id}/contactlist/{contact_id}/delete', [ApiContactController::class, 'destroyCompanyScopedContact']);
+        
         Route::get('/contacts/companies', [ApiContactController::class, 'companies']);
         Route::get('/contacts/companies/export-csv', [ApiContactController::class, 'exportCompaniesCsv']);
         Route::post('/contacts/companies', [ApiContactController::class, 'storeCompany']);
