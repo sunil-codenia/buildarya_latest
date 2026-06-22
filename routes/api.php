@@ -29,6 +29,7 @@ use App\Http\Controllers\api\ApiSettingsController;
 use App\Http\Controllers\api\ApiAttendanceController;
 use App\Http\Controllers\api\ApiTaskController;
 use App\Http\Controllers\api\ApiChatController;
+use App\Http\Controllers\api\LeadController;
 
 /*
 |--------------------------------------------------------------------------
@@ -50,6 +51,9 @@ Route::get('/info', function() {
         'status' => 'online'
     ]);
 });
+
+// Public Lead Enquiry API (no auth required)
+Route::post('/leads', [LeadController::class, 'store']);
 
 Route::get('/get_all_data', [UserController::class, 'get_all_data']);
 Route::get('/api_login', [UserController::class, 'login']);

@@ -44,7 +44,9 @@ Route::get('/', [FrontendController::class, 'index']);
 Route::get('/features', [FrontendController::class, 'features']);
 Route::get('/modules', [FrontendController::class, 'modules']);
 Route::get('/pricing', [FrontendController::class, 'pricing']);
-Route::get('/contact', [FrontendController::class, 'contact']);
+Route::get('/contact', [FrontendController::class, 'contact'])->name('contact');
+Route::post('/contact', [FrontendController::class, 'submitContact'])->name('contact.submit');
+Route::post('/download-apk', [FrontendController::class, 'submitApkDownload'])->name('apk.download');
 Route::get('/privacy-policy', [FrontendController::class, 'privacy']);
 Route::get('/terms-and-conditions', [FrontendController::class, 'terms']);
 

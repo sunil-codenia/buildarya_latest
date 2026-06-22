@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class FrontendController extends Controller
 {
@@ -29,6 +32,101 @@ class FrontendController extends Controller
     public function contact()
     {
         return view('frontend.contact');
+    }
+
+    public function submitContact(Request $request)
+    {
+        $validated = $request->validate([
+            'name'    => 'required|string|max:100',
+            'email'   => 'required|email|max:100',
+            'company' => 'nullable|string|max:100',
+            'phone'   => 'nullable|string|max:20',
+            'message' => 'nullable|string|max:2000',
+        ]);
+
+        // Hit Shaarvik external leads API
+        $this->pushToShaarvik($validated, 'contact_form');
+
+        // Send internal email notification (non-blocking)
+        try {
+            $adminEmail = config('mail.from.address', 'hello@buildarya.in');
+            Mail::raw(
+                "New contact form submission:\n\n" .
+                "Name: {$validated['name']}\n" .
+                "Email: {$validated['email']}\n" .
+                "Company: " . ($validated['company'] ?? 'N/A') . "\n" .
+                "Phone: " . ($validated['phone'] ?? 'N/A') . "\n" .
+                "Message: " . ($validated['message'] ?? 'N/A'),
+                function ($mail) use ($validated, $adminEmail) {
+                    $mail->to($adminEmail)
+                         ->subject('New Contact Form Submission — ' . $validated['name']);
+                }
+            );
+        } catch (\Exception $e) {
+            Log::error('Contact form email failed: ' . $e->getMessage());
+        }
+
+        return redirect()->route('contact')->with('success', "Thank you, {$validated['name']}! We'll get back to you within 24 hours.");
+    }
+
+    public function submitApkDownload(Request $request)
+    {
+        $isAjax = $request->ajax() || $request->header('X-Requested-With') === 'XMLHttpRequest';
+
+        $validated = $request->validate([
+            'name'    => 'required|string|max:100',
+            'email'   => 'required|email|max:100',
+            'company' => 'nullable|string|max:100',
+            'phone'   => 'nullable|string|max:20',
+            'message' => 'nullable|string|max:2000',
+        ]);
+
+        // Hit Shaarvik external leads API
+        $this->pushToShaarvik($validated, 'apk_download');
+
+        // Trigger APK download
+        $apkPath = public_path('uploads/apk/buildarya_latest.apk');
+        if (!file_exists($apkPath)) {
+            if ($isAjax) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'APK file is not available yet. Please try again later.',
+                ], 404);
+            }
+            return redirect()->back()->with('apk_error', 'APK file is not available yet. Please try again later.');
+        }
+
+        return response()->download($apkPath, 'buildarya_latest.apk');
+    }
+
+    /**
+     * Push lead data to the Shaarvik external API.
+     */
+    private function pushToShaarvik(array $data, string $source = 'buildarya_form'): void
+    {
+        $baseUrl = rtrim(config('app.shaarvik_url', env('SHAARVIK_URL', '')), '/');
+
+        if (empty($baseUrl)) {
+            Log::warning('SHAARVIK_URL is not configured in .env');
+            return;
+        }
+
+        try {
+            $response = Http::timeout(10)->post($baseUrl . '/api/public/leads', [
+                'name'    => $data['name'],
+                'email'   => $data['email'],
+                'company' => $data['company'] ?? null,
+                'phone'   => $data['phone'] ?? null,
+                'notes'   => $data['message'] ?? null,
+                'source'  => $source,
+            ]);
+
+            if (!$response->successful()) {
+                Log::warning('Shaarvik API returned non-success: ' . $response->status() . ' ' . $response->body());
+            }
+        } catch (\Exception $e) {
+            Log::error('Shaarvik API call failed: ' . $e->getMessage());
+        }
     }
 
     public function privacy()

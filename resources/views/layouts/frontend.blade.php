@@ -185,6 +185,10 @@
                     <a href="{{ url('/login') }}" class="hidden md:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200">
                         Login
                     </a>
+                    <button type="button" id="apk-modal-btn" class="hidden md:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-primary/40 text-primary hover:bg-primary/5 transition-all duration-200">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 16l-6-6h4V4h4v6h4l-6 6z" fill="currentColor"/><path d="M20 18H4v2h16v-2z" fill="currentColor"/></svg>
+                        Download APK
+                    </button>
                     <a href="{{ url('/contact') }}" class="hidden md:inline-flex items-center gap-2 btn-accent px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200">
                         Book Free Demo
                     </a>
@@ -214,7 +218,101 @@
             <a href="{{ url('/login') }}" class="inline-flex items-center justify-center gap-2 px-5 py-4 rounded-xl text-base font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200">
                 Login
             </a>
+            <button type="button" id="apk-modal-btn-mobile" class="inline-flex items-center justify-center gap-2 px-5 py-4 rounded-xl text-base font-semibold border border-primary/40 text-primary hover:bg-primary/5 transition-all duration-200">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 16l-6-6h4V4h4v6h4l-6 6z" fill="currentColor"/><path d="M20 18H4v2h16v-2z" fill="currentColor"/></svg>
+                Download APK
+            </button>
             <a href="{{ url('/contact') }}" class="btn-accent text-center py-4 rounded-xl text-base font-semibold">Book Free Demo</a>
+        </div>
+    </div>
+
+    {{-- ============================================================ --}}
+    {{-- APK Download Modal --}}
+    {{-- ============================================================ --}}
+    <div id="apk-modal" class="fixed inset-0 z-[200] flex items-center justify-center p-4 hidden" aria-modal="true" role="dialog">
+        {{-- Backdrop --}}
+        <div id="apk-modal-backdrop" class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+
+        {{-- Modal Card --}}
+        <div class="relative z-10 w-full max-w-lg bg-white rounded-3xl shadow-card border border-border p-8 animate-fade-in">
+            {{-- Close button --}}
+            <button type="button" id="apk-modal-close" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-surface text-fg-muted transition">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+
+            {{-- Header --}}
+            <div class="mb-6">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 16l-6-6h4V4h4v6h4l-6 6z" fill="currentColor"/><path d="M20 18H4v2h16v-2z" fill="currentColor"/></svg>
+                    </div>
+                    <h2 class="font-display text-2xl font-semibold text-fg">Download Buildarya APK</h2>
+                </div>
+                <p class="text-xs text-fg-muted">Fill in your details and the APK will download automatically.</p>
+            </div>
+
+            @if(session('apk_error'))
+                <div class="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+                    {{ session('apk_error') }}
+                </div>
+            @endif
+
+            <form id="apk-download-form" action="{{ route('apk.download') }}" method="POST" class="space-y-4">
+                @csrf
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">Full Name <span class="text-primary">*</span></label>
+                        <input type="text" name="name" required placeholder="Rajesh Sharma"
+                               class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">Company Name</label>
+                        <input type="text" name="company" placeholder="Sharma Constructions"
+                               class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">Email Address <span class="text-primary">*</span></label>
+                        <input type="email" name="email" required placeholder="rajesh@example.com"
+                               class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">Phone Number</label>
+                        <input type="tel" name="phone" placeholder="+91 98765 43210"
+                               class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">Message</label>
+                    <textarea name="message" rows="3" placeholder="Tell us about your business needs..."
+                              class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all resize-none"></textarea>
+                </div>
+
+                <button type="submit" id="apk-submit-btn" class="btn-accent w-full py-3.5 rounded-xl text-sm font-semibold shadow-accent hover:shadow-lg flex items-center justify-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 16l-6-6h4V4h4v6h4l-6 6z" fill="currentColor"/><path d="M20 18H4v2h16v-2z" fill="currentColor"/></svg>
+                    Download APK
+                </button>
+            </form>
+
+            {{-- ===== Success State (hidden by default) ===== --}}
+            <div id="apk-success-panel" class="hidden text-center py-4">
+                <div class="flex items-center justify-center mb-4">
+                    <div class="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                            <path d="M5 13l4 4L19 7" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+                <h3 class="font-display text-xl font-semibold text-fg mb-1">Download Started!</h3>
+                <p class="text-sm text-fg-muted mb-6">Your APK is downloading. Check your browser's download bar or downloads folder.</p>
+                <button type="button" id="apk-success-close" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold border border-border text-fg hover:bg-bg-surface transition-all">
+                    Close
+                </button>
+            </div>
+
+            {{-- ===== Error banner (hidden by default) ===== --}}
+            <div id="apk-fetch-error" class="hidden mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm"></div>
         </div>
     </div>
 
@@ -285,6 +383,126 @@
                 document.body.style.overflow = '';
             }
         });
+
+        // APK Modal logic
+        const apkModal        = document.getElementById('apk-modal');
+        const apkModalClose   = document.getElementById('apk-modal-close');
+        const apkModalBdrop   = document.getElementById('apk-modal-backdrop');
+        const apkModalBtnD    = document.getElementById('apk-modal-btn');
+        const apkModalBtnM    = document.getElementById('apk-modal-btn-mobile');
+
+        function openApkModal() {
+            apkModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeApkModal() {
+            apkModal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        if (apkModalBtnD)  apkModalBtnD.addEventListener('click', openApkModal);
+        if (apkModalBtnM)  apkModalBtnM.addEventListener('click', () => { mobileMenu.classList.add('hidden'); openApkModal(); });
+        if (apkModalClose) apkModalClose.addEventListener('click', closeApkModal);
+        if (apkModalBdrop) apkModalBdrop.addEventListener('click', closeApkModal);
+
+        // Close on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeApkModal();
+        });
+
+        // Show loading state on APK form submit — use fetch to get blob, then trigger download
+        const apkForm      = document.getElementById('apk-download-form');
+        const apkSubmitBtn = document.getElementById('apk-submit-btn');
+        const apkSuccess   = document.getElementById('apk-success-panel');
+        const apkFetchErr  = document.getElementById('apk-fetch-error');
+        const apkSuccClose = document.getElementById('apk-success-close');
+
+        if (apkSuccClose) {
+            apkSuccClose.addEventListener('click', () => {
+                closeApkModal();
+                // Reset modal to form state for next open
+                setTimeout(() => {
+                    apkForm.classList.remove('hidden');
+                    apkSuccess.classList.add('hidden');
+                    apkFetchErr.classList.add('hidden');
+                    apkFetchErr.textContent = '';
+                    apkForm.reset();
+                    if (apkSubmitBtn) {
+                        apkSubmitBtn.disabled = false;
+                        apkSubmitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 16l-6-6h4V4h4v6h4l-6 6z" fill="currentColor"/><path d="M20 18H4v2h16v-2z" fill="currentColor"/></svg> Download APK`;
+                    }
+                }, 300);
+            });
+        }
+
+        if (apkForm) {
+            apkForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                // Show loading state
+                if (apkSubmitBtn) {
+                    apkSubmitBtn.disabled = true;
+                    apkSubmitBtn.innerHTML = `<svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60" stroke-dashoffset="20"/></svg> Preparing Download...`;
+                }
+                apkFetchErr.classList.add('hidden');
+                apkFetchErr.textContent = '';
+
+                try {
+                    const formData = new FormData(apkForm);
+                    const response = await fetch(apkForm.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+
+                    if (!response.ok) {
+                        // Try to parse JSON error
+                        let errMsg = 'Something went wrong. Please try again.';
+                        try {
+                            const json = await response.json();
+                            errMsg = json.message || (json.errors ? Object.values(json.errors).flat().join(' ') : errMsg);
+                        } catch (_) {}
+                        throw new Error(errMsg);
+                    }
+
+                    const contentType = response.headers.get('Content-Type') || '';
+                    if (contentType.includes('application/json')) {
+                        // Server returned JSON error
+                        const json = await response.json();
+                        throw new Error(json.message || 'APK not available.');
+                    }
+
+                    // It's a file blob — trigger browser download
+                    const blob = await response.blob();
+                    const url  = window.URL.createObjectURL(blob);
+                    const a    = document.createElement('a');
+                    a.href     = url;
+                    a.download = 'buildarya_latest.apk';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+
+                    // Show success panel
+                    apkForm.classList.add('hidden');
+                    apkSuccess.classList.remove('hidden');
+
+                } catch (err) {
+                    // Show inline error, reset button
+                    apkFetchErr.textContent = err.message || 'Download failed. Please try again.';
+                    apkFetchErr.classList.remove('hidden');
+                    if (apkSubmitBtn) {
+                        apkSubmitBtn.disabled = false;
+                        apkSubmitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 16l-6-6h4V4h4v6h4l-6 6z" fill="currentColor"/><path d="M20 18H4v2h16v-2z" fill="currentColor"/></svg> Download APK`;
+                    }
+                }
+            });
+        }
+
+        @if(session('apk_error'))
+        // Re-open modal if there was a server-side APK error
+        document.addEventListener('DOMContentLoaded', openApkModal);
+        @endif
     </script>
     
     <!-- Invisible but rendered Google Translate Element (Non-zero height/width forces Google script to render it) -->
