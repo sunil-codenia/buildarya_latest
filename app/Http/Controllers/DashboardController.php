@@ -53,11 +53,21 @@ class DashboardController extends Controller
 
             $path = public_path('uploads/apk');
             if (!File::exists($path)) {
-                File::makeDirectory($path, 0777, true, true);
+                File::makeDirectory($path, 0755, true, true);
+            }
+
+            // Check if the directory is writable
+            if (!is_writable($path)) {
+                return back()->with('error', 'Upload failed: The server directory "public/uploads/apk" is not writable. Please run: sudo chown -R www-data:www-data ' . $path . ' && sudo chmod -R 775 ' . $path);
             }
 
             $filename = 'buildarya_latest.apk';
-            $file->move($path, $filename);
+
+            try {
+                $file->move($path, $filename);
+            } catch (\Exception $e) {
+                return back()->with('error', 'Upload failed due to a server permission error: ' . $e->getMessage() . '. Contact your server admin to fix directory permissions.');
+            }
 
             return back()->with('success', 'Latest APK uploaded successfully! Users can now download it.');
         }
