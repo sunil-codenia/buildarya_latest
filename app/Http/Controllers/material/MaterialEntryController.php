@@ -393,42 +393,50 @@ class MaterialEntryController extends Controller
         $role_id = session()->get('role');
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $length = count($data['site_id']);
-        for ($i = 0; $i < $length; $i++) {
-            if (isset($request->image[$i])) {
-                $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
-                $request->image[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName);
-                $imagePath = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName;
-            } else {
-                $imagePath = "images/expense.png";
-            }
-            $rawd = [
-                'supplier' => $data['supplier'][$i],
-                'material_id' => $data['material_id'][$i],
-                'unit' => $data['unit'][$i],
-                'qty' => $data['qty'][$i],
-                'vehical' => $data['vehical'][$i],
-                'image' => $imagePath,
-                'remark' => $data['remark'][$i],
-                'site_id' => $data['site_id'][$i],
-                'status' => $status,
-                'user_id' => $user_id,
-                'date' => $data['date'][$i],
-            ];
-            try {
+
+        DB::connection($user_db_conn_name)->beginTransaction();
+        try {
+            $length = count($data['site_id']);
+            for ($i = 0; $i < $length; $i++) {
+                if (isset($request->image[$i])) {
+                    $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
+                    $request->image[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName);
+                    $imagePath = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName;
+                } else {
+                    $imagePath = "images/expense.png";
+                }
+                $rawd = [
+                    'supplier' => $data['supplier'][$i],
+                    'material_id' => $data['material_id'][$i],
+                    'unit' => $data['unit'][$i],
+                    'qty' => $data['qty'][$i],
+                    'vehical' => $data['vehical'][$i],
+                    'image' => $imagePath,
+                    'remark' => $data['remark'][$i],
+                    'site_id' => $data['site_id'][$i],
+                    'status' => $status,
+                    'user_id' => $user_id,
+                    'date' => $data['date'][$i],
+                ];
+
                 $id =  DB::connection($user_db_conn_name)->table('material_entry')->insertGetId($rawd);
 
                 if ($status == 'Approved') {
                     $this->approve_material_entry($id, $user_db_conn_name);
                 }
-                $result = true;
-            } catch (\Exception $e) {
-                $result = false;
             }
+            DB::connection($user_db_conn_name)->commit();
+            $result = true;
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            \Log::error("addnewmaterial failed: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            $result = false;
         }
 
         if ($result) {
-            addActivity($id, 'material_entry', "New Material Entries Created ", 3);
+            if (isset($id)) {
+                addActivity($id, 'material_entry', "New Material Entries Created ", 3);
+            }
             return redirect('/verified_material')
                 ->with('success', 'Material Entries Created successfully!');
         } else {

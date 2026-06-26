@@ -49,7 +49,7 @@ class MaterialController extends Controller
         if (isset($columns[$orderColumnIndex])) {
             $query->orderBy($columns[$orderColumnIndex], $orderDir);
         } else {
-            $query->orderBy('name', 'asc');
+            $query->orderBy('id', 'desc');
         }
 
         $start = $request->input('start', 0);

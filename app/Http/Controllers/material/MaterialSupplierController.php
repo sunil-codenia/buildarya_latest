@@ -180,7 +180,8 @@ class MaterialSupplierController extends Controller
             'bank_ifsc' => $bank_ifsc,
             'bank_name' => $bank_name,
             'bank_ac_holder' => $bank_ac_holder,
-            'cost_category_id' => $cost_category_id
+            'cost_category_id' => $cost_category_id,
+            'status' => 'Active'
         ];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {

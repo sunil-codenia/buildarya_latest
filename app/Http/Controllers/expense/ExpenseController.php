@@ -909,8 +909,8 @@ class ExpenseController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data['expense_head'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
-        $data['expense_party'] = DB::connection($user_db_conn_name)->table('expense_party')->where('status', '=', 'Active')->get();
-        $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Active')->get();
+        $data['expense_party'] = DB::connection($user_db_conn_name)->table('expense_party')->whereIn('status', ['Active', 'Pending'])->get();
+        $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
         return  view('layouts.expense.new')->with('data', json_encode($data));
     }
@@ -920,8 +920,8 @@ class ExpenseController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data['expense'] = DB::connection($user_db_conn_name)->table('expenses')->where('id', $request->get('id'))->get()[0];
         $data['expense_head'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
-        $data['expense_party'] = DB::connection($user_db_conn_name)->table('expense_party')->where('status', '=', 'Active')->get();
-        $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Active')->get();
+        $data['expense_party'] = DB::connection($user_db_conn_name)->table('expense_party')->whereIn('status', ['Active', 'Pending'])->get();
+        $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
 
         $site_id = session()->get("site_id");
@@ -1074,61 +1074,86 @@ class ExpenseController extends Controller
         $min_date = $duration['min'];
         $max_date = $duration['max'];
 
-        $status = getInitialEntryStatusByRole($role_id);
-        if (is_machinery_head($data['head_id']) || is_asset_head($data['head_id'])) {
-            $status = 'Pending';
-        }
-        $length = count($data['site_id']);
-        for ($i = 0; $i < $length; $i++) {
-            if ($data['date'][$i] < $min_date || $data['date'][$i] > $max_date) {
-                return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['date'][$i]);
-            }
-            if (isset($request->image[$i])) {
-                $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
-                $request->image[$i]->move(public_path('images/app_images/'.$user_db_conn_name.'/expense'), $imageName);
-                $imagePath = "images/app_images/".$user_db_conn_name."/expense/" . $imageName;
-            } else {
-                $imagePath = "images/expense.png";
-            }
-            $party = explode("||", $data['party_id'][$i]);
+        $initial_status = getInitialEntryStatusByRole($role_id);
 
-            $rawd = [
-                'site_id' => $data['site_id'][$i],
-                'user_id' => $user_id,
-                'party_id' => $party[0],
-                'party_type' => $party[1],
-                'head_id' => $data['head_id'][$i],
-                'particular' => $data['particular'][$i],
-                'amount' => $data['amount'][$i],
-                'remark' => $data['remark'][$i],
-                'image' => $imagePath,
-                'status' => $status,
-                'date' => $data['date'][$i],
-            ];
-            try {
+        DB::connection($user_db_conn_name)->beginTransaction();
+        try {
+            $length = count($data['site_id']);
+            for ($i = 0; $i < $length; $i++) {
+                if ($data['date'][$i] < $min_date || $data['date'][$i] > $max_date) {
+                    DB::connection($user_db_conn_name)->rollBack();
+                    return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['date'][$i]);
+                }
+                if (isset($request->image[$i])) {
+                    $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
+                    $request->image[$i]->move(public_path('images/app_images/'.$user_db_conn_name.'/expense'), $imageName);
+                    $imagePath = "images/app_images/".$user_db_conn_name."/expense/" . $imageName;
+                } else {
+                    $imagePath = "images/expense.png";
+                }
+
+                $party_raw = isset($data['party_id'][$i]) ? $data['party_id'][$i] : '';
+                $party = explode("||", $party_raw);
+                $party_id = isset($party[0]) ? $party[0] : '';
+                $party_type = isset($party[1]) ? $party[1] : 'expense';
+                if ($party_type !== 'expense' && $party_type !== 'bill') {
+                    $party_type = 'expense';
+                }
+
+                $item_head_id = $data['head_id'][$i];
+                $item_status = $initial_status;
+                if (is_machinery_head($item_head_id) || is_asset_head($item_head_id)) {
+                    $item_status = 'Pending';
+                }
+
+                $rawd = [
+                    'site_id' => $data['site_id'][$i],
+                    'user_id' => $user_id,
+                    'party_id' => $party_id,
+                    'party_type' => $party_type,
+                    'head_id' => $item_head_id,
+                    'particular' => $data['particular'][$i],
+                    'amount' => $data['amount'][$i],
+                    'remark' => $data['remark'][$i],
+                    'image' => $imagePath,
+                    'status' => $item_status,
+                    'date' => $data['date'][$i],
+                ];
+
                 $id = DB::connection($user_db_conn_name)->table('expenses')->insertGetId($rawd);
-                addActivity($id,'expenses',"New Expense Created",2);
-                if ($status == 'Approved') {
-                    if ($party[1] == 'bill') {
-                        $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $party[0])->get()[0];
+                addActivity($id, 'expenses', "New Expense Created", 2);
+
+                if ($item_status == 'Approved') {
+                    if ($party_type == 'bill') {
+                        $party_status_rows = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $party_id)->get();
                     } else {
-                        $party_status = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $party[0])->get()[0];
+                        $party_status_rows = DB::connection($user_db_conn_name)->table('expense_party')->where('id', '=', $party_id)->get();
                     }
-                    if ($party_status->status == 'Active') {
-                        $this->approve_expense($id, $user_db_conn_name);
+
+                    if (count($party_status_rows) > 0) {
+                        $party_status = $party_status_rows[0];
+                        if ($party_status->status == 'Active') {
+                            $this->approve_expense($id, $user_db_conn_name);
+                        }
+                    } else {
+                        throw new \Exception("Invalid Party ID: " . $party_id);
                     }
                 }
-                $res = true;
-            } catch (\Exception $e) {
-                $res = false;
             }
+            DB::connection($user_db_conn_name)->commit();
+            $res = true;
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            \Log::error("addnewExpenses failed: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            $res = false;
         }
+
         if ($res) {
-            $redirectUrl = ($status == 'Approved') ? '/verified_expense' : '/pending_expense';
+            $redirectUrl = ($initial_status == 'Approved') ? '/verified_expense' : '/pending_expense';
             return redirect($redirectUrl)
                 ->with('success', 'Expenses Created successfully!');
         } else {
-            $redirectUrl = ($status == 'Approved') ? '/verified_expense' : '/pending_expense';
+            $redirectUrl = ($initial_status == 'Approved') ? '/verified_expense' : '/pending_expense';
             return redirect($redirectUrl)
                 ->with('error', 'Error While Creating Expense. Please Try Again After Reconciling The Statement!');
         }

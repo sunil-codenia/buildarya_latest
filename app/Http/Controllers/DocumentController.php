@@ -262,6 +262,18 @@ class DocumentController extends Controller
 
     public function adddocheadoption(Request $request)
     {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'head_id' => 'required',
+            'name' => 'required|array',
+            'name.*' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect('/file-structure')
+                ->withErrors($validator)
+                ->with('error', 'Validation Error: Invalid Document Option payload.');
+        }
+
         $id = $request->input('head_id');
         $name = $request->input('name');
         $length = count($name);

@@ -58,9 +58,11 @@
                                                 <select name="bill_party_id" id="bill_party_id" class="form-control show-tick" data-live-search="true"
                                                     required>
                                                     <option value="" selected disabled>--Select Bill Party--</option>
-                                                    @foreach ($bill_parties as $party)
-                                                        <option value="{{ $party['id'] }}">{{ $party['name'] }}</option>
-                                                    @endforeach
+                                                     @foreach ($bill_parties as $party)
+                                                         <option value="{{ $party['id'] }}" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>
+                                                             {{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}
+                                                         </option>
+                                                     @endforeach
                                                 </select>
                                             </div>
                                         </div>

@@ -73,7 +73,7 @@ $max_date = substr($duration['max'], 0, 10);
                                     @if($party_id == $party['id']."||expense")
                                     <option selected value="{{$party['id']}}||expense">{{$party['name']}}</option>
                                     @else
-                                    <option value="{{$party['id']}}||expense">{{$party['name']}}</option>
+                                    <option value="{{$party['id']}}||expense" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>{{$party['name']}}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>
                                     @endif
                                     @endforeach
                                     <option disabled>--Bill Parties--</option>
@@ -81,7 +81,7 @@ $max_date = substr($duration['max'], 0, 10);
                                     @if($party_id == $party['id']."||bill")
                                     <option selected value="{{$party['id']}}||bill">{{$party['name']}}</option>
                                     @else
-                                    <option value="{{$party['id']}}||bill">{{$party['name']}}</option>
+                                    <option value="{{$party['id']}}||bill" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>{{$party['name']}}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>
                                     @endif
                                     @endforeach
                                  </select>

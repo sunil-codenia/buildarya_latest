@@ -83,7 +83,7 @@ class NewBillController extends Controller
 
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Active')->get();
+        $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
         return  view('layouts.bills.newbill')->with('data', json_encode($data));
     }
@@ -928,7 +928,7 @@ class NewBillController extends Controller
             $file_name .= "(" . $start_date . " TO " . $end_date . ").xlsx";
         }
 
-        return Excel::download(new SiteBillExport($user_db_conn_name, $start_date, $end_date, $report_code, $headname, $sitename, $partyname), $file_name);
+        return Excel::download(new SiteBillExport($user_db_conn_name, $start_date, $end_date, $report_code, $sitename, $partyname, $headname), $file_name);
     }
 
     public function exportMaterialExcel($user_db_conn_name, $start_date, $end_date, $report_code, $sitename = null, $partyname = null, $headname = null)

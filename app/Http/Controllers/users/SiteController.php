@@ -193,6 +193,19 @@ class SiteController extends Controller
 
     public function siteToSiteBalanceTransfer(Request $request)
     {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'from_site_id' => 'required',
+            'to_site_id' => 'required',
+            'amount' => 'required|numeric|min:0.01',
+            'date' => 'required|date',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect('/sites')
+                ->withErrors($validator)
+                ->with('error', 'Validation Error: Invalid balance transfer payload shape.');
+        }
+
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $from_site = $request->from_site_id;
         $to_site = $request->to_site_id;

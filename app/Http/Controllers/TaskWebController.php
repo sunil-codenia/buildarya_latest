@@ -289,13 +289,33 @@ class TaskWebController extends Controller
         if ($request->hasFile('image')) {
             $file = $request->file('image');
             if ($file->isValid()) {
-                $path = public_path('uploads/chat');
-                if (!\Illuminate\Support\Facades\File::exists($path)) {
-                    \Illuminate\Support\Facades\File::makeDirectory($path, 0777, true, true);
-                }
                 $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-                $file->move($path, $filename);
-                $imagePath = 'uploads/chat/' . $filename;
+                $uploaded = false;
+                try {
+                    $path = public_path('uploads/chat');
+                    if (!\Illuminate\Support\Facades\File::exists($path)) {
+                        \Illuminate\Support\Facades\File::makeDirectory($path, 0777, true, true);
+                    }
+                    $file->move($path, $filename);
+                    $imagePath = 'uploads/chat/' . $filename;
+                    $uploaded = true;
+                } catch (\Exception $e) {
+                    \Log::warning("Primary chat upload path uploads/chat is not writable: " . $e->getMessage());
+                }
+
+                if (!$uploaded) {
+                    try {
+                        $path = public_path('images/app_images/' . $conn . '/chat');
+                        if (!\Illuminate\Support\Facades\File::exists($path)) {
+                            \Illuminate\Support\Facades\File::makeDirectory($path, 0777, true, true);
+                        }
+                        $file->move($path, $filename);
+                        $imagePath = 'images/app_images/' . $conn . '/chat/' . $filename;
+                    } catch (\Exception $e) {
+                        \Log::error("Fallback chat upload path is also not writable: " . $e->getMessage());
+                        throw $e;
+                    }
+                }
             }
         }
 
@@ -397,13 +417,33 @@ class TaskWebController extends Controller
         if ($request->hasFile('image')) {
             $file = $request->file('image');
             if ($file->isValid()) {
-                $path = public_path('uploads/chat');
-                if (!\Illuminate\Support\Facades\File::exists($path)) {
-                    \Illuminate\Support\Facades\File::makeDirectory($path, 0777, true, true);
-                }
                 $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-                $file->move($path, $filename);
-                $imagePath = 'uploads/chat/' . $filename;
+                $uploaded = false;
+                try {
+                    $path = public_path('uploads/chat');
+                    if (!\Illuminate\Support\Facades\File::exists($path)) {
+                        \Illuminate\Support\Facades\File::makeDirectory($path, 0777, true, true);
+                    }
+                    $file->move($path, $filename);
+                    $imagePath = 'uploads/chat/' . $filename;
+                    $uploaded = true;
+                } catch (\Exception $e) {
+                    \Log::warning("Primary chat upload path uploads/chat is not writable: " . $e->getMessage());
+                }
+
+                if (!$uploaded) {
+                    try {
+                        $path = public_path('images/app_images/' . $conn . '/chat');
+                        if (!\Illuminate\Support\Facades\File::exists($path)) {
+                            \Illuminate\Support\Facades\File::makeDirectory($path, 0777, true, true);
+                        }
+                        $file->move($path, $filename);
+                        $imagePath = 'images/app_images/' . $conn . '/chat/' . $filename;
+                    } catch (\Exception $e) {
+                        \Log::error("Fallback chat upload path is also not writable: " . $e->getMessage());
+                        throw $e;
+                    }
+                }
             }
         }
 
