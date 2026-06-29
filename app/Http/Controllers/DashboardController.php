@@ -62,6 +62,16 @@ class DashboardController extends Controller
             }
 
             $filename = 'buildarya_latest.apk';
+            $targetFilePath = $path . '/' . $filename;
+
+            // If the file already exists, delete it first to avoid permission conflicts on overwrite
+            if (File::exists($targetFilePath)) {
+                try {
+                    File::delete($targetFilePath);
+                } catch (\Exception $e) {
+                    \Log::warning('Failed to delete existing APK file: ' . $e->getMessage());
+                }
+            }
 
             try {
                 $file->move($path, $filename);
