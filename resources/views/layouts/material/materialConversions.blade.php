@@ -10,7 +10,7 @@
                         <div class="info-content">Material Unit Conversion will be listed here.</div>
                     </h2>
                     <div class="align-right">
-                        @if (checkmodulepermission(3, 'can_add') == 1 && $entry_at_site == 'all')
+                        @if (checkmodulepermission(3, 'can_add') == 1)
                             <button type="button" onclick="convertMaterial();"
                                 class="btn btn-secondry btn-fill btn-round waves-effect"><a>Convert Material
                                     Unit</a></button>
