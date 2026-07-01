@@ -69,21 +69,21 @@ $max_date = substr($duration['max'], 0, 10);
                                     @php
                                     $party_id = $expense['party_id']."||".$expense['party_type'];
                                     @endphp
-                                    @foreach($parties as $party)
-                                    @if($party_id == $party['id']."||expense")
-                                    <option selected value="{{$party['id']}}||expense">{{$party['name']}}</option>
-                                    @else
-                                    <option value="{{$party['id']}}||expense" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>{{$party['name']}}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>
-                                    @endif
-                                    @endforeach
-                                    <option disabled>--Bill Parties--</option>
-                                    @foreach($bill_parties as $party)
-                                    @if($party_id == $party['id']."||bill")
-                                    <option selected value="{{$party['id']}}||bill">{{$party['name']}}</option>
-                                    @else
-                                    <option value="{{$party['id']}}||bill" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>{{$party['name']}}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>
-                                    @endif
-                                    @endforeach
+                                     @foreach($parties as $party)
+                                     @if($party_id == $party['id']."||expense")
+                                     <option selected value="{{$party['id']}}||expense" data-cost-category="{{ $party['cost_category_id'] }}">{{$party['name']}}</option>
+                                     @else
+                                     <option value="{{$party['id']}}||expense" {{ $party['status'] == 'Pending' ? 'disabled' : '' }} data-cost-category="{{ $party['cost_category_id'] }}">{{$party['name']}}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>
+                                     @endif
+                                     @endforeach
+                                     <option disabled>--Bill Parties--</option>
+                                     @foreach($bill_parties as $party)
+                                     @if($party_id == $party['id']."||bill")
+                                     <option selected value="{{$party['id']}}||bill" data-cost-category="{{ $party['cost_category_id'] }}">{{$party['name']}}</option>
+                                     @else
+                                     <option value="{{$party['id']}}||bill" {{ $party['status'] == 'Pending' ? 'disabled' : '' }} data-cost-category="{{ $party['cost_category_id'] }}">{{$party['name']}}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>
+                                     @endif
+                                     @endforeach
                                  </select>
                               </div>
                            </div>
@@ -153,4 +153,20 @@ $max_date = substr($duration['max'], 0, 10);
       </div>
    </div>
 </div>
+@endsection
+@section('scripts')
+    <script type="text/javascript">
+        $(document).on('change', 'select[name="party_id"]', function() {
+            var selectedOption = $(this).find('option:selected');
+            var costCategory = selectedOption.data('cost-category');
+            if (costCategory) {
+                var rowContainer = $(this).closest('.row.clearfix');
+                var headSelect = rowContainer.find('select[name="head_id"]');
+                if (headSelect.length > 0) {
+                    headSelect.val(costCategory);
+                    headSelect.selectpicker('refresh');
+                }
+            }
+        });
+    </script>
 @endsection

@@ -249,6 +249,15 @@ class ApiAssetMachineryController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
+
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->date) < strtotime($min_date) || strtotime($request->date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to sell asset for date: " . $request->date], 403);
+            }
+
             $asset = DB::table('assets')->where('id', $id)->first();
 
             if (!$asset) return response()->json(['status' => 'Failed', 'message' => 'Asset not found'], 404);
@@ -1147,10 +1156,19 @@ class ApiAssetMachineryController extends Controller
     public function machineryDocuments(Request $request, $id)
     {
         try {
+            $user = $request->user();
+            $view_duration = getUserViewDuration($user);
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+
             $search = $request->get('search');
             $export = $request->get('export');
 
-            $query = DB::table('machinery_documents')->where('machinery_id', $id)->orderBy('id', 'desc');
+            $query = DB::table('machinery_documents')
+                ->where('machinery_id', $id)
+                ->whereBetween('machinery_documents.issue_date', [$min_date, $max_date])
+                ->orderBy('id', 'desc');
 
             if ($search) {
                 $query->where(function($q) use ($search) {
@@ -1214,6 +1232,14 @@ class ApiAssetMachineryController extends Controller
             $user = $request->user();
             $conn = config('database.default');
 
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->issue_date) < strtotime($min_date) || strtotime($request->issue_date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to upload document for issue date: " . $request->issue_date], 403);
+            }
+
             $file = $attachment;
             $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
             $file->move(public_path('images/app_images/' . $conn . '/machinery_doc'), $imageName);
@@ -1254,6 +1280,16 @@ class ApiAssetMachineryController extends Controller
             $doc = DB::table('machinery_documents')->where('id', $id)->where('machinery_id', $machinery_id)->first();
 
             if (!$doc) return response()->json(['status' => 'Error', 'message' => 'Document not found for this machinery'], 404);
+
+            if ($request->has('issue_date')) {
+                $add_duration = getUserAddDuration($user);
+                $duration = getdurationdates($add_duration);
+                $min_date = $duration['min'];
+                $max_date = substr($duration['today'], 0, 10);
+                if (strtotime($request->issue_date) < strtotime($min_date) || strtotime($request->issue_date) > strtotime($max_date)) {
+                    return response()->json(['status' => 'Failed', 'message' => "You don't have permission to edit document for issue date: " . $request->issue_date], 403);
+                }
+            }
 
             $data = $request->only(['name', 'issue_date', 'end_date', 'remark']);
             
@@ -1308,6 +1344,12 @@ class ApiAssetMachineryController extends Controller
     public function machineryServices(Request $request, $id)
     {
         try {
+            $user = $request->user();
+            $view_duration = getUserViewDuration($user);
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+
             $search = $request->get('search');
             $export = $request->get('export');
 
@@ -1315,6 +1357,7 @@ class ApiAssetMachineryController extends Controller
                 ->leftJoin('users', 'users.id', '=', 'machinery_services.user_id')
                 ->select('machinery_services.*', 'users.name as user_name')
                 ->where('machinery_id', $id)
+                ->whereBetween('machinery_services.create_date', [$min_date, $max_date])
                 ->orderBy('create_date', 'desc');
 
             if ($search) {
@@ -1355,6 +1398,15 @@ class ApiAssetMachineryController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
+
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->create_date) < strtotime($min_date) || strtotime($request->create_date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to record service for date: " . $request->create_date], 403);
+            }
+
             $images = [];
 
             for ($i = 1; $i <= 5; $i++) {
@@ -1415,6 +1467,16 @@ class ApiAssetMachineryController extends Controller
             $service = DB::table('machinery_services')->where('id', $id)->where('machinery_id', $machinery_id)->first();
 
             if (!$service) return response()->json(['status' => 'Error', 'message' => 'Service record not found'], 404);
+
+            if ($request->has('create_date')) {
+                $add_duration = getUserAddDuration($user);
+                $duration = getdurationdates($add_duration);
+                $min_date = $duration['min'];
+                $max_date = substr($duration['today'], 0, 10);
+                if (strtotime($request->create_date) < strtotime($min_date) || strtotime($request->create_date) > strtotime($max_date)) {
+                    return response()->json(['status' => 'Failed', 'message' => "You don't have permission to edit service for date: " . $request->create_date], 403);
+                }
+            }
 
             $data = $request->only(['create_date', 'next_service_on', 'maintainence_item', 'remark']);
             $data = array_filter($data, function($value) { return !is_null($value); });

@@ -38,11 +38,10 @@ class MaterialController extends Controller
       
 
         $role_id = getAppRoleByUId($uid, $conn);
-
         $role_details = getAppRoleDetailsById($role_id, $conn);
-
-        $view_duration = $role_details->view_duration;
-        $visiblity_at_site = $role_details->visiblity_at_site;
+        $user_details = DB::connection($conn)->table('users')->where('id', $uid)->first();
+        $view_duration = getUserViewDuration($user_details, $conn);
+        $visiblity_at_site = $role_details ? $role_details->visiblity_at_site : 'all';
 
         $dates = getdurationdates($view_duration);
         $min_date = $dates['min'];
@@ -70,6 +69,22 @@ class MaterialController extends Controller
         $site_id = $request->site_id;
         $uid = $request->user_id;
         $date = $request->date;
+
+        $role_id = getAppRoleByUId($uid, $conn);
+        $role_details = getAppRoleDetailsById($role_id, $conn);
+        $user_details = DB::connection($conn)->table('users')->where('id', $uid)->first();
+        $add_duration = getUserAddDuration($user_details, $conn);
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = substr($duration['today'], 0, 10);
+        if (strtotime($date) < strtotime($min_date) || strtotime($date) > strtotime($max_date)) {
+            $result = array();
+            $result['status'] = 'Failed';
+            $result['message'] = "You don't have permission to add entry for date: " . $date;
+            $response = array();
+            array_push($response, $result);
+            return json_encode($response);
+        }
         
         $imagePath = "images/expense.png";
         try {

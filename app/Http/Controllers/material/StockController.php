@@ -82,45 +82,56 @@ class StockController extends Controller
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $length = count($data['site_id']);
-        for ($i = 0; $i < $length; $i++) {
-            if (isset($request->image[$i])) {
-                $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
-                $request->image[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/consumption'), $imageName);
-                $imagePath = "images/app_images/" . $user_db_conn_name . "/consumption/" . $imageName;
-            } else {
-                $imagePath = "images/expense.png";
-            }
-            $consumption_wastage = $data['consumption_wastage'][$i];
-            if ($consumption_wastage == 'Consumption') {
-                $rawd = [
+        
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
 
-                    'material_id' => $data['material_id'][$i],
-                    'site_id' => $data['site_id'][$i],
-                    'unit' => $data['unit'][$i],
-                    'qty' => $data['qty'][$i],
-                    'user_id' => $user_id,
-                    'image' => $imagePath,
-                    'remark' => $data['remark'][$i],
+        DB::connection($user_db_conn_name)->beginTransaction();
+        try {
+            for ($i = 0; $i < $length; $i++) {
+                if (strtotime($data['date'][$i]) < strtotime($min_date) || strtotime($data['date'][$i]) > strtotime($max_date)) {
+                    DB::connection($user_db_conn_name)->rollBack();
+                    return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['date'][$i]);
+                }
+                if (isset($request->image[$i])) {
+                    $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
+                    $request->image[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/consumption'), $imageName);
+                    $imagePath = "images/app_images/" . $user_db_conn_name . "/consumption/" . $imageName;
+                } else {
+                    $imagePath = "images/expense.png";
+                }
+                $consumption_wastage = $data['consumption_wastage'][$i];
+                if ($consumption_wastage == 'Consumption') {
+                    $rawd = [
 
-                    'date' => $data['date'][$i],
-                ];
-            } else {
-                $rawd = [
+                        'material_id' => $data['material_id'][$i],
+                        'site_id' => $data['site_id'][$i],
+                        'unit' => $data['unit'][$i],
+                        'qty' => $data['qty'][$i],
+                        'user_id' => $user_id,
+                        'image' => $imagePath,
+                        'remark' => $data['remark'][$i],
 
-                    'material_id' => $data['material_id'][$i],
-                    'site_id' => $data['site_id'][$i],
-                    'unit' => $data['unit'][$i],
-                    'qty' => $data['qty'][$i],
-                    'user_id' => $user_id,
-                    'image' => $imagePath,
-                    'remark' => $data['remark'][$i],
-                    'reason' => $data['reason'][$i],
+                        'date' => $data['date'][$i],
+                    ];
+                } else {
+                    $rawd = [
 
-                    'date' => $data['date'][$i],
-                ];
-            }
+                        'material_id' => $data['material_id'][$i],
+                        'site_id' => $data['site_id'][$i],
+                        'unit' => $data['unit'][$i],
+                        'qty' => $data['qty'][$i],
+                        'user_id' => $user_id,
+                        'image' => $imagePath,
+                        'remark' => $data['remark'][$i],
+                        'reason' => $data['reason'][$i],
 
-            try {
+                        'date' => $data['date'][$i],
+                    ];
+                }
+
                 if ($consumption_wastage == 'Consumption') {
                     $id =  DB::connection($user_db_conn_name)->table('material_consumption')->insertGetId($rawd);
                     addActivity($id, 'material_consumption', "New Material Consumption Created ", 3);
@@ -136,11 +147,12 @@ class StockController extends Controller
                         $this->approveWastageReq($id, $user_db_conn_name);
                     }
                 }
-
-                $result = true;
-            } catch (\Exception $e) {
-                $result = false;
             }
+            DB::connection($user_db_conn_name)->commit();
+            $result = true;
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            $result = false;
         }
 
         if ($result) {
@@ -361,6 +373,15 @@ class StockController extends Controller
             return redirect('/verified_consumption')->with('error', 'Material Consumption Entry Not Found!');
         }
 
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if (strtotime($data['date']) < strtotime($min_date) || strtotime($data['date']) > strtotime($max_date)) {
+            return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
+        }
+
         if (isset($request->image)) {
             if (File::exists($material_consumption->image) && $material_consumption->image != 'images/expense.png') {
                 File::delete($material_consumption->image);
@@ -407,6 +428,15 @@ class StockController extends Controller
         $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->where('id', $id)->first();
         if (!$material_wastage) {
             return redirect('/verified_consumption')->with('error', 'Material Wastage Entry Not Found!');
+        }
+
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if (strtotime($data['date']) < strtotime($min_date) || strtotime($data['date']) > strtotime($max_date)) {
+            return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
         }
 
         if (isset($request->image)) {
@@ -533,6 +563,16 @@ class StockController extends Controller
         $data = $request->input();
         $user_id = session()->get('uid');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if (strtotime($data['date']) < strtotime($min_date) || strtotime($data['date']) > strtotime($max_date)) {
+            return redirect()->back()->with('error', "You don't have permission to transfer stock for date: " . $data['date']);
+        }
+
         try {
             $rawd = [
                 'material_id' => $data['material_id'],
@@ -661,6 +701,16 @@ class StockController extends Controller
         $data = $request->input();
         $user_id = session()->get('uid');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if (strtotime($data['date']) < strtotime($min_date) || strtotime($data['date']) > strtotime($max_date)) {
+            return redirect()->back()->with('error', "You don't have permission to convert stock for date: " . $data['date']);
+        }
+
         try {
             $rawd = [
                 'material_id' => $data['material_id'],

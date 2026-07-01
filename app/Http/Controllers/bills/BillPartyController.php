@@ -36,6 +36,12 @@ class BillPartyController extends Controller
             $from = date('Y-m-d 00:00:00', strtotime($request->get('from_date')));
             $to = date('Y-m-d 23:59:59', strtotime($request->get('to_date')));
             $query->whereBetween('bills_party.create_datetime', [$from, $to]);
+        } else {
+            $view_duration = $request->session()->get('view_duration');
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+            $query->whereBetween('bills_party.create_datetime', [$min_date, $max_date]);
         }
 
         $data = $query->get();
@@ -167,9 +173,15 @@ class BillPartyController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
+        $view_duration = $request->session()->get('view_duration');
+        $dates = getdurationdates($view_duration);
+        $min_date = $dates['min'];
+        $max_date = $dates['max'];
+
         $data['data'] = DB::connection($user_db_conn_name)->table('bills_party')
             ->leftJoin('expense_head', 'expense_head.id', '=', 'bills_party.cost_category_id')
             ->select('bills_party.*', 'expense_head.name as category_name')
+            ->whereBetween('bills_party.create_datetime', [$min_date, $max_date])
             ->get();
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $id)->get();
         $cost_categories = getallCostCategories();

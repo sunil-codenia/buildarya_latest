@@ -4745,6 +4745,13 @@ class ApiManagementController extends Controller
                 ->leftJoin('expense_head', 'expense_head.id', '=', 'bills_party.cost_category_id')
                 ->select('bills_party.*', 'expense_head.name as category_name');
 
+            $user = $request->user();
+            $view_duration = getUserViewDuration($user, $conn);
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+            $query->whereBetween('bills_party.create_datetime', [$min_date, $max_date]);
+
             if ($status) {
                 $query->where('bills_party.status', $status);
             }
@@ -5946,6 +5953,13 @@ class ApiManagementController extends Controller
                 $query->where('material_entry.date', '>=', $from_date);
             } elseif ($to_date) {
                 $query->where('material_entry.date', '<=', $to_date);
+            } else {
+                $user = $request->user();
+                $view_duration = getUserViewDuration($user, $conn);
+                $dates = getdurationdates($view_duration);
+                $min_date = date('Y-m-d', strtotime($dates['min']));
+                $max_date = date('Y-m-d', strtotime($dates['max']));
+                $query->whereBetween('material_entry.date', [$min_date, $max_date]);
             }
 
             if (!empty($search)) {
@@ -6660,6 +6674,13 @@ class ApiManagementController extends Controller
 
             if ($from_date && $to_date) {
                 $query->whereBetween('new_bill_entry.billdate', [$from_date, $to_date]);
+            } else {
+                $user = $request->user();
+                $view_duration = getUserViewDuration($user, $conn);
+                $dates = getdurationdates($view_duration);
+                $min_date = date('Y-m-d', strtotime($dates['min']));
+                $max_date = date('Y-m-d', strtotime($dates['max']));
+                $query->whereBetween('new_bill_entry.billdate', [$min_date, $max_date]);
             }
 
             if ($search) {

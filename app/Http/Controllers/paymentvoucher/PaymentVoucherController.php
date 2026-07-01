@@ -122,6 +122,19 @@ class PaymentVoucherController extends Controller
     {
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $comp_name = $request->session()->get('comp_name');
+        if (!empty($comp_name)) {
+            $company_exists = DB::connection($user_db_conn_name)->table('sales_company')
+                ->where('name', $comp_name)
+                ->exists();
+            if (!$company_exists) {
+                DB::connection($user_db_conn_name)->table('sales_company')->insert([
+                    'name' => $comp_name,
+                    'status' => 'Active',
+                    'create_datetime' => date('Y-m-d H:i:s')
+                ]);
+            }
+        }
         $data['companies'] = DB::connection($user_db_conn_name)->table('sales_company')->where('status', '=', 'Active')->get();
         $data['material_suppliers'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('status', '=', 'Active')->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
@@ -134,6 +147,19 @@ class PaymentVoucherController extends Controller
     {
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $comp_name = $request->session()->get('comp_name');
+        if (!empty($comp_name)) {
+            $company_exists = DB::connection($user_db_conn_name)->table('sales_company')
+                ->where('name', $comp_name)
+                ->exists();
+            if (!$company_exists) {
+                DB::connection($user_db_conn_name)->table('sales_company')->insert([
+                    'name' => $comp_name,
+                    'status' => 'Active',
+                    'create_datetime' => date('Y-m-d H:i:s')
+                ]);
+            }
+        }
         $data['paymentvoucher'] = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $request->get('id'))->get()[0];
         $data['companies'] = DB::connection($user_db_conn_name)->table('sales_company')->where('status', '=', 'Active')->get();
         $data['material_suppliers'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('status', '=', 'Active')->get();
@@ -171,30 +197,42 @@ class PaymentVoucherController extends Controller
         $status = getInitialEntryStatusByRole($role_id);
         $length = count($data['site_id']);
 
-        for ($i = 0; $i < $length; $i++) {
-            if (isset($request->image[$i])) {
-                $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
-                $request->image[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/paymentvoucher'), $imageName);
-                $imagePath = "images/app_images/" . $user_db_conn_name . "/paymentvoucher/" . $imageName;
-            } else {
-                $imagePath = "images/expense.png";
-            }
-            $party = explode("||", $data['party_id'][$i]);
-            $rawd = [
-                'company_id' => $data['company_id'][$i],
-                'site_id' => $data['site_id'][$i],
-                'party_type' => $party[1],
-                'party_id' => $party[0],
-                'voucher_no' => $data['voucher_no'][$i],
-                'amount' => $data['amount'][$i],
-                'date' => $data['date'][$i],
-                'payment_details' => $data['payment_details'][$i],
-                'remark' => $data['remark'][$i],
-                'created_by' => $user_id,
-                'image' => $imagePath,
-                'status' => $status,
-            ];
-            try {
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+        $etext = '';
+
+        DB::connection($user_db_conn_name)->beginTransaction();
+        try {
+            for ($i = 0; $i < $length; $i++) {
+                if (strtotime($data['date'][$i]) < strtotime($min_date) || strtotime($data['date'][$i]) > strtotime($max_date)) {
+                    DB::connection($user_db_conn_name)->rollBack();
+                    return redirect()->back()->with('error', "You don't have permission to create payment voucher for date: " . $data['date'][$i]);
+                }
+                if (isset($request->image[$i])) {
+                    $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
+                    $request->image[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/paymentvoucher'), $imageName);
+                    $imagePath = "images/app_images/" . $user_db_conn_name . "/paymentvoucher/" . $imageName;
+                } else {
+                    $imagePath = "images/expense.png";
+                }
+                $party = explode("||", $data['party_id'][$i]);
+                $rawd = [
+                    'company_id' => $data['company_id'][$i],
+                    'site_id' => $data['site_id'][$i],
+                    'party_type' => $party[1],
+                    'party_id' => $party[0],
+                    'voucher_no' => $data['voucher_no'][$i],
+                    'amount' => $data['amount'][$i],
+                    'date' => $data['date'][$i],
+                    'payment_details' => $data['payment_details'][$i],
+                    'remark' => $data['remark'][$i],
+                    'created_by' => $user_id,
+                    'image' => $imagePath,
+                    'status' => $status,
+                ];
+
                 $id = DB::connection($user_db_conn_name)->table('payment_vouchers')->insertGetId($rawd);
                 addActivity($id, 'payment_vouchers', "New Payment Vouchers Created", 8);
 
@@ -214,13 +252,15 @@ class PaymentVoucherController extends Controller
                         addActivity($id, 'payment_vouchers', "Payment Vouchers Approved", 8);
                     }
                 }
-                $res = true;
-            } catch (\Exception $e) {
-                if ($e->getCode() == 23000) {
-                    $etext = "Voucher No Already Exist!";
-                }
-                $res = false;
             }
+            DB::connection($user_db_conn_name)->commit();
+            $res = true;
+        } catch (\Exception $e) {
+            DB::connection($user_db_conn_name)->rollBack();
+            if ($e->getCode() == 23000) {
+                $etext = "Voucher No Already Exist!";
+            }
+            $res = false;
         }
         if ($res) {
             if ($status == 'Approved') {
@@ -318,6 +358,15 @@ class PaymentVoucherController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $paymentvoucher = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $id)->get()[0];
 
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if (strtotime($data['date']) < strtotime($min_date) || strtotime($data['date']) > strtotime($max_date)) {
+            return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
+        }
+
         if (isset($request->image)) {
             if (File::exists($paymentvoucher->image) && $paymentvoucher->image != 'images/expense.png') {
                 File::delete($paymentvoucher->image);
@@ -373,6 +422,7 @@ class PaymentVoucherController extends Controller
                     ->with('success', 'Payment Voucher Updated successfully!');
             }
         } catch (\Exception $e) {
+            $etext = '';
             if ($e->getCode() == 23000) {
                 $etext = "Voucher No Already Exist!";
             }

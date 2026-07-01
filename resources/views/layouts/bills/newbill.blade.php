@@ -9,11 +9,14 @@
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
         $entry_at_site = $role_details->entry_at_site;
-        $add_duration = session()->get('add_duration');
-        $duration = getdurationdates($add_duration);
-        $today = substr($duration['today'], 0, 10);
-        $min_date = substr($duration['min'], 0, 10);
-        $max_date = substr($duration['max'], 0, 10);
+
+        // Use fresh add_duration passed by controller (re-read from DB), fall back to session
+        $add_duration = !empty($data['add_duration']) ? $data['add_duration'] : session()->get('add_duration');
+        $duration  = getdurationdates($add_duration);
+        $today     = substr($duration['today'], 0, 10);
+        $min_date  = substr($duration['min'],   0, 10);
+        // Cap max at today — bill dates should never be in the future
+        $max_date  = $today;
 
     @endphp
 
@@ -85,14 +88,17 @@
                                         <div class="col-lg-4 col-md-4 col-sm-4">
                                             <div class="form-group">
                                                 <label>From Date</label>
-                                                <input type="date" required class="form-control" name="bill_from_date">
-
+                                                <input type="date" required class="form-control"
+                                                    min="{{ $min_date }}" max="{{ $max_date }}"
+                                                    name="bill_from_date">
                                             </div>
                                         </div>
                                         <div class="col-lg-4 col-md-4 col-sm-4">
                                             <div class="form-group">
                                                 <label>To Date</label>
-                                                <input type="date" required class="form-control" name="bill_to_date">
+                                                <input type="date" required class="form-control"
+                                                    min="{{ $min_date }}" max="{{ $max_date }}"
+                                                    name="bill_to_date">
                                             </div>
                                         </div>
 

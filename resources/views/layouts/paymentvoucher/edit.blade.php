@@ -41,17 +41,18 @@ $max_date = substr($duration['max'], 0, 10);
                            <div class="form-group">
                              <input type="hidden" name="id" value="{{$paymentvoucher['id']}}"/>
                               <label>Company</label>
-                              <select name="company_id"  class="form-control show-tick" data-live-search="true" required>
-                                <option value="" selected disabled >--Select Company--</option>
-                          
-                            @foreach($companies as $company)
-                            @if($paymentvoucher['company_id'] == $company['id'])
-                            <option selected value = "{{$company['id']}}">{{$company['name']}}</option>
-                            @else
-                            <option value = "{{$company['id']}}">{{$company['name']}}</option>
-                            @endif
-                            @endforeach
-                            </select>
+                               <input type="hidden" name="company_id" value="{{$paymentvoucher['company_id']}}"/>
+                               <select class="form-control show-tick" data-live-search="true" disabled>
+                                 <option value="" selected disabled >--Select Company--</option>
+                           
+                             @foreach($companies as $company)
+                             @if($paymentvoucher['company_id'] == $company['id'])
+                             <option selected value = "{{$company['id']}}">{{$company['name']}}</option>
+                             @else
+                             <option value = "{{$company['id']}}">{{$company['name']}}</option>
+                             @endif
+                             @endforeach
+                             </select>
                            </div>
                         </div>
                         <div class="col-lg-3 col-md-3 col-sm-3">
@@ -100,24 +101,7 @@ $max_date = substr($duration['max'], 0, 10);
                               @endif
                               @endforeach
                            </optgroup>
-                           <optgroup label="Other Parties">
-                              @foreach($other_parties as $party)
-                              @if($paymentvoucher['party_type'] == 'other' && $paymentvoucher['party_id'] == $party['id'])
-                              <option selected value = "{{$party['id']}}||other">{{$party['name']}}</option>
-                              @else
-                              <option value = "{{$party['id']}}||other">{{$party['name']}}</option>
-                              @endif
-                              @endforeach
-                           </optgroup>
-                           <optgroup label="Sites">
-                              @foreach($sites as $party)
-                              @if($paymentvoucher['party_type'] == 'site' && $paymentvoucher['party_id'] == $party['id'])
-                              <option selected value = "{{$party['id']}}||site">{{$party['name']}}</option>
-                              @else
-                              <option value = "{{$party['id']}}||site">{{$party['name']}}</option>
-                              @endif
-                              @endforeach
-                           </optgroup>
+
                        </select>
 
                            </div>

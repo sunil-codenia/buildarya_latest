@@ -46,7 +46,12 @@ class ApiExpenseController extends Controller
             // Standard filters based on project role logic
             $role_id = $user->role_id;
             $role_details = DB::table('roles')->where('id', $role_id)->first();
-            $visiblity_at_site = $role_details->visiblity_at_site;
+            $visiblity_at_site = $role_details ? $role_details->visiblity_at_site : 'all';
+            
+            $view_duration = getUserViewDuration($user);
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
             
             $query = DB::table('expenses')
                 ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
@@ -67,6 +72,7 @@ class ApiExpenseController extends Controller
                     'expense_head.name as head_name',
                     DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END AS party_name')
                 )
+                ->whereBetween('expenses.create_datetime', [$min_date, $max_date])
                 ->orderBy('expenses.date', 'desc')
                 ->orderBy('expenses.id', 'desc');
 
@@ -360,6 +366,14 @@ class ApiExpenseController extends Controller
         try {
             $conn = config('database.default');
             $user = $request->user();
+
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->date) < strtotime($min_date) || strtotime($request->date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to add entry for date: " . $request->date], 403);
+            }
             
             $imagePath = "images/expense.png";
             if ($request->hasFile('image')) {
@@ -417,6 +431,16 @@ class ApiExpenseController extends Controller
 
             if (!$expense) {
                 return response()->json(['status' => 'Failed', 'message' => 'Expense not found'], 404);
+            }
+
+            if ($request->has('date')) {
+                $add_duration = getUserAddDuration($user);
+                $duration = getdurationdates($add_duration);
+                $min_date = $duration['min'];
+                $max_date = substr($duration['today'], 0, 10);
+                if (strtotime($request->date) < strtotime($min_date) || strtotime($request->date) > strtotime($max_date)) {
+                    return response()->json(['status' => 'Failed', 'message' => "You don't have permission to edit entry for date: " . $request->date], 403);
+                }
             }
 
             $updateData = $request->only(['site_id', 'party_id', 'party_type', 'head_id', 'particular', 'amount', 'remark', 'location', 'date']);

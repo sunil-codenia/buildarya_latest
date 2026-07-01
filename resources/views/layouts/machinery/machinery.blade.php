@@ -4,6 +4,11 @@
                                     
     @php
         $sites = getallActivesites();
+        $add_duration = session()->get('add_duration');
+        $duration     = getdurationdates($add_duration);
+        $today        = substr($duration['today'], 0, 10);
+        $min_date     = substr($duration['min'],   0, 10);
+        $max_date     = substr($duration['max'],   0, 10);
     @endphp
 
     <div class="row clearfix">
@@ -232,6 +237,8 @@
                                 <div class="form-group">
                                     <label for="Name">Date</label>
                                     <input type="date" name="date" id="date" class="form-control"
+                                        min="{{ $min_date }}" max="{{ $max_date }}"
+                                        value="{{ $today }}"
                                         placeholder="Date" />
                                 </div>
                             </div>

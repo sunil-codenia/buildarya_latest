@@ -42,7 +42,12 @@ class ApiMaterialController extends Controller
             
             $role_id = $user->role_id;
             $role_details = DB::table('roles')->where('id', $role_id)->first();
-            $visiblity_at_site = $role_details->visiblity_at_site;
+            $visiblity_at_site = $role_details ? $role_details->visiblity_at_site : 'all';
+            
+            $view_duration = getUserViewDuration($user);
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
             
             $query = DB::table('material_entry')
                 ->leftJoin('materials', 'materials.id', '=', 'material_entry.material_id')
@@ -51,6 +56,7 @@ class ApiMaterialController extends Controller
                 ->leftJoin('sites', 'sites.id', '=', 'material_entry.site_id')
                 ->leftJoin('users', 'users.id', '=', 'material_entry.user_id')
                 ->select('material_entry.*', 'sites.name as site_name', 'users.name as user_name', 'materials.name as material_name', 'material_supplier.name as supplier_name', 'units.name as unit_name')
+                ->whereBetween('material_entry.create_datetime', [$min_date, $max_date])
                 ->orderBy('material_entry.create_datetime', 'desc');
 
             if ($visiblity_at_site == 'current' && $site_id && $site_id != 'all') {
@@ -90,6 +96,14 @@ class ApiMaterialController extends Controller
         try {
             $conn = config('database.default');
             $user = $request->user();
+
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->date) < strtotime($min_date) || strtotime($request->date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to add entry for date: " . $request->date], 403);
+            }
             
             $imagePath = "images/expense.png";
             if ($request->hasFile('image')) {
@@ -144,6 +158,16 @@ class ApiMaterialController extends Controller
 
             if (!$entry) {
                 return response()->json(['status' => 'Failed', 'message' => 'Material entry not found'], 404);
+            }
+
+            if ($request->has('date')) {
+                $add_duration = getUserAddDuration($user);
+                $duration = getdurationdates($add_duration);
+                $min_date = $duration['min'];
+                $max_date = substr($duration['today'], 0, 10);
+                if (strtotime($request->date) < strtotime($min_date) || strtotime($request->date) > strtotime($max_date)) {
+                    return response()->json(['status' => 'Failed', 'message' => "You don't have permission to edit entry for date: " . $request->date], 403);
+                }
             }
 
             $updateData = $request->only(['site_id', 'supplier', 'material_id', 'unit', 'qty', 'vehical', 'remark', 'location', 'date']);

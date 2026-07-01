@@ -13,9 +13,9 @@ class ApiPaymentVoucherController extends Controller
     /**
      * Helper to build the base query for payment vouchers with Joins to resolve related names.
      */
-    private function getVouchersQuery($conn)
+    private function getVouchersQuery($conn, $user = null)
     {
-        return DB::connection($conn)->table('payment_vouchers as pv')
+        $query = DB::connection($conn)->table('payment_vouchers as pv')
             ->leftJoin('sales_company as sc', 'sc.id', '=', 'pv.company_id')
             ->leftJoin('sites as vs', 'vs.id', '=', 'pv.site_id')
             ->leftJoin('users as cu', 'cu.id', '=', 'pv.created_by')
@@ -38,6 +38,16 @@ class ApiPaymentVoucherController extends Controller
                     ->where('pv.party_type', '=', 'other');
             })
             ->selectRaw('pv.*, sc.name as company_name, vs.name as site_name, cu.name as created_user, au.name as approved_user, pu.name as paid_user, CASE WHEN pv.party_type = "bill" THEN bills_party.name WHEN pv.party_type = "material" THEN material_supplier.name WHEN pv.party_type = "other" THEN other_parties.name WHEN pv.party_type = "site" THEN ps.name END AS party_name');
+
+        if ($user) {
+            $view_duration = getUserViewDuration($user);
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+            $query->whereBetween('pv.create_datetime', [$min_date, $max_date]);
+        }
+
+        return $query;
     }
 
     /**
@@ -96,7 +106,8 @@ class ApiPaymentVoucherController extends Controller
     {
         try {
             $conn = config('database.default');
-            $query = $this->getVouchersQuery($conn)->where('pv.status', 'Pending');
+            $user = $request->user();
+            $query = $this->getVouchersQuery($conn, $user)->where('pv.status', 'Pending');
 
             // Apply Search
             $search = trim($request->get('search'));
@@ -143,7 +154,8 @@ class ApiPaymentVoucherController extends Controller
     {
         try {
             $conn = config('database.default');
-            $query = $this->getVouchersQuery($conn)->whereIn('pv.status', ['Approved', 'Rejected']);
+            $user = $request->user();
+            $query = $this->getVouchersQuery($conn, $user)->whereIn('pv.status', ['Approved', 'Rejected']);
 
             // Apply Search
             $search = trim($request->get('search'));
@@ -190,7 +202,8 @@ class ApiPaymentVoucherController extends Controller
     {
         try {
             $conn = config('database.default');
-            $query = $this->getVouchersQuery($conn)->where('pv.status', 'Paid');
+            $user = $request->user();
+            $query = $this->getVouchersQuery($conn, $user)->where('pv.status', 'Paid');
 
             // Apply Search
             $search = trim($request->get('search'));
@@ -402,6 +415,14 @@ class ApiPaymentVoucherController extends Controller
             $user = $request->user();
             $conn = config('database.default');
 
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->date) < strtotime($min_date) || strtotime($request->date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to add entry for date: " . $request->date], 403);
+            }
+
             // Extract party_id and party_type
             $rawPartyId = $request->party_id;
             $partyId = $rawPartyId;
@@ -477,13 +498,24 @@ class ApiPaymentVoucherController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
+
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+
             $status = getInitialEntryStatusByRole($user->role_id);
             $ids = [];
             $errors = [];
 
-            $length = count($request->site_id);
             for ($i = 0; $i < $length; $i++) {
                 try {
+                    $vDate = $request->date[$i] ?? null;
+                    if ($vDate && (strtotime($vDate) < strtotime($min_date) || strtotime($vDate) > strtotime($max_date))) {
+                        $errors[] = "Row " . ($i + 1) . ": You don't have permission to add entry for date: " . $vDate;
+                        continue;
+                    }
+
                     $imagePath = "images/expense.png";
                     if ($request->hasFile("image.$i")) {
                         $imageName = time() . rand(10000, 1000000) . '.' . $request->file("image.$i")->extension();
@@ -623,7 +655,8 @@ class ApiPaymentVoucherController extends Controller
     {
         try {
             $conn = config('database.default');
-            $voucher = $this->getVouchersQuery($conn)->where('pv.id', $id)->first();
+            $user = $request->user();
+            $voucher = $this->getVouchersQuery($conn, $user)->where('pv.id', $id)->first();
             
             if (!$voucher) {
                 return response()->json(['status' => 'Error', 'message' => 'Payment Voucher not found'], 404);
@@ -659,6 +692,14 @@ class ApiPaymentVoucherController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
+
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->date) < strtotime($min_date) || strtotime($request->date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to edit entry for date: " . $request->date], 403);
+            }
 
             $voucher = DB::table('payment_vouchers')->where('id', $id)->first();
             if (!$voucher) {
@@ -740,6 +781,16 @@ class ApiPaymentVoucherController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
+
+            $role_id = $user->role_id;
+            $role_details = DB::table('roles')->where('id', $role_id)->first();
+            $add_duration = !empty($user->add_duration) ? $user->add_duration : ($role_details ? $role_details->add_duration : 'anytime');
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->payment_date) < strtotime($min_date) || strtotime($request->payment_date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to pay voucher for date: " . $request->payment_date], 403);
+            }
 
             $paymentvoucher = DB::connection($conn)->table('payment_vouchers')->where('id', $id)->first();
             if (!$paymentvoucher) {
@@ -908,7 +959,8 @@ class ApiPaymentVoucherController extends Controller
 
         try {
             $conn = config('database.default');
-            $query = $this->getVouchersQuery($conn);
+            $user = $request->user();
+            $query = $this->getVouchersQuery($conn, $user);
 
             $start_date = $request->start_date;
             $end_date = $request->end_date;

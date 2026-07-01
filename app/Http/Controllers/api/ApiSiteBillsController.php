@@ -39,11 +39,17 @@ class ApiSiteBillsController extends Controller
             $site_id = $request->get('site_id', $user->site_id);
             $status = $request->get('status'); // Optional: Approved, Pending, Rejected
             
+            $view_duration = getUserViewDuration($user);
+            $dates = getdurationdates($view_duration);
+            $min_date = $dates['min'];
+            $max_date = $dates['max'];
+
             $query = DB::table('new_bill_entry')
                 ->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')
                 ->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')
                 ->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')
                 ->select('new_bill_entry.*', 'sites.name as site_name', 'users.name as user_name', 'bills_party.name as party_name')
+                ->whereBetween('new_bill_entry.create_datetime', [$min_date, $max_date])
                 ->orderBy('new_bill_entry.create_datetime', 'desc');
 
             if ($site_id && $site_id != 'all') {
@@ -111,6 +117,14 @@ class ApiSiteBillsController extends Controller
         try {
             $user = $request->user();
             $conn = config('database.default');
+
+            $add_duration = getUserAddDuration($user);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($request->bill_date) < strtotime($min_date) || strtotime($request->bill_date) > strtotime($max_date)) {
+                return response()->json(['status' => 'Failed', 'message' => "You don't have permission to add entry for date: " . $request->bill_date], 403);
+            }
             
             $party = DB::table('bills_party')->where('id', $request->party_id)->first();
             if (!$party || $party->status != 'Active') {
@@ -188,6 +202,17 @@ class ApiSiteBillsController extends Controller
 
             if ($bill->status == 'Approved') {
                 return response()->json(['status' => 'Failed', 'message' => 'Cannot update an approved bill.'], 403);
+            }
+
+            $bill_date = $request->bill_date ?? $request->billdate;
+            if ($bill_date) {
+                $add_duration = getUserAddDuration($user);
+                $duration = getdurationdates($add_duration);
+                $min_date = $duration['min'];
+                $max_date = substr($duration['today'], 0, 10);
+                if (strtotime($bill_date) < strtotime($min_date) || strtotime($bill_date) > strtotime($max_date)) {
+                    return response()->json(['status' => 'Failed', 'message' => "You don't have permission to edit entry for date: " . $bill_date], 403);
+                }
             }
 
             $totalAmount = 0;

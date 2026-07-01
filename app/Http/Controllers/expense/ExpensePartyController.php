@@ -49,6 +49,12 @@ class ExpensePartyController extends Controller
             ->leftJoin('expense_head', 'expense_head.id', '=', 'expense_party.cost_category_id')
             ->select('expense_party.*', 'expense_head.name as category_name');
 
+        $view_duration = $request->session()->get('view_duration');
+        $dates = getdurationdates($view_duration);
+        $min_date = $dates['min'];
+        $max_date = $dates['max'];
+        $query->whereBetween('expense_party.create_datetime', [$min_date, $max_date]);
+
         // Total records
         $totalRecords = $query->count();
 

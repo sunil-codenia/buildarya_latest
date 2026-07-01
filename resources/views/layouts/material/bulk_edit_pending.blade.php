@@ -5,6 +5,11 @@
 @php
     $dataarray = json_decode($data, true);
     $material_entries = $dataarray['material_entries'];
+    $add_duration = session()->get('add_duration');
+    $duration     = getdurationdates($add_duration);
+    $today        = substr($duration['today'], 0, 10);
+    $min_date     = substr($duration['min'],   0, 10);
+    $max_date     = substr($duration['max'],   0, 10);
 @endphp
 
 <div class="row clearfix">
@@ -53,7 +58,8 @@
                                             <textarea name="remarks[]" class="form-control" rows="1">{{ $entry['remark'] }}</textarea>
                                         </td>
                                         <td>
-                                            <input type="date" name="dates[]" class="form-control" 
+                                            <input type="date" name="dates[]" class="form-control"
+                                                min="{{ $min_date }}" max="{{ $max_date }}"
                                                 value="{{ $entry['date'] }}" required>
                                         </td>
                                     </tr>

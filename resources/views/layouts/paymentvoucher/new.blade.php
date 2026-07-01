@@ -18,7 +18,13 @@
         $today = substr($duration['today'], 0, 10);
         $min_date = substr($duration['min'], 0, 10);
         $max_date = substr($duration['max'], 0, 10);
-
+        $selected_company_id = '';
+        foreach ($companies as $comp) {
+            if (strtolower($comp['name']) == strtolower(session()->get('comp_name')) || strtolower($comp['name']) == strtolower(session()->get('comp_id'))) {
+                $selected_company_id = $comp['id'];
+                break;
+            }
+        }
     @endphp
     <div class="row clearfix">
         <div class="col-md-12 col-sm-12 col-xs-12">
@@ -43,15 +49,16 @@
                                             <div class="col-lg-3 col-md-3 col-sm-3">
                                                 <div class="form-group">
                                                     <label>Company</label>
-                                                    <select name="company_id[]" class="form-control show-tick"
-                                                        data-live-search="true" required>
-                                                        <option value="" selected disabled>--Select Company--</option>
+                                                     <input type="hidden" name="company_id[]" value="{{ $selected_company_id }}">
+                                                     <select class="form-control show-tick"
+                                                         data-live-search="true" disabled>
+                                                         <option value="" {{ empty($selected_company_id) ? 'selected' : '' }} disabled>--Select Company--</option>
 
-                                                        @foreach ($companies as $company)
-                                                            <option value = "{{ $company['id'] }}">{{ $company['name'] }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
+                                                         @foreach ($companies as $company)
+                                                             <option value = "{{ $company['id'] }}" {{ $company['id'] == $selected_company_id ? 'selected' : '' }}>{{ $company['name'] }}
+                                                             </option>
+                                                         @endforeach
+                                                     </select>
                                                 </div>
                                             </div>
 
@@ -73,18 +80,7 @@
                                                                     {{ $party['name'] }}</option>
                                                             @endforeach
                                                         </optgroup>
-                                                        <optgroup label="Other Parties">
-                                                            @foreach ($other_parties as $party)
-                                                                <option value = "{{ $party['id'] }}||other">
-                                                                    {{ $party['name'] }}</option>
-                                                            @endforeach
-                                                        </optgroup>
-                                                        <optgroup label="Sites">
-                                                            @foreach ($sites as $site)
-                                                                <option value = "{{ $site['id'] }}||site||{{ $site['sites_type'][0] ?? '' }}">
-                                                                    {{ $site['name'] }}</option>
-                                                            @endforeach
-                                                        </optgroup>
+
                                                     </select>
 
                                                 </div>
@@ -192,9 +188,9 @@
             var site_html = '<select name="site_id[]" id="site_id_' + count +
                 '" class="form-control show-tick"  data-live-search="true"   required><option selected disabled value="">Select Voucher Party First</option></select>';
             var party_html = '<select name="party_id[]" onchange="update_sitesoption('+count+')" id="party_id_' + count +
-                '"  class="form-control show-tick"    data-live-search="true" required><option value="" selected disabled >--Select Party--</option><optgroup label="Material Supplier">@foreach ($material_suppliers as $party)<option value = "{{ $party['id'] }}||material">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Bill Parties">@foreach ($bill_parties as $party)<option value = "{{ $party['id'] }}||bill">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Other Parties">@foreach ($other_parties as $party)<option value = "{{ $party['id'] }}||other">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Sites">@foreach ($sites as $site)<option value = "{{ $site['id'] }}||site||{{ $site['sites_type'][0] ?? '' }}">{{ $site['name'] }}</option>@endforeach</optgroup></select>';
-            var company_html = '<select name="company_id[]" id="company_id_' + count +
-                '"  class="form-control show-tick"    data-live-search="true" required><option value="" selected disabled >--Select Company--</option>@foreach ($companies as $company)<option value = "{{ $company['id'] }}">{{ $company['name'] }}</option>@endforeach</select>';
+                '"  class="form-control show-tick"    data-live-search="true" required><option value="" selected disabled >--Select Party--</option><optgroup label="Material Supplier">@foreach ($material_suppliers as $party)<option value = "{{ $party['id'] }}||material">{{ $party['name'] }}</option>@endforeach</optgroup><optgroup label="Bill Parties">@foreach ($bill_parties as $party)<option value = "{{ $party['id'] }}||bill">{{ $party['name'] }}</option>@endforeach</optgroup></select>';
+            var company_html = '<input type="hidden" name="company_id[]" value="{{ $selected_company_id }}">';
+            company_html += '<select id="company_id_' + count + '" class="form-control show-tick" data-live-search="true" disabled><option value="" {{ empty($selected_company_id) ? "selected" : "" }} disabled >--Select Company--</option>@foreach ($companies as $company)<option value = "{{ $company['id'] }}" {{ $company['id'] == $selected_company_id ? "selected" : "" }}>{{ $company['name'] }}</option>@endforeach</select>';
 
             var result = '<div  id="row_' + count +
                 '"><hr><div class="row clearfix"><div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><img height= "150" width="150" id="' +

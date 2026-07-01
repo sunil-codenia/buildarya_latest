@@ -14,6 +14,11 @@ $dataarray = json_decode($data, true);
                                 $machinery = $dataarray['machinery'][0];
                             $dataarray = $dataarray['machinery_services'];
                             }
+$add_duration = session()->get('add_duration');
+$duration     = getdurationdates($add_duration);
+$today        = substr($duration['today'], 0, 10);
+$min_date     = substr($duration['min'],   0, 10);
+$max_date     = substr($duration['max'],   0, 10);
 @endphp
 <div class="row clearfix">
 @if($edit)
@@ -36,7 +41,9 @@ $dataarray = json_decode($data, true);
                                 <label for="Name">Service Date</label>
                                 <input type="hidden" name="id" value="{{$editdata['id']}}">
                                 <input type="hidden" name="machinery_id" value="{{$editdata['machinery_id']}}" id="new_doc_machinery_id"/>
-                                <input type="date" id="create_date" required class="form-control" name="create_date" value="{{$editdata['create_date']}}" >
+                                <input type="date" id="create_date" required class="form-control" name="create_date"
+                                    min="{{ $min_date }}" max="{{ $max_date }}"
+                                    value="{{$editdata['create_date']}}" >
                             </div>
                         </div>
                         <div class="col-lg-6 col-md-6 col-sm-6">
@@ -227,7 +234,9 @@ $dataarray = json_decode($data, true);
                             <div class="form-group">
                                 <input type="hidden" name="machinery_id" id="new_service_machinery_id"/>
                                 <label for="create_date">Service Date &nbsp;<span style="color:red;">*</span></label>
-                                <input type="date" id="create_date" required class="form-control" name="create_date" >
+                                <input type="date" id="create_date" required class="form-control" name="create_date"
+                                    min="{{ $min_date }}" max="{{ $max_date }}"
+                                    value="{{ $today }}" >
                             </div>
                         </div>
                         <div class="col-lg-4 col-md-4 col-sm-4">

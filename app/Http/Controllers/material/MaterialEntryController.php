@@ -393,11 +393,19 @@ class MaterialEntryController extends Controller
         $role_id = session()->get('role');
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
 
         DB::connection($user_db_conn_name)->beginTransaction();
         try {
             $length = count($data['site_id']);
             for ($i = 0; $i < $length; $i++) {
+                if (strtotime($data['date'][$i]) < strtotime($min_date) || strtotime($data['date'][$i]) > strtotime($max_date)) {
+                    DB::connection($user_db_conn_name)->rollBack();
+                    return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['date'][$i]);
+                }
                 if (isset($request->image[$i])) {
                     $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
                     $request->image[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName);
@@ -456,6 +464,15 @@ class MaterialEntryController extends Controller
 
         if (!$material_entry) {
             return redirect('/pending_material')->with('error', 'Material entry not found!');
+        }
+
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if (strtotime($data['date']) < strtotime($min_date) || strtotime($data['date']) > strtotime($max_date)) {
+            return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
         }
 
         if (isset($request->image)) {
@@ -689,10 +706,19 @@ if(count($check_entry_approved) == 1){
         $dates = $request->input('dates');
         $user_db_conn_name = session()->get('comp_db_conn_name');
 
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
         if ($ids != null) {
             DB::connection($user_db_conn_name)->beginTransaction();
             try {
                 foreach ($ids as $key => $id) {
+                    if (strtotime($dates[$key]) < strtotime($min_date) || strtotime($dates[$key]) > strtotime($max_date)) {
+                        DB::connection($user_db_conn_name)->rollBack();
+                        return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $dates[$key]);
+                    }
                     DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->update([
                         'qty' => $qtys[$key],
                         'vehical' => $vehicals[$key],

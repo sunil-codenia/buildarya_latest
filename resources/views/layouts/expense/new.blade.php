@@ -65,15 +65,15 @@
                                                     <select name="party_id[]" class="form-control show-tick"
                                                         data-live-search="true" required>
                                                          <option disabled>--Expense Parties--</option>
-                                                         @foreach ($parties as $party)
-                                                             <option value="{{ $party['id'] }}||expense" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>
-                                                                 {{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>
-                                                         @endforeach
-                                                         <option disabled>--Bill Parties--</option>
-                                                         @foreach ($bill_parties as $party)
-                                                             <option value="{{ $party['id'] }}||bill" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>{{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}
-                                                             </option>
-                                                         @endforeach
+                                                          @foreach ($parties as $party)
+                                                              <option value="{{ $party['id'] }}||expense" {{ $party['status'] == 'Pending' ? 'disabled' : '' }} data-cost-category="{{ $party['cost_category_id'] }}">
+                                                                  {{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>
+                                                          @endforeach
+                                                          <option disabled>--Bill Parties--</option>
+                                                          @foreach ($bill_parties as $party)
+                                                              <option value="{{ $party['id'] }}||bill" {{ $party['status'] == 'Pending' ? 'disabled' : '' }} data-cost-category="{{ $party['cost_category_id'] }}">{{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}
+                                                              </option>
+                                                          @endforeach
                                                     </select>
                                                 </div>
                                             </div>
@@ -165,7 +165,7 @@
             var site_html = '<select name="site_id[]"  id="site_id_' + count +
                 '" class="form-control show-tick" data-live-search="true"  required><option value="" selected disabled >--Select Site--</option> @if($entry_at_site == "current")<option selected value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else @foreach ($sites as $site)<option value = "{{ $site['id'] }}">{{ $site['name'] }}</option>@endforeach @endif</select>';
             var party_html = '<select name="party_id[]"  id="party_id_' + count +
-                '"  class="form-control show-tick" data-live-search="true" required><option disabled>--Expense Parties--</option>@foreach ($parties as $party)<option value = "{{ $party['id'] }}||expense" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>{{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>@endforeach<option disabled>--Bill Parties--</option>@foreach ($bill_parties as $party)<option value = "{{ $party['id'] }}||bill" {{ $party['status'] == 'Pending' ? 'disabled' : '' }}>{{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>@endforeach</select>';
+                '"  class="form-control show-tick" data-live-search="true" required><option disabled>--Expense Parties--</option>@foreach ($parties as $party)<option value = "{{ $party['id'] }}||expense" {{ $party['status'] == 'Pending' ? 'disabled' : '' }} data-cost-category="{{ $party['cost_category_id'] }}">{{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>@endforeach<option disabled>--Bill Parties--</option>@foreach ($bill_parties as $party)<option value = "{{ $party['id'] }}||bill" {{ $party['status'] == 'Pending' ? 'disabled' : '' }} data-cost-category="{{ $party['cost_category_id'] }}">{{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>@endforeach</select>';
             var head_html = '<select name="head_id[]"  id="head_id_' + count +
                 '" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Head--</option>@foreach ($heads as $head)<option value = "{{ $head['id'] }}">{{ $head['name'] }}</option>@endforeach</select>';
 
@@ -210,5 +210,18 @@
         function deleterow(id) {
             $('#row_' + id).remove();
         }
+
+        $(document).on('change', 'select[name="party_id[]"]', function() {
+            var selectedOption = $(this).find('option:selected');
+            var costCategory = selectedOption.data('cost-category');
+            if (costCategory) {
+                var rowContainer = $(this).closest('.row.clearfix');
+                var headSelect = rowContainer.find('select[name="head_id[]"]');
+                if (headSelect.length > 0) {
+                    headSelect.val(costCategory);
+                    headSelect.selectpicker('refresh');
+                }
+            }
+        });
     </script>
 @endsection

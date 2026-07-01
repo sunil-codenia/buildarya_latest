@@ -80,12 +80,27 @@ class NewBillController extends Controller
     }
     public function new_bill(Request $request)
     {
-
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
-        return  view('layouts.bills.newbill')->with('data', json_encode($data));
+
+        // Always re-read add_duration fresh from DB (user-level first, role-level fallback)
+        // This ensures the date picker is correct even after admin changes the user's setting post-login
+        $uid = $request->session()->get('uid');
+        $userRow = DB::connection($user_db_conn_name)->table('users')->where('id', $uid)->first();
+        if ($userRow && !empty($userRow->add_duration)) {
+            $fresh_add_duration = $userRow->add_duration;
+        } else {
+            $role_id  = $request->session()->get('role');
+            $roleRow  = DB::connection($user_db_conn_name)->table('roles')->where('id', $role_id)->first();
+            $fresh_add_duration = ($roleRow && !empty($roleRow->add_duration)) ? $roleRow->add_duration : 'anytime';
+        }
+        // Refresh session so subsequent requests also see the updated value
+        $request->session()->put('add_duration', $fresh_add_duration);
+        $data['add_duration'] = $fresh_add_duration;
+
+        return view('layouts.bills.newbill')->with('data', json_encode($data));
     }
 
 
@@ -107,6 +122,26 @@ class NewBillController extends Controller
         $status = getInitialEntryStatusByRole($role_id);
         $bill_period = $data['bill_from_date'] . " to " . $data['bill_to_date'];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        // Always re-read add_duration fresh from DB for server-side validation
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $uid_chk = session()->get('uid');
+        $userRowChk = DB::connection($user_db_conn_name)->table('users')->where('id', $uid_chk)->first();
+        if ($userRowChk && !empty($userRowChk->add_duration)) {
+            $add_duration = $userRowChk->add_duration;
+        } else {
+            $role_id_chk = session()->get('role');
+            $roleRowChk  = DB::connection($user_db_conn_name)->table('roles')->where('id', $role_id_chk)->first();
+            $add_duration = ($roleRowChk && !empty($roleRowChk->add_duration)) ? $roleRowChk->add_duration : 'anytime';
+        }
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if (strtotime($data['bill_date']) < strtotime($min_date) || strtotime($data['bill_date']) > strtotime($max_date)) {
+            return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['bill_date']);
+        }
+
         $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $data['bill_party_id'])->get()[0];
         if ($party_status->status == 'Active') {
             if (isset($data['item'])) {
@@ -286,6 +321,15 @@ class NewBillController extends Controller
         $bill_id = $data['id'];
         $bill_period = $data['bill_from_date'] . " to " . $data['bill_to_date'];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        $add_duration = $request->session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = $duration['max'];
+
+        if (strtotime($data['bill_date']) < strtotime($min_date) || strtotime($data['bill_date']) > strtotime($max_date)) {
+            return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['bill_date']);
+        }
 
         $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $data['bill_party_id'])->get()[0];
         if ($party_status->status == 'Active') {

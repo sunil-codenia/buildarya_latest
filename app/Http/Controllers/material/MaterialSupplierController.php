@@ -31,6 +31,12 @@ class MaterialSupplierController extends Controller
             ->leftJoin('expense_head', 'expense_head.id', '=', 'material_supplier.cost_category_id')
             ->select('material_supplier.*', 'expense_head.name as category_name');
 
+        $view_duration = $request->session()->get('view_duration');
+        $dates = getdurationdates($view_duration);
+        $min_date = $dates['min'];
+        $max_date = $dates['max'];
+        $query->whereBetween('material_supplier.create_datetime', [$min_date, $max_date]);
+
         $totalRecords = $query->count();
 
         $search = $request->input('search.value');

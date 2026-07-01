@@ -39,8 +39,9 @@ class SiteBillsController extends Controller
         $uid = $request->uid;
         $role_id = getAppRoleByUId($uid, $conn);
         $role_details = getAppRoleDetailsById($role_id, $conn);
-        $view_duration = $role_details->view_duration;
-        $visiblity_at_site = $role_details->visiblity_at_site;
+        $user_details = DB::connection($conn)->table('users')->where('id', $uid)->first();
+        $view_duration = getUserViewDuration($user_details, $conn);
+        $visiblity_at_site = $role_details ? $role_details->visiblity_at_site : 'all';
         $dates = getdurationdates($view_duration);
         $min_date = $dates['min'];
         $max_date = $dates['max'];
@@ -58,8 +59,9 @@ class SiteBillsController extends Controller
         $uid = $request->uid;
         $role_id = getAppRoleByUId($uid, $conn);
         $role_details = getAppRoleDetailsById($role_id, $conn);
-        $view_duration = $role_details->view_duration;
-        $visiblity_at_site = $role_details->visiblity_at_site;
+        $user_details = DB::connection($conn)->table('users')->where('id', $uid)->first();
+        $view_duration = getUserViewDuration($user_details, $conn);
+        $visiblity_at_site = $role_details ? $role_details->visiblity_at_site : 'all';
         $dates = getdurationdates($view_duration);
         $min_date = $dates['min'];
         $max_date = $dates['max'];
@@ -137,6 +139,22 @@ class SiteBillsController extends Controller
         $bill_site_id = $request->bill_site_id;
         $bill_date = $request->bill_date;
         $remark = $request->remark;
+
+        $role_details = getAppRoleDetailsById($role_id, $user_db_conn_name);
+        $user_details = DB::connection($user_db_conn_name)->table('users')->where('id', $user_id)->first();
+        $add_duration = getUserAddDuration($user_details, $user_db_conn_name);
+        $duration = getdurationdates($add_duration);
+        $min_date = $duration['min'];
+        $max_date = substr($duration['today'], 0, 10);
+        if (strtotime($bill_date) < strtotime($min_date) || strtotime($bill_date) > strtotime($max_date)) {
+            $result = array();
+            $result['status'] = 'Failed';
+            $result['message'] = "You don't have permission to add entry for date: " . $bill_date;
+            $response = array();
+            array_push($response, $result);
+            return json_encode($response);
+        }
+
         $bill_no = getLatestBillNoForApp($user_db_conn_name);
         $items = json_decode(stripslashes($request->items));
         $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $party_id)->get()[0];

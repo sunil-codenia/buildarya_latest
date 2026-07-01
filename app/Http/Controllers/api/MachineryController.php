@@ -40,6 +40,26 @@ class MachineryController extends Controller
         $issue_date = $request->issue_date;
         $end_date = $request->end_date;
         $remark = $request->remark;
+
+        $uid = $request->uid ?? $request->user_id;
+        if ($uid) {
+            $role_id = getAppRoleByUId($uid, $user_db_conn_name);
+            $role_details = getAppRoleDetailsById($role_id, $user_db_conn_name);
+            $user_details = DB::connection($user_db_conn_name)->table('users')->where('id', $uid)->first();
+            $add_duration = getUserAddDuration($user_details, $user_db_conn_name);
+            $duration = getdurationdates($add_duration);
+            $min_date = $duration['min'];
+            $max_date = substr($duration['today'], 0, 10);
+            if (strtotime($issue_date) < strtotime($min_date) || strtotime($issue_date) > strtotime($max_date)) {
+                $result = array();
+                $result['status'] = 'Failed';
+                $result['message'] = "You don't have permission to add document for issue date: " . $issue_date;
+                $response = array();
+                array_push($response, $result);
+                return json_encode($response);
+            }
+        }
+
         if (isset($request->attachment)) {
             try {
                 $imageName = time() . rand(10000, 1000000) . '.' . $request->attachment->extension();

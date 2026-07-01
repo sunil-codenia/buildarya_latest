@@ -427,6 +427,9 @@ function getviewdurations($id = null)
             $to = !empty($parts[1]) ? date('d-M-Y', strtotime($parts[1])) : 'End';
             return "$from to $to";
         }
+        if (is_numeric($id)) {
+            return "$id Days";
+        }
         return isset($data[$id]) ? $data[$id] : $id;
     } else {
         return $data;
@@ -448,6 +451,9 @@ function getadddurations($id = null)
             $from = !empty($parts[0]) ? date('d-M-Y', strtotime($parts[0])) : 'Beginning';
             $to = !empty($parts[1]) ? date('d-M-Y', strtotime($parts[1])) : 'End';
             return "$from to $to";
+        }
+        if (is_numeric($id)) {
+            return "$id Days";
         }
         return isset($data[$id]) ? $data[$id] : $id;
     } else {
@@ -567,6 +573,11 @@ function getdurationdates($id = null)
         $min_date = !empty($parts[0]) ? $parts[0] : '2001-01-01';
         $max_date = !empty($parts[1]) ? $parts[1] : '2100-01-01';
     }
+    // Check if $id is numeric (number of days)
+    elseif (is_numeric($id)) {
+        $min_date = date('Y-m-d', strtotime("-$id days"));
+        $max_date = date('Y-m-d');
+    }
     // Check if $id is a valid date (YYYY-MM-DD) for single start date support
     elseif (preg_match("/^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1])$/", $id)) {
         $min_date = $id;
@@ -575,16 +586,22 @@ function getdurationdates($id = null)
     // Original token-based logic
     if ($id == '1m') {
         $min_date = date('Y-m-d', strtotime('-1 months'));
+        $max_date = date('Y-m-d');
     } elseif ($id == '3m') {
         $min_date = date('Y-m-d', strtotime('-3 months'));
+        $max_date = date('Y-m-d');
     } elseif ($id == '6m') {
         $min_date = date('Y-m-d', strtotime('-6 months'));
+        $max_date = date('Y-m-d');
     } elseif ($id == '12m') {
         $min_date = date('Y-m-d', strtotime('-12 months'));
+        $max_date = date('Y-m-d');
     } elseif ($id == 'complete' || $id == 'anytime') {
         $min_date = '2001-01-01';
+        $max_date = '2100-01-01';
     } elseif ($id == 'current') {
         $min_date = date('Y-m-d');
+        $max_date = date('Y-m-d');
     }
 
     return [
@@ -2446,4 +2463,50 @@ function checkSiteLimit()
     
     $currentSites = DB::connection($connName)->table('sites')->count();
     return $currentSites >= $maxSites;
+}
+
+function getUserViewDuration($user, $conn = null) {
+    if (!$user) {
+        return 'anytime';
+    }
+    // If the user is Super Admin (role_id == 1), they always have 'all' access.
+    if ($user->role_id == 1) {
+        return 'all';
+    }
+    // Otherwise, check user-specific value
+    if (!empty($user->view_duration)) {
+        return $user->view_duration;
+    }
+    // Fallback to role-level value
+    $connName = $conn ?? session()->get('comp_db_conn_name') ?? config('database.default');
+    if ($connName) {
+        $role = \Illuminate\Support\Facades\DB::connection($connName)->table('roles')->where('id', $user->role_id)->first();
+        if ($role && !empty($role->view_duration)) {
+            return $role->view_duration;
+        }
+    }
+    return 'anytime';
+}
+
+function getUserAddDuration($user, $conn = null) {
+    if (!$user) {
+        return 'anytime';
+    }
+    // If the user is Super Admin (role_id == 1), they always have 'anytime' access.
+    if ($user->role_id == 1) {
+        return 'anytime';
+    }
+    // Otherwise, check user-specific value
+    if (!empty($user->add_duration)) {
+        return $user->add_duration;
+    }
+    // Fallback to role-level value
+    $connName = $conn ?? session()->get('comp_db_conn_name') ?? config('database.default');
+    if ($connName) {
+        $role = \Illuminate\Support\Facades\DB::connection($connName)->table('roles')->where('id', $user->role_id)->first();
+        if ($role && !empty($role->add_duration)) {
+            return $role->add_duration;
+        }
+    }
+    return 'anytime';
 }

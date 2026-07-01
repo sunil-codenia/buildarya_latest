@@ -2,6 +2,14 @@
 @section('content')
     @include('templates.blockheader', ['pagename' => 'Attendance Management'])
 
+    @php
+        $add_duration = session()->get('add_duration');
+        $duration     = getdurationdates($add_duration);
+        $att_today    = substr($duration['today'], 0, 10);
+        $att_min_date = substr($duration['min'],   0, 10);
+        $att_max_date = substr($duration['max'],   0, 10);
+    @endphp
+
     <!-- Self Attendance Check-In / Check-Out Section -->
     <div class="row clearfix">
         <div class="col-lg-12 col-md-12 col-sm-12">
@@ -384,7 +392,8 @@
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label class="font-weight-bold" style="color: #555;">Date</label>
-                                        <input type="date" name="date" id="edit_date" class="form-control" required>
+                                        <input type="date" name="date" id="edit_date" class="form-control" required
+                                            min="{{ $att_min_date }}" max="{{ $att_max_date }}">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -471,7 +480,9 @@
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label class="font-weight-bold" style="color: #555;">Date</label>
-                                        <input type="date" name="date" class="form-control" value="{{ $date }}" required>
+                                        <input type="date" name="date" class="form-control"
+                                            value="{{ $att_today }}" required
+                                            min="{{ $att_min_date }}" max="{{ $att_max_date }}">
                                     </div>
                                 </div>
                                 <div class="col-md-6">
