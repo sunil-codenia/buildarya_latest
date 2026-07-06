@@ -18,7 +18,15 @@
         $today = substr($duration['today'], 0, 10);
         $min_date = substr($duration['min'], 0, 10);
         $max_date = substr($duration['max'], 0, 10);
-        $attachments = !empty($bill['attachments']) ? json_decode($bill['attachments'], true) : [];
+        $attachments = [];
+        if (!empty($bill['attachments'])) {
+            $decoded = json_decode($bill['attachments'], true);
+            if (is_array($decoded)) {
+                $attachments = $decoded;
+            } else {
+                $attachments = [$bill['attachments']];
+            }
+        }
 
     @endphp
 

@@ -7,7 +7,15 @@
         $bill_items = $data['bill_items'];
         $balance = $data['balance'];
         $bill_party = $data['bill_party'];
-        $attachments = !empty($bill['attachments']) ? json_decode($bill['attachments'], true) : [];
+        $attachments = [];
+        if (!empty($bill['attachments'])) {
+            $decoded = json_decode($bill['attachments'], true);
+            if (is_array($decoded)) {
+                $attachments = $decoded;
+            } else {
+                $attachments = [$bill['attachments']];
+            }
+        }
     @endphp
 
     <div class="row clearfix">

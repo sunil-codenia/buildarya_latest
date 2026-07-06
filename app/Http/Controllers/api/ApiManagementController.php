@@ -6920,22 +6920,27 @@ class ApiManagementController extends Controller
             $existing = $request->input('existing_attachments');
             $attachments = [];
             if ($bill && !empty($bill->attachments)) {
-                $oldAttachments = json_decode($bill->attachments, true);
-                if (is_array($oldAttachments)) {
-                    if (is_null($existing)) {
-                        $attachments = $oldAttachments;
-                    } else {
-                        $existingArray = is_array($existing) ? $existing : json_decode($existing, true);
-                        if (!is_array($existingArray)) {
-                            $existingArray = [];
-                        }
-                        foreach ($oldAttachments as $old) {
-                            if (in_array($old, $existingArray)) {
-                                $attachments[] = $old;
-                            } else {
-                                if (\File::exists(public_path($old))) {
-                                    \File::delete(public_path($old));
-                                }
+                $oldAttachments = [];
+                $decoded = json_decode($bill->attachments, true);
+                if (is_array($decoded)) {
+                    $oldAttachments = $decoded;
+                } else {
+                    $oldAttachments = [$bill->attachments];
+                }
+                
+                if (is_null($existing)) {
+                    $attachments = $oldAttachments;
+                } else {
+                    $existingArray = is_array($existing) ? $existing : json_decode($existing, true);
+                    if (!is_array($existingArray)) {
+                        $existingArray = [];
+                    }
+                    foreach ($oldAttachments as $old) {
+                        if (in_array($old, $existingArray)) {
+                            $attachments[] = $old;
+                        } else {
+                            if (\File::exists(public_path($old))) {
+                                \File::delete(public_path($old));
                             }
                         }
                     }
