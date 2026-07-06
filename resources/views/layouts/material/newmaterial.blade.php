@@ -7,6 +7,7 @@ $sites = $data['sites'];
 $suppliers = $data['material_supplier'];
 $materials = $data['materials'];
 $units = $data['units'];
+$conversion_format = $data['conversion_format'] ?? [];
 $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
         $entry_at_site = $role_details->entry_at_site;
@@ -71,10 +72,10 @@ $site_id = session()->get("site_id");
                            <div class="col-lg-3 col-md-3 col-sm-3">
                               <div class="form-group">
                                  <label>Material</label>
-                                 <select name="material_id[]"   class="form-control show-tick" data-live-search="true" required>
+                                 <select name="material_id[]" id="material_id_1" onchange="convertQuantity(1)"  class="form-control show-tick" data-live-search="true" required>
                                    <option value="" selected disabled >--Select Material--</option>
                                @foreach($materials as $material)
-                               <option value = "{{$material['id']}}">{{$material['name']}}</option>
+                               <option value = "{{$material['id']}}" data-is-royalty="{{$material['is_royalty'] ?? 0}}">{{$material['name']}}</option>
                                @endforeach
                            </select>
                           </div>
@@ -82,7 +83,7 @@ $site_id = session()->get("site_id");
                            <div class="col-lg-3 col-md-3 col-sm-3">
                               <div class="form-group">
                                  <label>Unit</label>
-                                 <select name="unit[]"   class="form-control show-tick" data-live-search="true" required>
+                                 <select name="unit[]" id="unit_id_1" onchange="convertQuantity(1)"  class="form-control show-tick" data-live-search="true" required>
                                    <option value="" selected disabled >--Select Unit--</option>
                                @foreach($units as $unit)
                                <option value = "{{$unit['id']}}">{{$unit['name']}}</option>
@@ -93,7 +94,14 @@ $site_id = session()->get("site_id");
                            <div class="col-lg-3 col-md-3 col-sm-3">
                               <div class="form-group">
                                  <label>Quantity</label>
-                                 <input type="number" placeholder="0.00" required class="form-control" name="qty[]" step="0.01" pattern="^\d+(?:\.\d{1,2})?$">
+                                 <input type="number" placeholder="0.00" required class="form-control" name="qty[]" step="0.01" pattern="^\d+(?:\.\d{1,2})?$" onchange="convertQuantity(1)">
+                               
+                              </div>
+                           </div>
+                           <div class="col-lg-3 col-md-3 col-sm-3">
+                              <div class="form-group">
+                                 <label>Converted Qty (Cubic M)</label>
+                                 <input type="number" placeholder="0.00" readonly class="form-control" name="converted_qty[]" step="0.01" pattern="^\d+(?:\.\d{1,2})?$">
                                
                               </div>
                            </div>
@@ -153,6 +161,71 @@ $site_id = session()->get("site_id");
 @endsection
 @section('scripts')
 <script type="text/javascript">
+// Get conversion rules from backend data
+let conversionRules = @json($conversion_format ?? []);
+let materialsData = @json($materials ?? []);
+
+function convertQuantity(rowId) {
+    let materialSelect = document.getElementById('material_id_' + rowId);
+    let unitSelect = document.getElementById('unit_id_' + rowId);
+    let qtyInput = document.querySelector('input[name="qty[]"][onchange*="' + rowId + '"]') || 
+                   document.querySelectorAll('input[name="qty[]"]')[rowId - 1];
+    let convertedQtyInput = document.querySelector('input[name="converted_qty[]"][readonly]');
+    
+    // Get all converted qty inputs and find the right one
+    let allConvertedQtyInputs = document.querySelectorAll('input[name="converted_qty[]"]');
+    let rowIndex = Array.from(document.querySelectorAll('input[name="qty[]"]')).indexOf(qtyInput);
+    if (rowIndex >= 0 && allConvertedQtyInputs[rowIndex]) {
+        convertedQtyInput = allConvertedQtyInputs[rowIndex];
+    }
+    
+    if (!materialSelect || !unitSelect || !qtyInput || !convertedQtyInput) {
+        return;
+    }
+    
+    let materialId = materialSelect.value;
+    let unitId = unitSelect.value;
+    let qty = parseFloat(qtyInput.value) || 0;
+    
+    // Find material data to check is_royalty
+    let selectedMaterialOption = materialSelect.querySelector('option[value="' + materialId + '"]');
+    let isRoyalty = selectedMaterialOption ? selectedMaterialOption.getAttribute('data-is-royalty') : 0;
+    
+    convertedQtyInput.value = '';
+    
+    if (materialId && unitId && qty && isRoyalty == 1 && Array.isArray(conversionRules) && conversionRules.length > 0) {
+        // Find conversion rule: from_unit (input unit) to cubic meter (id = 1 or find by name 'Cubic Meter')
+        let rule = conversionRules.find(r => 
+            String(r.material_id) === String(materialId) && 
+            String(r.from_unit) === String(unitId) &&
+            r.to_unit_name && r.to_unit_name.toLowerCase().includes('cubic')
+        );
+        
+        if (rule && rule.conversion_factor) {
+            let convertedQty = qty * parseFloat(rule.conversion_factor);
+            convertedQtyInput.value = convertedQty.toFixed(2);
+        }
+    }
+}
+
+// Initialize data for materials with data-is-royalty attributes
+document.addEventListener('DOMContentLoaded', function() {
+    // Add data-is-royalty to initial material select if not already set
+    if (Array.isArray(materialsData) && materialsData.length > 0) {
+        let materialSelects = document.querySelectorAll('select[name="material_id[]"]');
+        materialSelects.forEach((select, index) => {
+            let options = select.querySelectorAll('option');
+            options.forEach(opt => {
+                if (opt.value) {
+                    let material = materialsData.find(m => String(m.id) === opt.value);
+                    if (material && !opt.getAttribute('data-is-royalty')) {
+                        opt.setAttribute('data-is-royalty', material.is_royalty || 0);
+                    }
+                }
+            });
+        });
+    }
+});
 
 var count = 1;
 $('#addrow').click(function() {
@@ -160,14 +233,15 @@ $('#addrow').click(function() {
        count++;
        var site_html = '<select name="site_id[]" id="site_id_'+count+'" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Site--</option> @if($entry_at_site == "current")<option selected value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else @foreach ($sites as $site)<option value = "{{ $site['id'] }}">{{ $site['name'] }}</option>@endforeach @endif</select>';
 var supplier_html = '<select name="supplier[]" id="supplier_id_'+count+'" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Supplier--</option>@foreach($suppliers as $supplier)<option value = "{{$supplier['id']}}">{{$supplier['name']}}</option>@endforeach</select>';
-var material_html = '<select name="material_id[]" id="material_id_'+count+'"  class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Material--</option>@foreach($materials as $material)<option value = "{{$material['id']}}">{{$material['name']}}</option>@endforeach</select>';
-var unit_html = '<select name="unit[]" id="unit_id_'+count+'" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Unit--</option>@foreach($units as $unit)<option value = "{{$unit['id']}}">{{$unit['name']}}</option>@endforeach</select>';
+var material_html = '<select name="material_id[]" id="material_id_'+count+'" onchange="convertQuantity('+count+')" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Material--</option>@foreach($materials as $material)<option value = "{{$material['id']}}" data-is-royalty="{{$material['is_royalty'] ?? 0}}">{{$material['name']}}</option>@endforeach</select>';
+var unit_html = '<select name="unit[]" id="unit_id_'+count+'" onchange="convertQuantity('+count+')" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Unit--</option>@foreach($units as $unit)<option value = "{{$unit['id']}}">{{$unit['name']}}</option>@endforeach</select>';
        var result = '<div id="row_'+count+'"><hr><div class="row clearfix"><div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><img height= "150" width="150" id="'+count+'" src='+"{{asset('/images/expense.png')}}"+'  class="rounded-circle img-raised"> <input type="file" accept="Image/*" name="image[]" onchange="document.getElementById('+count+').src = window.URL.createObjectURL(this.files[0])"></div></div>';
        result += '<div class="col-lg-9 col-md-9 col-sm-9"><div class="row clearfix"><div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Site</label>'+site_html+'</div></div>';
          result += '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Supplier</label>'+supplier_html+'</div></div>';
          result += '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Material</label>'+material_html+'</div></div>';
          result += '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Unit</label>'+unit_html+'</div></div>';
-         result += '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Quantity</label><input type="number" placeholder="0.00" required class="form-control" name="qty[]" min="0"  step="0.01" pattern="^\d+(?:\.\d{1,2})?$"></div></div>';
+         result += '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Quantity</label><input type="number" placeholder="0.00" required class="form-control" name="qty[]" min="0"  step="0.01" pattern="^\d+(?:\.\d{1,2})?$" onchange="convertQuantity('+count+')"></div></div>';
+       result += '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Converted Qty (Cubic M)</label><input type="number" placeholder="0.00" readonly class="form-control" name="converted_qty[]" step="0.01" pattern="^\d+(?:\.\d{1,2})?$"></div></div>';
          result += '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Vehicle</label><input type="text"  required class="form-control" name="vehical[]" placeholder="Enter The Vehicle No"></div></div>';
          result += '<div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Remark</label><input type="text" class="form-control" name="remark[]" placeholder="Enter The Remark (If Any)"></div></div>';
          result += '<div class="col-lg-2 col-md-2 col-sm-2"><div class="form-group"><label>Date</label><input type="date" required class="form-control" min="{{$min_date}}" max="{{$max_date}}" value="{{$today}}" name="date[]" ></div></div>';

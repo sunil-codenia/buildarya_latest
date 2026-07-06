@@ -305,7 +305,8 @@ CREATE TABLE `machinery_transaction` (
 
 CREATE TABLE `materials` (
   `id` int(11) NOT NULL PRIMARY KEY AUTO_INCREMENT,
-  `name` varchar(255) DEFAULT NULL
+  `name` varchar(255) DEFAULT NULL,
+  `is_royalty` boolean DEFAULT 0 COMMENT 'Whether this material requires cubic meter conversion for royalty purposes'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -734,13 +735,15 @@ CREATE TABLE `site_payments` (
 CREATE TABLE `tasks` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `title` VARCHAR(255) NOT NULL,
+  `category_id` INT DEFAULT NULL,
   `description` TEXT DEFAULT NULL,
   `site_id` INT DEFAULT NULL,
-  `assigned_to` INT DEFAULT NULL,
+  `assigned_to` VARCHAR(255) DEFAULT NULL,
   `assigned_by` INT DEFAULT NULL,
   `priority` ENUM('Low', 'Medium', 'High', 'Urgent') NOT NULL DEFAULT 'Medium',
-  `status` ENUM('Pending', 'In Progress', 'Completed', 'On Hold', 'Cancelled') NOT NULL DEFAULT 'Pending',
+  `status` ENUM('Pending', 'Progress', 'In Progress', 'Completed', 'Hold', 'On Hold', 'Cancelled') NOT NULL DEFAULT 'Pending',
   `due_date` DATE DEFAULT NULL,
+  `completed_date` DATE DEFAULT NULL,
   `completed_at` TIMESTAMP NULL DEFAULT NULL,
   `remarks` TEXT DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -748,9 +751,18 @@ CREATE TABLE `tasks` (
   INDEX (`site_id`),
   INDEX (`assigned_to`),
   INDEX (`assigned_by`),
+  INDEX (`category_id`),
   FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`assigned_to`) REFERENCES `users` (`id`) ON DELETE SET NULL,
   FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+CREATE TABLE `task_categories` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------

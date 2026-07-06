@@ -45,7 +45,7 @@ class MaterialExport implements FromView
                     ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
                     ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
                     ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->select('material_entry.*', 'materials.name as material', 'materials.is_royalty', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
                     ->whereBetween('material_entry.date', [$this->start_date, $this->end_date])
                     ->orderBy('material_entry.date', 'desc')->get(),
                 'start_date' => $this->start_date,
@@ -62,7 +62,7 @@ class MaterialExport implements FromView
                     ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
                     ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
                     ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->select('material_entry.*', 'materials.name as material', 'materials.is_royalty', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
                     ->whereBetween('material_entry.date', [$this->start_date, $this->end_date])
                     ->where('material_entry.site_id', '=', $this->sitename)
                     ->orderBy('material_entry.date', 'desc')->get(),
@@ -82,7 +82,7 @@ class MaterialExport implements FromView
                     ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
                     ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
                     ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->select('material_entry.*', 'materials.name as material', 'materials.is_royalty', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
 
                     ->whereBetween('material_entry.date', [$this->start_date, $this->end_date])
                     ->where('material_entry.supplier', '=', $this->partyname)
@@ -104,7 +104,7 @@ class MaterialExport implements FromView
                     ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
                     ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
                     ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->select('material_entry.*', 'materials.name as material', 'materials.is_royalty', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
                     ->whereBetween('material_entry.date', [$this->start_date, $this->end_date])
                     ->orderBy('material_entry.date', 'desc')
                     ->where('material_entry.supplier', '=', $this->partyname)->where('material_entry.site_id', '=', $this->sitename)
@@ -125,7 +125,7 @@ class MaterialExport implements FromView
                     ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
                     ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
                     ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->select('material_entry.*', 'materials.name as material', 'materials.is_royalty', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
                     ->whereBetween('material_entry.date', [$this->start_date, $this->end_date])
                     ->where('material_entry.material_id', '=', $this->headname,)
                     ->orderBy('material_entry.date', 'desc')->get(),
@@ -145,7 +145,7 @@ class MaterialExport implements FromView
                     ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
                     ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
                     ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+                    ->select('material_entry.*', 'materials.name as material', 'materials.is_royalty', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
                     ->whereBetween('material_entry.date', [$this->start_date, $this->end_date])
                     ->orderBy('material_entry.date', 'desc')
                     ->where('material_entry.material_id', '=', $this->headname)
@@ -209,5 +209,13 @@ class MaterialExport implements FromView
                 'sec_color' => session()->get('secondry_color')[0],
             ]);
         }
+
+        return view('layouts.material.exports.accToDate', [
+            'material' => collect(),
+            'start_date' => $this->start_date,
+            'end_date' => $this->end_date,
+            'color' => session()->get('primary_color')[0],
+            'sec_color' => session()->get('secondry_color')[0],
+        ]);
     }
 }

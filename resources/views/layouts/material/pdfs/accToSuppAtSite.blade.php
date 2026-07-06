@@ -140,6 +140,8 @@
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Material</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Unit</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Qty</th>
+                    <th style="background-color:{{ session()->get('secondry_color')[0] }};">Is Royalty</th>
+                    <th style="background-color:{{ session()->get('secondry_color')[0] }};">Cubic Qty</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Vehicle</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Bill No.</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Rate</th>
@@ -165,6 +167,8 @@
                         <td>{{ $mat->material }}</td>
                         <td>{{ $mat->unit }}</td>
                         <td>{{ $mat->qty }}</td>
+                        <td>{{ $mat->is_royalty ? 'Yes' : 'No' }}</td>
+                        <td>{{ $mat->cubic_qty !== null ? number_format($mat->cubic_qty, 3) : '' }}</td>
                         <td>{{ $mat->vehical }}</td>
                         <td>{{ $mat->bill_no }}</td>
                         <td>{{ $mat->rate }}</td>

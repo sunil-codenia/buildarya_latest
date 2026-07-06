@@ -77,6 +77,10 @@ class StockController extends Controller
     {
         $result = false;
         $data = $request->input();
+        // If site_id not provided (form no longer includes site selector), default to user's session site
+        if (empty($data['site_id'])) {
+            $data['site_id'] = session()->get('site_id', 0);
+        }
         $user_id = session()->get('uid');
         $role_id = session()->get('role');
         $status = getInitialEntryStatusByRole($role_id);

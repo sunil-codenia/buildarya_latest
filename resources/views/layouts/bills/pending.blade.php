@@ -50,9 +50,10 @@
                           @foreach($dataarray as $dd)
                                          
                           <tr>
-                                       <td>{{$i++}}
-                                        
-                                    </td>
+                                       <td>
+                                            <input type="checkbox" name="check_list[]" class="check_item" value="{{$dd['id']}}" onclick="updateSelectAll()">
+                                        </td>
+                                        <td>{{$i++}}</td>
                                         <td>
                                             {{$dd['party']}}
                                         </td>
@@ -85,11 +86,7 @@
                                             {{$dd['remark']}}
                                         </td>
                                         <td>
-                                            <input type="checkbox" name="check_list[]" class="check_item" value="{{$dd['id']}}" onclick="updateSelectAll()"> 
-                                            &nbsp;
-                                            <?php
-                                            $ddid = $dd['id'];
-                                            ?>
+                                            <?php $ddid = $dd['id']; ?>
                                              <a title="View" href="{{url('/view_bill/?id='.$ddid)}}" style="all:unset" ><i class="zmdi zmdi-eye"></i> </a>
                                              &nbsp; 
                                              <a title="PDF" href="{{url('/bill_pdf/?id='.$ddid)}}" style="all:unset" ><i class="zmdi zmdi-collection-pdf"></i> </a>

@@ -39,10 +39,16 @@ class LoginController extends Controller
 
                         $key =   $request->session()->regenerate();
                         $mytime = Carbon::now();
+                        
+                        ensureCentralModulesExist();
+
                         $company_modules = [];
                         if ($userdata->subscription_plan_id) {
                             $sub = DB::table('subscription_plans')->where('id', $userdata->subscription_plan_id)->first();
                             $company_modules = $sub ? json_decode($sub->modules, true) : [];
+                            if (in_array(14, $company_modules) && !in_array(15, $company_modules)) {
+                                $company_modules[] = 15;
+                            }
                         }
 
                         session([

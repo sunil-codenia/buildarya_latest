@@ -1,9 +1,9 @@
 <table>
     <tr>
-        <td colspan="17" rowspan="1" style="background-color: {{ $color }};"></td>
+        <td colspan="18" rowspan="1" style="background-color: {{ $color }};"></td>
     </tr>
     <tr>
-        <td style="background-color: {{ $color }};  color:white; font-size:20px; font-weight:bold;" colspan="17"
+        <td style="background-color: {{ $color }};  color:white; font-size:20px; font-weight:bold;" colspan="18"
             rowspan="1">
             Material Report
 
@@ -11,7 +11,7 @@
         </td>
     </tr>
     <tr>
-        <td style="background-color: {{ $color }};  color:white; font-size:18px; font-weight:bold;" colspan="7"
+        <td style="background-color: {{ $color }};  color:white; font-size:18px; font-weight:bold;" colspan="8"
             rowspan="1">
 
             Material Name - <?= $headname ?>
@@ -34,27 +34,27 @@
     </tr>
 
     <tr>
-        <td colspan="17" rowspan="1" style="background-color: {{ $color }};"></td>
+        <td colspan="18" rowspan="1" style="background-color: {{ $color }};"></td>
     </tr>
     <tr>
         <td style="background-color: {{ $color }};  color:white; font-size:17px; font-weight:bold;"
-            colspan="17" rowspan="1">
+            colspan="18" rowspan="1">
             <?= session('comp_name') ?>
 
         </td>
     </tr>
     <tr>
-        <td style="background-color: {{ $color }};  color:white;" colspan="17" rowspan="1">
+        <td style="background-color: {{ $color }};  color:white;" colspan="18" rowspan="1">
             Address : <?= session('comp_add') ?>
         </td>
     </tr>
     <tr>
-        <td style="background-color: {{ $color }};  color:white;" colspan="17" rowspan="1">
+        <td style="background-color: {{ $color }};  color:white;" colspan="18" rowspan="1">
             Mobile : <?= session('comp_mobile') ?> E-mail : <?= session('comp_email') ?>
         </td>
     </tr>
     <tr>
-        <td colspan="17" rowspan="1" style="background-color: {{ $color }};"></td>
+        <td colspan="18" rowspan="1" style="background-color: {{ $color }};"></td>
     </tr>
     <tr>
         <th style="background-color: {{ $sec_color }}; color:white; font-weight:bold;  border:1px solid #e3e3e3;">
@@ -64,6 +64,8 @@
             Date</th>
         <th style="background-color: {{ $sec_color }}; color:white; font-weight:bold;  border:1px solid #e3e3e3;">
             Supplier</th>
+        <th style="background-color: {{ $sec_color }}; color:white; font-weight:bold;  border:1px solid #e3e3e3;">
+            Is Royalty</th>
         <th style="background-color: {{ $sec_color }}; color:white; font-weight:bold;  border:1px solid #e3e3e3;">
             Unit</th>
         <th style="background-color: {{ $sec_color }}; color:white; font-weight:bold;  border:1px solid #e3e3e3;">
@@ -101,7 +103,8 @@
          <td>{{ $count++ }}</td>
          <td>{{ $mat->date }}</td>
          <td>{{ $mat->supplier }}</td>
-                  <td>{{ $mat->unit }}</td>
+                  <td>{{ ($mat->is_royalty) ? 'Yes' : 'No' }}</td>
+         <td>{{ $mat->unit }}</td>
          <td>{{ $mat->qty }}</td>
          <td>{{ $mat->vehical }}</td>
          <td>{{ $mat->bill_no }}</td>

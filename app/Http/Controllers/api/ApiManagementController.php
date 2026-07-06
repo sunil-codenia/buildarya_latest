@@ -119,14 +119,6 @@ class ApiManagementController extends Controller
                     'create_datetime' => Carbon::now()
                 ];
 
-                // Process Duration Ranges
-                if ($request->has('view_from') || $request->has('view_to')) {
-                    $data['view_duration'] = ($request->view_from ?? '') . ',' . ($request->view_to ?? '');
-                }
-                if ($request->has('add_from') || $request->has('add_to')) {
-                    $data['add_duration'] = ($request->add_from ?? '') . ',' . ($request->add_to ?? '');
-                }
-
                 // Handle Image Upload
                 if ($request->hasFile('image')) {
                     $file = $request->file('image');
@@ -190,14 +182,6 @@ class ApiManagementController extends Controller
             if (isset($updateData['company_id'])) {
                 $updateData['subscription_plan_id'] = $updateData['company_id'];
                 unset($updateData['company_id']);
-            }
-
-            // Process Duration Ranges
-            if ($request->has('view_from') || $request->has('view_to')) {
-                $updateData['view_duration'] = ($request->view_from ?? '') . ',' . ($request->view_to ?? '');
-            }
-            if ($request->has('add_from') || $request->has('add_to')) {
-                $updateData['add_duration'] = ($request->add_from ?? '') . ',' . ($request->add_to ?? '');
             }
             
             if (empty($updateData)) {
@@ -876,6 +860,9 @@ class ApiManagementController extends Controller
                 if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) $allowedModuleIds = $decoded;
                 else $allowedModuleIds = explode(',', str_replace(['[', ']', '"', ' '], '', $rawModules));
             }
+            if (in_array(14, $allowedModuleIds) && !in_array(15, $allowedModuleIds)) {
+                $allowedModuleIds[] = 15;
+            }
 
             $raw_modules = DB::connection('mysql')->table('modules')->whereIn('id', $allowedModuleIds)->get();
             
@@ -892,7 +879,8 @@ class ApiManagementController extends Controller
                 11 => 'Document Management',
                 10 => 'Contact Management',
                 13 => 'Attendance Management',
-                14 => 'Task Management',
+                14 => 'Tasks',
+                15 => 'Task Category',
                 9 => 'Management'
             ];
 
@@ -1438,6 +1426,9 @@ class ApiManagementController extends Controller
                 } else {
                     $allowedModuleIds = explode(',', str_replace(['[', ']', '"', ' '], '', $rawModules));
                 }
+            }
+            if (in_array(14, $allowedModuleIds) && !in_array(15, $allowedModuleIds)) {
+                $allowedModuleIds[] = 15;
             }
 
             $modules = DB::connection('mysql')->table('modules')->whereIn('id', $allowedModuleIds)->get();

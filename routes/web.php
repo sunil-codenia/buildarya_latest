@@ -37,6 +37,8 @@ use App\Http\Controllers\ExcelImportController;
 use App\Http\Controllers\material\StockController;
 use App\Http\Controllers\AttendanceWebController;
 use App\Http\Controllers\TaskWebController;
+use App\Http\Controllers\TaskCategoryController;
+
 
 use App\Http\Controllers\FrontendController;
 
@@ -540,11 +542,22 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/tasks', [TaskWebController::class, 'index']);
         Route::post('/tasks', [TaskWebController::class, 'store']);
         Route::post('/tasks/update/{id}', [TaskWebController::class, 'update']);
-        Route::get('/tasks/status/{id}', [TaskWebController::class, 'updateStatus']);
+        Route::match(['get', 'post'], '/tasks/status/{id}', [TaskWebController::class, 'updateStatus']);
         Route::get('/tasks/chat/messages/{user_id}', [TaskWebController::class, 'fetchMessages']);
         Route::post('/tasks/chat/send', [TaskWebController::class, 'sendMessage']);
         Route::get('/tasks/chat/task-messages/{task_id}', [TaskWebController::class, 'fetchTaskMessages']);
         Route::post('/tasks/chat/task-send', [TaskWebController::class, 'sendTaskMessage']);
+
+        // task category routes
+        Route::get('/task_category', [TaskCategoryController::class, 'index']);
+        Route::post('/task_category_ajax', [TaskCategoryController::class, 'get_task_category_ajax']);
+        Route::post('/addtaskcategory', [TaskCategoryController::class, 'store']);
+        Route::get('/edit_task_category', [TaskCategoryController::class, 'edit']);
+        Route::post('/updatetaskcategory', [TaskCategoryController::class, 'update']);
+        Route::get('/delete_task_category', [TaskCategoryController::class, 'delete']);
+        Route::post('/task_category/bulk_action', [TaskCategoryController::class, 'bulk_action']);
+        Route::post('/bulk_edit_category', [TaskCategoryController::class, 'bulk_edit_category']);
+        Route::post('/update_bulk_category', [TaskCategoryController::class, 'update_bulk_category']);
     });
 
     // excelimport file------------

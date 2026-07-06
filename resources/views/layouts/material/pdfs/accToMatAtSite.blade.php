@@ -141,6 +141,8 @@
 
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Unit</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Qty</th>
+                    <th style="background-color:{{ session()->get('secondry_color')[0] }};">Is Royalty</th>
+                    <th style="background-color:{{ session()->get('secondry_color')[0] }};">Cubic Qty</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Vehicle</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Bill No.</th>
                     <th style="background-color:{{ session()->get('secondry_color')[0] }};">Rate</th>

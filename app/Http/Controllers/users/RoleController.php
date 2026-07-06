@@ -165,6 +165,9 @@ class RoleController extends Controller
         $plan_id = $request->session()->get('subscription_plan_id');
         $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
         $allowedModules = $sub ? json_decode($sub->modules, true) : [];
+        if (in_array(14, $allowedModules) && !in_array(15, $allowedModules)) {
+            $allowedModules[] = 15;
+        }
         $raw_modules = DB::table('modules')->whereIn('id', $allowedModules)->get();
                              
         $sidebar_map = [
@@ -179,7 +182,8 @@ class RoleController extends Controller
             11 => 'Document Management',
             10 => 'Contact Management',
             13 => 'Attendance Management',
-            14 => 'Task Management',
+            14 => 'Tasks',
+            15 => 'Task Category',
             9 => 'Management'
         ];
 
@@ -226,6 +230,9 @@ class RoleController extends Controller
         $plan_id = $request->session()->get('subscription_plan_id');
         $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
         $allowedModules = $sub ? json_decode($sub->modules, true) : [];
+        if (in_array(14, $allowedModules) && !in_array(15, $allowedModules)) {
+            $allowedModules[] = 15;
+        }
         $modules = DB::table('modules')->whereIn('id', $allowedModules)->get();
 
         $result = array();

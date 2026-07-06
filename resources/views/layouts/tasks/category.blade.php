@@ -1,25 +1,24 @@
 @extends('app')
 @section('content')
-    @include('templates.blockheader', ['pagename' => 'Material'])
+    @include('templates.blockheader', ['pagename' => 'Task Category'])
     @php
         $edit = false;
         $dataarray = json_decode($data, true);
-        if (isset(json_decode($data, true)['edit_data'])) {
+        if (isset($dataarray['edit_data']) && count($dataarray['edit_data']) > 0) {
             $editdata = $dataarray['edit_data'][0];
             $edit = true;
         }
     @endphp
     <div class="row clearfix">
         @if ($edit)
-            @if (checkmodulepermission(3, 'can_edit') == 1)
+            @if (checkmodulepermission(15, 'can_edit') == 1)
                 <div class="col-md-12 col-sm-12 col-xs-12">
                     <div class="card project_list">
-
-                        <form action="{{ url('/updatematerial') }}" method="post" class="form">
+                        <form action="{{ url('/updatetaskcategory') }}" method="post" class="form">
                             @csrf
                             <div class="modal-content">
                                 <div class="modal-header">
-                                    <h4 class="title">Edit Materials</h4>
+                                    <h4 class="title">Edit Task Category</h4>
                                 </div>
                                 <div class="modal-body">
                                     <div class="row clearfix">
@@ -31,21 +30,7 @@
                                                 <input type="hidden" name="id" value="{{ $editdata['id'] }}">
                                                 <input type="text" id="Name" required class="form-control"
                                                     value="{{ $editdata['name'] }}" name="name"
-                                                    placeholder="Enter the Material Name">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="row clearfix">
-                                        <div class="col-lg-2 col-md-2 col-sm-4 form-control-label">
-                                            <label for="is_royalty">Is Royalty Material</label>
-                                        </div>
-                                        <div class="col-lg-8 col-md-8 col-sm-8">
-                                            <div class="form-group">
-                                                <div class="checkbox">
-                                                    <input type="checkbox" id="is_royalty" name="is_royalty" value="1" 
-                                                        {{ (isset($editdata['is_royalty']) && $editdata['is_royalty']) ? 'checked' : '' }}>
-                                                    <label for="is_royalty">Check if this material requires cubic meter conversion for royalty purposes</label>
-                                                </div>
+                                                    placeholder="Enter the Category Name">
                                             </div>
                                         </div>
                                     </div>
@@ -57,29 +42,34 @@
                             </div>
                         </form>
                     </div>
-
                 </div>
             @endif
             <br>
         @endif
-
         <div class="col-md-12 col-sm-12 col-xs-12">
             <div class="card project_list">
                 <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
-                    <h2><strong>Materials</strong> List</h2>
+                    <h2><strong>Task Category</strong> List&nbsp;<i class="zmdi zmdi-info info-hover"></i>
+                        <div class="info-content">Task categories will be listed here.</div>
+                    </h2>
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <div id="bulk-action-toolbar" style="display: none; gap: 5px;">
-                            @if(checkmodulepermission(3,'can_edit') == 1)
+                            @if(checkmodulepermission(15,'can_edit') == 1)
                                 <button type="button" class="btn btn-primary btn-icon btn-round hidden-sm-down m-l-10" onclick="bulkEdit()" title="Edit Selected">
                                     <i class="zmdi zmdi-edit" style="color: white;"></i>
+                                </button>
+                            @endif
+                            @if(checkmodulepermission(15,'can_delete') == 1)
+                                <button type="button" class="btn btn-danger btn-icon btn-round hidden-sm-down m-l-10" onclick="submitBulkAction('delete')" title="Delete Selected">
+                                    <i class="zmdi zmdi-delete" style="color: white;"></i>
                                 </button>
                             @endif
                         </div>
                         <ul class="header-dropdown" style="position: relative; top: auto; right: auto; box-shadow: none;">
                             <li>
-                                @if (checkmodulepermission(3, 'can_add') == 1)
+                                @if (checkmodulepermission(15, 'can_add') == 1)
                                     <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10"
-                                        data-toggle="modal" data-target="#newexpensehead1" type="button">
+                                        data-toggle="modal" data-target="#newcategoryhead" type="button">
                                         <i class="zmdi zmdi-plus" style="color: white;"></i>
                                     </button>
                                 @endif
@@ -87,21 +77,19 @@
                         </ul>
                     </div>
                 </div>
-
-
-                @if (checkmodulepermission(3, 'can_view') == 1)
+                @if (checkmodulepermission(15, 'can_view') == 1)
                     <div class="body">
                         <div class="table-responsive">
-                            <form id="bulkActionForm" action="{{ url('/material/bulk_action') }}" method="POST">
+                            <form id="bulkActionForm" action="{{ url('/task_category/bulk_action') }}" method="POST">
                                 @csrf
                                 <input type="hidden" name="bulk_action" id="bulk_action_input">
-                                <table id="materialTable" class="table table-hover">
+                                <table id="taskCategoryTable" class="table table-hover">
                                     <thead>
                                         <tr>
                                             <th style="width: 40px;"><div class="checkbox"><input id="select_all" type="checkbox"><label for="select_all">&nbsp;</label></div></th>
                                             <th style="width: 50px;">#</th>
                                             <th>Name</th>
-                                            <th style="width: 150px;">Action</th>
+                                            <th style="width: 100px;">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -112,25 +100,22 @@
                         </div>
                     </div>
                 @else
-                    <div class="alert alert-danger mx-5">You Don't Have Permission to View !! </div>
+                    <div class="alert alert-danger"> You Don't Have Permission to View </div>
                 @endif
-
             </div>
         </div>
-
     </div>
-
 @endsection
 
 @section('models')
-    @if (checkmodulepermission(3, 'can_add') == 1)
-        <div class="modal fade" id="newexpensehead1" tabindex="-1" role="dialog">
+    @if (checkmodulepermission(15, 'can_add') == 1)
+        <div class="modal fade" id="newcategoryhead" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-md" role="document">
-                <form action="{{ url('/addmaterial') }}" method="post" class="form">
+                <form action="{{ url('/addtaskcategory') }}" method="post" class="form">
                     @csrf
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h4 class="title">Add New Material</h4>
+                            <h4 class="title">Add New Task Category</h4>
                         </div>
                         <div class="modal-body">
                             <div class="row clearfix">
@@ -140,20 +125,7 @@
                                 <div class="col-lg-8 col-md-8 col-sm-8">
                                     <div class="form-group">
                                         <input type="text" id="Name" required class="form-control" name="name"
-                                            placeholder="Enter the Material Name">
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="row clearfix">
-                                <div class="col-lg-2 col-md-2 col-sm-4 form-control-label">
-                                    <label for="is_royalty_add">Is Royalty Material</label>
-                                </div>
-                                <div class="col-lg-8 col-md-8 col-sm-8">
-                                    <div class="form-group">
-                                        <div class="checkbox">
-                                            <input type="checkbox" id="is_royalty_add" name="is_royalty" value="1">
-                                            <label for="is_royalty_add">Check if this material requires cubic meter conversion for royalty purposes</label>
-                                        </div>
+                                            placeholder="Enter the Task Category Name">
                                     </div>
                                 </div>
                             </div>
@@ -161,8 +133,7 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-primary btn-simple waves-effect"
                                 data-dismiss="modal"><a>CLOSE</a></button>
-                            <button type="submit" class="btn btn-primary btn-simple btn-round waves-effect"><a>SAVE
-                                </a></button>
+                            <button type="submit" class="btn btn-primary btn-simple btn-round waves-effect"><a>SAVE</a></button>
                         </div>
                     </div>
                 </form>
@@ -170,6 +141,7 @@
         </div>
     @endif
 @endsection
+
 @section('scripts')
     <script type="text/javascript">
         function deletedata(id) {
@@ -192,7 +164,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/delete_material/?id=') }}" + id;
+                    var url = "{{ url('/delete_task_category/?id=') }}" + id;
                     window.location.href = url;
                 }
             });
@@ -201,7 +173,7 @@
         function editdata(id) {
             Swal.fire({
                 title: 'Are you sure?',
-                text: "You Want To Edit This Material ?",
+                text: "You Want To Edit This Category?",
                 icon: 'warning',
                 showCancelButton: true,
                 toast: true,
@@ -218,7 +190,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/edit_material/?id=') }}" + id;
+                    var url = "{{ url('/edit_task_category/?id=') }}" + id;
                     window.location.href = url;
                 }
             });
@@ -227,12 +199,12 @@
         function bulkEdit() {
             var selectedRows = $('.check_item:checked');
             if (selectedRows.length > 0) {
-                $('#bulkActionForm').attr('action', "{{ url('/bulk_edit_material') }}");
+                $('#bulkActionForm').attr('action', "{{ url('/bulk_edit_category') }}");
                 $('#bulkActionForm').submit();
             } else {
                 Swal.fire({
                     title: 'No Items Selected',
-                    text: 'Please select at least one Material to edit.',
+                    text: 'Please select at least one Task Category to edit.',
                     icon: 'info',
                     confirmButtonColor: '#343a40'
                 });
@@ -242,7 +214,7 @@
         function submitBulkAction(action) {
             Swal.fire({
                 title: 'Are you sure?',
-                text: "You are about to " + action + " all selected materials!",
+                text: "You are about to " + action + " all selected task categories!",
                 icon: 'warning',
                 showCancelButton: true,
                 toast: true,
@@ -303,7 +275,7 @@
 
             function updateToolbar() {
                 if ($('.check_item:checked').length > 0) {
-                    $('#bulk-action-toolbar').show();
+                    $('#bulk-action-toolbar').css('display', 'flex');
                 } else {
                     $('#bulk-action-toolbar').hide();
                 }
@@ -323,11 +295,11 @@
                 updateToolbar();
             });
 
-            $('#materialTable').DataTable({
+            $('#taskCategoryTable').DataTable({
                 serverSide: true,
                 processing: true,
                 ajax: {
-                    url: "{{ url('/material_ajax') }}",
+                    url: "{{ url('/task_category_ajax') }}",
                     type: "POST",
                     data: {
                         _token: "{{ csrf_token() }}"

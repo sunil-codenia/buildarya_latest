@@ -193,9 +193,18 @@
             <li class="{{ Request::is('attendance*') ? 'active open' : '' }}"><a href="{{url('/attendance')}}"><i class="zmdi zmdi-calendar-check"></i><span>Attendance Management</span></a></li> 
             @endif
 
-            {{-- Module 14: Task Management --}}
-            @if (canViewModule(14))
-            <li class="{{ Request::is('tasks*') ? 'active open' : '' }}"><a href="{{url('/tasks')}}"><i class="zmdi zmdi-playlist-plus"></i><span>Task Management</span></a></li> 
+            {{-- Module 14 & 15: Task Management --}}
+            @if (canViewModule(14) || canViewModule(15))
+            <li class="{{ Request::is('tasks*') || Request::is('task_category*') || Request::is('bulk_edit_category*') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-playlist-plus"></i><span>Task Management</span></a>
+                <ul style="list-style-type: none; display: {{ Request::is('tasks*') || Request::is('task_category*') || Request::is('bulk_edit_category*') ? 'block' : 'none' }};">
+                    @if (canViewModule(14))
+                    <li class="{{ Request::is('tasks') ? 'active' : '' }}"><a href="{{url('/tasks')}}"> <i class="zmdi zmdi-playlist-plus"></i> Tasks</a></li>
+                    @endif
+                    @if (canViewModule(15))
+                    <li class="{{ Request::is('task_category*') || Request::is('bulk_edit_category*') ? 'active' : '' }}"><a href="{{url('/task_category')}}"> <i class="zmdi zmdi-format-list-bulleted"></i> Task Categories</a></li>
+                    @endif
+                </ul>
+            </li>
             @endif
 
             {{-- Module 9: Management/Settings - SuperAdmin or can_view --}}

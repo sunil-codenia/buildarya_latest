@@ -100,7 +100,8 @@ class MaterialController extends Controller
     public function addmaterial(Request $request)
     {
         $name = $request->input('name');
-        $data = ['name' => $name];
+        $is_royalty = $request->has('is_royalty') ? 1 : 0;
+        $data = ['name' => $name, 'is_royalty' => $is_royalty];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {
             $id = DB::connection($user_db_conn_name)->table('materials')->insertGetId($data);
@@ -121,8 +122,9 @@ class MaterialController extends Controller
     {
         $id = $request->input('id');
         $name = $request->input('name');
+        $is_royalty = $request->has('is_royalty') ? 1 : 0;
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        DB::connection($user_db_conn_name)->table('materials')->where('id', $id)->update(['name' => $name]);
+        DB::connection($user_db_conn_name)->table('materials')->where('id', $id)->update(['name' => $name, 'is_royalty' => $is_royalty]);
         addActivity($id, 'materials', "Material SKU Updated", 3);
         return redirect('/material')->with('success', 'Material Updated successfully!');;
     }
@@ -212,15 +214,7 @@ class MaterialController extends Controller
                 return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code);
             } else {
                 $file_name = "Material Date Report (" . $start_date . " To " . $end_date . ").pdf";
-                $material = DB::connection($user_db_conn_name)
-                    ->table('material_entry')->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
-                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
-                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
-                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
-                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
-                    ->whereBetween('material_entry.date', [$start_date, $end_date])
-                    ->orderBy('material_entry.date', 'desc')->get();
+                $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date);
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToDate', compact('material', 'start_date', 'end_date'));
                 return $pdf->download($file_name);
             }
@@ -229,16 +223,7 @@ class MaterialController extends Controller
                 return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, $sitename, "", "");
             } else {
                 $file_name = "Material Site Report (" . $start_date . " To " . $end_date . ").pdf";
-                $material = DB::connection($user_db_conn_name)
-                    ->table('material_entry')
-                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
-                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
-                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
-                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
-                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
-                    ->whereBetween('material_entry.date', [$start_date, $end_date])
-                    ->orderBy('material_entry.date', 'desc')->get();
+                $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.site_id' => $sitename]);
                 $sitename = getSiteDetailsById($sitename)->name;
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToSite', compact('material', 'start_date', 'end_date', 'sitename'));
                 return $pdf->download($file_name);
@@ -249,16 +234,7 @@ class MaterialController extends Controller
             } else {
 
                 $file_name = "Material Supplier Report (" . $start_date . " To " . $end_date . ").pdf";
-                $material = DB::connection($user_db_conn_name)
-                    ->table('material_entry')
-                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
-                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
-                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
-                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
-                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
-                    ->whereBetween('material_entry.date', [$start_date, $end_date])
-                    ->orderBy('material_entry.date', 'desc')->get();
+                $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.supplier' => $partyname]);
                 $partyname = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->get()[0]->name;
 
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToSupp', compact('material', 'start_date', 'end_date', 'partyname'));
@@ -269,16 +245,7 @@ class MaterialController extends Controller
                 return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, $sitename, $partyname, "");
             } else {
                 $file_name = "Material Supplier Report At Particular Site (" . $start_date . " To " . $end_date . ").pdf";
-                $material = DB::connection($user_db_conn_name)
-                    ->table('material_entry')
-                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
-                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
-                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
-                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
-                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
-                    ->whereBetween('material_entry.date', [$start_date, $end_date])
-                    ->orderBy('material_entry.date', 'desc')->get();
+                $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.supplier' => $partyname, 'material_entry.site_id' => $sitename]);
                 $partyname = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->get()[0]->name;
                 $sitename = getSiteDetailsById($sitename)->name;
 
@@ -290,16 +257,7 @@ class MaterialController extends Controller
                 return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, "", "", $headname);
             } else {
                 $file_name = "Material Item Report (" . $start_date . " To " . $end_date . ").pdf";
-                $material = DB::connection($user_db_conn_name)
-                    ->table('material_entry')
-                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
-                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
-                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
-                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
-                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
-                    ->whereBetween('material_entry.date', [$start_date, $end_date])
-                    ->orderBy('material_entry.date', 'desc')->get();
+                $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.material_id' => $headname]);
                 $headname = DB::connection($user_db_conn_name)->table('materials')->where('id', $headname)->get()[0]->name;
 
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToMat', compact('material', 'start_date', 'end_date', 'headname'));
@@ -310,16 +268,7 @@ class MaterialController extends Controller
                 return $this->exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, $sitename, "", $headname);
             } else {
                 $file_name = "Material Item Report At Particular Site (" . $start_date . " To " . $end_date . ").pdf";
-                $material = DB::connection($user_db_conn_name)
-                    ->table('material_entry')
-                    ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
-                    ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
-                    ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
-                    ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
-                    ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
-                    ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
-                    ->whereBetween('material_entry.date', [$start_date, $end_date])
-                    ->orderBy('material_entry.date', 'desc')->get();
+                $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.material_id' => $headname, 'material_entry.site_id' => $sitename]);
                 $headname = DB::connection($user_db_conn_name)->table('materials')->where('id', $headname)->get()[0]->name;
                 $sitename = getSiteDetailsById($sitename)->name;
 
@@ -376,6 +325,74 @@ class MaterialController extends Controller
             }
         }
     }
+
+    private function buildMaterialReportQuery($user_db_conn_name, $start_date, $end_date)
+    {
+        return DB::connection($user_db_conn_name)
+            ->table('material_entry')
+            ->leftJoin('materials', 'materials.id', '=', 'material_entry.material_id')
+            ->leftJoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+            ->leftJoin('sites', 'sites.id', '=', 'material_entry.site_id')
+            ->leftJoin('units', 'units.id', '=', 'material_entry.unit')
+            ->leftJoin('users', 'users.id', '=', 'material_entry.user_id')
+            ->select('material_entry.*', 'material_entry.unit as unit_id', 'materials.name as material', 'materials.is_royalty', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+            ->whereBetween('material_entry.date', [$start_date, $end_date]);
+    }
+
+    private function getMaterialReportData($user_db_conn_name, $start_date, $end_date, $filters = [])
+    {
+        $query = $this->buildMaterialReportQuery($user_db_conn_name, $start_date, $end_date);
+
+        foreach ($filters as $column => $value) {
+            $query->where($column, '=', $value);
+        }
+
+        $material = $query->orderBy('material_entry.date', 'desc')->get();
+        return $this->appendMaterialCubicQty($user_db_conn_name, $material);
+    }
+
+    private function appendMaterialCubicQty($user_db_conn_name, $material)
+    {
+        $conversionKeys = [];
+        foreach ($material as $mat) {
+            $mat->cubic_qty = null;
+            if ($mat->is_royalty) {
+                $conversionKeys[$mat->material_id . '_' . $mat->unit_id] = true;
+            }
+        }
+
+        if (empty($conversionKeys)) {
+            return $material;
+        }
+
+        $conversionRules = DB::connection($user_db_conn_name)
+            ->table('material_conversion_rules')
+            ->leftJoin('units as t_unit', 't_unit.id', '=', 'material_conversion_rules.to_unit')
+            ->select('material_conversion_rules.material_id', 'material_conversion_rules.from_unit', 'material_conversion_rules.conversion_factor', 't_unit.name as to_unit_name')
+            ->where(function ($query) {
+                $query->whereRaw('LOWER(t_unit.name) LIKE ?', ['%cubic%'])
+                    ->orWhereRaw('LOWER(t_unit.name) LIKE ?', ['%m3%']);
+            })
+            ->whereIn(DB::raw('CONCAT(material_conversion_rules.material_id, "_", material_conversion_rules.from_unit)'), array_keys($conversionKeys))
+            ->get();
+
+        $conversionMap = [];
+        foreach ($conversionRules as $rule) {
+            $conversionMap[$rule->material_id . '_' . $rule->from_unit] = $rule->conversion_factor;
+        }
+
+        foreach ($material as $mat) {
+            if ($mat->is_royalty) {
+                $key = $mat->material_id . '_' . $mat->unit_id;
+                if (isset($conversionMap[$key]) && is_numeric($mat->qty)) {
+                    $mat->cubic_qty = floatval($mat->qty) * floatval($conversionMap[$key]);
+                }
+            }
+        }
+
+        return $material;
+    }
+
     public function exportExcel($user_db_conn_name, $start_date, $end_date, $report_code, $sitename = null, $partyname = null, $headname = null)
     {
 

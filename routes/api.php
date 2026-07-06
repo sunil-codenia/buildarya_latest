@@ -492,6 +492,13 @@ Route::prefix('v1')->group(function () {
         Route::post('/tasks/update/{id}', [ApiTaskController::class, 'update'])->where('id', '[0-9]+');
         Route::delete('/tasks/{id}', [ApiTaskController::class, 'destroy'])->where('id', '[0-9]+');
 
+        // Task Categories API Suite
+        Route::get('/task-categories', [ApiTaskController::class, 'listCategories']);
+        Route::post('/task-categories', [ApiTaskController::class, 'storeCategory']);
+        Route::post('/task-categories/{id}', [ApiTaskController::class, 'updateCategory'])->where('id', '[0-9]+');
+        Route::post('/task-categories/update/{id}', [ApiTaskController::class, 'updateCategory'])->where('id', '[0-9]+');
+        Route::delete('/task-categories/{id}', [ApiTaskController::class, 'destroyCategory'])->where('id', '[0-9]+');
+
         // Chat API Suite
         Route::get('/chats', [ApiChatController::class, 'index']);
         Route::post('/chats', [ApiChatController::class, 'store']);

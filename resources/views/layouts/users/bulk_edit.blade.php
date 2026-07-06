@@ -101,13 +101,8 @@
                         </div>
                         <div class="col-lg-5 col-md-5 col-sm-5">
                             <div class="form-group">
-                                <label><b>Data View Duration</b> (Check to update)</label>
-                                <select class="form-control show-tick" name="view_duration">
-                                    <option value="">Default (From Role)</option>
-                                    @foreach(getviewdurations() as $key => $value)
-                                        <option title="{{ $value }}" value="{{ $key }}">{{ $value }}</option>
-                                    @endforeach
-                                </select>
+                                <label><b>Data View Duration (Days)</b> (Check to update)</label>
+                                <input type="number" min="0" class="form-control" name="view_duration" placeholder="Enter number of days (e.g. 5)">
                             </div>
                         </div>
 
@@ -120,13 +115,8 @@
                         </div>
                         <div class="col-lg-5 col-md-5 col-sm-5">
                             <div class="form-group">
-                                <label><b>Data Creation Duration</b> (Check to update)</label>
-                                <select class="form-control show-tick" name="add_duration">
-                                    <option value="">Default (From Role)</option>
-                                    @foreach(getadddurations() as $key => $value)
-                                        <option title="{{ $value }}" value="{{ $key }}">{{ $value }}</option>
-                                    @endforeach
-                                </select>
+                                <label><b>Data Creation Duration (Days)</b> (Check to update)</label>
+                                <input type="number" min="0" class="form-control" name="add_duration" placeholder="Enter number of days (e.g. 5)">
                             </div>
                         </div>
                     </div>

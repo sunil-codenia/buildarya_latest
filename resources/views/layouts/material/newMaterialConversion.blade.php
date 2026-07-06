@@ -21,35 +21,20 @@
                         <div class="modal-body">
                             <form method="post" action="{{ url('/newStockUnitConversionForm') }}" enctype="multipart/form-data">
                                 @csrf
+                                <input type="hidden" id="site_id" name="site_id" value="{{ $site_id }}">
                                 <hr>
                                 <div class="row clearfix">
-                                    <div class="col-lg-3 col-md-3 col-sm-3">
-                                        <div class="form-group">
-                                            <label>Site</label>
-                                            <select name="site_id" id="site_id" onchange="sitechanges()"
-                                                class="form-control show-tick" data-live-search="true" required>
-                                                <option value="" selected disabled>--Select Site--</option>
-                                                @if ($entry_at_site == 'current')
-                                                    <option value="{{ $site_id }}">
-                                                        {{ getSiteDetailsById($site_id)->name }}
-                                                    </option>
-                                                @else
-                                                    @foreach ($sites as $site)
-                                                        <option value="{{ $site->id }}">{{ $site->name }}
-                                                        </option>
-                                                    @endforeach
-                                                @endif
-
-                                            </select>
-                                        </div>
-                                    </div>
+                                    {{-- Site selection removed: defaulting to session site_id on submit --}}
 
                                     <div class="col-lg-3 col-md-3 col-sm-3">
                                         <div class="form-group">
                                             <label>Material</label>
                                             <select name="material_id" id="material_id" onchange="materialchanges()"
                                                 class="form-control show-tick" data-live-search="true" required>
-                                                <option value="" selected disabled>--Select Site First</option>
+                                                <option value="" selected disabled>--Select Material--</option>
+                                                @foreach($materials as $mat)
+                                                    <option value="{{ $mat->id }}">{{ $mat->name }}</option>
+                                                @endforeach
                                             </select>
                                         </div>
                                     </div>
@@ -137,75 +122,92 @@
     <script type="text/javascript">
         let stockData = @json($material_stock_record); // Full stock data
         let conversion_rules = @json($conversion_format);
+        let allUnits = @json($units ?? []);
         var conversion_factor = 0;
 
-        function sitechanges() {
-            var site_id = $('#site_id').val();
-            $('#material_id').empty();
+        // Debug: show loaded data in console for troubleshooting
+        console.log('Loaded stockData count:', Array.isArray(stockData) ? stockData.length : 0);
+        console.log('Loaded allUnits count:', Array.isArray(allUnits) ? allUnits.length : 0);
+        console.log('Loaded conversion_rules count:', Array.isArray(conversion_rules) ? conversion_rules.length : 0);
+        console.log('stockData sample (first 10):', Array.isArray(stockData) ? stockData.slice(0, 10) : stockData);
 
-            var new_material_html = '';
-            new_material_html += '<option selected disabled value="">-- Select Material --</option>';
+        // Populate both unit selects using unique units from stockData (fallback to allUnits)
+        function populateAllUnits() {
+            let unitMap = {};
+            // prefer units present in stockData (so users see only relevant units)
+            if (Array.isArray(stockData) && stockData.length > 0) {
+                stockData.forEach(s => {
+                    if (s.unit && !(s.unit in unitMap)) {
+                        unitMap[s.unit] = s.unit_name || s.unit;
+                    }
+                });
+            }
 
-            var new_unit_html = '';
-            new_unit_html += '<option selected disabled value="">-- Select Material First --</option>';
-            $('#from_unit').empty();
+            // fallback to master units list when no stockData units found
+            if (Object.keys(unitMap).length === 0 && Array.isArray(allUnits)) {
+                allUnits.forEach(u => {
+                    unitMap[u.id] = u.name;
+                });
+            }
 
-            $('#from_unit').append(new_unit_html).val(null).trigger('change');
-            $('#from_unit').selectpicker('refresh');
-            $('#to_unit').empty();
-            $('#to_unit').append(new_unit_html).val(null).trigger('change');
-            $('#to_unit').selectpicker('refresh');
+            let new_unit_html = '<option selected disabled value="">-- Select Unit --</option>';
+            Object.keys(unitMap).forEach(function(unitId) {
+                new_unit_html += '<option value="' + unitId + '">' + unitMap[unitId] + '</option>';
+            });
 
-            if (site_id) {
-                let filteredMaterials = [...new Map(
-                    stockData
-                    .filter(stock => stock.site_id == site_id)
-                    .map(stock => [stock.material_id, {
-                        id: stock.material_id,
-                        name: stock.material_name
-                    }])
-                ).values()];
-                if (filteredMaterials.length) {
-                    $('#material_id').prop('disabled', false);
-                    $.each(filteredMaterials, function(key, material) {
-                        new_material_html += '<option value="' + material.id + '">' + material.name +
-                            '</option>';
-                    });
-                }
-                $('#material_id').append(new_material_html).val(null).trigger('change');
-                $('#material_id').selectpicker('refresh');
+            $('#from_unit').empty().append(new_unit_html).val(null).trigger('change');
+            $('#to_unit').empty().append(new_unit_html).val(null).trigger('change');
+            if (typeof $ !== 'undefined' && $.fn.selectpicker) {
+                    $('#from_unit').selectpicker('refresh');
+                    $('#to_unit').selectpicker('refresh');
+                    setTimeout(function() { $('#from_unit').selectpicker('refresh'); $('#to_unit').selectpicker('refresh'); }, 50);
             }
         }
 
+        // Call once on load so From/To units show relevant units without material selection
+        $(document).ready(function() {
+            populateAllUnits();
+        });
+
         function materialchanges() {
-            let site_id = $('#site_id').val();
             let material_id = $('#material_id').val();
-            $('#from_unit').empty();
+            let selectedText = $('#material_id option:selected').text().trim();
 
-            var new_unit_html = '';
-            new_unit_html += '<option selected disabled value="">-- Select Unit --</option>';
-            $('#to_unit').empty();
-            $('#to_unit').append(new_unit_html).val(null).trigger('change');
-            $('#to_unit').selectpicker('refresh');
+            var new_unit_html = '<option selected disabled value="">-- Select Unit --</option>';
+            $('#to_unit').empty().append(new_unit_html).val(null).trigger('change');
+            if (typeof $ !== 'undefined' && $.fn.selectpicker) {
+                $('#to_unit').selectpicker('refresh');
+                setTimeout(function() { $('#to_unit').selectpicker('refresh'); }, 50);
+            }
 
-            if (site_id && material_id) {
-                let filteredUnits = [...new Map(
-                    stockData
-                    .filter(stock => stock.site_id == site_id && stock.material_id == material_id)
-                    .map(stock => [stock.unit, {
-                        unit: stock.unit,
-                        unit_name: stock.unit_name
-                    }])
-                ).values()];
+            let unitMap = {};
+            if (material_id && Array.isArray(stockData)) {
+                stockData.forEach(s => {
+                    if (!s) return;
+                    let matchesId = s.material_id !== undefined && String(s.material_id) === String(material_id);
+                    let matchesName = s.material_name !== undefined && String(s.material_name).trim() === selectedText;
+                    if (matchesId || matchesName) {
+                        unitMap[s.unit] = s.unit_name || s.unit;
+                    }
+                });
+            }
 
-                if (filteredUnits.length) {
-                    $('#unit').prop('disabled', false);
-                    $.each(filteredUnits, function(key, unit) {
-                        new_unit_html += '<option value="' + unit.unit + '">' + unit.unit_name + '</option>';
-                    });
-                }
-                $('#from_unit').append(new_unit_html).val(null).trigger('change');
+            if (Array.isArray(allUnits)) {
+                allUnits.forEach(u => {
+                    if (!(u.id in unitMap)) {
+                        unitMap[u.id] = u.name;
+                    }
+                });
+            }
+
+            Object.keys(unitMap).forEach(function(u) {
+                new_unit_html += '<option value="' + u + '">' + unitMap[u] + '</option>';
+            });
+
+            $('#from_unit').empty().append(new_unit_html).val(null).trigger('change').prop('disabled', false);
+            if (typeof $ !== 'undefined' && $.fn.selectpicker) {
                 $('#from_unit').selectpicker('refresh');
+                setTimeout(function() { $('#from_unit').selectpicker('refresh'); }, 50);
             }
         }
 
@@ -219,24 +221,54 @@
             new_unit_html += '<option selected disabled value="">-- Select Unit --</option>';
 
 
-            if (site_id && material_id && from_unit_id) {
+            if (material_id && from_unit_id) {
+                console.log('fromunitchanges called, material_id:', material_id, 'from_unit_id:', from_unit_id);
+                console.log('conversion_rules sample count:', Array.isArray(conversion_rules) ? conversion_rules.length : 0, conversion_rules.slice ? conversion_rules.slice(0,5) : conversion_rules);
+
                 let filteredUnits = [...new Map(
                     conversion_rules
-                    .filter(rule => rule.material_id == material_id && rule.from_unit == from_unit_id)
-                    .map(rule => [rule.unit, {
+                    .filter(rule => String(rule.material_id) === String(material_id) && String(rule.from_unit) === String(from_unit_id))
+                    .map(rule => [rule.to_unit, {
                         unit: rule.to_unit,
                         unit_name: rule.to_unit_name
                     }])
                 ).values()];
+
+                console.log('filteredUnits (by rule):', filteredUnits.length, filteredUnits);
 
                 if (filteredUnits.length) {
                     $('#to_unit').prop('disabled', false);
                     $.each(filteredUnits, function(key, unit) {
                         new_unit_html += '<option value="' + unit.unit + '">' + unit.unit_name + '</option>';
                     });
+                } else {
+                    // Fallback: show all units (except from_unit) so user can still pick a target unit
+                    console.log('No conversion rules found for this from_unit; falling back to allUnits');
+                    if (Array.isArray(allUnits)) {
+                        allUnits.forEach(function(u) {
+                            if (String(u.id) !== String(from_unit_id)) {
+                                new_unit_html += '<option value="' + u.id + '">' + u.name + '</option>';
+                            }
+                        });
+                        $('#to_unit').prop('disabled', false);
+                    }
                 }
+
                 $('#to_unit').append(new_unit_html).val(null).trigger('change');
-                $('#to_unit').selectpicker('refresh');
+                if (typeof $ !== 'undefined' && $.fn.selectpicker) {
+                    $('#to_unit').selectpicker('refresh');
+                    setTimeout(function() { $('#to_unit').selectpicker('refresh'); }, 50);
+                }
+            }
+        }
+
+        function recalculate() {
+            let qty = parseFloat($('#qty').val());
+            if (!isNaN(qty) && conversion_factor !== null) {
+                var updated_qty = (qty * conversion_factor);
+                $('#updated_qty').val(updated_qty.toFixed(2));
+            } else {
+                $('#updated_qty').val('');
             }
         }
 
@@ -250,13 +282,12 @@
                 Number(item.from_unit) === Number(from_unit_id) &&
                 Number(item.to_unit) === Number(to_unit_id)
             );
-            conversion_factor = result ? parseFloat(result.conversion_factor) : null
-            
+            conversion_factor = result ? parseFloat(result.conversion_factor) : null;
+            recalculate();
         }
-        $('#qty').on('input', function() {
-            let qty = $('#qty').val();
-            var updated_qty = qty * conversion_factor;
-            $('#updated_qty').val(updated_qty);
+
+        $('#qty').on('input change', function() {
+            recalculate();
         });
     </script>
 @endsection

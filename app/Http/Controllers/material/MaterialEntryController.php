@@ -383,6 +383,7 @@ class MaterialEntryController extends Controller
         $data['materials'] = DB::connection($user_db_conn_name)->table('materials')->get();
         $data['units'] = DB::connection($user_db_conn_name)->table('units')->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $data['conversion_format'] = DB::connection($user_db_conn_name)->table('material_conversion_rules')->join('units', 'units.id', '=', 'material_conversion_rules.to_unit')->select('material_conversion_rules.*', 'units.name as to_unit_name')->get();
         return  view('layouts.material.newmaterial')->with('data', json_encode($data));
     }
     public function addnewmaterial(Request $request)

@@ -240,11 +240,40 @@ function getMachineryHeadsById($id)
     return DB::connection($user_db_conn_name)->table('machinery_head')->where('id', '=', $id)->first();
 }
 
+function ensureCentralModulesExist()
+{
+    static $ensured = false;
+    if ($ensured) {
+        return;
+    }
+    try {
+        if (!DB::table('modules')->where('id', 13)->exists()) {
+            DB::table('modules')->insert(['id' => 13, 'name' => 'Attendance Management']);
+        }
+        if (!DB::table('modules')->where('id', 14)->exists()) {
+            DB::table('modules')->insert(['id' => 14, 'name' => 'Task Management']);
+        }
+        if (!DB::table('modules')->where('id', 15)->exists()) {
+            DB::table('modules')->insert(['id' => 15, 'name' => 'Task Category']);
+        }
+        $ensured = true;
+    } catch (\Exception $e) {
+        \Log::error("Failed to ensure central modules: " . $e->getMessage());
+    }
+}
+
 function getcompanyModules()
 {
     $plan_id = session()->get('subscription_plan_id');
     $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
     $allowedModules = $sub ? json_decode($sub->modules, true) : [];
+    
+    ensureCentralModulesExist();
+    
+    if (in_array(14, $allowedModules) && !in_array(15, $allowedModules)) {
+        $allowedModules[] = 15;
+    }
+    
     return DB::table('modules')->whereIn('id', $allowedModules)->get();
 }
 function getcompanyModulesName($id)
