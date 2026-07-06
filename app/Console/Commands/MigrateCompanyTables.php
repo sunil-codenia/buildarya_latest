@@ -126,6 +126,7 @@ class MigrateCompanyTables extends Command
                     CREATE TABLE IF NOT EXISTS `tasks` (
                         `id`           INT AUTO_INCREMENT PRIMARY KEY,
                         `title`        VARCHAR(255) NOT NULL,
+                        `category_id`  INT DEFAULT NULL,
                         `description`  TEXT DEFAULT NULL,
                         `site_id`      INT DEFAULT NULL,
                         `assigned_to`  VARCHAR(255) DEFAULT NULL,
@@ -140,6 +141,7 @@ class MigrateCompanyTables extends Command
                         INDEX `idx_site_id`     (`site_id`),
                         INDEX `idx_assigned_to` (`assigned_to`),
                         INDEX `idx_assigned_by` (`assigned_by`),
+                        INDEX `idx_category_id` (`category_id`),
                         INDEX `idx_due_date`    (`due_date`)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
                 ");
@@ -165,6 +167,16 @@ class MigrateCompanyTables extends Command
                     DB::connection($connName)->statement("ALTER TABLE `tasks` MODIFY COLUMN `assigned_to` VARCHAR(255) NULL DEFAULT NULL");
                 } catch (\Exception $ex) {
                     $this->warn("    ! Could not alter tasks.assigned_to to VARCHAR: " . $ex->getMessage());
+                }
+
+                // Add category_id if it does not exist
+                if (!\Illuminate\Support\Facades\Schema::connection($connName)->hasColumn('tasks', 'category_id')) {
+                    try {
+                        DB::connection($connName)->statement("ALTER TABLE `tasks` ADD COLUMN `category_id` INT NULL DEFAULT NULL AFTER `title`");
+                        DB::connection($connName)->statement("ALTER TABLE `tasks` ADD INDEX `idx_category_id` (`category_id`)");
+                    } catch (\Exception $ex) {
+                        $this->warn("    ! Could not add tasks.category_id column: " . $ex->getMessage());
+                    }
                 }
 
                 $this->line("    ✓ tasks table OK");

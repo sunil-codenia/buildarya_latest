@@ -22,6 +22,7 @@ class TaskWebController extends Controller
         // Fetch all sites and users
         $sites = DB::connection($conn)->table('sites')->get();
         $users = DB::connection($conn)->table('users')->get();
+        $categories = DB::connection($conn)->table('task_categories')->get();
 
         // Admins (can_add permission) see all tasks; regular users only see their own
         $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
@@ -31,7 +32,8 @@ class TaskWebController extends Controller
         $query = DB::connection($conn)->table('tasks')
             ->leftJoin('users as creators', 'creators.id', '=', 'tasks.assigned_by')
             ->leftJoin('sites', 'sites.id', '=', 'tasks.site_id')
-            ->select('tasks.*', 'creators.name as creator_name', 'sites.name as site_name');
+            ->leftJoin('task_categories', 'task_categories.id', '=', 'tasks.category_id')
+            ->select('tasks.*', 'creators.name as creator_name', 'sites.name as site_name', 'task_categories.name as category_name');
 
         // Non-admin users only see tasks assigned to them
         if (!$isAdmin) {
@@ -78,7 +80,7 @@ class TaskWebController extends Controller
         $inProgress = $tasks->where('status', 'Progress')->count();
         $completed = $tasks->where('status', 'Completed')->count();
 
-        return view('layouts.tasks.index', compact('tasks', 'sites', 'users', 'totalTasks', 'pending', 'inProgress', 'completed', 'isAdmin', 'isChatAdmin'));
+        return view('layouts.tasks.index', compact('tasks', 'sites', 'users', 'categories', 'totalTasks', 'pending', 'inProgress', 'completed', 'isAdmin', 'isChatAdmin'));
     }
 
     public function store(Request $request)
@@ -95,6 +97,7 @@ class TaskWebController extends Controller
 
         $request->validate([
             'title' => 'required|string|max:255',
+            'category_id' => 'nullable|integer',
             'description' => 'nullable|string',
             'site_id' => 'required',
             'assigned_to' => 'required',
@@ -109,6 +112,7 @@ class TaskWebController extends Controller
 
         $data = [
             'title' => $request->title,
+            'category_id' => $request->category_id,
             'description' => $request->description,
             'site_id' => $request->site_id,
             'assigned_to' => $assigned,
@@ -159,6 +163,7 @@ class TaskWebController extends Controller
 
         $request->validate([
             'title' => 'required|string|max:255',
+            'category_id' => 'nullable|integer',
             'description' => 'nullable|string',
             'site_id' => 'required',
             'assigned_to' => 'required',
@@ -173,6 +178,7 @@ class TaskWebController extends Controller
 
         $data = [
             'title' => $request->title,
+            'category_id' => $request->category_id,
             'description' => $request->description,
             'site_id' => $request->site_id,
             'assigned_to' => $assigned,

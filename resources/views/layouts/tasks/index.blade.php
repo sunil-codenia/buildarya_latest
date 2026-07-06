@@ -132,7 +132,10 @@
                                     <tr style="border-bottom: 1px solid #f9f9fc;">
                                         <td>
                                             <h6 class="m-0 font-weight-bold" style="color: #333;">{{ $task->title }}</h6>
-                                            <small class="text-muted">{{ Str::limit($task->description, 50) }}</small>
+                                            @if(!empty($task->category_name))
+                                                <span class="badge badge-info p-1" style="font-size: 10px; border-radius: 4px; background-color: #00bcd4; color: white;">{{ $task->category_name }}</span>
+                                            @endif
+                                            <small class="text-muted d-block mt-1">{{ Str::limit($task->description, 50) }}</small>
                                         </td>
                                         <td>
                                             <div class="d-flex align-items-center">
@@ -200,6 +203,7 @@
                                                     <button type="button" class="btn btn-neutral btn-sm btn-round text-primary mr-2 edit-task-btn" 
                                                         data-id="{{ $task->id }}" 
                                                         data-title="{{ $task->title }}"
+                                                        data-category="{{ $task->category_id }}"
                                                         data-description="{{ $task->description }}"
                                                         data-assigned="{{ $task->assigned_to }}"
                                                         data-site="{{ $task->site_id }}"
@@ -427,19 +431,11 @@
                     </div>
                     <div class="modal-body p-4">
                         <div class="form-group mb-3">
-                            <label class="font-weight-bold" style="color: #555;">Task Title</label>
-                            <input type="text" name="title" class="form-control" required placeholder="What needs to be done?">
-                        </div>
-                        <div class="form-group mb-3">
-                            <label class="font-weight-bold" style="color: #555;">Description</label>
-                            <textarea name="description" class="form-control" rows="3" placeholder="Add details..."></textarea>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label class="font-weight-bold" style="color: #555;">Assign To</label>
-                            <select name="assigned_to" class="form-control show-tick" data-live-search="true" required>
-                                <option value="" disabled selected>-- Choose User --</option>
-                                @foreach($users as $user)
-                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
+                            <label class="font-weight-bold" style="color: #555;">Task Category</label>
+                            <select name="category_id" class="form-control show-tick" data-live-search="true">
+                                <option value="" selected>-- Choose Category (Optional) --</option>
+                                @foreach($categories as $category)
+                                    <option value="{{ $category->id }}">{{ $category->name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -452,13 +448,29 @@
                                 @endforeach
                             </select>
                         </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Task Title</label>
+                            <input type="text" name="title" class="form-control" required placeholder="What needs to be done?">
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Description</label>
+                            <textarea name="description" class="form-control" rows="3" placeholder="Add details..."></textarea>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Assign To</label>
+                            <select name="assigned_to[]" class="form-control show-tick" data-live-search="true" multiple required>
+                                @foreach($users as $user)
+                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group mb-3">
                                     <label class="font-weight-bold" style="color: #555;">Priority</label>
                                     <select name="priority" class="form-control show-tick" required>
                                         <option value="Low">Low</option>
-                                        <option value="Medium">Medium</option>
+                                        <option value="Medium" selected>Medium</option>
                                         <option value="High">High</option>
                                     </select>
                                 </div>
@@ -490,19 +502,11 @@
                     </div>
                     <div class="modal-body p-4">
                         <div class="form-group mb-3">
-                            <label class="font-weight-bold" style="color: #555;">Task Title</label>
-                            <input type="text" name="title" id="edit_title" class="form-control" required placeholder="What needs to be done?">
-                        </div>
-                        <div class="form-group mb-3">
-                            <label class="font-weight-bold" style="color: #555;">Description</label>
-                            <textarea name="description" id="edit_description" class="form-control" rows="3" placeholder="Add details..."></textarea>
-                        </div>
-                        <div class="form-group mb-3">
-                            <label class="font-weight-bold" style="color: #555;">Assign To</label>
-                            <select name="assigned_to" id="edit_assigned_to" class="form-control show-tick" required>
-                                <option value="" disabled>-- Choose User --</option>
-                                @foreach($users as $user)
-                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
+                            <label class="font-weight-bold" style="color: #555;">Task Category</label>
+                            <select name="category_id" id="edit_category_id" class="form-control show-tick" data-live-search="true">
+                                <option value="">-- Choose Category (Optional) --</option>
+                                @foreach($categories as $category)
+                                    <option value="{{ $category->id }}">{{ $category->name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -512,6 +516,22 @@
                                 <option value="" disabled>-- Choose Site --</option>
                                 @foreach($sites as $site)
                                     <option value="{{ $site->id }}">{{ $site->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Task Title</label>
+                            <input type="text" name="title" id="edit_title" class="form-control" required placeholder="What needs to be done?">
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Description</label>
+                            <textarea name="description" id="edit_description" class="form-control" rows="3" placeholder="Add details..."></textarea>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Assign To</label>
+                            <select name="assigned_to[]" id="edit_assigned_to" class="form-control show-tick" data-live-search="true" multiple required>
+                                @foreach($users as $user)
+                                    <option value="{{ $user->id }}">{{ $user->name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -603,12 +623,21 @@
                 document.getElementById('edit_description').value = this.dataset.description;
                 document.getElementById('edit_due_date').value = this.dataset.due || '';
                 
-                document.getElementById('edit_assigned_to').value = this.dataset.assigned;
+                document.getElementById('edit_category_id').value = this.dataset.category || '';
+                
+                // Handle multiple selection for assigned users
+                let assigned = this.dataset.assigned || '';
+                if (typeof $ !== 'undefined') {
+                    $('#edit_assigned_to').val(assigned.split(','));
+                } else {
+                    document.getElementById('edit_assigned_to').value = assigned;
+                }
+
                 document.getElementById('edit_site_id').value = this.dataset.site;
                 document.getElementById('edit_priority').value = this.dataset.priority;
                 
                 if (typeof $ !== 'undefined' && $.fn.selectpicker) {
-                    $('#edit_assigned_to, #edit_site_id, #edit_priority').selectpicker('refresh');
+                    $('#edit_category_id, #edit_assigned_to, #edit_site_id, #edit_priority').selectpicker('refresh');
                 }
                 
                 if (typeof $ !== 'undefined') {

@@ -593,6 +593,7 @@ class CompanyRegistrationController extends Controller
                 CREATE TABLE IF NOT EXISTS `tasks` (
                     `id` INT AUTO_INCREMENT PRIMARY KEY,
                     `title` VARCHAR(255) NOT NULL,
+                    `category_id` INT DEFAULT NULL,
                     `description` TEXT DEFAULT NULL,
                     `site_id` INT DEFAULT NULL,
                     `assigned_to` VARCHAR(255) DEFAULT NULL,
@@ -607,6 +608,7 @@ class CompanyRegistrationController extends Controller
                     INDEX (`site_id`),
                     INDEX (`assigned_to`),
                     INDEX (`assigned_by`),
+                    INDEX (`category_id`),
                     FOREIGN KEY (`site_id`) REFERENCES `sites` (`id`) ON DELETE SET NULL,
                     FOREIGN KEY (`assigned_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
