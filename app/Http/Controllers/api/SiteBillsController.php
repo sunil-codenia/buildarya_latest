@@ -161,24 +161,35 @@ class SiteBillsController extends Controller
         if ($party_status->status == 'Active') {
             $length = count($items);
             $amount = 0;
-     try {
-            for ($i = 0; $i < $length; $i++) {
-                $amount += ($items[$i]->rate * $items[$i]->qty);
+            
+            $attachments = [];
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $fileName = time() . '_' . rand(10000, 99999) . '.' . $file->getClientOriginalExtension();
+                    $file->move(public_path('images/app_images/' . $user_db_conn_name . '/bill'), $fileName);
+                    $attachments[] = 'images/app_images/' . $user_db_conn_name . '/bill/' . $fileName;
+                }
             }
-            $billdata = [
-                'party_id' => $party_id,
-                'bill_no' => $bill_no,
-                'site_id' => $bill_site_id,
-                'billdate' => $bill_date,
-                'bill_period' => $bill_period,
-                'user_id' => $user_id,
-                'location'=>$location,
-                'status' => $status,
-                'amount' => $amount,
-                'remark' => $remark,
-            ];
-            $bill_id = DB::connection($user_db_conn_name)->table('new_bill_entry')->insertGetId($billdata);
-            addActivity($bill_id, 'new_bill_entry', "Add New Bill Created Of Amount - ".$amount, 4,$user_id,$user_db_conn_name);
+
+            try {
+                for ($i = 0; $i < $length; $i++) {
+                    $amount += ($items[$i]->rate * $items[$i]->qty);
+                }
+                $billdata = [
+                    'party_id' => $party_id,
+                    'bill_no' => $bill_no,
+                    'site_id' => $bill_site_id,
+                    'billdate' => $bill_date,
+                    'bill_period' => $bill_period,
+                    'user_id' => $user_id,
+                    'location'=>$location,
+                    'status' => $status,
+                    'amount' => $amount,
+                    'remark' => $remark,
+                    'attachments' => count($attachments) > 0 ? json_encode($attachments) : null,
+                ];
+                $bill_id = DB::connection($user_db_conn_name)->table('new_bill_entry')->insertGetId($billdata);
+                addActivity($bill_id, 'new_bill_entry', "Add New Bill Created Of Amount - ".$amount, 4,$user_id,$user_db_conn_name);
 
             for ($i = 0; $i < $length; $i++) {
                 $rawd = [

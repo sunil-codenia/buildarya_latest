@@ -6781,7 +6781,16 @@ class ApiManagementController extends Controller
             $status = getAppInitialEntryStatusByRole($user->role_id, $conn);
             $bill_period = ($data['bill_from_date'] ?? '') . " to " . ($data['bill_to_date'] ?? '');
 
-            return DB::connection($conn)->transaction(function () use ($conn, $data, $user, $status, $totalAmount, $bill_period) {
+            $attachments = [];
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $fileName = time() . '_' . rand(10000, 99999) . '.' . $file->getClientOriginalExtension();
+                    $file->move(public_path('images/app_images/' . $conn . '/bill'), $fileName);
+                    $attachments[] = 'images/app_images/' . $conn . '/bill/' . $fileName;
+                }
+            }
+
+            return DB::connection($conn)->transaction(function () use ($conn, $data, $user, $status, $totalAmount, $bill_period, $attachments) {
                 $billId = DB::connection($conn)->table('new_bill_entry')->insertGetId([
                     'party_id' => $data['bill_party_id'],
                     'bill_no' => $data['bill_no'],
@@ -6792,6 +6801,7 @@ class ApiManagementController extends Controller
                     'status' => $status,
                     'amount' => $totalAmount,
                     'remark' => $data['remark'] ?? '',
+                    'attachments' => count($attachments) > 0 ? json_encode($attachments) : null,
                     'create_datetime' => Carbon::now()
                 ]);
 
@@ -6907,7 +6917,40 @@ class ApiManagementController extends Controller
                 ? ($data['bill_from_date'] . " to " . $data['bill_to_date'])
                 : $bill->bill_period;
 
-            return DB::connection($conn)->transaction(function () use ($conn, $id, $data, $user, $totalAmount, $bill_period, $bill) {
+            $existing = $request->input('existing_attachments');
+            $attachments = [];
+            if ($bill && !empty($bill->attachments)) {
+                $oldAttachments = json_decode($bill->attachments, true);
+                if (is_array($oldAttachments)) {
+                    if (is_null($existing)) {
+                        $attachments = $oldAttachments;
+                    } else {
+                        $existingArray = is_array($existing) ? $existing : json_decode($existing, true);
+                        if (!is_array($existingArray)) {
+                            $existingArray = [];
+                        }
+                        foreach ($oldAttachments as $old) {
+                            if (in_array($old, $existingArray)) {
+                                $attachments[] = $old;
+                            } else {
+                                if (\File::exists(public_path($old))) {
+                                    \File::delete(public_path($old));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $fileName = time() . '_' . rand(10000, 99999) . '.' . $file->getClientOriginalExtension();
+                    $file->move(public_path('images/app_images/' . $conn . '/bill'), $fileName);
+                    $attachments[] = 'images/app_images/' . $conn . '/bill/' . $fileName;
+                }
+            }
+
+            return DB::connection($conn)->transaction(function () use ($conn, $id, $data, $user, $totalAmount, $bill_period, $bill, $attachments) {
                 $updateData = [
                     'party_id' => $data['bill_party_id'] ?? $bill->party_id,
                     'bill_no' => $data['bill_no'] ?? $bill->bill_no,
@@ -6916,6 +6959,7 @@ class ApiManagementController extends Controller
                     'bill_period' => $bill_period,
                     'amount' => $totalAmount,
                     'remark' => $data['remark'] ?? $bill->remark,
+                    'attachments' => count($attachments) > 0 ? json_encode($attachments) : null,
                 ];
 
                 DB::connection($conn)->table('new_bill_entry')->where('id', $id)->update($updateData);
@@ -6957,7 +7001,18 @@ class ApiManagementController extends Controller
                 return response()->json(['status' => 'Error', 'message' => 'Cannot delete an approved bill.'], 403);
             }
 
-            return DB::connection($conn)->transaction(function () use ($conn, $id, $user) {
+            return DB::connection($conn)->transaction(function () use ($conn, $id, $user, $bill) {
+                if ($bill && !empty($bill->attachments)) {
+                    $files = json_decode($bill->attachments, true);
+                    if (is_array($files)) {
+                        foreach ($files as $file_path) {
+                            if (\File::exists(public_path($file_path))) {
+                                \File::delete(public_path($file_path));
+                            }
+                        }
+                    }
+                }
+
                 DB::connection($conn)->table('new_bill_entry')->where('id', $id)->delete();
                 DB::connection($conn)->table('new_bills_item_entry')->where('bill_id', $id)->delete();
 

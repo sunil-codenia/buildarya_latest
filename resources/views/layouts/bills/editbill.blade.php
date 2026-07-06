@@ -11,13 +11,14 @@
         $daterange = explode(' to ', $bill['bill_period']);
         
         $site_id = session()->get("site_id");
-$role_details = getRoleDetailsById(session()->get('role'));
-$entry_at_site = $role_details->entry_at_site;
-$add_duration = session()->get('add_duration');
-$duration = getdurationdates($add_duration);
-$today = substr($duration['today'], 0, 10);
-$min_date = substr($duration['min'], 0, 10);
-$max_date = substr($duration['max'], 0, 10);
+        $role_details = getRoleDetailsById(session()->get('role'));
+        $entry_at_site = $role_details->entry_at_site;
+        $add_duration = session()->get('add_duration');
+        $duration = getdurationdates($add_duration);
+        $today = substr($duration['today'], 0, 10);
+        $min_date = substr($duration['min'], 0, 10);
+        $max_date = substr($duration['max'], 0, 10);
+        $attachments = !empty($bill['attachments']) ? json_decode($bill['attachments'], true) : [];
 
     @endphp
 
@@ -171,12 +172,56 @@ $max_date = substr($duration['max'], 0, 10);
                                         <textarea id="remark" name="remark" class="form-control" placeholder="Notes & Remark">{{ $bill['remark'] }}</textarea>
                                     </div>
                                 </div>
-                                <div class="col-lg-6 col-md-6 col-sm-6" style="align-self:center;">
-
+                                <div class="col-lg-6 col-md-6 col-sm-6">
+                                    <div class="form-group">
+                                        <label>Existing Attachments</label>
+                                        <div class="existing-attachments-container">
+                                            @if(count($attachments) > 0)
+                                                <ul class="list-group">
+                                                    @foreach($attachments as $path)
+                                                        @php
+                                                            $filename = basename($path);
+                                                            $is_pdf = strtolower(pathinfo($path, PATHINFO_EXTENSION)) == 'pdf';
+                                                        @endphp
+                                                        <li class="list-group-item d-flex justify-content-between align-items-center" id="attachment-{{ md5($path) }}" style="padding: 10px; margin-bottom: 5px; border-radius: 4px; border: 1px solid #ddd;">
+                                                            <input type="hidden" name="existing_attachments[]" value="{{ $path }}">
+                                                            @if($is_pdf)
+                                                                <a href="{{ asset($path) }}" target="_blank" class="text-primary"><i class="zmdi zmdi-file-text"></i> {{ $filename }}</a>
+                                                            @else
+                                                                <a href="{{ asset($path) }}" target="_blank" style="display: flex; align-items: center; text-decoration: none; color: inherit;">
+                                                                    <img src="{{ asset($path) }}" alt="{{ $filename }}" style="max-height: 40px; max-width: 40px; margin-right: 10px; border-radius: 4px;">
+                                                                    <span>{{ $filename }}</span>
+                                                                </a>
+                                                            @endif
+                                                            <button type="button" class="btn btn-danger btn-sm btn-simple" style="padding: 2px 5px;" onclick="removeAttachment('{{ md5($path) }}')"><i class="zmdi zmdi-delete text-danger"></i></button>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            @else
+                                                <p class="text-muted">No attachments uploaded yet.</p>
+                                            @endif
+                                        </div>
+                                        <label class="m-t-15">Add New Attachments (Images or PDFs)</label>
+                                        <div id="attachments-container" class="m-b-10">
+                                            <div class="attachment-row" style="display: flex; align-items: center; margin-bottom: 8px;">
+                                                <input type="file" class="form-control" name="attachments[]" accept="image/*,application/pdf" style="flex: 1;">
+                                                <button type="button" class="btn btn-danger btn-simple remove-attachment" style="display: none; margin: 0 0 0 8px; padding: 6px 12px; height: 38px;" title="Remove file"><i class="zmdi zmdi-delete"></i></button>
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn btn-info btn-simple btn-round btn-sm waves-effect" id="add-attachment-btn" style="padding: 4px 10px;"><i class="zmdi zmdi-plus"></i> Add More Files</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row clearfix">
+                                <div class="col-lg-12 col-md-12 col-sm-12" style="align-self:center;">
                                     <div id="totaltablebody" style="text-align:center;"></div>
                                 </div>
-
                             </div>
+                            <script>
+                                function removeAttachment(hash) {
+                                    $('#attachment-' + hash).remove();
+                                }
+                            </script>
                             <hr>
                             <div class="row clearfix">
                                 <div class="col-lg-9 col-md-9 col-sm-9">
@@ -432,6 +477,29 @@ $max_date = substr($duration['max'], 0, 10);
         $(document).ready(function() {
             var site_id = {{ $bill['site_id'] }}
             fetch_bill_items_from_php(site_id);
+
+            function updateDeleteButtons() {
+                var rows = $('#attachments-container .attachment-row');
+                if (rows.length > 1) {
+                    rows.find('.remove-attachment').show();
+                } else {
+                    rows.find('.remove-attachment').hide();
+                }
+            }
+
+            $('#add-attachment-btn').click(function() {
+                var newRow = $('<div class="attachment-row" style="display: flex; align-items: center; margin-bottom: 8px;">' +
+                    '<input type="file" class="form-control" name="attachments[]" accept="image/*,application/pdf" style="flex: 1;">' +
+                    '<button type="button" class="btn btn-danger btn-simple remove-attachment" style="margin: 0 0 0 8px; padding: 6px 12px; height: 38px;" title="Remove file"><i class="zmdi zmdi-delete"></i></button>' +
+                    '</div>');
+                $('#attachments-container').append(newRow);
+                updateDeleteButtons();
+            });
+
+            $(document).on('click', '.remove-attachment', function() {
+                $(this).closest('.attachment-row').remove();
+                updateDeleteButtons();
+            });
         })
     </script>
 @endsection

@@ -139,6 +139,15 @@ class ApiSiteBillsController extends Controller
             $status = getAppInitialEntryStatusByRole($user->role_id, $conn);
             $bill_period = $request->get('bill_from_date', '') . " to " . $request->get('bill_to_date', '');
 
+            $attachments = [];
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $fileName = time() . '_' . rand(10000, 99999) . '.' . $file->getClientOriginalExtension();
+                    $file->move(public_path('images/app_images/' . $conn . '/bill'), $fileName);
+                    $attachments[] = 'images/app_images/' . $conn . '/bill/' . $fileName;
+                }
+            }
+
             $billData = [
                 'party_id' => $request->party_id,
                 'bill_no' => $request->bill_no,
@@ -149,10 +158,11 @@ class ApiSiteBillsController extends Controller
                 'status' => $status,
                 'amount' => $totalAmount,
                 'remark' => $request->remark,
+                'attachments' => count($attachments) > 0 ? json_encode($attachments) : null,
                 'create_datetime' => Carbon::now()
             ];
 
-            return DB::transaction(function () use ($billData, $request, $id, $user, $conn, $status) {
+            return DB::transaction(function () use ($billData, $request, $user, $conn, $status) {
                 $billId = DB::table('new_bill_entry')->insertGetId($billData);
                 addActivity($billId, 'new_bill_entry', "New Bill Created via API - " . $request->bill_no, 4, $user->id, $conn);
 
@@ -220,8 +230,42 @@ class ApiSiteBillsController extends Controller
                 $totalAmount += ($item['rate'] * $item['qty']);
             }
 
+            $existing = $request->input('existing_attachments');
+            $attachments = [];
+            if ($bill && !empty($bill->attachments)) {
+                $oldAttachments = json_decode($bill->attachments, true);
+                if (is_array($oldAttachments)) {
+                    if (is_null($existing)) {
+                        $attachments = $oldAttachments;
+                    } else {
+                        $existingArray = is_array($existing) ? $existing : json_decode($existing, true);
+                        if (!is_array($existingArray)) {
+                            $existingArray = [];
+                        }
+                        foreach ($oldAttachments as $old) {
+                            if (in_array($old, $existingArray)) {
+                                $attachments[] = $old;
+                            } else {
+                                if (\File::exists(public_path($old))) {
+                                    \File::delete(public_path($old));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ($request->hasFile('attachments')) {
+                foreach ($request->file('attachments') as $file) {
+                    $fileName = time() . '_' . rand(10000, 99999) . '.' . $file->getClientOriginalExtension();
+                    $file->move(public_path('images/app_images/' . $conn . '/bill'), $fileName);
+                    $attachments[] = 'images/app_images/' . $conn . '/bill/' . $fileName;
+                }
+            }
+
             $updateData = $request->only(['party_id', 'bill_no', 'site_id', 'billdate', 'remark']);
             $updateData['amount'] = $totalAmount;
+            $updateData['attachments'] = count($attachments) > 0 ? json_encode($attachments) : null;
             if ($request->has('bill_from_date') && $request->has('bill_to_date')) {
                 $updateData['bill_period'] = $request->bill_from_date . " to " . $request->bill_to_date;
             }
@@ -271,7 +315,18 @@ class ApiSiteBillsController extends Controller
                 return response()->json(['status' => 'Failed', 'message' => 'Cannot delete an approved bill.'], 403);
             }
 
-            return DB::transaction(function () use ($id, $user, $conn) {
+            return DB::transaction(function () use ($id, $user, $conn, $bill) {
+                if ($bill && !empty($bill->attachments)) {
+                    $files = json_decode($bill->attachments, true);
+                    if (is_array($files)) {
+                        foreach ($files as $file_path) {
+                            if (\File::exists(public_path($file_path))) {
+                                \File::delete(public_path($file_path));
+                            }
+                        }
+                    }
+                }
+
                 DB::table('new_bill_entry')->where('id', $id)->delete();
                 DB::table('new_bills_item_entry')->where('bill_id', $id)->delete();
                 addActivity($id, 'new_bill_entry', "Bill Deleted via API", 4, $user->id, $conn);

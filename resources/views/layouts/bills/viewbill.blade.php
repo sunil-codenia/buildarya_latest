@@ -7,6 +7,7 @@
         $bill_items = $data['bill_items'];
         $balance = $data['balance'];
         $bill_party = $data['bill_party'];
+        $attachments = !empty($bill['attachments']) ? json_decode($bill['attachments'], true) : [];
     @endphp
 
     <div class="row clearfix">
@@ -81,6 +82,35 @@
                                         </div>
                                     </div>
                                 </div>
+                                @if(count($attachments) > 0)
+                                    <hr>
+                                    <div class="row">
+                                        <div class="col-md-12" style="text-align: start;">
+                                            <h5><b>Attachments</b></h5>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px;">
+                                                @foreach($attachments as $path)
+                                                    @php
+                                                        $filename = basename($path);
+                                                        $is_pdf = strtolower(pathinfo($path, PATHINFO_EXTENSION)) == 'pdf';
+                                                    @endphp
+                                                    <div style="border: 1px solid #ddd; padding: 10px; border-radius: 4px; display: flex; align-items: center; background: #f9f9f9; min-width: 200px; max-width: 300px;">
+                                                        @if($is_pdf)
+                                                            <a href="{{ asset($path) }}" target="_blank" style="text-decoration: none; color: #007bff; display: flex; align-items: center; gap: 8px; width: 100%;">
+                                                                <i class="zmdi zmdi-file-text" style="font-size: 24px; min-width: 24px;"></i>
+                                                                <span style="word-break: break-all; font-size: 13px;">{{ $filename }}</span>
+                                                            </a>
+                                                        @else
+                                                            <a href="{{ asset($path) }}" target="_blank" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 8px; width: 100%;">
+                                                                <img src="{{ asset($path) }}" alt="{{ $filename }}" style="height: 40px; width: 40px; border-radius: 4px; object-fit: cover; min-width: 40px;">
+                                                                <span style="word-break: break-all; font-size: 13px;">{{ $filename }}</span>
+                                                            </a>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endif
                                 <hr>
                                 <div class="row">
                                     <div class="col-md-4" style="text-align:start;">

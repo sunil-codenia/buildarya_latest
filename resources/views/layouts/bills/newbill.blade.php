@@ -89,7 +89,6 @@
                                             <div class="form-group">
                                                 <label>From Date</label>
                                                 <input type="date" required class="form-control"
-                                                    min="{{ $min_date }}" max="{{ $max_date }}"
                                                     name="bill_from_date">
                                             </div>
                                         </div>
@@ -97,7 +96,6 @@
                                             <div class="form-group">
                                                 <label>To Date</label>
                                                 <input type="date" required class="form-control"
-                                                    min="{{ $min_date }}" max="{{ $max_date }}"
                                                     name="bill_to_date">
                                             </div>
                                         </div>
@@ -158,14 +156,26 @@
                                 <div class="col-lg-6 col-md-6 col-sm-6">
                                     <div class="form-group">
                                         <label>Notes & Remark</label>
-                                    <textarea id="remark" name="remark" class="form-control" placeholder="Notes & Remark"></textarea>
+                                        <textarea id="remark" name="remark" class="form-control" placeholder="Notes & Remark"></textarea>
                                     </div>
                                 </div>
-                                <div class="col-lg-6 col-md-6 col-sm-6" style="align-self:center;">
-
+                                <div class="col-lg-6 col-md-6 col-sm-6">
+                                    <div class="form-group">
+                                        <label>Attachments (Images or PDFs)</label>
+                                        <div id="attachments-container" class="m-b-10">
+                                            <div class="attachment-row" style="display: flex; align-items: center; margin-bottom: 8px;">
+                                                <input type="file" class="form-control" name="attachments[]" accept="image/*,application/pdf" style="flex: 1;">
+                                                <button type="button" class="btn btn-danger btn-simple remove-attachment" style="display: none; margin: 0 0 0 8px; padding: 6px 12px; height: 38px;" title="Remove file"><i class="zmdi zmdi-delete"></i></button>
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn btn-info btn-simple btn-round btn-sm waves-effect" id="add-attachment-btn" style="padding: 4px 10px;"><i class="zmdi zmdi-plus"></i> Add More Files</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row clearfix">
+                                <div class="col-lg-12 col-md-12 col-sm-12" style="align-self:center;">
                                     <div id="totaltablebody" style="text-align:center;"></div>
                                 </div>
-
                             </div>
 <hr>
                             <div class="row clearfix">
@@ -360,4 +370,30 @@
 @endsection
 
 @section('scripts')
+    <script type="text/javascript">
+        $(document).ready(function() {
+            function updateDeleteButtons() {
+                var rows = $('#attachments-container .attachment-row');
+                if (rows.length > 1) {
+                    rows.find('.remove-attachment').show();
+                } else {
+                    rows.find('.remove-attachment').hide();
+                }
+            }
+
+            $('#add-attachment-btn').click(function() {
+                var newRow = $('<div class="attachment-row" style="display: flex; align-items: center; margin-bottom: 8px;">' +
+                    '<input type="file" class="form-control" name="attachments[]" accept="image/*,application/pdf" style="flex: 1;">' +
+                    '<button type="button" class="btn btn-danger btn-simple remove-attachment" style="margin: 0 0 0 8px; padding: 6px 12px; height: 38px;" title="Remove file"><i class="zmdi zmdi-delete"></i></button>' +
+                    '</div>');
+                $('#attachments-container').append(newRow);
+                updateDeleteButtons();
+            });
+
+            $(document).on('click', '.remove-attachment', function() {
+                $(this).closest('.attachment-row').remove();
+                updateDeleteButtons();
+            });
+        });
+    </script>
 @endsection

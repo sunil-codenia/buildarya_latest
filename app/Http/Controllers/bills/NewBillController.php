@@ -151,6 +151,14 @@ class NewBillController extends Controller
                     for ($i = 0; $i < $length; $i++) {
                         $amount += ($data['rate'][$i] * $data['qty'][$i]);
                     }
+                    $attachments = [];
+                    if ($request->hasFile('attachments')) {
+                        foreach ($request->file('attachments') as $file) {
+                            $fileName = time() . '_' . rand(10000, 99999) . '.' . $file->getClientOriginalExtension();
+                            $file->move(public_path('images/app_images/' . $user_db_conn_name . '/bill'), $fileName);
+                            $attachments[] = 'images/app_images/' . $user_db_conn_name . '/bill/' . $fileName;
+                        }
+                    }
                     $billdata = [
                         'party_id' => $data['bill_party_id'],
                         'bill_no' => $data['bill_no'],
@@ -161,6 +169,7 @@ class NewBillController extends Controller
                         'status' => $status,
                         'amount' => $amount,
                         'remark' => $data['remark'],
+                        'attachments' => count($attachments) > 0 ? json_encode($attachments) : null,
                     ];
                     $bill_id = DB::connection($user_db_conn_name)->table('new_bill_entry')->insertGetId($billdata);
                     addActivity($bill_id, 'new_bill_entry', "New Bill Created - " . $data['bill_no'], 4);
@@ -339,6 +348,26 @@ class NewBillController extends Controller
                 for ($i = 0; $i < $length; $i++) {
                     $amount += ($data['rate'][$i] * $data['qty'][$i]);
                 }
+                $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('id', '=', $bill_id)->first();
+                $existing = [];
+                if ($bill && !empty($bill->attachments)) {
+                    $existing = json_decode($bill->attachments, true) ?: [];
+                }
+                $remaining = $request->input('existing_attachments', []);
+                $to_delete = array_diff($existing, $remaining);
+                foreach ($to_delete as $file_path) {
+                    if (\File::exists(public_path($file_path))) {
+                        \File::delete(public_path($file_path));
+                    }
+                }
+                $attachments = $remaining;
+                if ($request->hasFile('attachments')) {
+                    foreach ($request->file('attachments') as $file) {
+                        $fileName = time() . '_' . rand(10000, 99999) . '.' . $file->getClientOriginalExtension();
+                        $file->move(public_path('images/app_images/' . $user_db_conn_name . '/bill'), $fileName);
+                        $attachments[] = 'images/app_images/' . $user_db_conn_name . '/bill/' . $fileName;
+                    }
+                }
                 $billdata = [
                     'id' => $bill_id,
                     'party_id' => $data['bill_party_id'],
@@ -349,6 +378,7 @@ class NewBillController extends Controller
                     'status' => $status,
                     'amount' => $amount,
                     'remark' => $data['remark'],
+                    'attachments' => count($attachments) > 0 ? json_encode($attachments) : null,
                 ];
                 DB::connection($user_db_conn_name)->table('new_bill_entry')->upsert($billdata, 'id');
                 addActivity($bill_id, 'new_bill_entry', "Bill Entry Updated", 4);

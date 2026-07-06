@@ -517,7 +517,8 @@ CREATE TABLE `new_bill_entry` (
   `status` varchar(255) NOT NULL DEFAULT 'Pending',
   `amount` varchar(250) NOT NULL,
   `create_datetime` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `remark` varchar(2000) DEFAULT NULL
+  `remark` varchar(2000) DEFAULT NULL,
+  `attachments` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------

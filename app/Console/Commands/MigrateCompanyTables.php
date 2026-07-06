@@ -148,14 +148,15 @@ class MigrateCompanyTables extends Command
 
                 // Drop foreign key constraints on assigned_to if they exist, then alter column to VARCHAR(255)
                 try {
+                    $dbName = DB::connection($connName)->getDatabaseName();
                     $foreignKeys = DB::connection($connName)->select("
                         SELECT CONSTRAINT_NAME 
                         FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE 
-                        WHERE TABLE_SCHEMA = DATABASE() 
+                        WHERE TABLE_SCHEMA = ? 
                           AND TABLE_NAME = 'tasks' 
                           AND COLUMN_NAME = 'assigned_to' 
                           AND REFERENCED_TABLE_NAME IS NOT NULL
-                    ");
+                    ", [$dbName]);
                     foreach ($foreignKeys as $fk) {
                         try {
                             DB::connection($connName)->statement("ALTER TABLE `tasks` DROP FOREIGN KEY `{$fk->CONSTRAINT_NAME}`");
@@ -226,6 +227,18 @@ class MigrateCompanyTables extends Command
             } catch (\Exception $e) {
                 $this->error("    ✗ task_chats table FAILED: " . $e->getMessage());
                 $failed++;
+            }
+
+            // ─── NEW BILL ENTRY ATTACHMENTS ─────────────────────────────────
+            try {
+                if (\Illuminate\Support\Facades\Schema::connection($connName)->hasTable('new_bill_entry')) {
+                    if (!\Illuminate\Support\Facades\Schema::connection($connName)->hasColumn('new_bill_entry', 'attachments')) {
+                        DB::connection($connName)->statement("ALTER TABLE `new_bill_entry` ADD COLUMN `attachments` TEXT DEFAULT NULL");
+                        $this->line("    ✓ Added attachments column to new_bill_entry");
+                    }
+                }
+            } catch (\Exception $e) {
+                $this->error("    ✗ new_bill_entry alteration FAILED: " . $e->getMessage());
             }
 
             $success++;
