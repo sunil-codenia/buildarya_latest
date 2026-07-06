@@ -599,7 +599,7 @@ class CompanyRegistrationController extends Controller
                     `assigned_to` VARCHAR(255) DEFAULT NULL,
                     `assigned_by` INT DEFAULT NULL,
                     `priority` ENUM('Low', 'Medium', 'High', 'Urgent') NOT NULL DEFAULT 'Medium',
-                    `status` ENUM('Pending', 'In Progress', 'Completed', 'On Hold', 'Cancelled') NOT NULL DEFAULT 'Pending',
+                    `status` ENUM('Pending', 'Progress', 'In Progress', 'Completed', 'Hold', 'On Hold', 'Cancelled') NOT NULL DEFAULT 'Pending',
                     `due_date` DATE DEFAULT NULL,
                     `completed_at` TIMESTAMP NULL DEFAULT NULL,
                     `remarks` TEXT DEFAULT NULL,

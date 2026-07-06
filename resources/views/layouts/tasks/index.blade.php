@@ -159,14 +159,18 @@
                                             @php
                                                 $today = \Carbon\Carbon::today();
                                                 $isPastDue = $task->due_date && \Carbon\Carbon::parse($task->due_date)->startOfDay()->lt($today);
-                                                $isAssignedUser = (session('uid') == $task->assigned_to);
+                                                $assignedIds = array_filter(explode(',', $task->assigned_to));
+                                                $isAssignedUser = in_array(session('uid'), $assignedIds);
                                                 $canChangeStatus = ($isAdmin || $isAssignedUser) && !$isPastDue;
                                                 $statusClass = 'btn-secondary';
                                                 if($task->status == 'Progress' || $task->status == 'In Progress') $statusClass = 'btn-warning';
                                                 elseif($task->status == 'Completed') $statusClass = 'btn-success';
+                                                elseif($task->status == 'On Hold') $statusClass = 'btn-info';
+                                                
                                                 $badgeClass = 'badge-secondary';
                                                 if($task->status == 'Progress' || $task->status == 'In Progress') $badgeClass = 'badge-warning';
                                                 elseif($task->status == 'Completed') $badgeClass = 'badge-success';
+                                                elseif($task->status == 'On Hold') $badgeClass = 'badge-info';
                                             @endphp
 
                                             @if($canChangeStatus)
@@ -177,7 +181,8 @@
                                                     <div class="dropdown-menu">
                                                         <a class="dropdown-item" href="{{ url('/tasks/status/'.$task->id.'?status=Pending') }}">Pending</a>
                                                         <a class="dropdown-item" href="{{ url('/tasks/status/'.$task->id.'?status=Progress') }}">In Progress</a>
-                                                        <a class="dropdown-item" href="{{ url('/tasks/status/'.$task->id.'?status=Completed') }}">Completed</a>
+                                                        <a class="dropdown-item btn-status-completed" href="#" data-id="{{ $task->id }}" data-completed="{{ $task->completed_at ? date('Y-m-d', strtotime($task->completed_at)) : date('Y-m-d') }}">Completed</a>
+                                                        <a class="dropdown-item btn-status-hold" href="#" data-id="{{ $task->id }}" data-remarks="{{ $task->remarks }}">On Hold</a>
                                                     </div>
                                                 </div>
                                             @elseif($isPastDue && ($isAdmin || $isAssignedUser))
@@ -188,6 +193,18 @@
                                             @else
                                                 {{-- Not assigned to this user --}}
                                                 <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;">{{ $task->status == 'Progress' ? 'In Progress' : $task->status }}</span>
+                                            @endif
+
+                                            @if($task->status == 'Completed')
+                                                <small class="text-muted d-block mt-1" style="font-size: 11px; font-weight: bold; color: #2b903f !important;">
+                                                    <i class="zmdi zmdi-check-all text-success mr-1"></i> {{ $task->completed_at ? date('d M, Y', strtotime($task->completed_at)) : 'Completed' }}
+                                                </small>
+                                            @elseif($task->status == 'On Hold')
+                                                @if($task->remarks)
+                                                    <small class="text-muted d-block mt-1" style="font-size: 11px; max-width: 150px; white-space: normal; color: #00bcd4 !important; font-weight: bold;" title="{{ $task->remarks }}">
+                                                        <i class="zmdi zmdi-info-outline mr-1"></i> Reason: {{ Str::limit($task->remarks, 30) }}
+                                                    </small>
+                                                @endif
                                             @endif
                                         </td>
                                         <td>
@@ -209,6 +226,7 @@
                                                         data-site="{{ $task->site_id }}"
                                                         data-priority="{{ $task->priority }}"
                                                         data-due="{{ $task->due_date ? date('Y-m-d', strtotime($task->due_date)) : '' }}"
+                                                        data-completed="{{ $task->completed_at ? date('Y-m-d', strtotime($task->completed_at)) : '' }}"
                                                         style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
                                                         <i class="zmdi zmdi-edit"></i>
                                                     </button>
@@ -482,6 +500,14 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="font-weight-bold" style="color: #555;">Completed Date</label>
+                                    <input type="date" name="completed_at" class="form-control">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="modal-footer p-4" style="border-top: 1px solid #f1f2f6;">
                         <button type="button" class="btn btn-secondary btn-round waves-effect" data-dismiss="modal">Close</button>
@@ -553,6 +579,14 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label class="font-weight-bold" style="color: #555;">Completed Date</label>
+                                    <input type="date" name="completed_at" id="edit_completed_at" class="form-control">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="modal-footer p-4" style="border-top: 1px solid #f1f2f6;">
                         <button type="button" class="btn btn-secondary btn-round waves-effect" data-dismiss="modal">Close</button>
@@ -562,6 +596,56 @@
             </form>
         </div>
     </div>
+    <!-- Task Completed Date Modal -->
+    <div class="modal fade" id="taskStatusCompletedModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <form id="taskStatusCompletedForm" method="POST" class="form">
+                @csrf
+                <input type="hidden" name="status" value="Completed">
+                <div class="modal-content" style="border-radius: 15px; overflow: hidden; border: none;">
+                    <div class="modal-header p-4" style="background: linear-gradient(135deg, #2b903f 0%, #38ef7d 100%); color: white;">
+                        <h4 class="title m-0" style="font-weight: bold; color: white !important;"><i class="zmdi zmdi-check-all mr-2"></i> Complete Task</h4>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Completed Date</label>
+                            <input type="date" name="completed_at" id="status_completed_at" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer p-4" style="border-top: 1px solid #f1f2f6;">
+                        <button type="button" class="btn btn-secondary btn-round waves-effect" data-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-success btn-round waves-effect" style="background: linear-gradient(135deg, #2b903f 0%, #38ef7d 100%); border: none;">Submit</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Task Hold Remark Modal -->
+    <div class="modal fade" id="taskStatusHoldModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <form id="taskStatusHoldForm" method="POST" class="form">
+                @csrf
+                <input type="hidden" name="status" value="On Hold">
+                <div class="modal-content" style="border-radius: 15px; overflow: hidden; border: none;">
+                    <div class="modal-header p-4" style="background: linear-gradient(135deg, #00bcd4 0%, #17a2b8 100%); color: white;">
+                        <h4 class="title m-0" style="font-weight: bold; color: white !important;"><i class="zmdi zmdi-info-outline mr-2"></i> Mark Task On Hold</h4>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="form-group mb-3">
+                            <label class="font-weight-bold" style="color: #555;">Remarks / Reason for Hold</label>
+                            <textarea name="remarks" id="status_remarks" class="form-control" rows="3" required placeholder="Why is this task on hold?"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer p-4" style="border-top: 1px solid #f1f2f6;">
+                        <button type="button" class="btn btn-secondary btn-round waves-effect" data-dismiss="modal">Close</button>
+                        <button type="submit" class="btn btn-info btn-round waves-effect" style="background: linear-gradient(135deg, #00bcd4 0%, #17a2b8 100%); border: none;">Submit</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Task Chat Modal -->
     <div class="modal fade" id="taskChatModal" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-lg" role="document">
@@ -622,6 +706,7 @@
                 document.getElementById('edit_title').value = this.dataset.title;
                 document.getElementById('edit_description').value = this.dataset.description;
                 document.getElementById('edit_due_date').value = this.dataset.due || '';
+                document.getElementById('edit_completed_at').value = this.dataset.completed || '';
                 
                 document.getElementById('edit_category_id').value = this.dataset.category || '';
                 
@@ -642,6 +727,40 @@
                 
                 if (typeof $ !== 'undefined') {
                     $('#editTaskModal').modal('show');
+                }
+            });
+        });
+
+        // Handle Completed Status Trigger
+        const completedLinks = document.querySelectorAll('.btn-status-completed');
+        completedLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const id = this.dataset.id;
+                const completedVal = this.dataset.completed || new Date().toISOString().split('T')[0];
+                
+                document.getElementById('taskStatusCompletedForm').action = "{{ url('/tasks/status') }}/" + id;
+                document.getElementById('status_completed_at').value = completedVal;
+                
+                if (typeof $ !== 'undefined') {
+                    $('#taskStatusCompletedModal').modal('show');
+                }
+            });
+        });
+
+        // Handle On Hold Status Trigger
+        const holdLinks = document.querySelectorAll('.btn-status-hold');
+        holdLinks.forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const id = this.dataset.id;
+                const remarksVal = this.dataset.remarks || '';
+                
+                document.getElementById('taskStatusHoldForm').action = "{{ url('/tasks/status') }}/" + id;
+                document.getElementById('status_remarks').value = remarksVal;
+                
+                if (typeof $ !== 'undefined') {
+                    $('#taskStatusHoldModal').modal('show');
                 }
             });
         });

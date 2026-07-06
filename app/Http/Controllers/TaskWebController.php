@@ -102,7 +102,8 @@ class TaskWebController extends Controller
             'site_id' => 'required',
             'assigned_to' => 'required',
             'priority' => 'required|in:Low,Medium,High',
-            'due_date' => 'nullable|date'
+            'due_date' => 'nullable|date',
+            'completed_at' => 'nullable|date'
         ]);
 
         $assigned = $request->assigned_to;
@@ -120,6 +121,7 @@ class TaskWebController extends Controller
             'priority' => $request->priority,
             'status' => 'Pending',
             'due_date' => $request->due_date,
+            'completed_at' => $request->completed_at,
             'created_at' => Carbon::now()->toDateTimeString(),
             'updated_at' => Carbon::now()->toDateTimeString()
         ];
@@ -168,7 +170,8 @@ class TaskWebController extends Controller
             'site_id' => 'required',
             'assigned_to' => 'required',
             'priority' => 'required|in:Low,Medium,High',
-            'due_date' => 'nullable|date'
+            'due_date' => 'nullable|date',
+            'completed_at' => 'nullable|date'
         ]);
 
         $assigned = $request->assigned_to;
@@ -184,6 +187,7 @@ class TaskWebController extends Controller
             'assigned_to' => $assigned,
             'priority' => $request->priority,
             'due_date' => $request->due_date,
+            'completed_at' => $request->completed_at,
             'updated_at' => Carbon::now()->toDateTimeString()
         ];
 
@@ -220,13 +224,25 @@ class TaskWebController extends Controller
         }
 
         $request->validate([
-            'status' => 'required|in:Pending,Progress,Completed'
+            'status' => 'required|in:Pending,Progress,Completed,On Hold',
+            'completed_at' => 'nullable|date',
+            'remarks' => 'nullable|string'
         ]);
 
-        DB::connection($conn)->table('tasks')->where('id', $id)->update([
+        $updateData = [
             'status' => $request->status,
             'updated_at' => Carbon::now()->toDateTimeString()
-        ]);
+        ];
+
+        if ($request->status == 'Completed') {
+            $updateData['completed_at'] = $request->completed_at ?? Carbon::now()->toDateTimeString();
+        }
+
+        if ($request->status == 'On Hold') {
+            $updateData['remarks'] = $request->remarks;
+        }
+
+        DB::connection($conn)->table('tasks')->where('id', $id)->update($updateData);
 
         return redirect()->back()->with('success', 'Task status updated to "' . $request->status . '" successfully!');
     }
@@ -527,6 +543,29 @@ class TaskWebController extends Controller
 
             // Alter to make message nullable if it was not
             DB::connection($conn)->statement("ALTER TABLE `task_chats` MODIFY COLUMN `message` TEXT NULL");
+
+            // Ensure task_categories table exists
+            DB::connection($conn)->statement("
+                CREATE TABLE IF NOT EXISTS `task_categories` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(255) NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            // Ensure category_id column in tasks exists
+            if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'category_id')) {
+                DB::connection($conn)->statement("ALTER TABLE `tasks` ADD COLUMN `category_id` INT NULL DEFAULT NULL AFTER `title`");
+                DB::connection($conn)->statement("ALTER TABLE `tasks` ADD INDEX `idx_category_id` (`category_id`)");
+            }
+
+            // Ensure status enum is expanded in tasks table
+            try {
+                DB::connection($conn)->statement("ALTER TABLE `tasks` MODIFY COLUMN `status` ENUM('Pending','Progress','In Progress','Completed','Hold','On Hold','Cancelled') NOT NULL DEFAULT 'Pending'");
+            } catch (\Exception $ex) {
+                // Ignore if it fails
+            }
         } catch (\Exception $e) {
             \Log::error("Failed to ensure task_chats table schema: " . $e->getMessage());
         }

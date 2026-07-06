@@ -56,6 +56,7 @@ class MultiAssignTaskTest extends TestCase
         DB::connection($this->conn)->statement("
             CREATE TABLE IF NOT EXISTS `tasks` (
                 `id`           INT AUTO_INCREMENT PRIMARY KEY,
+                `category_id`  INT DEFAULT NULL,
                 `title`        VARCHAR(255) NOT NULL,
                 `description`  TEXT DEFAULT NULL,
                 `site_id`      INT DEFAULT NULL,
@@ -66,6 +67,7 @@ class MultiAssignTaskTest extends TestCase
                 `priority`     ENUM('Low','Medium','High','Urgent') NOT NULL DEFAULT 'Medium',
                 `status`       ENUM('Pending','In Progress','Completed','On Hold','Cancelled') NOT NULL DEFAULT 'Pending',
                 `due_date`     DATE DEFAULT NULL,
+                `completed_date` DATE DEFAULT NULL,
                 `completed_at` TIMESTAMP NULL DEFAULT NULL,
                 `remarks`      TEXT DEFAULT NULL,
                 `created_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
