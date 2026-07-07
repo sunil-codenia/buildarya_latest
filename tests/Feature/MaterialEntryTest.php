@@ -279,10 +279,10 @@ class MaterialEntryTest extends TestCase
 
         $this->assertNotNull($entry);
         $this->assertEquals('TEST-VEHICLE-UPDATED', $entry->vehical);
-        $this->assertNull($entry->image2); 
-        $this->assertNull($entry->image3); 
-        $this->assertNull($entry->image4); 
-        $this->assertNull($entry->image5); 
+        // Verify that the images are removed from the single comma-separated image list
+        $images = explode(',', $entry->image);
+        $this->assertCount(1, $images);
+        $this->assertEquals('images/expense.png', $images[0]);
     }
 }
 

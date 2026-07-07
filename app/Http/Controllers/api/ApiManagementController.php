@@ -6078,10 +6078,6 @@ class ApiManagementController extends Controller
                     'qty' => $qtys[$i] ?? ($qtys[0] ?? 0),
                     'vehical' => $vehicals[$i] ?? ($vehicals[0] ?? null),
                     'image' => $imagePath,
-                    'image2' => null,
-                    'image3' => null,
-                    'image4' => null,
-                    'image5' => null,
                     'remark' => $remarks[$i] ?? ($remarks[0] ?? null),
                     'site_id' => $site_ids[$i] ?? ($site_ids[0] ?? null),
                     'status' => $status,
@@ -6187,11 +6183,7 @@ class ApiManagementController extends Controller
                 'remark' => $input['remark'] ?? $entry->remark,
                 'site_id' => $input['site_id'] ?? $entry->site_id,
                 'date' => $input['date'] ?? $entry->date,
-                'image' => $imageString,
-                'image2' => null,
-                'image3' => null,
-                'image4' => null,
-                'image5' => null
+                'image' => $imageString
             ];
 
             DB::connection($conn)->table('material_entry')->where('id', $id)->update($updateData);
