@@ -193,6 +193,13 @@ class SiteController extends Controller
 
     public function siteToSiteBalanceTransfer(Request $request)
     {
+        if ($request->has('from_site') && !$request->has('from_site_id')) {
+            $request->merge(['from_site_id' => $request->input('from_site')]);
+        }
+        if ($request->has('to_site') && !$request->has('to_site_id')) {
+            $request->merge(['to_site_id' => $request->input('to_site')]);
+        }
+
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'from_site_id' => 'required',
             'to_site_id' => 'required',

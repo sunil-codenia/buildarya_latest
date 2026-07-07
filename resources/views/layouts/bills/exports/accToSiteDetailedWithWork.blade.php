@@ -99,20 +99,20 @@
             <td>{{ $bill->party_name }}</td>
 
             <td
-            style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+            style="border:2px solid {{ $color }};     text-align: center;">
             {{ $item->work_name }}</td>
         <td
-            style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+            style="border:2px solid {{ $color }};     text-align: center;">
             {{ $item->unit }}</td>
     
         <td
-            style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+            style="border:2px solid {{ $color }};     text-align: center;">
             {{ $item->rate }}</td>
         <td
-            style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+            style="border:2px solid {{ $color }};     text-align: center;">
             {{ $item->qty }}</td>
         <td
-            style="border:2px solid {{ session()->get('primary_color')[0] }}; font-weight:bold;     text-align: center;">
+            style="border:2px solid {{ $color }}; font-weight:bold;     text-align: center;">
             {{ $item->amount }}</td>
 
             @if ($bill->status == 'Pending')

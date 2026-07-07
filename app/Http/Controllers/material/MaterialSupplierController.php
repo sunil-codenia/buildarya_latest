@@ -187,7 +187,8 @@ class MaterialSupplierController extends Controller
             'bank_name' => $bank_name,
             'bank_ac_holder' => $bank_ac_holder,
             'cost_category_id' => $cost_category_id,
-            'status' => 'Active'
+            'status' => 'Active',
+            'create_datetime' => date('Y-m-d H:i:s')
         ];
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {
@@ -289,7 +290,8 @@ class MaterialSupplierController extends Controller
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $check = DB::connection($user_db_conn_name)->table('material_entry')->where('supplier', '=', $id)->get();
-        $material_supplier = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', '=', $id)->get()[0]->name;
+        $supplier = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', '=', $id)->first();
+        $material_supplier = $supplier ? $supplier->name : '';
         if (Count($check) > 0) {
             return redirect('/materialsupplier')
                 ->with('error', 'Material Supplier Is In Use!');

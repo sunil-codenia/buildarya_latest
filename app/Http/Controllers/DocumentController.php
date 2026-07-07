@@ -338,7 +338,13 @@ class DocumentController extends Controller
                 return json_encode($not_found);
             }
         } else if ($table == 'material') {
-            $data =  DB::connection($user_db_conn_name)->table('material_entry')->where('image', '=', $path)->orWhere('image2', '=', $path)->get();
+            $data =  DB::connection($user_db_conn_name)->table('material_entry')
+                ->where('image', 'LIKE', '%' . $path . '%')
+                ->orWhere('image2', '=', $path)
+                ->orWhere('image3', '=', $path)
+                ->orWhere('image4', '=', $path)
+                ->orWhere('image5', '=', $path)
+                ->get();
             if (count($data) > 0) {
                 $resp = [
                     'Type' => 'Material',

@@ -16,6 +16,7 @@ class SecurityHeadersMiddleware
             $response->header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
             $response->header('X-Frame-Options', 'SAMEORIGIN');
             $response->header('X-Content-Type-Options', 'nosniff');
+            $response->header('X-XSS-Protection', '1; mode=block');
             $response->header('Referrer-Policy', 'no-referrer-when-downgrade');
             $response->header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
         }

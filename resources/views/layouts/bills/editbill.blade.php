@@ -78,13 +78,13 @@
                                                     required>
                                                     <option value="" disabled>--Select Bill Party--</option>
                                                     @foreach ($bill_parties as $party)
-                                                        @if ($party['id'] == $bill['party_id'])
-                                                            <option selected value="{{ $party['id'] }}">
-                                                                {{ $party['name'] }}</option>
-                                                        @else
-                                                            <option value="{{ $party['id'] }}">{{ $party['name'] }}
-                                                            </option>
-                                                        @endif
+                                                        @php
+                                                            $isPending = ($party['status'] ?? '') == 'Pending';
+                                                            $isSelected = $party['id'] == $bill['party_id'];
+                                                        @endphp
+                                                        <option value="{{ $party['id'] }}" {{ $isSelected ? 'selected' : '' }} {{ $isPending && !$isSelected ? 'disabled' : '' }}>
+                                                            {{ $party['name'] }}{{ $isPending ? ' (Pending Activation)' : '' }}
+                                                        </option>
                                                     @endforeach
                                                 </select>
                                             </div>

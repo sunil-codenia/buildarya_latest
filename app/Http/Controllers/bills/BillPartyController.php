@@ -54,7 +54,8 @@ class BillPartyController extends Controller
     public function bill_party_payment(Request $request){
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $id = $request->query->get('id');
-        $bill_party_name=DB::connection($user_db_conn_name)->table('bills_party')->where('id',$id)->first()->name;
+        $party = DB::connection($user_db_conn_name)->table('bills_party')->where('id',$id)->first();
+        $bill_party_name = $party ? $party->name : '';
         $data = DB::connection($user_db_conn_name)->table('bill_party_payments')->where('party_id',$id)->get();
         return  view('layouts.bills.billparty_payments',compact(['id','bill_party_name','data']));
     }
@@ -71,7 +72,15 @@ class BillPartyController extends Controller
         $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data = [
-            'name' => $name, 'address' => $address, 'panno' => $panno, 'bank_ac' => $bank_ac, 'ifsc' => $ifsc, 'bankname' => $bankname, 'ac_holder_name' => $ac_holder_name, 'cost_category_id' => $cost_category_id
+            'name' => $name, 
+            'address' => $address, 
+            'panno' => $panno, 
+            'bank_ac' => $bank_ac, 
+            'ifsc' => $ifsc, 
+            'bankname' => $bankname, 
+            'ac_holder_name' => $ac_holder_name, 
+            'cost_category_id' => $cost_category_id,
+            'create_datetime' => date('Y-m-d H:i:s')
         ];
 
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
@@ -195,7 +204,8 @@ class BillPartyController extends Controller
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $check = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('party_id', '=', $id)->get();
-        $billsparty_delete = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $id)->get()[0]->name;
+        $party = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $id)->first();
+        $billsparty_delete = $party ? $party->name : '';
         if (Count($check) > 0) {
             return redirect('/billparty')
                 ->with('error', 'Bill Party Is In Use!');

@@ -82,7 +82,6 @@ class NewEnhancementsTest extends TestCase
         // Send invalid payload missing required fields (e.g. from_site_id is missing, passing from_site instead)
         $response = $this->withSession($sessionData)
             ->post('/siteToSiteBalanceTransfer', [
-                'from_site' => 1,
                 'to_site_id' => 2,
                 'amount' => 500,
                 'date' => '2026-06-26'

@@ -151,7 +151,8 @@ class CostCategoryController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $check = DB::connection($user_db_conn_name)->table('expenses')->where('head_id', '=', $id)->get();
 
-        $expense_head = DB::connection($user_db_conn_name)->table('expense_head')->where('id', '=', $id)->get()[0]->name;
+        $head = DB::connection($user_db_conn_name)->table('expense_head')->where('id', '=', $id)->first();
+        $expense_head = $head ? $head->name : '';
 
         if (Count($check) > 0) {
             return redirect('/cost_category')

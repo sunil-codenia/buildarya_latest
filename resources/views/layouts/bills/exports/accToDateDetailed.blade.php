@@ -101,17 +101,17 @@
     @if (count($bill->items) > 0)
         <tr>
          
-            <th style="border:2px solid {{ session()->get('primary_color')[0] }}; color:black;">#
+            <th style="border:2px solid {{ $color }}; color:black;">#
             </th>
-            <th style="border:2px solid {{ session()->get('primary_color')[0] }}; color:black;">
+            <th style="border:2px solid {{ $color }}; color:black;">
                 Work</th>
-            <th style="border:2px solid {{ session()->get('primary_color')[0] }}; color:black;">
+            <th style="border:2px solid {{ $color }}; color:black;">
                 Unit</th>
-            <th style="border:2px solid {{ session()->get('primary_color')[0] }}; color:black;">
+            <th style="border:2px solid {{ $color }}; color:black;">
                 Rate</th>
-            <th style="border:2px solid {{ session()->get('primary_color')[0] }}; color:black;">QTY
+            <th style="border:2px solid {{ $color }}; color:black;">QTY
             </th>
-            <th style="border:2px solid {{ session()->get('primary_color')[0] }}; color:black;">
+            <th style="border:2px solid {{ $color }}; color:black;">
                 Amount</th>
 
 
@@ -122,24 +122,24 @@
             <tr>
                
                 <td
-                    style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+                    style="border:2px solid {{ $color }};     text-align: center;">
                     {{ $count2++ }}</td>
 
                 <td
-                    style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+                    style="border:2px solid {{ $color }};     text-align: center;">
                     {{ $item->work_name }}</td>
                 <td
-                    style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+                    style="border:2px solid {{ $color }};     text-align: center;">
                     {{ $item->unit }}</td>
 
                 <td
-                    style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+                    style="border:2px solid {{ $color }};     text-align: center;">
                     {{ $item->rate }}</td>
                 <td
-                    style="border:2px solid {{ session()->get('primary_color')[0] }};     text-align: center;">
+                    style="border:2px solid {{ $color }};     text-align: center;">
                     {{ $item->qty }}</td>
                 <td
-                    style="border:2px solid {{ session()->get('primary_color')[0] }}; font-weight:bold;     text-align: center;">
+                    style="border:2px solid {{ $color }}; font-weight:bold;     text-align: center;">
                     {{ $item->amount }}</td>
 
               

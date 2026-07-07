@@ -86,18 +86,61 @@ class MaterialController extends Controller
             return json_encode($response);
         }
         
-        $imagePath = "images/expense.png";
+        if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('material_entry', 'image3')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($conn)->table('material_entry', function ($table) {
+                    $table->string('image3', 2000)->nullable();
+                    $table->string('image4', 2000)->nullable();
+                    $table->string('image5', 2000)->nullable();
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding columns: " . $e->getMessage());
+            }
+        }
+
+        $uploadedImages = [];
         try {
             if (isset($request->image)) {
                 $imageName = time() . rand(10000, 1000000) . '.' . $request->image->extension();
                 $request->image->move(public_path('images/app_images/'.$conn.'/material'), $imageName);
-                $imagePath = "images/app_images/".$conn."/material/" . $imageName;
-            } else {
-                $imagePath = "images/expense.png";
+                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName;
             }
-        } catch (\Exception $e) {
-            $imagePath = "images/expense.png";
-        }
+        } catch (\Exception $e) {}
+
+        try {
+            if (isset($request->image2)) {
+                $imageName2 = time() . rand(10000, 1000000) . '.' . $request->image2->extension();
+                $request->image2->move(public_path('images/app_images/'.$conn.'/material'), $imageName2);
+                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName2;
+            }
+        } catch (\Exception $e) {}
+
+        try {
+            if (isset($request->image3)) {
+                $imageName3 = time() . rand(10000, 1000000) . '.' . $request->image3->extension();
+                $request->image3->move(public_path('images/app_images/'.$conn.'/material'), $imageName3);
+                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName3;
+            }
+        } catch (\Exception $e) {}
+
+        try {
+            if (isset($request->image4)) {
+                $imageName4 = time() . rand(10000, 1000000) . '.' . $request->image4->extension();
+                $request->image4->move(public_path('images/app_images/'.$conn.'/material'), $imageName4);
+                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName4;
+            }
+        } catch (\Exception $e) {}
+
+        try {
+            if (isset($request->image5)) {
+                $imageName5 = time() . rand(10000, 1000000) . '.' . $request->image5->extension();
+                $request->image5->move(public_path('images/app_images/'.$conn.'/material'), $imageName5);
+                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName5;
+            }
+        } catch (\Exception $e) {}
+
+        $imagePath = count($uploadedImages) > 0 ? implode(',', $uploadedImages) : "images/expense.png";
+
         $role_id = getAppRoleByUId($uid, $conn);
         $status = getAppInitialEntryStatusByRole($role_id, $conn);
         $data = [
@@ -107,6 +150,10 @@ class MaterialController extends Controller
             'qty' => $qty,
             'vehical' => $vehical,
             'image' => $imagePath,
+            'image2' => null,
+            'image3' => null,
+            'image4' => null,
+            'image5' => null,
             'status' => $status,
             'remark' => $remark,
             'location' => $location,

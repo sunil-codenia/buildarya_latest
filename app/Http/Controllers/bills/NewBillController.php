@@ -142,8 +142,8 @@ class NewBillController extends Controller
             return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['bill_date']);
         }
 
-        $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $data['bill_party_id'])->get()[0];
-        if ($party_status->status == 'Active') {
+        $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $data['bill_party_id'])->first();
+        if ($party_status && $party_status->status == 'Active') {
             if (isset($data['item'])) {
                 $length = count($data['item']);
                 $amount = 0;
@@ -221,9 +221,9 @@ class NewBillController extends Controller
             if ($request->input('approve_bill') !== null) {
                 foreach ($ids as $id) {
 
-                    $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')->select('bills_party.status as status')->where('new_bill_entry.id', '=', $id)->get()[0];
+                    $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')->select('bills_party.status as status')->where('new_bill_entry.id', '=', $id)->first();
 
-                    if ($bill->status == 'Active') {
+                    if ($bill && $bill->status == 'Active') {
                         $this->approve_bill($id, $user_db_conn_name);
                     } else {
                         return redirect('/pending_bill')
@@ -248,9 +248,9 @@ class NewBillController extends Controller
     {
         $id = $request->get('id');
         $user_db_conn_name = session()->get('comp_db_conn_name');
-        $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')->select('bills_party.status as status')->where('new_bill_entry.id', '=', $id)->get()[0];
+        $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftJoin('bills_party', 'bills_party.id', '=', 'new_bill_entry.party_id')->select('bills_party.status as status')->where('new_bill_entry.id', '=', $id)->first();
 
-        if ($bill->status == 'Active') {
+        if ($bill && $bill->status == 'Active') {
             $this->approve_bill($id, $user_db_conn_name);
             return redirect('/verified_bill')
                 ->with('success', 'Bill Approved successfully!');
@@ -261,7 +261,10 @@ class NewBillController extends Controller
     }
     public function approve_bill($id, $conn)
     {
-        $bill = DB::connection($conn)->table('new_bill_entry')->where('id', '=', $id)->get()[0];
+        $bill = DB::connection($conn)->table('new_bill_entry')->where('id', '=', $id)->first();
+        if (!$bill || $bill->status === 'Approved') {
+            return;
+        }
         DB::connection($conn)->table('new_bill_entry')->where('id', '=', $id)->update(['status' => 'Approved']);
         sendAlertNotification($bill->user_id,'Your bill of amount '.$bill->amount.' with bill no. '. $bill->bill_no .' has been approved. Check Application For More Information.','Bill Approved');
 
@@ -288,7 +291,10 @@ class NewBillController extends Controller
     }
     public function reject_bill($id, $conn)
     {
-        $bill = DB::connection($conn)->table('new_bill_entry')->where('id', '=', $id)->get()[0];
+        $bill = DB::connection($conn)->table('new_bill_entry')->where('id', '=', $id)->first();
+        if (!$bill || $bill->status === 'Rejected') {
+            return;
+        }
         DB::connection($conn)->table('new_bill_entry')->where('id', '=', $id)->update(['status' => 'Rejected']);
         sendAlertNotification($bill->user_id,'Your bill of amount '.$bill->amount.' with bill no. '. $bill->bill_no .' has been rejected. Check Application For More Information.','Bill Rejected');
         DB::connection($conn)->table('bill_party_statement')->where('bill_no', '=', $id)->delete();
@@ -298,9 +304,13 @@ class NewBillController extends Controller
     {
         $id = $request->get('id');
         $user_db_conn_name = session()->get('comp_db_conn_name');
-        $data['bill'] = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('id', '=', $id)->get()[0];
+        $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('id', '=', $id)->first();
+        if (!$bill) {
+            return redirect('/verified_bill')->with('error', 'Bill not found!');
+        }
+        $data['bill'] = $bill;
         $data['bill_items'] = DB::connection($user_db_conn_name)->table('new_bills_item_entry')->leftJoin('bills_work', 'bills_work.id', '=', 'new_bills_item_entry.work_id')->where('new_bills_item_entry.bill_id', '=', $id)->get();
-        $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Active')->get();
+        $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
 
         $site_id = session()->get("site_id");
@@ -340,8 +350,8 @@ class NewBillController extends Controller
             return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['bill_date']);
         }
 
-        $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $data['bill_party_id'])->get()[0];
-        if ($party_status->status == 'Active') {
+        $party_status = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $data['bill_party_id'])->first();
+        if ($party_status && $party_status->status == 'Active') {
             $length = count($data['item']);
             $amount = 0;
             if ($length > 0) {
@@ -428,9 +438,12 @@ class NewBillController extends Controller
     {
         $id = $request->get('id');
         $user_db_conn_name = session()->get('comp_db_conn_name');
-        $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')->where('new_bill_entry.id', '=', $id)->select('new_bill_entry.*', 'users.name as user', 'sites.name as site')->get()[0];
+        $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')->where('new_bill_entry.id', '=', $id)->select('new_bill_entry.*', 'users.name as user', 'sites.name as site')->first();
+        if (!$bill) {
+            abort(404, 'Bill not found');
+        }
         $bill_items = DB::connection($user_db_conn_name)->table('new_bills_item_entry')->leftJoin('bills_work', 'bills_work.id', '=', 'new_bills_item_entry.work_id')->where('new_bills_item_entry.bill_id', '=', $id)->get();
-        $bill_party = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $bill->party_id)->get()[0];
+        $bill_party = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $bill->party_id)->first();
         $balance = getBillPartyBalance($bill->party_id,$user_db_conn_name);
         $file_name = $bill->bill_no.".pdf";
         $pdf = Pdf::loadView('layouts.bills.pdfs.bill_pdf',compact(['bill','bill_items','bill_party','balance']));
@@ -441,9 +454,13 @@ class NewBillController extends Controller
     {
         $id = $request->get('id');
         $user_db_conn_name = session()->get('comp_db_conn_name');
-        $data['bill'] = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')->where('new_bill_entry.id', '=', $id)->select('new_bill_entry.*', 'users.name as user', 'sites.name as site')->get()[0];
+        $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->leftJoin('users', 'users.id', '=', 'new_bill_entry.user_id')->leftJoin('sites', 'sites.id', '=', 'new_bill_entry.site_id')->where('new_bill_entry.id', '=', $id)->select('new_bill_entry.*', 'users.name as user', 'sites.name as site')->first();
+        if (!$bill) {
+            return redirect()->back()->with('error', 'Bill not found!');
+        }
+        $data['bill'] = $bill;
         $data['bill_items'] = DB::connection($user_db_conn_name)->table('new_bills_item_entry')->leftJoin('bills_work', 'bills_work.id', '=', 'new_bills_item_entry.work_id')->where('new_bills_item_entry.bill_id', '=', $id)->get();
-        $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $data['bill']->party_id)->get()[0];
+        $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->where('id', '=', $data['bill']->party_id)->first();
         $data['balance'] = $this->getpartybalance($data['bill']->party_id);
         return  view('layouts.bills.viewbill')->with('data', json_encode($data));
     }
@@ -529,7 +546,7 @@ class NewBillController extends Controller
                     ->where('new_bills_item_entry.work_id', $headname)
                     ->whereBetween('new_bill_entry.billdate', [$start_date, $end_date])
                     ->orderBy('new_bill_entry.billdate', 'desc')->get();
-                $headname = DB::connection($user_db_conn_name)->table('bills_work')->where('id', $headname)->get()[0]->name;
+                $headname = optional(DB::connection($user_db_conn_name)->table('bills_work')->where('id', $headname)->first())->name ?? '';
                 $pdf = Pdf::loadView('layouts.bills.pdfs.accToItem', compact('bills', 'start_date', 'end_date', 'headname'));
                 return $pdf->download($file_name);
             }
@@ -550,7 +567,7 @@ class NewBillController extends Controller
                     ->whereBetween('new_bill_entry.billdate', [$start_date, $end_date])
                     ->orderBy('new_bill_entry.billdate', 'desc')->get();
                 $sitename = getSiteDetailsById($sitename)->name;
-                $headname = DB::connection($user_db_conn_name)->table('bills_work')->where('id', $headname)->get()[0]->name;
+                $headname = optional(DB::connection($user_db_conn_name)->table('bills_work')->where('id', $headname)->first())->name ?? '';
                 $pdf = Pdf::loadView('layouts.bills.pdfs.accToItemAtSite', compact('bills', 'start_date', 'end_date', 'headname', 'sitename'));
                 return $pdf->download($file_name);
             }
@@ -568,7 +585,7 @@ class NewBillController extends Controller
                     ->where('new_bill_entry.party_id', $partyname)
                     ->whereBetween('new_bill_entry.billdate', [$start_date, $end_date])
                     ->orderBy('new_bill_entry.billdate', 'desc')->get();
-                $partyname = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
+                $partyname = optional(DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->first())->name ?? '';
                 $pdf = Pdf::loadView('layouts.bills.pdfs.accToParty', compact('bills', 'start_date', 'end_date', 'partyname'));
                 return $pdf->download($file_name);
             }
@@ -596,7 +613,7 @@ class NewBillController extends Controller
                         ->get();
                     $bills[$count++]->items = $items;
                 }
-                $partyname = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
+                $partyname = optional(DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->first())->name ?? '';
                 $pdf = Pdf::loadView('layouts.bills.pdfs.accToPartyDetailed', compact('bills', 'start_date', 'end_date', 'partyname'));
                 return $pdf->download($file_name);
             }
@@ -616,7 +633,7 @@ class NewBillController extends Controller
                     ->whereBetween('new_bill_entry.billdate', [$start_date, $end_date])
                     ->orderBy('new_bill_entry.billdate', 'desc')->get();
                 $sitename = getSiteDetailsById($sitename)->name;
-                $partyname = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
+                $partyname = optional(DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->first())->name ?? '';
                 $pdf = Pdf::loadView('layouts.bills.pdfs.accToPartyAtSite', compact('bills', 'start_date', 'end_date', 'partyname', 'sitename'));
                 return $pdf->download($file_name);
             }
@@ -646,7 +663,7 @@ class NewBillController extends Controller
                     $bills[$count++]->items = $items;
                 }
                 $sitename = getSiteDetailsById($sitename)->name;
-                $partyname = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
+                $partyname = optional(DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->first())->name ?? '';
                 $pdf = Pdf::loadView('layouts.bills.pdfs.accToPartyAtSiteDetailed', compact('bills', 'start_date', 'end_date', 'partyname', 'sitename'));
                 return $pdf->download($file_name);
             }
@@ -731,7 +748,7 @@ class NewBillController extends Controller
             if ($type == 1) {
                 return $this->exportSiteBillExcel($user_db_conn_name, "","", $report_code, "", "", $partyname);
             } else {
-                $party_name = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
+                $party_name = optional(DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->first())->name ?? '';
 
                 $file_name = "Bill Party Statement - ".$party_name." .pdf";
                 $statement = DB::connection($user_db_conn_name)
@@ -744,43 +761,53 @@ class NewBillController extends Controller
                 foreach ($statement as $statem) {
                     if ($statem->type == 'Credit') {
                         if (!is_null($statem->expense_id)) {
-                            $expense = DB::connection($user_db_conn_name)->table('expenses')->where('id', $statem->expense_id)->get()[0];
-                            $amount = $expense->amount;
-                            $site = getSiteDetailsById($expense->site_id)->name;
-                            $user = getUserDetailsById($expense->user_id)->name;
-                            $total_credit += $amount;
-                            $dat = ['date' => $expense->date, 'ref' => 'Expense', 'ref_no' => '', 'user_name' => $user, 'site_name' => $site, 'credit' => $amount, 'debit' => '', 'particular' => $statem->particular, 'image' => $expense->image];
-                            array_push($data,$dat);
+                            $expense = DB::connection($user_db_conn_name)->table('expenses')->where('id', $statem->expense_id)->first();
+                            if ($expense) {
+                                $amount = $expense->amount;
+                                $site = optional(getSiteDetailsById($expense->site_id))->name ?? '';
+                                $user = optional(getUserDetailsById($expense->user_id))->name ?? '';
+                                $total_credit += $amount;
+                                $dat = ['date' => $expense->date, 'ref' => 'Expense', 'ref_no' => '', 'user_name' => $user, 'site_name' => $site, 'credit' => $amount, 'debit' => '', 'particular' => $statem->particular, 'image' => $expense->image];
+                                array_push($data,$dat);
+                            }
                         } else if (!is_null($statem->payment_id)) {
-                            $payment = DB::connection($user_db_conn_name)->table('bill_party_payments')->where('id', $statem->payment_id)->get()[0];
-                            $amount = $payment->amount;
-                            $total_credit += $amount;
-                            $dat = ['date' => $payment->date, 'ref' => 'Payment', 'ref_no' => '', 'user_name' => '', 'site_name' => '', 'credit' => $amount, 'debit' => '', 'particular' => $statem->particular, 'image' => ''];
-                            array_push($data,$dat);
+                            $payment = DB::connection($user_db_conn_name)->table('bill_party_payments')->where('id', $statem->payment_id)->first();
+                            if ($payment) {
+                                $amount = $payment->amount;
+                                $total_credit += $amount;
+                                $dat = ['date' => $payment->date, 'ref' => 'Payment', 'ref_no' => '', 'user_name' => '', 'site_name' => '', 'credit' => $amount, 'debit' => '', 'particular' => $statem->particular, 'image' => ''];
+                                array_push($data,$dat);
+                            }
                         } else if (!is_null($statem->payment_voucher_id)) {
-                            $pv = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $statem->payment_voucher_id)->get()[0];
-                            $amount = $pv->amount;
-                            $site = getSiteDetailsById($pv->site_id)->name;
-                            $user = getUserDetailsById($pv->created_by)->name;
-                            $total_credit += $amount;
-                            $dat = ['date' => $pv->date, 'ref' => 'Payment Vouchers', 'ref_no' => $pv->voucher_no, 'user_name' => $user, 'site_name' => $site, 'credit' => $amount, 'debit' => '', 'particular' => $statem->particular, 'image' => $pv->image];
-                            array_push($data,$dat);
+                            $pv = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $statem->payment_voucher_id)->first();
+                            if ($pv) {
+                                $amount = $pv->amount;
+                                $site = optional(getSiteDetailsById($pv->site_id))->name ?? '';
+                                $user = optional(getUserDetailsById($pv->created_by))->name ?? '';
+                                $total_credit += $amount;
+                                $dat = ['date' => $pv->date, 'ref' => 'Payment Vouchers', 'ref_no' => $pv->voucher_no, 'user_name' => $user, 'site_name' => $site, 'credit' => $amount, 'debit' => '', 'particular' => $statem->particular, 'image' => $pv->image];
+                                array_push($data,$dat);
+                            }
                         }
                     } else {
                         if (!is_null($statem->bill_no)) {
-                            $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('id', $statem->bill_no)->get()[0];
-                            $amount = $bill->amount;
-                            $site = getSiteDetailsById($bill->site_id)->name;
-                            $user = getUserDetailsById($bill->user_id)->name;
-                            $total_debit += $amount;
-                            $dat = ['date' => $bill->billdate, 'ref' => 'Site Bill', 'ref_no' => $bill->bill_no, 'user_name' => $user, 'site_name' => $site, 'credit' => '', 'debit' => $amount, 'particular' => $statem->particular,'image'=>''];
-                            array_push($data,$dat);
+                            $bill = DB::connection($user_db_conn_name)->table('new_bill_entry')->where('id', $statem->bill_no)->first();
+                            if ($bill) {
+                                $amount = $bill->amount;
+                                $site = optional(getSiteDetailsById($bill->site_id))->name ?? '';
+                                $user = optional(getUserDetailsById($bill->user_id))->name ?? '';
+                                $total_debit += $amount;
+                                $dat = ['date' => $bill->billdate, 'ref' => 'Site Bill', 'ref_no' => $bill->bill_no, 'user_name' => $user, 'site_name' => $site, 'credit' => '', 'debit' => $amount, 'particular' => $statem->particular,'image'=>''];
+                                array_push($data,$dat);
+                            }
                         } else if (!is_null($statem->payment_id)) {
-                            $payment = DB::connection($user_db_conn_name)->table('bill_party_payments')->where('id', $statem->payment_id)->get()[0];
-                            $amount = $payment->amount;
-                            $total_debit += $amount;
-                            $dat = ['date' => $payment->date, 'ref' => 'Payment', 'ref_no' => '', 'user_name' => '', 'site_name' => '', 'credit' => '', 'debit' => $amount, 'particular' => $statem->particular, 'image' => ''];
-                            array_push($data,$dat);
+                            $payment = DB::connection($user_db_conn_name)->table('bill_party_payments')->where('id', $statem->payment_id)->first();
+                            if ($payment) {
+                                $amount = $payment->amount;
+                                $total_debit += $amount;
+                                $dat = ['date' => $payment->date, 'ref' => 'Payment', 'ref_no' => '', 'user_name' => '', 'site_name' => '', 'credit' => '', 'debit' => $amount, 'particular' => $statem->particular, 'image' => ''];
+                                array_push($data,$dat);
+                            }
                         }
                     }
                 }
@@ -849,7 +876,7 @@ class NewBillController extends Controller
                     ->where('material_entry.supplier', $supplier_id)
                     ->whereBetween('material_entry.date', [$start_date, $end_date])
                     ->orderBy('material_entry.date', 'desc')->get();
-                $partyname = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->get()[0]->name;
+                $partyname = optional(DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->first())->name ?? '';
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToSupp', compact('material', 'start_date', 'end_date', 'partyname'));
                 return $pdf->download($file_name);
             }
@@ -871,7 +898,7 @@ class NewBillController extends Controller
                     ->where('material_entry.supplier', $supplier_id)
                     ->whereBetween('material_entry.date', [$start_date, $end_date])
                     ->orderBy('material_entry.date', 'desc')->get();
-                $partyname = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->get()[0]->name;
+                $partyname = optional(DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->first())->name ?? '';
                 $sitename = getSiteDetailsById($sitename)->name;
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToSuppAtSite', compact('material', 'start_date', 'end_date', 'partyname', 'sitename'));
                 return $pdf->download($file_name);
@@ -893,7 +920,7 @@ class NewBillController extends Controller
                     ->where('material_entry.material_id', $material_id)
                     ->whereBetween('material_entry.date', [$start_date, $end_date])
                     ->orderBy('material_entry.date', 'desc')->get();
-                $headname = DB::connection($user_db_conn_name)->table('materials')->where('id', $material_id)->get()[0]->name;
+                $headname = optional(DB::connection($user_db_conn_name)->table('materials')->where('id', $material_id)->first())->name ?? '';
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToMat', compact('material', 'start_date', 'end_date', 'headname'));
                 return $pdf->download($file_name);
             }
@@ -915,7 +942,7 @@ class NewBillController extends Controller
                     ->where('material_entry.material_id', $material_id)
                     ->whereBetween('material_entry.date', [$start_date, $end_date])
                     ->orderBy('material_entry.date', 'desc')->get();
-                $headname = DB::connection($user_db_conn_name)->table('materials')->where('id', $material_id)->get()[0]->name;
+                $headname = optional(DB::connection($user_db_conn_name)->table('materials')->where('id', $material_id)->first())->name ?? '';
                 $sitename = getSiteDetailsById($sitename)->name;
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToMatAtSite', compact('material', 'start_date', 'end_date', 'headname', 'sitename'));
                 return $pdf->download($file_name);
@@ -925,7 +952,7 @@ class NewBillController extends Controller
             if ($type == 1) {
                 return $this->exportMaterialExcel($user_db_conn_name, "", "", 7, "", $supplier_id, "");
             } else {
-                $party_name = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->get()[0]->name;
+                $party_name = optional(DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $supplier_id)->first())->name ?? '';
                 $file_name = "Material Supplier Statement - " . $party_name . " .pdf";
                 $statement = DB::connection($user_db_conn_name)
                     ->table('material_supplier_statement')
@@ -936,21 +963,25 @@ class NewBillController extends Controller
                 $total_debit = 0;
                 foreach ($statement as $statem) {
                     if ($statem->type == 'Credit') {
-                        $pv = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $statem->payment_voucher_id)->get()[0];
-                        $amount = $pv->amount;
-                        $site = getSiteDetailsById($pv->site_id)->name;
-                        $user = getUserDetailsById($pv->created_by)->name;
-                        $total_credit += $amount;
-                        $dat = ['date' => $pv->date, 'ref' => 'Payment Vouchers', 'ref_no' => $pv->voucher_no, 'user_name' => $user, 'site_name' => $site, 'credit' => $amount, 'debit' => '', 'particular' => $pv->remark, 'image' => $pv->image];
-                        array_push($data, $dat);
+                        $pv = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $statem->payment_voucher_id)->first();
+                        if ($pv) {
+                            $amount = $pv->amount;
+                            $site = optional(getSiteDetailsById($pv->site_id))->name ?? '';
+                            $user = optional(getUserDetailsById($pv->created_by))->name ?? '';
+                            $total_credit += $amount;
+                            $dat = ['date' => $pv->date, 'ref' => 'Payment Vouchers', 'ref_no' => $pv->voucher_no, 'user_name' => $user, 'site_name' => $site, 'credit' => $amount, 'debit' => '', 'particular' => $pv->remark, 'image' => $pv->image];
+                            array_push($data, $dat);
+                        }
                     } else {
-                        $mat = DB::connection($user_db_conn_name)->table('material_entry')->join('materials', 'materials.id', '=', 'material_entry.material_id')->join('units', 'units.id', '=', 'material_entry.unit')->select('material_entry.*', 'units.name as unit_name', 'materials.name as mat_name')->where('material_entry.id', $statem->entry_id)->get()[0];
-                        $amount = $mat->amount;
-                        $site = getSiteDetailsById($mat->site_id)->name;
-                        $user = getUserDetailsById($mat->user_id)->name;
-                        $total_debit += $amount;
-                        $dat = ['date' => $mat->date, 'ref' => 'Material Entry', 'ref_no' => $mat->bill_no, 'user_name' => $user, 'site_name' => $site, 'credit' => '', 'debit' => $amount, 'particular' => $mat->mat_name . " - " . $mat->qty . " " . $mat->unit_name, 'image' => $mat->image];
-                        array_push($data, $dat);
+                        $mat = DB::connection($user_db_conn_name)->table('material_entry')->join('materials', 'materials.id', '=', 'material_entry.material_id')->join('units', 'units.id', '=', 'material_entry.unit')->select('material_entry.*', 'units.name as unit_name', 'materials.name as mat_name')->where('material_entry.id', $statem->entry_id)->first();
+                        if ($mat) {
+                            $amount = $mat->amount;
+                            $site = optional(getSiteDetailsById($mat->site_id))->name ?? '';
+                            $user = optional(getUserDetailsById($mat->user_id))->name ?? '';
+                            $total_debit += $amount;
+                            $dat = ['date' => $mat->date, 'ref' => 'Material Entry', 'ref_no' => $mat->bill_no, 'user_name' => $user, 'site_name' => $site, 'credit' => '', 'debit' => $amount, 'particular' => $mat->mat_name . " - " . $mat->qty . " " . $mat->unit_name, 'image' => $mat->image];
+                            array_push($data, $dat);
+                        }
                     }
                 }
                 usort($data, function ($a, $b) {
@@ -996,7 +1027,7 @@ class NewBillController extends Controller
         }
 
         if ($report_code == 11) {
-            $party_name = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->get()[0]->name;
+            $party_name = optional(DB::connection($user_db_conn_name)->table('bills_party')->where('id', $partyname)->first())->name ?? '';
             $file_name = "Bill Party Statement-" . $party_name . ".xlsx";
         } else {
             $file_name .= "(" . $start_date . " TO " . $end_date . ").xlsx";
@@ -1023,7 +1054,7 @@ class NewBillController extends Controller
         }
 
         if ($report_code == 7) {
-            $party_name = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->get()[0]->name;
+            $party_name = optional(DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->first())->name ?? '';
             $file_name = "Material Supplier Statement-" . $party_name . ".xlsx";
         } else {
             $file_name .= "(" . $start_date . " TO " . $end_date . ").xlsx";

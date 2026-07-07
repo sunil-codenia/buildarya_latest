@@ -6028,18 +6028,48 @@ class ApiManagementController extends Controller
             $remarks = (array) ($input['remark'] ?? []);
             $dates = (array) ($input['date'] ?? []);
             $images = $request->file('image');
+            $images2 = $request->file('image2');
+            $images3 = $request->file('image3');
+            $images4 = $request->file('image4');
+            $images5 = $request->file('image5');
 
             $length = count($site_ids);
             $created_ids = [];
 
             for ($i = 0; $i < $length; $i++) {
-                $imagePath = "images/expense.png";
+                $uploadedImages = [];
                 if ($images && isset($images[$i])) {
                     $image = $images[$i];
                     $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
                     $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                    $imagePath = "images/app_images/" . $conn . "/material/" . $imageName;
+                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
                 }
+                if ($images2 && isset($images2[$i])) {
+                    $image = $images2[$i];
+                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                }
+                if ($images3 && isset($images3[$i])) {
+                    $image = $images3[$i];
+                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                }
+                if ($images4 && isset($images4[$i])) {
+                    $image = $images4[$i];
+                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                }
+                if ($images5 && isset($images5[$i])) {
+                    $image = $images5[$i];
+                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                }
+
+                $imagePath = count($uploadedImages) > 0 ? implode(',', $uploadedImages) : "images/expense.png";
 
                 $data = [
                     'supplier' => $suppliers[$i] ?? ($suppliers[0] ?? null),
@@ -6048,6 +6078,10 @@ class ApiManagementController extends Controller
                     'qty' => $qtys[$i] ?? ($qtys[0] ?? 0),
                     'vehical' => $vehicals[$i] ?? ($vehicals[0] ?? null),
                     'image' => $imagePath,
+                    'image2' => null,
+                    'image3' => null,
+                    'image4' => null,
+                    'image5' => null,
                     'remark' => $remarks[$i] ?? ($remarks[0] ?? null),
                     'site_id' => $site_ids[$i] ?? ($site_ids[0] ?? null),
                     'status' => $status,
@@ -6081,8 +6115,26 @@ class ApiManagementController extends Controller
             if (!$entry) return response()->json(['status' => 'Error', 'message' => 'Entry not found'], 404);
 
             $input = $request->all();
-            $imagePath = $entry->image;
+            $existingImages = [];
+            if (!empty($entry->image)) {
+                $existingImages = explode(',', $entry->image);
+            }
+            // Fallback for older database style
+            if (empty($existingImages[1]) && !empty($entry->image2)) {
+                $existingImages[1] = $entry->image2;
+            }
+            if (empty($existingImages[2]) && !empty($entry->image3)) {
+                $existingImages[2] = $entry->image3;
+            }
+            if (empty($existingImages[3]) && !empty($entry->image4)) {
+                $existingImages[3] = $entry->image4;
+            }
+            if (empty($existingImages[4]) && !empty($entry->image5)) {
+                $existingImages[4] = $entry->image5;
+            }
 
+            // Image 1
+            $imagePath = isset($existingImages[0]) ? $existingImages[0] : 'images/expense.png';
             if ($request->hasFile('image')) {
                 if ($imagePath && $imagePath != 'images/expense.png' && file_exists(public_path($imagePath))) {
                     @unlink(public_path($imagePath));
@@ -6092,6 +6144,39 @@ class ApiManagementController extends Controller
                 $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
                 $imagePath = "images/app_images/" . $conn . "/material/" . $imageName;
             }
+            $existingImages[0] = $imagePath;
+
+            // Images 2 to 5
+            for ($i = 2; $i <= 5; $i++) {
+                $idx = $i - 1;
+                $fileKey = 'image' . ($i === 2 ? '2' : $i);
+                $clearKey = 'clear_image' . $i;
+
+                $slotPath = isset($existingImages[$idx]) ? $existingImages[$idx] : null;
+
+                if ($request->input($clearKey) == '1') {
+                    if ($slotPath && $slotPath != 'images/expense.png' && file_exists(public_path($slotPath))) {
+                        @unlink(public_path($slotPath));
+                    }
+                    $existingImages[$idx] = null;
+                }
+
+                if ($request->hasFile($fileKey)) {
+                    if ($slotPath && $slotPath != 'images/expense.png' && file_exists(public_path($slotPath))) {
+                        @unlink(public_path($slotPath));
+                    }
+                    $image = $request->file($fileKey);
+                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                    $existingImages[$idx] = "images/app_images/" . $conn . "/material/" . $imageName;
+                }
+            }
+
+            $allImages = array_filter($existingImages, function($v) {
+                return !is_null($v) && $v !== '';
+            });
+
+            $imageString = count($allImages) > 0 ? implode(',', $allImages) : 'images/expense.png';
 
             $updateData = [
                 'supplier' => $input['supplier'] ?? $entry->supplier,
@@ -6102,7 +6187,11 @@ class ApiManagementController extends Controller
                 'remark' => $input['remark'] ?? $entry->remark,
                 'site_id' => $input['site_id'] ?? $entry->site_id,
                 'date' => $input['date'] ?? $entry->date,
-                'image' => $imagePath
+                'image' => $imageString,
+                'image2' => null,
+                'image3' => null,
+                'image4' => null,
+                'image5' => null
             ];
 
             DB::connection($conn)->table('material_entry')->where('id', $id)->update($updateData);

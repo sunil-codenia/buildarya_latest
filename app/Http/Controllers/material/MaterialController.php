@@ -176,7 +176,8 @@ class MaterialController extends Controller
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $check = DB::connection($user_db_conn_name)->table('material_entry')->where('material_id', '=', $id)->get();
-        $material_name = DB::connection($user_db_conn_name)->table('materials')->where('id', '=', $id)->get()[0]->name;
+        $material = DB::connection($user_db_conn_name)->table('materials')->where('id', '=', $id)->first();
+        $material_name = $material ? $material->name : '';
         if (Count($check) > 0) {
             return redirect('/material')
                 ->with('error', 'Material Is In Use!');
@@ -235,7 +236,7 @@ class MaterialController extends Controller
 
                 $file_name = "Material Supplier Report (" . $start_date . " To " . $end_date . ").pdf";
                 $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.supplier' => $partyname]);
-                $partyname = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->get()[0]->name;
+                $partyname = optional(DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->first())->name ?? '';
 
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToSupp', compact('material', 'start_date', 'end_date', 'partyname'));
                 return $pdf->download($file_name);
@@ -246,7 +247,7 @@ class MaterialController extends Controller
             } else {
                 $file_name = "Material Supplier Report At Particular Site (" . $start_date . " To " . $end_date . ").pdf";
                 $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.supplier' => $partyname, 'material_entry.site_id' => $sitename]);
-                $partyname = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->get()[0]->name;
+                $partyname = optional(DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->first())->name ?? '';
                 $sitename = getSiteDetailsById($sitename)->name;
 
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToSuppAtSite', compact('material', 'start_date', 'end_date', 'partyname', 'sitename'));
@@ -258,7 +259,7 @@ class MaterialController extends Controller
             } else {
                 $file_name = "Material Item Report (" . $start_date . " To " . $end_date . ").pdf";
                 $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.material_id' => $headname]);
-                $headname = DB::connection($user_db_conn_name)->table('materials')->where('id', $headname)->get()[0]->name;
+                $headname = optional(DB::connection($user_db_conn_name)->table('materials')->where('id', $headname)->first())->name ?? '';
 
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToMat', compact('material', 'start_date', 'end_date', 'headname'));
                 return $pdf->download($file_name);
@@ -269,7 +270,7 @@ class MaterialController extends Controller
             } else {
                 $file_name = "Material Item Report At Particular Site (" . $start_date . " To " . $end_date . ").pdf";
                 $material = $this->getMaterialReportData($user_db_conn_name, $start_date, $end_date, ['material_entry.material_id' => $headname, 'material_entry.site_id' => $sitename]);
-                $headname = DB::connection($user_db_conn_name)->table('materials')->where('id', $headname)->get()[0]->name;
+                $headname = optional(DB::connection($user_db_conn_name)->table('materials')->where('id', $headname)->first())->name ?? '';
                 $sitename = getSiteDetailsById($sitename)->name;
 
                 $pdf = Pdf::loadView('layouts.material.pdfs.accToMatAtSite', compact('material', 'start_date', 'end_date', 'headname', 'sitename'));
@@ -280,7 +281,7 @@ class MaterialController extends Controller
             if ($type == 1) {
                 return $this->exportExcel($user_db_conn_name, "", "", $report_code, "",  $partyname,"");
             } else {
-                $party_name = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->get()[0]->name;
+                $party_name = optional(DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->first())->name ?? '';
                 
                 $file_name = "Material Supplier Statement - " . $party_name . " .pdf";
                 $statement = DB::connection($user_db_conn_name)
@@ -292,24 +293,25 @@ class MaterialController extends Controller
                 $total_debit = 0;
                 foreach ($statement as $statem) {
                     if ($statem->type == 'Credit') {
-                      
-                            $pv = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $statem->payment_voucher_id)->get()[0];
+                        $pv = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $statem->payment_voucher_id)->first();
+                        if ($pv) {
                             $amount = $pv->amount;
-                            $site = getSiteDetailsById($pv->site_id)->name;
-                            $user = getUserDetailsById($pv->created_by)->name;
+                            $site = optional(getSiteDetailsById($pv->site_id))->name ?? '';
+                            $user = optional(getUserDetailsById($pv->created_by))->name ?? '';
                             $total_credit += $amount;
                             $dat = ['date' => $pv->date, 'ref' => 'Payment Vouchers', 'ref_no' => $pv->voucher_no, 'user_name' => $user, 'site_name' => $site, 'credit' => $amount, 'debit' => '', 'particular' => $pv->remark, 'image' => $pv->image];
                             array_push($data, $dat);
-                        
+                        }
                     } else {
-                            $mat = DB::connection($user_db_conn_name)->table('material_entry')->join('materials','materials.id','=','material_entry.material_id')->join('units','units.id','=','material_entry.unit')->select('material_entry.*','units.name as unit_name','materials.name as mat_name')->where('material_entry.id', $statem->entry_id)->get()[0];
+                        $mat = DB::connection($user_db_conn_name)->table('material_entry')->join('materials','materials.id','=','material_entry.material_id')->join('units','units.id','=','material_entry.unit')->select('material_entry.*','units.name as unit_name','materials.name as mat_name')->where('material_entry.id', $statem->entry_id)->first();
+                        if ($mat) {
                             $amount = $mat->amount;
-                            $site = getSiteDetailsById($mat->site_id)->name;
-                            $user = getUserDetailsById($mat->user_id)->name;
+                            $site = optional(getSiteDetailsById($mat->site_id))->name ?? '';
+                            $user = optional(getUserDetailsById($mat->user_id))->name ?? '';
                             $total_debit += $amount;
                             $dat = ['date' => $mat->date, 'ref' => 'Material Entry', 'ref_no' => $mat->bill_no, 'user_name' => $user, 'site_name' => $site, 'credit' => '', 'debit' => $amount, 'particular' => $mat->mat_name. " - ".$mat->qty." ".$mat->unit_name, 'image' => $mat->image];
                             array_push($data, $dat);
-                        
+                        }
                     }
                 }
                 usort($data, function ($a, $b) {
@@ -420,7 +422,7 @@ class MaterialController extends Controller
         
         if ($report_code == 7) {
 
-            $party_name = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->get()[0]->name;
+            $party_name = optional(DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $partyname)->first())->name ?? '';
 
             $file_name = "Material Supplier Statement-" . $party_name . ".xlsx";
         }

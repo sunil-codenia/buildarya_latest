@@ -172,7 +172,8 @@ class MaterialUnitController extends Controller
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $check = DB::connection($user_db_conn_name)->table('material_entry')->where('unit', '=', $id)->get();
-        $delete_material_unit = DB::connection($user_db_conn_name)->table('unit')->where('id', '=', $id)->get()[0]->name;
+        $unit = DB::connection($user_db_conn_name)->table('units')->where('id', '=', $id)->first();
+        $delete_material_unit = $unit ? $unit->name : '';
         if (Count($check) > 0) {
             return redirect('/materialunit')
                 ->with('error', 'Material Unit Is In Use!');

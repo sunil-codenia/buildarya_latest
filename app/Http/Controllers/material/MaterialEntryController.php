@@ -147,11 +147,30 @@ class MaterialEntryController extends Controller
             $date = $row->date;
 
             $imageHtml = '<div class="d-flex">';
-            if ($row->image) {
-                $imageHtml .= '<img class="lazy" src="'.asset($row->image).'" onclick="enlargeImage(\''.asset($row->image).'\')" height="50px" width="50px" />&nbsp;';
+            if (!empty($row->image)) {
+                $images = explode(',', $row->image);
+                foreach ($images as $img) {
+                    $img = trim($img);
+                    if ($img && $img != 'images/expense.png') {
+                        $imageHtml .= '<img class="lazy" src="'.asset($img).'" onclick="enlargeImage(\''.asset($img).'\')" height="50px" width="50px" />&nbsp;';
+                    }
+                }
             }
-            if ($row->image2) {
-                $imageHtml .= '<img class="lazy" src="'.asset($row->image2).'" onclick="enlargeImage(\''.asset($row->image2).'\')" height="50px" width="50px" />';
+            // Legacy column support
+            if (!empty($row->image2) && $row->image2 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image2).'" onclick="enlargeImage(\''.asset($row->image2).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image3) && $row->image3 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image3).'" onclick="enlargeImage(\''.asset($row->image3).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image4) && $row->image4 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image4).'" onclick="enlargeImage(\''.asset($row->image4).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image5) && $row->image5 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image5).'" onclick="enlargeImage(\''.asset($row->image5).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if ($imageHtml == '<div class="d-flex">') {
+                $imageHtml .= '<img class="lazy" src="'.asset('images/expense.png').'" onclick="enlargeImage(\''.asset('images/expense.png').'\')" height="50px" width="50px" />';
             }
             $imageHtml .= '</div>';
 
@@ -338,10 +357,33 @@ class MaterialEntryController extends Controller
             $location = $row->location;
             $date = $row->date;
             
-            $imageHtml = '<img class="lazy" src="'.asset($row->image).'" onclick="enlargeImage(\''.asset($row->image).'\')" height="50px" width="50px" />';
-            if ($row->image2) {
-                $imageHtml .= ' <img class="lazy" src="'.asset($row->image2).'" onclick="enlargeImage(\''.asset($row->image2).'\')" height="50px" width="50px" />';
+            $imageHtml = '<div class="d-flex">';
+            if (!empty($row->image)) {
+                $images = explode(',', $row->image);
+                foreach ($images as $img) {
+                    $img = trim($img);
+                    if ($img && $img != 'images/expense.png') {
+                        $imageHtml .= '<img class="lazy" src="'.asset($img).'" onclick="enlargeImage(\''.asset($img).'\')" height="50px" width="50px" />&nbsp;';
+                    }
+                }
             }
+            // Legacy column support
+            if (!empty($row->image2) && $row->image2 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image2).'" onclick="enlargeImage(\''.asset($row->image2).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image3) && $row->image3 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image3).'" onclick="enlargeImage(\''.asset($row->image3).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image4) && $row->image4 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image4).'" onclick="enlargeImage(\''.asset($row->image4).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image5) && $row->image5 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image5).'" onclick="enlargeImage(\''.asset($row->image5).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if ($imageHtml == '<div class="d-flex">') {
+                $imageHtml .= '<img class="lazy" src="'.asset('images/expense.png').'" onclick="enlargeImage(\''.asset('images/expense.png').'\')" height="50px" width="50px" />';
+            }
+            $imageHtml .= '</div>';
 
             $actionHtml = '';
             if ($can_edit) {
@@ -379,7 +421,7 @@ class MaterialEntryController extends Controller
 
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data['material_supplier'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('status', '=', 'Active')->get();
+        $data['material_supplier'] = DB::connection($user_db_conn_name)->table('material_supplier')->whereIn('status', ['Active', 'Pending'])->get();
         $data['materials'] = DB::connection($user_db_conn_name)->table('materials')->get();
         $data['units'] = DB::connection($user_db_conn_name)->table('units')->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
@@ -388,12 +430,47 @@ class MaterialEntryController extends Controller
     }
     public function addnewmaterial(Request $request)
     {
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'site_id' => 'required|array',
+            'site_id.*' => 'required',
+            'date' => 'required|array',
+            'date.*' => 'required|date',
+            'supplier' => 'required|array',
+            'supplier.*' => 'required',
+            'material_id' => 'required|array',
+            'material_id.*' => 'required',
+            'qty' => 'required|array',
+            'qty.*' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+            }
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error', 'Validation Error: Invalid Material payload.');
+        }
+
         $result = false;
         $data = $request->input();
         $user_id = session()->get('uid');
         $role_id = session()->get('role');
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'image3')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->string('image3', 2000)->nullable();
+                    $table->string('image4', 2000)->nullable();
+                    $table->string('image5', 2000)->nullable();
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding columns: " . $e->getMessage());
+            }
+        }
         $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
@@ -401,34 +478,80 @@ class MaterialEntryController extends Controller
 
         DB::connection($user_db_conn_name)->beginTransaction();
         try {
-            $length = count($data['site_id']);
-            for ($i = 0; $i < $length; $i++) {
-                if (strtotime($data['date'][$i]) < strtotime($min_date) || strtotime($data['date'][$i]) > strtotime($max_date)) {
+            foreach ($data['site_id'] as $i => $site_id) {
+                $item_date = isset($data['date'][$i]) ? $data['date'][$i] : date('Y-m-d');
+                if (strtotime($item_date) < strtotime($min_date) || strtotime($item_date) > strtotime($max_date)) {
                     DB::connection($user_db_conn_name)->rollBack();
-                    return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['date'][$i]);
+                    return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $item_date);
                 }
+                $uploadedImages = [];
                 if (isset($request->image[$i])) {
-                    $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
-                    $request->image[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName);
-                    $imagePath = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName;
-                } else {
-                    $imagePath = "images/expense.png";
+                    $file = $request->image[$i];
+                    if ($file instanceof \Illuminate\Http\UploadedFile && $file->isValid()) {
+                        $imageName = time() . rand(10000, 1000000) . '.' . $file->extension();
+                        $file->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName);
+                        $uploadedImages[] = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName;
+                    }
                 }
+
+                if (isset($request->image2[$i])) {
+                    $file2 = $request->image2[$i];
+                    if ($file2 instanceof \Illuminate\Http\UploadedFile && $file2->isValid()) {
+                        $imageName2 = time() . rand(10000, 1000000) . '.' . $file2->extension();
+                        $file2->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName2);
+                        $uploadedImages[] = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName2;
+                    }
+                }
+
+                if (isset($request->image3[$i])) {
+                    $file3 = $request->image3[$i];
+                    if ($file3 instanceof \Illuminate\Http\UploadedFile && $file3->isValid()) {
+                        $imageName3 = time() . rand(10000, 1000000) . '.' . $file3->extension();
+                        $file3->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName3);
+                        $uploadedImages[] = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName3;
+                    }
+                }
+
+                if (isset($request->image4[$i])) {
+                    $file4 = $request->image4[$i];
+                    if ($file4 instanceof \Illuminate\Http\UploadedFile && $file4->isValid()) {
+                        $imageName4 = time() . rand(10000, 1000000) . '.' . $file4->extension();
+                        $file4->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName4);
+                        $uploadedImages[] = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName4;
+                    }
+                }
+
+                if (isset($request->image5[$i])) {
+                    $file5 = $request->image5[$i];
+                    if ($file5 instanceof \Illuminate\Http\UploadedFile && $file5->isValid()) {
+                        $imageName5 = time() . rand(10000, 1000000) . '.' . $file5->extension();
+                        $file5->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName5);
+                        $uploadedImages[] = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName5;
+                    }
+                }
+
+                $imagePath = count($uploadedImages) > 0 ? implode(',', $uploadedImages) : "images/expense.png";
+
                 $rawd = [
-                    'supplier' => $data['supplier'][$i],
-                    'material_id' => $data['material_id'][$i],
-                    'unit' => $data['unit'][$i],
-                    'qty' => $data['qty'][$i],
-                    'vehical' => $data['vehical'][$i],
+                    'supplier' => isset($data['supplier'][$i]) ? $data['supplier'][$i] : '',
+                    'material_id' => isset($data['material_id'][$i]) ? $data['material_id'][$i] : null,
+                    'unit' => isset($data['unit'][$i]) ? $data['unit'][$i] : '',
+                    'qty' => isset($data['qty'][$i]) ? $data['qty'][$i] : 0,
+                    'vehical' => isset($data['vehical'][$i]) ? $data['vehical'][$i] : '',
                     'image' => $imagePath,
-                    'remark' => $data['remark'][$i],
-                    'site_id' => $data['site_id'][$i],
+                    'image2' => null,
+                    'image3' => null,
+                    'image4' => null,
+                    'image5' => null,
+                    'remark' => isset($data['remark'][$i]) ? $data['remark'][$i] : '',
+                    'site_id' => $site_id,
                     'status' => $status,
                     'user_id' => $user_id,
-                    'date' => $data['date'][$i],
+                    'date' => $item_date,
                 ];
 
                 $id =  DB::connection($user_db_conn_name)->table('material_entry')->insertGetId($rawd);
+                addActivity($id, 'material_entry', "New Material Entry Created", 3);
 
                 if ($status == 'Approved') {
                     $this->approve_material_entry($id, $user_db_conn_name);
@@ -443,9 +566,6 @@ class MaterialEntryController extends Controller
         }
 
         if ($result) {
-            if (isset($id)) {
-                addActivity($id, 'material_entry', "New Material Entries Created ", 3);
-            }
             return redirect('/verified_material')
                 ->with('success', 'Material Entries Created successfully!');
         } else {
@@ -460,6 +580,19 @@ class MaterialEntryController extends Controller
         $role_id = session()->get('role');
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'image3')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->string('image3', 2000)->nullable();
+                    $table->string('image4', 2000)->nullable();
+                    $table->string('image5', 2000)->nullable();
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding columns during update: " . $e->getMessage());
+            }
+        }
+
         $id = $data['id'];
         $material_entry = DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->first();
 
@@ -476,30 +609,117 @@ class MaterialEntryController extends Controller
             return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
         }
 
+                $existingImages = [];
+        if (!empty($material_entry->image)) {
+            $existingImages = explode(',', $material_entry->image);
+        }
+        // Fallback for older database style
+        if (empty($existingImages[1]) && !empty($material_entry->image2)) {
+            $existingImages[1] = $material_entry->image2;
+        }
+        if (empty($existingImages[2]) && !empty($material_entry->image3)) {
+            $existingImages[2] = $material_entry->image3;
+        }
+        if (empty($existingImages[3]) && !empty($material_entry->image4)) {
+            $existingImages[3] = $material_entry->image4;
+        }
+        if (empty($existingImages[4]) && !empty($material_entry->image5)) {
+            $existingImages[4] = $material_entry->image5;
+        }
+
+        $imagePath = isset($existingImages[0]) ? $existingImages[0] : 'images/expense.png';
         if (isset($request->image)) {
-            if (File::exists($material_entry->image) && $material_entry->image != 'images/expense.png') {
-                File::delete($material_entry->image);
+            if (File::exists($imagePath) && $imagePath != 'images/expense.png') {
+                File::delete($imagePath);
             }
             $imageName = time() . rand(10000, 1000000) . '.' . $request->image->extension();
             $request->image->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName);
             $imagePath = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName;
-        } else {
-            $imagePath = $material_entry->image;
         }
-        $rawd = [
-            'id' => $id,
-            'supplier' => $data['supplier'],
-            'material_id' => $data['material_id'],
-            'unit' => $data['unit'],
-            'qty' => $data['qty'],
-            'vehical' => $data['vehical'],
-            'image' => $imagePath,
-            'remark' => $data['remark'],
-            'site_id' => $data['site_id'],
-            'status' => $status,
-            'user_id' => $user_id,
-            'date' => $data['date'],
-        ];
+
+        $clear_image2 = $request->input('clear_image2', '0');
+        $imagePath2 = isset($existingImages[1]) ? $existingImages[1] : null;
+        if ($clear_image2 == '1') {
+            if (File::exists($imagePath2) && $imagePath2 != 'images/expense.png') {
+                File::delete($imagePath2);
+            }
+            $imagePath2 = null;
+        } else if (isset($request->image2)) {
+            if (File::exists($imagePath2) && $imagePath2 != 'images/expense.png') {
+                File::delete($imagePath2);
+            }
+            $imageName2 = time() . rand(10000, 1000000) . '.' . $request->image2->extension();
+            $request->image2->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName2);
+            $imagePath2 = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName2;
+        }
+
+        $clear_image3 = $request->input('clear_image3', '0');
+        $imagePath3 = isset($existingImages[2]) ? $existingImages[2] : null;
+        if ($clear_image3 == '1') {
+            if (File::exists($imagePath3) && $imagePath3 != 'images/expense.png') {
+                File::delete($imagePath3);
+            }
+            $imagePath3 = null;
+        } else if (isset($request->image3)) {
+            if (File::exists($imagePath3) && $imagePath3 != 'images/expense.png') {
+                File::delete($imagePath3);
+            }
+            $imageName3 = time() . rand(10000, 1000000) . '.' . $request->image3->extension();
+            $request->image3->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName3);
+            $imagePath3 = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName3;
+        }
+
+        $clear_image4 = $request->input('clear_image4', '0');
+        $imagePath4 = isset($existingImages[3]) ? $existingImages[3] : null;
+        if ($clear_image4 == '1') {
+            if (File::exists($imagePath4) && $imagePath4 != 'images/expense.png') {
+                File::delete($imagePath4);
+            }
+            $imagePath4 = null;
+        } else if (isset($request->image4)) {
+            if (File::exists($imagePath4) && $imagePath4 != 'images/expense.png') {
+                File::delete($imagePath4);
+            }
+            $imageName4 = time() . rand(10000, 1000000) . '.' . $request->image4->extension();
+            $request->image4->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName4);
+            $imagePath4 = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName4;
+        }
+
+        $clear_image5 = $request->input('clear_image5', '0');
+        $imagePath5 = isset($existingImages[4]) ? $existingImages[4] : null;
+        if ($clear_image5 == '1') {
+            if (File::exists($imagePath5) && $imagePath5 != 'images/expense.png') {
+                File::delete($imagePath5);
+            }
+            $imagePath5 = null;
+        } else if (isset($request->image5)) {
+            if (File::exists($imagePath5) && $imagePath5 != 'images/expense.png') {
+                File::delete($imagePath5);
+            }
+            $imageName5 = time() . rand(10000, 1000000) . '.' . $request->image5->extension();
+            $request->image5->move(public_path('images/app_images/' . $user_db_conn_name . '/material'), $imageName5);
+            $imagePath5 = "images/app_images/" . $user_db_conn_name . "/material/" . $imageName5;
+        }
+
+        $updatedImages = [];
+        if ($imagePath) {
+            $updatedImages[] = $imagePath;
+        }
+        if ($imagePath2) {
+            $updatedImages[] = $imagePath2;
+        }
+        if ($imagePath3) {
+            $updatedImages[] = $imagePath3;
+        }
+        if ($imagePath4) {
+            $updatedImages[] = $imagePath4;
+        }
+        if ($imagePath5) {
+            $updatedImages[] = $imagePath5;
+        }
+
+        $finalImageStr = count($updatedImages) > 0 ? implode(',', $updatedImages) : 'images/expense.png';
+
         try {
             DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->update([
                 'supplier' => $data['supplier'],
@@ -507,7 +727,11 @@ class MaterialEntryController extends Controller
                 'unit' => $data['unit'],
                 'qty' => $data['qty'],
                 'vehical' => $data['vehical'],
-                'image' => $imagePath,
+                'image' => $finalImageStr,
+                'image2' => null,
+                'image3' => null,
+                'image4' => null,
+                'image5' => null,
                 'remark' => $data['remark'],
                 'site_id' => $data['site_id'],
                 'status' => $status,
@@ -538,11 +762,11 @@ class MaterialEntryController extends Controller
         $data = array();
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data['material_supplier'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('status', '=', 'Active')->get();
+        $data['material_supplier'] = DB::connection($user_db_conn_name)->table('material_supplier')->whereIn('status', ['Active', 'Pending'])->get();
         $data['materials'] = DB::connection($user_db_conn_name)->table('materials')->get();
         $data['units'] = DB::connection($user_db_conn_name)->table('units')->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
-        $data['materialentry'] = DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->get()[0];
+        $data['materialentry'] = DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->first();
 
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
@@ -571,7 +795,27 @@ class MaterialEntryController extends Controller
 
     public function approve_material_entry($id, $user_db_conn_name)
     {
-        $material_entry = DB::connection($user_db_conn_name)->table('material_entry')->join('materials', 'materials.id', '=', 'material_entry.material_id')->join('units', 'units.id', '=', 'material_entry.unit')->select('material_entry.*', 'materials.name as material', 'units.name as unitname')->where('material_entry.id', $id)->get()[0];
+        $material_entry = DB::connection($user_db_conn_name)
+            ->table('material_entry')
+            ->join('materials', 'materials.id', '=', 'material_entry.material_id')
+            ->join('units', 'units.id', '=', 'material_entry.unit')
+            ->select('material_entry.*', 'materials.name as material', 'units.name as unitname')
+            ->where('material_entry.id', $id)
+            ->first();
+
+        if (!$material_entry) {
+            throw new \Exception("Invalid material or unit reference.");
+        }
+
+        $exists = DB::connection($user_db_conn_name)->table('material_stock_transactions')
+            ->where('refrence', 'Purchase')
+            ->where('refrence_id', $id)
+            ->exists();
+
+        if ($exists) {
+            return;
+        }
+
         DB::connection($user_db_conn_name)->table('material_entry')->where('id', '=', $id)->update(['status' => 'Approved']);
         $stock_data = ['site_id' => $material_entry->site_id, 'material_id' => $material_entry->material_id, 'qty' => $material_entry->qty, 'unit' => $material_entry->unit, 'type' => 'IN', 'refrence' => 'Purchase', 'refrence_id' => $material_entry->id];
         DB::connection($user_db_conn_name)->table('material_stock_transactions')->insert($stock_data);
@@ -591,19 +835,29 @@ class MaterialEntryController extends Controller
 
     public function reject_material_entry($id, $user_db_conn_name)
     {
-        $material_entry = DB::connection($user_db_conn_name)->table('material_entry')->join('materials', 'materials.id', '=', 'material_entry.material_id')->join('units', 'units.id', '=', 'material_entry.unit')->select('material_entry.*', 'materials.name as material', 'units.name as unitname')->where('material_entry.id', $id)->get()[0];
+        $material_entry = DB::connection($user_db_conn_name)
+            ->table('material_entry')
+            ->join('materials', 'materials.id', '=', 'material_entry.material_id')
+            ->join('units', 'units.id', '=', 'material_entry.unit')
+            ->select('material_entry.*', 'materials.name as material', 'units.name as unitname')
+            ->where('material_entry.id', $id)
+            ->first();
+
+        if (!$material_entry || $material_entry->status === 'Rejected') {
+            return;
+        }
 
         DB::connection($user_db_conn_name)->table('material_entry')->where('id', '=', $id)->update(['status' => 'Rejected']);
-$check_entry_approved = DB::connection($user_db_conn_name)->table('material_stock_transactions')->where('refrence_id', '=', $material_entry->id)->where('refrence', '=', 'Purchase')->get();
-if(count($check_entry_approved) == 1){
-    DB::connection($user_db_conn_name)->table('material_stock_transactions')->where('refrence_id', '=', $material_entry->id)->where('refrence', '=', 'Purchase')->delete();
-    $check_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $material_entry->site_id)->where('material_id', '=', $material_entry->material_id)->where('unit', '=', $material_entry->unit)->get();
-    if (count($check_current_stock) > 0) {
-        $current_qty = $check_current_stock[0]->qty;
-        $new_qty = $current_qty - $material_entry->qty;
-        DB::connection($user_db_conn_name)->table('material_stock_record')->where('id', '=', $check_current_stock[0]->id)->update(['qty' => $new_qty]);
-    } 
-}
+        $check_entry_approved = DB::connection($user_db_conn_name)->table('material_stock_transactions')->where('refrence_id', '=', $material_entry->id)->where('refrence', '=', 'Purchase')->get();
+        if(count($check_entry_approved) == 1){
+            DB::connection($user_db_conn_name)->table('material_stock_transactions')->where('refrence_id', '=', $material_entry->id)->where('refrence', '=', 'Purchase')->delete();
+            $check_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $material_entry->site_id)->where('material_id', '=', $material_entry->material_id)->where('unit', '=', $material_entry->unit)->get();
+            if (count($check_current_stock) > 0) {
+                $current_qty = $check_current_stock[0]->qty;
+                $new_qty = $current_qty - $material_entry->qty;
+                DB::connection($user_db_conn_name)->table('material_stock_record')->where('id', '=', $check_current_stock[0]->id)->update(['qty' => $new_qty]);
+            } 
+        }
        
         sendAlertNotification($material_entry->user_id, 'Your entry of ' . $material_entry->material . ' of ' . $material_entry->qty . ' ' . $material_entry->unitname . ' has been approved. Check Application For More Information.', 'Material Approved');
         addActivity($id, 'material_entry', "Material Entry Rejected ", 3);

@@ -1063,6 +1063,27 @@ class ExpenseController extends Controller
     {
         // print_r($request);
 
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
+            'site_id' => 'required|array',
+            'site_id.*' => 'required',
+            'date' => 'required|array',
+            'date.*' => 'required|date',
+            'head_id' => 'required|array',
+            'head_id.*' => 'required',
+            'amount' => 'required|array',
+            'amount.*' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+            }
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('error', 'Validation Error: Invalid Expense payload.');
+        }
+
         $res = false;
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data = $request->input();
@@ -1078,11 +1099,11 @@ class ExpenseController extends Controller
 
         DB::connection($user_db_conn_name)->beginTransaction();
         try {
-            $length = count($data['site_id']);
-            for ($i = 0; $i < $length; $i++) {
-                if ($data['date'][$i] < $min_date || $data['date'][$i] > $max_date) {
+            foreach ($data['site_id'] as $i => $site_id) {
+                $item_date = isset($data['date'][$i]) ? $data['date'][$i] : date('Y-m-d');
+                if (strtotime($item_date) < strtotime($min_date) || strtotime($item_date) > strtotime($max_date)) {
                     DB::connection($user_db_conn_name)->rollBack();
-                    return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $data['date'][$i]);
+                    return redirect()->back()->with('error', "You don't have permission to add entry for date: " . $item_date);
                 }
                 if (isset($request->image[$i])) {
                     $imageName = time() . rand(10000, 1000000) . '.' . $request->image[$i]->extension();
@@ -1100,24 +1121,24 @@ class ExpenseController extends Controller
                     $party_type = 'expense';
                 }
 
-                $item_head_id = $data['head_id'][$i];
+                $item_head_id = isset($data['head_id'][$i]) ? $data['head_id'][$i] : null;
                 $item_status = $initial_status;
-                if (is_machinery_head($item_head_id) || is_asset_head($item_head_id)) {
+                if ($item_head_id && (is_machinery_head($item_head_id) || is_asset_head($item_head_id))) {
                     $item_status = 'Pending';
                 }
 
                 $rawd = [
-                    'site_id' => $data['site_id'][$i],
+                    'site_id' => $site_id,
                     'user_id' => $user_id,
                     'party_id' => $party_id,
                     'party_type' => $party_type,
                     'head_id' => $item_head_id,
-                    'particular' => $data['particular'][$i],
-                    'amount' => $data['amount'][$i],
-                    'remark' => $data['remark'][$i],
+                    'particular' => isset($data['particular'][$i]) ? $data['particular'][$i] : '',
+                    'amount' => isset($data['amount'][$i]) ? $data['amount'][$i] : 0,
+                    'remark' => isset($data['remark'][$i]) ? $data['remark'][$i] : '',
                     'image' => $imagePath,
                     'status' => $item_status,
-                    'date' => $data['date'][$i],
+                    'date' => $item_date,
                 ];
 
                 $id = DB::connection($user_db_conn_name)->table('expenses')->insertGetId($rawd);
