@@ -6027,46 +6027,27 @@ class ApiManagementController extends Controller
             $vehicals = (array) ($input['vehical'] ?? []);
             $remarks = (array) ($input['remark'] ?? []);
             $dates = (array) ($input['date'] ?? []);
-            $images = $request->file('image');
-            $images2 = $request->file('image2');
-            $images3 = $request->file('image3');
-            $images4 = $request->file('image4');
-            $images5 = $request->file('image5');
-
             $length = count($site_ids);
             $created_ids = [];
 
             for ($i = 0; $i < $length; $i++) {
                 $uploadedImages = [];
-                if ($images && isset($images[$i])) {
-                    $image = $images[$i];
-                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
-                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
-                }
-                if ($images2 && isset($images2[$i])) {
-                    $image = $images2[$i];
-                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
-                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
-                }
-                if ($images3 && isset($images3[$i])) {
-                    $image = $images3[$i];
-                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
-                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
-                }
-                if ($images4 && isset($images4[$i])) {
-                    $image = $images4[$i];
-                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
-                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
-                }
-                if ($images5 && isset($images5[$i])) {
-                    $image = $images5[$i];
-                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
-                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                    $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                for ($k = 1; $k <= 5; $k++) {
+                    $key = 'image' . ($k === 1 ? '' : $k);
+                    $fileGroup = $request->file($key);
+                    if ($fileGroup) {
+                        $imgFile = null;
+                        if (is_array($fileGroup) && isset($fileGroup[$i])) {
+                            $imgFile = $fileGroup[$i];
+                        } elseif ($fileGroup instanceof \Illuminate\Http\UploadedFile && $i === 0) {
+                            $imgFile = $fileGroup;
+                        }
+                        if ($imgFile && $imgFile->isValid()) {
+                            $imageName = time() . rand(10000, 1000000) . '.' . $imgFile->getClientOriginalExtension();
+                            $imgFile->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                            $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                        }
+                    }
                 }
 
                 $imagePath = count($uploadedImages) > 0 ? implode(',', $uploadedImages) : "images/expense.png";

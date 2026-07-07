@@ -99,45 +99,27 @@ class MaterialController extends Controller
         }
 
         $uploadedImages = [];
-        try {
-            if (isset($request->image)) {
-                $imageName = time() . rand(10000, 1000000) . '.' . $request->image->extension();
-                $request->image->move(public_path('images/app_images/'.$conn.'/material'), $imageName);
-                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName;
+        for ($k = 1; $k <= 5; $k++) {
+            $key = 'image' . ($k === 1 ? '' : $k);
+            try {
+                if ($request->hasFile($key)) {
+                    $file = $request->file($key);
+                    $imgFile = null;
+                    if (is_array($file) && isset($file[0])) {
+                        $imgFile = $file[0];
+                    } elseif ($file instanceof \Illuminate\Http\UploadedFile) {
+                        $imgFile = $file;
+                    }
+                    if ($imgFile && $imgFile->isValid()) {
+                        $imageName = time() . rand(10000, 1000000) . '.' . $imgFile->getClientOriginalExtension();
+                        $imgFile->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                        $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::error("Failed saving image $k: " . $e->getMessage());
             }
-        } catch (\Exception $e) {}
-
-        try {
-            if (isset($request->image2)) {
-                $imageName2 = time() . rand(10000, 1000000) . '.' . $request->image2->extension();
-                $request->image2->move(public_path('images/app_images/'.$conn.'/material'), $imageName2);
-                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName2;
-            }
-        } catch (\Exception $e) {}
-
-        try {
-            if (isset($request->image3)) {
-                $imageName3 = time() . rand(10000, 1000000) . '.' . $request->image3->extension();
-                $request->image3->move(public_path('images/app_images/'.$conn.'/material'), $imageName3);
-                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName3;
-            }
-        } catch (\Exception $e) {}
-
-        try {
-            if (isset($request->image4)) {
-                $imageName4 = time() . rand(10000, 1000000) . '.' . $request->image4->extension();
-                $request->image4->move(public_path('images/app_images/'.$conn.'/material'), $imageName4);
-                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName4;
-            }
-        } catch (\Exception $e) {}
-
-        try {
-            if (isset($request->image5)) {
-                $imageName5 = time() . rand(10000, 1000000) . '.' . $request->image5->extension();
-                $request->image5->move(public_path('images/app_images/'.$conn.'/material'), $imageName5);
-                $uploadedImages[] = "images/app_images/".$conn."/material/" . $imageName5;
-            }
-        } catch (\Exception $e) {}
+        }
 
         $imagePath = count($uploadedImages) > 0 ? implode(',', $uploadedImages) : "images/expense.png";
 
