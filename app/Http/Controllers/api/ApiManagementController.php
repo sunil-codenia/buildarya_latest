@@ -6036,16 +6036,36 @@ class ApiManagementController extends Controller
                     $key = 'image' . ($k === 1 ? '' : $k);
                     $fileGroup = $request->file($key);
                     if ($fileGroup) {
-                        $imgFile = null;
-                        if (is_array($fileGroup) && isset($fileGroup[$i])) {
-                            $imgFile = $fileGroup[$i];
+                        $filesForThisRow = [];
+                        if (is_array($fileGroup)) {
+                            if ($length === 1) {
+                                foreach ($fileGroup as $item) {
+                                    if (is_array($item)) {
+                                        $filesForThisRow = array_merge($filesForThisRow, $item);
+                                    } else {
+                                        $filesForThisRow[] = $item;
+                                    }
+                                }
+                            } else {
+                                if (isset($fileGroup[$i])) {
+                                    $item = $fileGroup[$i];
+                                    if (is_array($item)) {
+                                        $filesForThisRow = $item;
+                                    } else {
+                                        $filesForThisRow[] = $item;
+                                    }
+                                }
+                            }
                         } elseif ($fileGroup instanceof \Illuminate\Http\UploadedFile && $i === 0) {
-                            $imgFile = $fileGroup;
+                            $filesForThisRow[] = $fileGroup;
                         }
-                        if ($imgFile && $imgFile->isValid()) {
-                            $imageName = time() . rand(10000, 1000000) . '.' . $imgFile->getClientOriginalExtension();
-                            $imgFile->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                            $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+
+                        foreach ($filesForThisRow as $imgFile) {
+                            if ($imgFile && $imgFile->isValid()) {
+                                $imageName = time() . rand(10000, 1000000) . '.' . $imgFile->getClientOriginalExtension();
+                                $imgFile->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                                $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                            }
                         }
                     }
                 }
@@ -6113,13 +6133,22 @@ class ApiManagementController extends Controller
             // Image 1
             $imagePath = isset($existingImages[0]) ? $existingImages[0] : 'images/expense.png';
             if ($request->hasFile('image')) {
-                if ($imagePath && $imagePath != 'images/expense.png' && file_exists(public_path($imagePath))) {
-                    @unlink(public_path($imagePath));
+                $file = $request->file('image');
+                $imgFile = null;
+                if (is_array($file)) {
+                    $imgFile = isset($file[0]) ? $file[0] : null;
+                } elseif ($file instanceof \Illuminate\Http\UploadedFile) {
+                    $imgFile = $file;
                 }
-                $image = $request->file('image');
-                $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
-                $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                $imagePath = "images/app_images/" . $conn . "/material/" . $imageName;
+
+                if ($imgFile && $imgFile->isValid()) {
+                    if ($imagePath && $imagePath != 'images/expense.png' && file_exists(public_path($imagePath))) {
+                        @unlink(public_path($imagePath));
+                    }
+                    $imageName = time() . rand(10000, 1000000) . '.' . $imgFile->getClientOriginalExtension();
+                    $imgFile->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                    $imagePath = "images/app_images/" . $conn . "/material/" . $imageName;
+                }
             }
             $existingImages[0] = $imagePath;
 
@@ -6139,13 +6168,22 @@ class ApiManagementController extends Controller
                 }
 
                 if ($request->hasFile($fileKey)) {
-                    if ($slotPath && $slotPath != 'images/expense.png' && file_exists(public_path($slotPath))) {
-                        @unlink(public_path($slotPath));
+                    $file = $request->file($fileKey);
+                    $imgFile = null;
+                    if (is_array($file)) {
+                        $imgFile = isset($file[0]) ? $file[0] : null;
+                    } elseif ($file instanceof \Illuminate\Http\UploadedFile) {
+                        $imgFile = $file;
                     }
-                    $image = $request->file($fileKey);
-                    $imageName = time() . rand(10000, 1000000) . '.' . $image->getClientOriginalExtension();
-                    $image->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                    $existingImages[$idx] = "images/app_images/" . $conn . "/material/" . $imageName;
+
+                    if ($imgFile && $imgFile->isValid()) {
+                        if ($slotPath && $slotPath != 'images/expense.png' && file_exists(public_path($slotPath))) {
+                            @unlink(public_path($slotPath));
+                        }
+                        $imageName = time() . rand(10000, 1000000) . '.' . $imgFile->getClientOriginalExtension();
+                        $imgFile->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                        $existingImages[$idx] = "images/app_images/" . $conn . "/material/" . $imageName;
+                    }
                 }
             }
 

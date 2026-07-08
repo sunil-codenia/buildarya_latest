@@ -104,16 +104,20 @@ class MaterialController extends Controller
             try {
                 if ($request->hasFile($key)) {
                     $file = $request->file($key);
-                    $imgFile = null;
-                    if (is_array($file) && isset($file[0])) {
-                        $imgFile = $file[0];
+                    if (is_array($file)) {
+                        foreach ($file as $imgFile) {
+                            if ($imgFile && $imgFile->isValid()) {
+                                $imageName = time() . rand(10000, 1000000) . '.' . $imgFile->getClientOriginalExtension();
+                                $imgFile->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                                $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                            }
+                        }
                     } elseif ($file instanceof \Illuminate\Http\UploadedFile) {
-                        $imgFile = $file;
-                    }
-                    if ($imgFile && $imgFile->isValid()) {
-                        $imageName = time() . rand(10000, 1000000) . '.' . $imgFile->getClientOriginalExtension();
-                        $imgFile->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
-                        $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                        if ($file->isValid()) {
+                            $imageName = time() . rand(10000, 1000000) . '.' . $file->getClientOriginalExtension();
+                            $file->move(public_path('images/app_images/' . $conn . '/material'), $imageName);
+                            $uploadedImages[] = "images/app_images/" . $conn . "/material/" . $imageName;
+                        }
                     }
                 }
             } catch (\Exception $e) {

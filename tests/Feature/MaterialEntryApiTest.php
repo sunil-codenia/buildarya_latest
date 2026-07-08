@@ -222,4 +222,100 @@ class MaterialEntryApiTest extends TestCase
         $this->assertNull($entry->image4);
         $this->assertNull($entry->image5);
     }
+
+    public function test_legacy_api_add_material_entry_with_multiple_images()
+    {
+        $file1 = UploadedFile::fake()->image('legacy_img1.jpg');
+        $file2 = UploadedFile::fake()->image('legacy_img2.jpg');
+
+        $postData = [
+            'conn' => $this->connName,
+            'supplier' => 999,
+            'material_id' => 999,
+            'unit' => 999,
+            'qty' => 75,
+            'vehical' => 'LEG-123',
+            'remark' => 'Legacy test api',
+            'location' => 'Test Loc',
+            'site_id' => 999,
+            'user_id' => $this->testUserId,
+            'date' => date('Y-m-d'),
+            'image' => [$file1],
+            'image2' => [$file2],
+        ];
+
+        $response = $this->post('/api/addmaterialentry', $postData);
+        $response->assertStatus(200);
+
+        $resultJson = json_decode($response->getContent(), true);
+        $this->assertNotEmpty($resultJson);
+        $this->assertEquals('Ok', $resultJson[0]['status']);
+
+        $entry = DB::connection($this->connName)->table('material_entry')
+            ->where('qty', 75)
+            ->where('vehical', 'LEG-123')
+            ->first();
+        $this->assertNotNull($entry);
+
+        $images = explode(',', $entry->image);
+        $this->assertCount(2, $images);
+        foreach ($images as $img) {
+            $this->assertStringContainsString('images/app_images/company_rsgeotech/material/', $img);
+            $this->assertTrue(file_exists(public_path($img)));
+            unlink(public_path($img));
+        }
+    }
+
+    public function test_api_store_multiple_material_entries_with_multiple_images_each()
+    {
+        $headers = [
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->tokenId . '|' . $this->tokenValue,
+        ];
+
+        $file0_1 = UploadedFile::fake()->image('row0_img1.jpg');
+        $file0_2 = UploadedFile::fake()->image('row0_img2.jpg');
+        $file1_1 = UploadedFile::fake()->image('row1_img1.jpg');
+        $file1_2 = UploadedFile::fake()->image('row1_img2.jpg');
+
+        $postData = [
+            'site_id' => [999, 999],
+            'supplier' => [999, 999],
+            'material_id' => [999, 999],
+            'unit' => [999, 999],
+            'qty' => [100, 50],
+            'vehical' => ['HR-01', 'HR-02'],
+            'remark' => ['Row 0 remark', 'Row 1 remark'],
+            'date' => ['2026-07-06', '2026-07-06'],
+            'image' => [$file0_1, $file1_1],
+            'image2' => [$file0_2, $file1_2],
+        ];
+
+        $response = $this->postJson('/api/v1/materials/entries', $postData, $headers);
+        $response->assertStatus(200);
+        $this->assertEquals('Ok', $response->json('status'));
+
+        $ids = $response->json('ids');
+        $this->assertCount(2, $ids);
+
+        // Row 0
+        $entry0 = DB::connection($this->connName)->table('material_entry')->find($ids[0]);
+        $this->assertNotNull($entry0);
+        $images0 = explode(',', $entry0->image);
+        $this->assertCount(2, $images0);
+        foreach ($images0 as $img) {
+            $this->assertTrue(file_exists(public_path($img)));
+            unlink(public_path($img));
+        }
+
+        // Row 1
+        $entry1 = DB::connection($this->connName)->table('material_entry')->find($ids[1]);
+        $this->assertNotNull($entry1);
+        $images1 = explode(',', $entry1->image);
+        $this->assertCount(2, $images1);
+        foreach ($images1 as $img) {
+            $this->assertTrue(file_exists(public_path($img)));
+            unlink(public_path($img));
+        }
+    }
 }
