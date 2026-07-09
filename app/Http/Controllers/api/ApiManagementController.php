@@ -2124,6 +2124,7 @@ class ApiManagementController extends Controller
                         'particular' => is_array($data['particular'] ?? null) ? ($data['particular'][$i] ?? '') : ($data['particular'] ?? ''),
                         'amount' => is_array($data['amount'] ?? null) ? ($data['amount'][$i] ?? 0) : ($data['amount'] ?? 0),
                         'remark' => is_array($data['remark'] ?? null) ? ($data['remark'][$i] ?? '') : ($data['remark'] ?? ''),
+                        'location' => is_array($data['location'] ?? null) ? ($data['location'][$i] ?? null) : ($data['location'] ?? null),
                         'date' => is_array($data['date'] ?? null) ? ($data['date'][$i] ?? date('Y-m-d')) : ($data['date'] ?? date('Y-m-d')),
                         'status' => is_array($data['status'] ?? null) ? ($data['status'][$i] ?? null) : ($data['status'] ?? null),
                         'image' => is_array($data['image'] ?? null) ? ($data['image'][$i] ?? null) : ($data['image'] ?? null),
@@ -2196,6 +2197,7 @@ class ApiManagementController extends Controller
                     'particular' => $exp['particular'] ?? '',
                     'amount' => $exp['amount'] ?? 0,
                     'remark' => $exp['remark'] ?? '',
+                    'location' => $exp['location'] ?? null,
                     'image' => $imagePath,
                     'status' => $current_status,
                     'date' => $exp['date'] ?? date('Y-m-d'),
@@ -6072,6 +6074,7 @@ class ApiManagementController extends Controller
 
                 $imagePath = count($uploadedImages) > 0 ? implode(',', $uploadedImages) : "images/expense.png";
 
+                $locations = (array) ($input['location'] ?? []);
                 $data = [
                     'supplier' => $suppliers[$i] ?? ($suppliers[0] ?? null),
                     'material_id' => $material_ids[$i] ?? ($material_ids[0] ?? null),
@@ -6080,6 +6083,7 @@ class ApiManagementController extends Controller
                     'vehical' => $vehicals[$i] ?? ($vehicals[0] ?? null),
                     'image' => $imagePath,
                     'remark' => $remarks[$i] ?? ($remarks[0] ?? null),
+                    'location' => $locations[$i] ?? ($locations[0] ?? null),
                     'site_id' => $site_ids[$i] ?? ($site_ids[0] ?? null),
                     'status' => $status,
                     'user_id' => $user->id,
@@ -6200,6 +6204,7 @@ class ApiManagementController extends Controller
                 'qty' => $input['qty'] ?? $entry->qty,
                 'vehical' => $input['vehical'] ?? $entry->vehical,
                 'remark' => $input['remark'] ?? $entry->remark,
+                'location' => $input['location'] ?? $entry->location,
                 'site_id' => $input['site_id'] ?? $entry->site_id,
                 'date' => $input['date'] ?? $entry->date,
                 'image' => $imageString
@@ -6898,6 +6903,7 @@ class ApiManagementController extends Controller
                     'billdate' => $data['bill_date'],
                     'bill_period' => $bill_period,
                     'user_id' => $user->id,
+                    'location' => $data['location'] ?? null,
                     'status' => $status,
                     'amount' => $totalAmount,
                     'remark' => $data['remark'] ?? '',
@@ -7063,6 +7069,7 @@ class ApiManagementController extends Controller
                     'billdate' => $data['bill_date'] ?? $bill->billdate,
                     'bill_period' => $bill_period,
                     'amount' => $totalAmount,
+                    'location' => $data['location'] ?? $bill->location,
                     'remark' => $data['remark'] ?? $bill->remark,
                     'attachments' => count($attachments) > 0 ? json_encode($attachments) : null,
                 ];

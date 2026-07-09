@@ -70,6 +70,10 @@ Route::post('/change-language', [DashboardController::class, 'changeLanguage']);
 Route::group(['middleware' => ['auth']], function () {
 
     Route::get('/dashboard', [DashboardController::class, 'getCompanyDashboard']);
+    Route::get('/invoices', [\App\Http\Controllers\SaaSInvoiceController::class, 'index']);
+    Route::get('/invoices/{id}/download', [\App\Http\Controllers\SaaSInvoiceController::class, 'downloadPdf']);
+    Route::post('/invoices/create-razorpay-order', [\App\Http\Controllers\SaaSInvoiceController::class, 'createRazorpayOrder']);
+    Route::post('/invoices/finalize-payment', [\App\Http\Controllers\SaaSInvoiceController::class, 'finalizePayment']);
     Route::get('/switch_site/{id}', [DashboardController::class, 'switch_active_site']);
     Route::get('/dashboard/export', [DashboardController::class, 'exportCsv']);
     Route::post('/siteDashboard', [DashboardController::class, 'getSiteDashboardData']);

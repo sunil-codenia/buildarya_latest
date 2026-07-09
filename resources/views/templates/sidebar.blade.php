@@ -21,6 +21,9 @@
             </li>
             <li class="header">MAIN</li>
             <li class="{{ Request::is('dashboard') ? 'active open' : '' }}"><a href="{{url('/dashboard')}}"><i class="zmdi zmdi-view-dashboard"></i><span>Dashboard</span></a></li> 
+            @if (isSuperAdmin())
+            <li class="{{ Request::is('invoices') ? 'active open' : '' }}"><a href="{{url('/invoices')}}"><i class="zmdi zmdi-file-text"></i><span>Invoices</span></a></li>
+            @endif
 
             {{-- Module 1: Sites & Users --}}
             @if (canViewModule(1))

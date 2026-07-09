@@ -155,6 +155,7 @@ class ApiSiteBillsController extends Controller
                 'billdate' => $request->bill_date,
                 'bill_period' => $bill_period,
                 'user_id' => $user->id,
+                'location' => $request->location,
                 'status' => $status,
                 'amount' => $totalAmount,
                 'remark' => $request->remark,
@@ -268,7 +269,7 @@ class ApiSiteBillsController extends Controller
                 }
             }
 
-            $updateData = $request->only(['party_id', 'bill_no', 'site_id', 'billdate', 'remark']);
+            $updateData = $request->only(['party_id', 'bill_no', 'site_id', 'billdate', 'remark', 'location']);
             $updateData['amount'] = $totalAmount;
             $updateData['attachments'] = count($attachments) > 0 ? json_encode($attachments) : null;
             if ($request->has('bill_from_date') && $request->has('bill_to_date')) {
