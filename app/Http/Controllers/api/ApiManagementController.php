@@ -2681,7 +2681,11 @@ class ApiManagementController extends Controller
             $user = $request->user('sanctum');
             $conn = config('database.default');
             
-            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $input = $request->all();
+            $rawInput = json_decode($request->getContent(), true);
+            if (is_array($rawInput)) {
+                $input = array_merge($input, $rawInput);
+            }
             $name = $input['name'] ?? null;
             $is_royalty = isset($input['is_royalty']) ? (filter_var($input['is_royalty'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0) : 0;
 
@@ -2710,7 +2714,11 @@ class ApiManagementController extends Controller
             $user = $request->user('sanctum');
             $conn = config('database.default');
             
-            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $input = $request->all();
+            $rawInput = json_decode($request->getContent(), true);
+            if (is_array($rawInput)) {
+                $input = array_merge($input, $rawInput);
+            }
             $name = $input['name'] ?? null;
 
             if (!$name) {
