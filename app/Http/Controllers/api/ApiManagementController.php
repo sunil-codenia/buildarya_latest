@@ -2683,12 +2683,16 @@ class ApiManagementController extends Controller
             
             $input = json_decode($request->getContent(), true) ?? $request->all();
             $name = $input['name'] ?? null;
+            $is_royalty = isset($input['is_royalty']) ? (filter_var($input['is_royalty'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0) : 0;
 
             if (!$name) {
                 return response()->json(['status' => 'Error', 'message' => 'Material name is required'], 400);
             }
 
-            $id = DB::connection($conn)->table('materials')->insertGetId(['name' => $name]);
+            $id = DB::connection($conn)->table('materials')->insertGetId([
+                'name' => $name,
+                'is_royalty' => $is_royalty
+            ]);
             addActivity($id, 'materials', "New Material SKU Created via API: " . $name, 3, $user->id, $conn);
             
             return response()->json(['status' => 'Ok', 'message' => 'Material created successfully', 'id' => $id]);
@@ -2713,7 +2717,12 @@ class ApiManagementController extends Controller
                 return response()->json(['status' => 'Error', 'message' => 'Material name is required'], 400);
             }
 
-            DB::connection($conn)->table('materials')->where('id', $id)->update(['name' => $name]);
+            $updateData = ['name' => $name];
+            if (isset($input['is_royalty'])) {
+                $updateData['is_royalty'] = filter_var($input['is_royalty'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+            }
+
+            DB::connection($conn)->table('materials')->where('id', $id)->update($updateData);
             addActivity($id, 'materials', "Material SKU Updated via API: " . $name, 3, $user->id, $conn);
 
             return response()->json(['status' => 'Ok', 'message' => 'Material updated successfully']);

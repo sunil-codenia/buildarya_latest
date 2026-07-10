@@ -26,7 +26,101 @@ class FrontendController extends Controller
 
     public function pricing()
     {
-        return view('frontend.pricing');
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+        $plans = [];
+        try {
+            $response = Http::timeout(5)->get("{$shaarvikUrl}/api/public/pricing-plans");
+            if ($response->successful()) {
+                $plans = $response->json();
+            } else {
+                Log::warning("Failed to fetch pricing plans from Shaarvik. Status: " . $response->status());
+            }
+        } catch (\Exception $e) {
+            Log::error("Error fetching pricing plans: " . $e->getMessage());
+        }
+
+        // If plans couldn't be fetched, define fallback static plans
+        if (empty($plans)) {
+            $plans = [
+                [
+                    'id' => 'starter',
+                    'name' => 'starter',
+                    'price' => 750,
+                    'strikethroughPrice' => 1499,
+                    'isCustom' => false,
+                    'maxUsers' => 10,
+                    'maxSites' => 10,
+                    'billingCycle' => 'monthly',
+                    'description' => '',
+                    'moduleNames' => ['Site Bills', 'Cost Category', 'Attendance Management', 'Task Management', 'Expense', 'Contacts', 'Documents', 'Site & User Management', 'Materials']
+                ],
+                [
+                    'id' => 'growth',
+                    'name' => 'Growth',
+                    'price' => 1499,
+                    'strikethroughPrice' => 2999,
+                    'isCustom' => false,
+                    'maxUsers' => 25,
+                    'maxSites' => 15,
+                    'billingCycle' => 'monthly',
+                    'description' => '',
+                    'moduleNames' => ['Site & User Management', 'Expense', 'Materials', 'Attendance Management', 'Task Management', 'Cost Category', 'Documents', 'Contacts', 'System Management', 'Site Bills', 'Payment Vouchers', 'Sales']
+                ]
+            ];
+        }
+
+        return view('frontend.pricing', compact('plans', 'shaarvikUrl'));
+    }
+
+    public function pricingNextUid(Request $request)
+    {
+        $name = $request->query('name', '');
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+        
+        try {
+            $response = Http::timeout(5)->get("{$shaarvikUrl}/api/leads/next-uid", [
+                'name' => $name
+            ]);
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function savePricingLead(Request $request)
+    {
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+        
+        try {
+            $response = Http::timeout(10)->post("{$shaarvikUrl}/api/public/pricing-lead", $request->all());
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function createPricingRazorpayOrder(Request $request)
+    {
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+        
+        try {
+            $response = Http::timeout(10)->post("{$shaarvikUrl}/api/payments/razorpay/create-order", $request->all());
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function convertPricingLead(Request $request)
+    {
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+        
+        try {
+            $response = Http::timeout(10)->post("{$shaarvikUrl}/api/public/pricing-lead/convert", $request->all());
+            return response()->json($response->json(), $response->status());
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 
     public function contact()

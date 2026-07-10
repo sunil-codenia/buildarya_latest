@@ -9,6 +9,55 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class SaaSInvoiceController extends Controller
 {
+    /**
+     * Fetch invoices for the given company UID from Shaarvik.
+     * Tries companyUid param first (newer API), falls back to companyId + client-side filtering (older API).
+     */
+    private function fetchInvoicesForCompany(string $shaarvikUrl, string $companyUid): array
+    {
+        // Try companyUid first (newer Shaarvik API)
+        $response = Http::timeout(10)->get("{$shaarvikUrl}/api/mysql/invoices", [
+            'companyUid' => $companyUid,
+        ]);
+
+        if ($response->successful()) {
+            return $response->json() ?: [];
+        }
+
+        if ($response->status() == 400) {
+            // Fallback: older Shaarvik API only supports companyId.
+            Log::info("Shaarvik companyUid not supported (400), falling back to companyId filter for: {$companyUid}");
+            $fallbackResponse = Http::timeout(10)->get("{$shaarvikUrl}/api/mysql/invoices", [
+                'companyId' => 1,
+            ]);
+
+            if ($fallbackResponse->successful()) {
+                $allInvoices = $fallbackResponse->json() ?: [];
+                $companyName = session()->get('comp_name', '');
+                $companyEmail = session()->get('comp_email', '');
+
+                return array_values(array_filter($allInvoices, function ($inv) use ($companyUid, $companyName, $companyEmail) {
+                    $clientName = strtolower($inv['client']['name'] ?? $inv['client_name'] ?? '');
+                    $clientEmail = strtolower($inv['client']['email'] ?? $inv['client_email'] ?? '');
+                    $uidLower = strtolower($companyUid);
+                    $nameLower = strtolower($companyName);
+                    $emailLower = strtolower($companyEmail);
+
+                    // Match by client name against company UID or company name, or by email
+                    return $clientName === $uidLower
+                        || (!empty($nameLower) && $clientName === $nameLower)
+                        || (!empty($emailLower) && !empty($clientEmail) && $clientEmail === $emailLower);
+                }));
+            }
+
+            Log::error("Shaarvik Invoices API fallback error: " . $fallbackResponse->body());
+        } else {
+            Log::error("Shaarvik Invoices API error ({$response->status()}): " . $response->body());
+        }
+
+        return [];
+    }
+
     public function index(Request $request)
     {
         // Enforce superadmin authorization
@@ -19,18 +68,13 @@ class SaaSInvoiceController extends Controller
         $companyUid = session()->get('comp_id');
         $invoices = [];
         $error = null;
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
 
         if ($companyUid) {
-            $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'http://localhost:3000'), '/');
-            $apiUrl = "{$shaarvikUrl}/api/mysql/invoices?companyUid={$companyUid}";
-
             try {
-                $response = Http::timeout(10)->get($apiUrl);
-                if ($response->successful()) {
-                    $invoices = $response->json();
-                } else {
-                    $error = 'Failed to retrieve invoices from Shaarvik. Status code: ' . $response->status();
-                    Log::error("Shaarvik Invoices API error: " . $response->body());
+                $invoices = $this->fetchInvoicesForCompany($shaarvikUrl, $companyUid);
+                if (empty($invoices)) {
+                    $error = null; // No invoices found is not an error
                 }
             } catch (\Exception $e) {
                 $error = 'Could not connect to Shaarvik service to fetch invoices.';
@@ -54,13 +98,11 @@ class SaaSInvoiceController extends Controller
             return back()->with('error', 'Company session not found.');
         }
 
-        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'http://localhost:3000'), '/');
-        $apiUrl = "{$shaarvikUrl}/api/mysql/invoices?companyUid={$companyUid}";
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
 
         try {
-            $response = Http::timeout(10)->get($apiUrl);
-            if ($response->successful()) {
-                $invoices = $response->json();
+            $invoices = $this->fetchInvoicesForCompany($shaarvikUrl, $companyUid);
+            if (!empty($invoices)) {
                 $invoice = collect($invoices)->firstWhere('id', $id);
                 if (!$invoice) {
                     abort(404, 'Invoice not found.');
@@ -87,7 +129,7 @@ class SaaSInvoiceController extends Controller
             return response()->json(['error' => 'Invalid amount.'], 400);
         }
 
-        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'http://localhost:3000'), '/');
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
         try {
             $response = Http::timeout(10)->post("{$shaarvikUrl}/api/payments/razorpay/create-order", [
                 'amount' => $amount,
@@ -114,7 +156,7 @@ class SaaSInvoiceController extends Controller
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 
-        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'http://localhost:3000'), '/');
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
         try {
             // 1. Verify Razorpay Payment Signature via Shaarvik
             $verifyResponse = Http::timeout(10)->post("{$shaarvikUrl}/api/payments/razorpay/verify", [

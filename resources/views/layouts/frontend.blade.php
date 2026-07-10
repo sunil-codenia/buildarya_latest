@@ -317,7 +317,7 @@
     </div>
 
     <!-- Content -->
-    <main class="relative z-10">
+    <main class="relative">
         @yield('content')
     </main>
 
