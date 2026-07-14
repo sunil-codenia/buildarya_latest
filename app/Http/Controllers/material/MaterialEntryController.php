@@ -444,9 +444,20 @@ class MaterialEntryController extends Controller
     }
     public function new_material(Request $request)
     {
-
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        // Dynamic schema update for tenant database to ensure is_royalty column exists
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('materials', 'is_royalty')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('materials', function ($table) {
+                    $table->boolean('is_royalty')->default(0)->after('name')->comment('Whether this material requires cubic meter conversion for royalty purposes');
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding is_royalty column to materials table: " . $e->getMessage());
+            }
+        }
+
         $data['material_supplier'] = DB::connection($user_db_conn_name)->table('material_supplier')->whereIn('status', ['Active', 'Pending'])->get();
         $data['materials'] = DB::connection($user_db_conn_name)->table('materials')->get();
         $data['units'] = DB::connection($user_db_conn_name)->table('units')->get();
@@ -803,6 +814,18 @@ class MaterialEntryController extends Controller
         $data = array();
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        // Dynamic schema update for tenant database to ensure is_royalty column exists
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('materials', 'is_royalty')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('materials', function ($table) {
+                    $table->boolean('is_royalty')->default(0)->after('name')->comment('Whether this material requires cubic meter conversion for royalty purposes');
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding is_royalty column to materials table in edit: " . $e->getMessage());
+            }
+        }
+
         $data['material_supplier'] = DB::connection($user_db_conn_name)->table('material_supplier')->whereIn('status', ['Active', 'Pending'])->get();
         $data['materials'] = DB::connection($user_db_conn_name)->table('materials')->get();
         $data['units'] = DB::connection($user_db_conn_name)->table('units')->get();
