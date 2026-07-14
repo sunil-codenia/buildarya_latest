@@ -6092,11 +6092,13 @@ class ApiManagementController extends Controller
                 $imagePath = count($uploadedImages) > 0 ? implode(',', $uploadedImages) : "images/expense.png";
 
                 $locations = (array) ($input['location'] ?? []);
+                $converted_qtys = (array) ($input['converted_qty'] ?? []);
                 $data = [
                     'supplier' => $suppliers[$i] ?? ($suppliers[0] ?? null),
                     'material_id' => $material_ids[$i] ?? ($material_ids[0] ?? null),
                     'unit' => $units[$i] ?? ($units[0] ?? null),
                     'qty' => $qtys[$i] ?? ($qtys[0] ?? 0),
+                    'converted_qty' => $converted_qtys[$i] ?? ($converted_qtys[0] ?? null),
                     'vehical' => $vehicals[$i] ?? ($vehicals[0] ?? null),
                     'image' => $imagePath,
                     'remark' => $remarks[$i] ?? ($remarks[0] ?? null),
@@ -6219,6 +6221,7 @@ class ApiManagementController extends Controller
                 'material_id' => $input['material_id'] ?? $entry->material_id,
                 'unit' => $input['unit'] ?? $entry->unit,
                 'qty' => $input['qty'] ?? $entry->qty,
+                'converted_qty' => $input['converted_qty'] ?? $entry->converted_qty,
                 'vehical' => $input['vehical'] ?? $entry->vehical,
                 'remark' => $input['remark'] ?? $entry->remark,
                 'location' => $input['location'] ?? $entry->location,
@@ -6606,13 +6609,6 @@ class ApiManagementController extends Controller
                 ->where('unit', '=', $data['from_unit'])
                 ->first();
 
-            if (!$check_current_stock || $check_current_stock->qty < $data['qty']) {
-                return response()->json([
-                    'status' => 'Error', 
-                    'message' => 'Insufficient stock for conversion. Available: ' . ($check_current_stock->qty ?? 0)
-                ], 400);
-            }
-
             return DB::connection($conn)->transaction(function () use ($conn, $data, $user, $check_current_stock) {
                 $insertData = [
                     'material_id' => $data['material_id'],
@@ -6635,9 +6631,19 @@ class ApiManagementController extends Controller
                 ]);
 
                 // Update From Unit Stock
-                DB::connection($conn)->table('material_stock_record')
-                    ->where('id', '=', $check_current_stock->id)
-                    ->decrement('qty', $data['qty'], ['last_updated' => Carbon::now()]);
+                if ($check_current_stock) {
+                    DB::connection($conn)->table('material_stock_record')
+                        ->where('id', '=', $check_current_stock->id)
+                        ->decrement('qty', $data['qty'], ['last_updated' => Carbon::now()]);
+                } else {
+                    DB::connection($conn)->table('material_stock_record')->insert([
+                        'material_id' => $data['material_id'],
+                        'site_id' => $data['site_id'],
+                        'qty' => -$data['qty'],
+                        'unit' => $data['from_unit'],
+                        'last_updated' => Carbon::now()
+                    ]);
+                }
 
                 // Update To Unit Stock
                 $to_unit_stock = DB::connection($conn)->table('material_stock_record')

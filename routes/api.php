@@ -151,6 +151,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/logout', [ApiAuthController::class, 'logout']);
         Route::get('/dashboard', [ApiDashboardController::class, 'index']);
         Route::get('/dashboard/sales-invoices', [ApiDashboardController::class, 'salesInvoices']);
+        Route::get('/dashboard/saas-invoices', [ApiDashboardController::class, 'saasInvoices']);
         Route::get('/dashboard/payment-vouchers', [ApiDashboardController::class, 'paymentVouchers']);
         Route::get('/dashboard/expenses', [ApiDashboardController::class, 'expenses']);
         Route::get('/dashboard/bills', [ApiDashboardController::class, 'bills']);

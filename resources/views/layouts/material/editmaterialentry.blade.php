@@ -8,6 +8,7 @@ $suppliers = $data['material_supplier'];
 $materials = $data['materials'];
 $materialentry = $data['materialentry'];
 $units = $data['units'];
+$conversion_format = $data['conversion_format'] ?? [];
 $site_id = session()->get("site_id");
 $role_details = getRoleDetailsById(session()->get('role'));
 $entry_at_site = $role_details->entry_at_site;
@@ -115,13 +116,13 @@ $max_date = substr($duration['max'], 0, 10);
                            <div class="col-lg-3 col-md-3 col-sm-3">
                               <div class="form-group">
                                  <label>Material</label>
-                                 <select name="material_id"   class="form-control show-tick" data-live-search="true" required>
+                                 <select name="material_id" id="material_id_1" onchange="convertQuantity(1)" class="form-control show-tick" data-live-search="true" required>
                                    <option value="" selected disabled >--Select Material--</option>
                                @foreach($materials as $material)
                                @if($materialentry['material_id'] == $material['id'])
-                              <option selected value = "{{$material['id']}}">{{$material['name']}}</option>
+                              <option selected value = "{{$material['id']}}" data-is-royalty="{{$material['is_royalty'] ?? 0}}">{{$material['name']}}</option>
                                @else
-                               <option value = "{{$material['id']}}">{{$material['name']}}</option>
+                               <option value = "{{$material['id']}}" data-is-royalty="{{$material['is_royalty'] ?? 0}}">{{$material['name']}}</option>
 
                                @endif
                                @endforeach
@@ -131,7 +132,7 @@ $max_date = substr($duration['max'], 0, 10);
                            <div class="col-lg-3 col-md-3 col-sm-3">
                               <div class="form-group">
                                  <label>Unit</label>
-                                 <select name="unit"   class="form-control show-tick" data-live-search="true" required>
+                                 <select name="unit" id="unit_id_1" onchange="convertQuantity(1)" class="form-control show-tick" data-live-search="true" required>
                                    <option value="" selected disabled >--Select Unit--</option>
                                @foreach($units as $unit)
                                @if($materialentry['unit'] == $unit['id'])
@@ -147,8 +148,13 @@ $max_date = substr($duration['max'], 0, 10);
                            <div class="col-lg-3 col-md-3 col-sm-3">
                               <div class="form-group">
                                  <label>Quantity</label>
-                                 <input type="number" placeholder="0.00" required value={{$materialentry['qty']}} class="form-control" name="qty" min="0"  step="0.01" pattern="^\d+(?:\.\d{1,2})?$">
-                               
+                                 <input type="number" id="qty_id_1" placeholder="0.00" required value="{{$materialentry['qty']}}" class="form-control" name="qty" min="0"  step="0.01" pattern="^\d+(?:\.\d{1,2})?$" onchange="convertQuantity(1)">
+                              </div>
+                           </div>
+                           <div class="col-lg-3 col-md-3 col-sm-3">
+                              <div class="form-group">
+                                 <label>Converted Qty (Cubic M)</label>
+                                 <input type="number" id="converted_qty_id_1" placeholder="0.00" readonly value="{{$materialentry['converted_qty'] ?? ''}}" class="form-control" name="converted_qty" step="0.01" pattern="^\d+(?:\.\d{1,2})?$">
                               </div>
                            </div>
                            <div class="col-lg-3 col-md-3 col-sm-3">
@@ -247,5 +253,47 @@ function updateEditAddButtonVisibility() {
 document.addEventListener("DOMContentLoaded", function() {
     updateEditAddButtonVisibility();
 });
+
+let conversionRules = @json($conversion_format ?? []);
+
+function convertQuantity(rowId) {
+    let materialSelect = document.getElementById('material_id_1');
+    let unitSelect = document.getElementById('unit_id_1');
+    let qtyInput = document.getElementById('qty_id_1');
+    let convertedQtyInput = document.getElementById('converted_qty_id_1');
+    
+    if (!materialSelect || !unitSelect || !qtyInput || !convertedQtyInput) {
+        return;
+    }
+    
+    let materialId = materialSelect.value;
+    let unitId = unitSelect.value;
+    let qty = parseFloat(qtyInput.value) || 0;
+    
+    let selectedMaterialOption = materialSelect.querySelector('option[value="' + materialId + '"]');
+    let isRoyalty = selectedMaterialOption ? selectedMaterialOption.getAttribute('data-is-royalty') : 0;
+    
+    let selectedUnitOption = unitSelect.querySelector('option[value="' + unitId + '"]');
+    let unitName = selectedUnitOption ? selectedUnitOption.text.trim().toLowerCase() : '';
+    
+    convertedQtyInput.value = '';
+    
+    if (materialId && unitId && qty && isRoyalty == 1) {
+        if (unitName.includes('cubic')) {
+            convertedQtyInput.value = qty.toFixed(2);
+        } else if (Array.isArray(conversionRules) && conversionRules.length > 0) {
+            let rule = conversionRules.find(r => 
+                String(r.material_id) === String(materialId) && 
+                String(r.from_unit) === String(unitId) &&
+                r.to_unit_name && r.to_unit_name.toLowerCase().includes('cubic')
+            );
+            
+            if (rule && rule.conversion_factor) {
+                let convertedQty = qty * parseFloat(rule.conversion_factor);
+                convertedQtyInput.value = convertedQty.toFixed(2);
+            }
+        }
+    }
+}
 </script>
 @endsection

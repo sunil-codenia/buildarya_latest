@@ -50,6 +50,7 @@
                                         <th>Material</th>
                                         <th>Unit</th>
                                         <th>Quantity</th>
+                                        <th>Converted Qty (Cubic M)</th>
                                         <th>Vehicle</th>
                                         <th>Status</th>
                                         <th>Remark</th>
@@ -67,13 +68,14 @@
                                         <th><input type="text" class="form-control column-search" placeholder="Material" data-column="3"></th>
                                         <th><input type="text" class="form-control column-search" placeholder="Unit" data-column="4"></th>
                                         <th><input type="text" class="form-control column-search" placeholder="Qty" data-column="5"></th>
-                                        <th><input type="text" class="form-control column-search" placeholder="Vehicle" data-column="6"></th>
-                                        <th><input type="text" class="form-control column-search" placeholder="Status" data-column="7"></th>
-                                        <th><input type="text" class="form-control column-search" placeholder="Remark" data-column="8"></th>
-                                        <th><input type="text" class="form-control column-search" placeholder="Site" data-column="9"></th>
-                                        <th><input type="text" class="form-control column-search" placeholder="User" data-column="10"></th>
-                                        <th><input type="text" class="form-control column-search" placeholder="Loc" data-column="11"></th>
-                                        <th><input type="text" class="form-control column-search" placeholder="Date" data-column="12"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Converted Qty" data-column="6"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Vehicle" data-column="7"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Status" data-column="8"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Remark" data-column="9"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Site" data-column="10"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="User" data-column="11"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Loc" data-column="12"></th>
+                                        <th><input type="text" class="form-control column-search" placeholder="Date" data-column="13"></th>
                                         <th></th>
                                         <th></th>
                                     </tr>
@@ -234,15 +236,16 @@
                 { data: 3 },
                 { data: 4 },
                 { data: 5 },
-                { data: 6, orderable: false },
+                { data: 6 },
                 { data: 7, orderable: false },
-                { data: 8 },
+                { data: 8, orderable: false },
                 { data: 9 },
-                { data: 10, orderable: false },
-                { data: 11 },
+                { data: 10 },
+                { data: 11, orderable: false },
                 { data: 12 },
-                { data: 13, orderable: false },
-                { data: 14, orderable: false }
+                { data: 13 },
+                { data: 14, orderable: false },
+                { data: 15, orderable: false }
             ],
             responsive: true,
             dom: 'lBfrtip',

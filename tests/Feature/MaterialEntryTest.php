@@ -284,5 +284,86 @@ class MaterialEntryTest extends TestCase
         $this->assertCount(1, $images);
         $this->assertEquals('images/expense.png', $images[0]);
     }
+
+    public function test_converted_qty_persistence()
+    {
+        $sessionData = [
+            'key' => 'test-session-key',
+            'uid' => 1,
+            'role' => 1,
+            'comp_db_conn_name' => $this->conn,
+            'add_duration' => 'all',
+            'company_modules' => [3], // Material module access
+        ];
+
+        // 1. Add material entry with converted_qty
+        $postData = [
+            'site_id' => [999],
+            'supplier' => [999],
+            'material_id' => [999],
+            'unit' => [999],
+            'qty' => [10],
+            'converted_qty' => [15.5],
+            'vehical' => ['TEST-VEHICLE'],
+            'remark' => ['TEST-CONV-QTY'],
+            'date' => [date('Y-m-d')],
+        ];
+
+        $response = $this->withSession($sessionData)
+            ->post('/addnewmaterial', $postData);
+
+        $response->assertRedirect('/verified_material');
+
+        $entry = DB::connection($this->conn)->table('material_entry')
+            ->where('remark', 'TEST-CONV-QTY')
+            ->first();
+
+        $this->assertNotNull($entry);
+        $this->assertEquals('15.5', $entry->converted_qty);
+
+        // 2. Test AJAX return includes converted_qty
+        $ajaxResponse = $this->withSession($sessionData)
+            ->postJson('/verified_material_ajax', [
+                'draw' => 1,
+                'start' => 0,
+                'length' => 10,
+                'search' => ['value' => 'TEST-CONV-QTY']
+            ]);
+
+        $ajaxResponse->assertStatus(200);
+        $ajaxData = $ajaxResponse->json('data');
+        $this->assertNotEmpty($ajaxData);
+        // The formattedData[] structure:
+        // [ $checkbox, $i++, $supplier, $material, $unit, $qty, $converted_qty, $rate, ... ]
+        // index 6 should be the converted qty
+        $this->assertEquals('15.5', $ajaxData[0][6]);
+
+        // 3. Update material entry with new converted_qty
+        $updateData = [
+            'id' => $entry->id,
+            'site_id' => 999,
+            'supplier' => 999,
+            'material_id' => 999,
+            'unit' => 999,
+            'qty' => 10,
+            'converted_qty' => 20.5,
+            'vehical' => 'TEST-VEHICLE',
+            'remark' => 'TEST-CONV-QTY-UPDATED',
+            'date' => date('Y-m-d'),
+        ];
+
+        $updateResponse = $this->withSession($sessionData)
+            ->post('/updatematerialEntry', $updateData);
+
+        $updateResponse->assertRedirect('/verified_material');
+
+        $updatedEntry = DB::connection($this->conn)->table('material_entry')
+            ->where('id', $entry->id)
+            ->first();
+
+        $this->assertNotNull($updatedEntry);
+        $this->assertEquals('20.5', $updatedEntry->converted_qty);
+        $this->assertEquals('TEST-CONV-QTY-UPDATED', $updatedEntry->remark);
+    }
 }
 

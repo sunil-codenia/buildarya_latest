@@ -731,38 +731,35 @@ class StockController extends Controller
                 return redirect('/stock_unit_conversion')
                     ->with('error', 'You Can Not Convert In Same Units!');
             }
-            $check_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $data['site_id'])->where('material_id', '=', $data['material_id'])->where('unit', '=', $data['from_unit'])->get();
-            if (count($check_current_stock) > 0) {
-                $current_qty = $check_current_stock[0]->qty;
-                $new_qty = $current_qty - $data['qty'];
-                if ($new_qty >= 0) {
-                    $id =  DB::connection($user_db_conn_name)->table('material_units_conversion_record')->insertGetId($rawd);
-                    $from_stock_data = ['site_id' => $data['site_id'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['from_unit'], 'type' => 'OUT', 'refrence' => 'Unit Conversion Debit', 'refrence_id' => $id];
-                    $to_stock_data = ['site_id' => $data['site_id'], 'material_id' => $data['material_id'], 'qty' => $data['updated_qty'], 'unit' => $data['to_unit'], 'type' => 'IN', 'refrence' => 'Unit Conversion Credit', 'refrence_id' => $id];
-                    DB::connection($user_db_conn_name)->table('material_stock_transactions')->insert($from_stock_data);
-                    DB::connection($user_db_conn_name)->table('material_stock_transactions')->insert($to_stock_data);
-                    DB::connection($user_db_conn_name)->table('material_stock_record')->where('id', '=', $check_current_stock[0]->id)->update(['qty' => $new_qty]);
-                    $to_unit_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $data['site_id'])->where('material_id', '=', $data['material_id'])->where('unit', '=', $data['to_unit'])->get();
-                    if (count($to_unit_current_stock) > 0) {
-                        $to_current_qty = $to_unit_current_stock[0]->qty;
-                        $to_new_qty = $to_current_qty + $data['updated_qty'];
-                        DB::connection($user_db_conn_name)->table('material_stock_record')->where('id', '=', $to_unit_current_stock[0]->id)->update(['qty' => $to_new_qty]);
-                    } else {
-                        $to_new_stock_data = ['material_id' => $data['material_id'], 'site_id' => $data['site_id'], 'qty' => $data['updated_qty'], 'unit' => $data['to_unit']];
-                        DB::connection($user_db_conn_name)->table('material_stock_record')->insert($to_new_stock_data);
-                    }
-
-                    addActivity($id, 'material_units_conversion_record', "Material Unit Conversion Completed ", 3);
-                    return redirect('/stock_unit_conversion')
-                        ->with('success', 'Material Unit Conversion Successfull!');
-                } else {
-                    return redirect('/stock_unit_conversion')
-                        ->with('error', 'This Site Does Not Have Enough Stock Of Selected Unit To Convert. Stock Can Not Be Negative!');
-                }
+            $check_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $data['site_id'])->where('material_id', '=', $data['material_id'])->where('unit', '=', $data['from_unit'])->first();
+            
+            $id =  DB::connection($user_db_conn_name)->table('material_units_conversion_record')->insertGetId($rawd);
+            $from_stock_data = ['site_id' => $data['site_id'], 'material_id' => $data['material_id'], 'qty' => $data['qty'], 'unit' => $data['from_unit'], 'type' => 'OUT', 'refrence' => 'Unit Conversion Debit', 'refrence_id' => $id];
+            $to_stock_data = ['site_id' => $data['site_id'], 'material_id' => $data['material_id'], 'qty' => $data['updated_qty'], 'unit' => $data['to_unit'], 'type' => 'IN', 'refrence' => 'Unit Conversion Credit', 'refrence_id' => $id];
+            DB::connection($user_db_conn_name)->table('material_stock_transactions')->insert($from_stock_data);
+            DB::connection($user_db_conn_name)->table('material_stock_transactions')->insert($to_stock_data);
+            
+            if ($check_current_stock) {
+                $new_qty = $check_current_stock->qty - $data['qty'];
+                DB::connection($user_db_conn_name)->table('material_stock_record')->where('id', '=', $check_current_stock->id)->update(['qty' => $new_qty]);
             } else {
-                return redirect('/stock_unit_conversion')
-                    ->with('error', 'This Site Does Not Have Enough Stock Of Selected Unit To Convert. Stock Can Not Be Negative!');
+                $new_stock_data = ['material_id' => $data['material_id'], 'site_id' => $data['site_id'], 'qty' => -$data['qty'], 'unit' => $data['from_unit']];
+                DB::connection($user_db_conn_name)->table('material_stock_record')->insert($new_stock_data);
             }
+            
+            $to_unit_current_stock = DB::connection($user_db_conn_name)->table('material_stock_record')->where('site_id', '=', $data['site_id'])->where('material_id', '=', $data['material_id'])->where('unit', '=', $data['to_unit'])->first();
+            if ($to_unit_current_stock) {
+                $to_current_qty = $to_unit_current_stock->qty;
+                $to_new_qty = $to_current_qty + $data['updated_qty'];
+                DB::connection($user_db_conn_name)->table('material_stock_record')->where('id', '=', $to_unit_current_stock->id)->update(['qty' => $to_new_qty]);
+            } else {
+                $to_new_stock_data = ['material_id' => $data['material_id'], 'site_id' => $data['site_id'], 'qty' => $data['updated_qty'], 'unit' => $data['to_unit']];
+                DB::connection($user_db_conn_name)->table('material_stock_record')->insert($to_new_stock_data);
+            }
+
+            addActivity($id, 'material_units_conversion_record', "Material Unit Conversion Completed ", 3);
+            return redirect('/stock_unit_conversion')
+                ->with('success', 'Material Unit Conversion Successfull!');
         } catch (\Exception $e) {
             return redirect('/stock_unit_conversion')
                 ->with('error', 'Error While Converting Material Unit. Please Try Again After Reconciling The Statement.!');

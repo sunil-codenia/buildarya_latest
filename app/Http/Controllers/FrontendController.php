@@ -92,7 +92,7 @@ class FrontendController extends Controller
         $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
         
         try {
-            $response = Http::timeout(10)->post("{$shaarvikUrl}/api/public/pricing-lead", $request->all());
+            $response = Http::timeout(60)->post("{$shaarvikUrl}/api/public/pricing-lead", $request->all());
             return response()->json($response->json(), $response->status());
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -104,7 +104,7 @@ class FrontendController extends Controller
         $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
         
         try {
-            $response = Http::timeout(10)->post("{$shaarvikUrl}/api/payments/razorpay/create-order", $request->all());
+            $response = Http::timeout(60)->post("{$shaarvikUrl}/api/payments/razorpay/create-order", $request->all());
             return response()->json($response->json(), $response->status());
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -116,7 +116,7 @@ class FrontendController extends Controller
         $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
         
         try {
-            $response = Http::timeout(10)->post("{$shaarvikUrl}/api/public/pricing-lead/convert", $request->all());
+            $response = Http::timeout(120)->post("{$shaarvikUrl}/api/public/pricing-lead/convert", $request->all());
             return response()->json($response->json(), $response->status());
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -178,7 +178,23 @@ class FrontendController extends Controller
         // Hit Shaarvik external leads API
         $this->pushToShaarvik($validated, 'apk_download');
 
-        // Trigger APK download
+        // Try proxying from Shaarvik
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+        $apkUrl = "{$shaarvikUrl}/uploads/apk/buildarya_latest.apk";
+
+        try {
+            $response = Http::timeout(30)->get($apkUrl);
+            if ($response->successful()) {
+                return response($response->body(), 200, [
+                    'Content-Type' => 'application/vnd.android.package-archive',
+                    'Content-Disposition' => 'attachment; filename="buildarya_latest.apk"',
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to proxy APK download from Shaarvik: ' . $e->getMessage());
+        }
+
+        // Trigger local APK download if proxy fails
         $apkPath = public_path('uploads/apk/buildarya_latest.apk');
         if (!file_exists($apkPath)) {
             if ($isAjax) {

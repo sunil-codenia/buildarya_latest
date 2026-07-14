@@ -318,4 +318,62 @@ class MaterialEntryApiTest extends TestCase
             unlink(public_path($img));
         }
     }
+
+    public function test_api_store_and_update_material_entry_with_converted_qty()
+    {
+        $headers = [
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer ' . $this->tokenId . '|' . $this->tokenValue,
+        ];
+
+        // 1. Test POST store
+        $postData = [
+            'site_id' => [999],
+            'supplier' => [999],
+            'material_id' => [999],
+            'unit' => [999],
+            'qty' => [100],
+            'converted_qty' => [123.45],
+            'vehical' => ['HR-55-1234'],
+            'remark' => ['Test API store converted_qty'],
+            'date' => ['2026-07-06'],
+        ];
+
+        $response = $this->postJson('/api/v1/materials/entries', $postData, $headers);
+        $response->assertStatus(200);
+        $this->assertEquals('Ok', $response->json('status'));
+
+        $ids = $response->json('ids');
+        $this->assertNotEmpty($ids);
+        $id = $ids[0];
+
+        $entry = DB::connection($this->connName)->table('material_entry')->find($id);
+        $this->assertNotNull($entry);
+        $this->assertEquals('123.45', $entry->converted_qty);
+
+        // 2. Test GET show
+        $getResponse = $this->getJson('/api/v1/materials/entries/' . $id, $headers);
+        $getResponse->assertStatus(200);
+        $this->assertEquals('123.45', $getResponse->json('data.converted_qty'));
+
+        // 3. Test POST update
+        $updateData = [
+            'site_id' => 999,
+            'supplier' => 999,
+            'material_id' => 999,
+            'unit' => 999,
+            'qty' => 110,
+            'converted_qty' => 150.60,
+            'vehical' => 'HR-55-UPDATED',
+            'remark' => 'Test API update converted_qty',
+            'date' => '2026-07-06',
+        ];
+
+        $updateResponse = $this->postJson('/api/v1/materials/entries/' . $id, $updateData, $headers);
+        $updateResponse->assertStatus(200);
+
+        $updatedEntry = DB::connection($this->connName)->table('material_entry')->find($id);
+        $this->assertNotNull($updatedEntry);
+        $this->assertEquals('150.6', $updatedEntry->converted_qty);
+    }
 }

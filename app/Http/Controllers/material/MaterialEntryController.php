@@ -18,6 +18,15 @@ class MaterialEntryController extends Controller
     public function get_verified_material_ajax(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'converted_qty')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->string('converted_qty', 255)->nullable()->after('qty');
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding converted_qty column in verified AJAX: " . $e->getMessage());
+            }
+        }
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
         $role_details = getRoleDetailsById($role_id);
@@ -76,16 +85,17 @@ class MaterialEntryController extends Controller
                         case 3: $query->where('materials.name', 'LIKE', "%{$search_val}%"); break;
                         case 4: $query->where('units.name', 'LIKE', "%{$search_val}%"); break;
                         case 5: $query->where('material_entry.qty', 'LIKE', "%{$search_val}%"); break;
-                        case 6: $query->where('material_entry.rate', 'LIKE', "%{$search_val}%"); break;
-                        case 7: $query->where('material_entry.amount', 'LIKE', "%{$search_val}%"); break;
-                        case 8: $query->where('material_entry.vehical', 'LIKE', "%{$search_val}%"); break;
-                        case 9: $query->where('material_entry.status', 'LIKE', "%{$search_val}%"); break;
-                        case 10: $query->where('material_entry.remark', 'LIKE', "%{$search_val}%"); break;
-                        case 11: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
-                        case 12: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
-                        case 13: $query->where('material_entry.location', 'LIKE', "%{$search_val}%"); break;
-                        case 14: $query->where('material_entry.bill_no', 'LIKE', "%{$search_val}%"); break;
-                        case 15: $query->where('material_entry.date', 'LIKE', "%{$search_val}%"); break;
+                        case 6: $query->where('material_entry.converted_qty', 'LIKE', "%{$search_val}%"); break;
+                        case 7: $query->where('material_entry.rate', 'LIKE', "%{$search_val}%"); break;
+                        case 8: $query->where('material_entry.amount', 'LIKE', "%{$search_val}%"); break;
+                        case 9: $query->where('material_entry.vehical', 'LIKE', "%{$search_val}%"); break;
+                        case 10: $query->where('material_entry.status', 'LIKE', "%{$search_val}%"); break;
+                        case 11: $query->where('material_entry.remark', 'LIKE', "%{$search_val}%"); break;
+                        case 12: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
+                        case 13: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
+                        case 14: $query->where('material_entry.location', 'LIKE', "%{$search_val}%"); break;
+                        case 15: $query->where('material_entry.bill_no', 'LIKE', "%{$search_val}%"); break;
+                        case 16: $query->where('material_entry.date', 'LIKE', "%{$search_val}%"); break;
                     }
                 }
             }
@@ -100,7 +110,8 @@ class MaterialEntryController extends Controller
             2 => 'material_supplier.name',
             3 => 'materials.name',
             5 => 'qty',
-            15 => 'date'
+            6 => 'converted_qty',
+            16 => 'date'
         ];
 
         if (isset($columns[$orderColumnIndex])) {
@@ -135,6 +146,7 @@ class MaterialEntryController extends Controller
             $material = $row->material;
             $unit = $row->unit;
             $qty = $row->qty;
+            $converted_qty = $row->converted_qty;
             $rate = $row->rate;
             $amount = $row->amount;
             $vehical = $row->vehical;
@@ -198,6 +210,7 @@ class MaterialEntryController extends Controller
                 $material,
                 $unit,
                 $qty,
+                $converted_qty,
                 $rate,
                 $amount,
                 $vehical,
@@ -228,6 +241,15 @@ class MaterialEntryController extends Controller
     public function get_pending_material_ajax(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'converted_qty')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->string('converted_qty', 255)->nullable()->after('qty');
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding converted_qty column in pending AJAX: " . $e->getMessage());
+            }
+        }
         $role_id = $request->session()->get('role');
         $site_id = $request->session()->get('site_id');
         $role_details = getRoleDetailsById($role_id);
@@ -292,13 +314,14 @@ class MaterialEntryController extends Controller
                         case 3: $query->where('materials.name', 'LIKE', "%{$search_val}%"); break;
                         case 4: $query->where('units.name', 'LIKE', "%{$search_val}%"); break;
                         case 5: $query->where('material_entry.qty', 'LIKE', "%{$search_val}%"); break;
-                        case 6: $query->where('material_entry.vehical', 'LIKE', "%{$search_val}%"); break;
-                        case 7: $query->where('material_entry.status', 'LIKE', "%{$search_val}%"); break;
-                        case 8: $query->where('material_entry.remark', 'LIKE', "%{$search_val}%"); break;
-                        case 9: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
-                        case 10: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
-                        case 11: $query->where('material_entry.location', 'LIKE', "%{$search_val}%"); break;
-                        case 12: $query->where('material_entry.date', 'LIKE', "%{$search_val}%"); break;
+                        case 6: $query->where('material_entry.converted_qty', 'LIKE', "%{$search_val}%"); break;
+                        case 7: $query->where('material_entry.vehical', 'LIKE', "%{$search_val}%"); break;
+                        case 8: $query->where('material_entry.status', 'LIKE', "%{$search_val}%"); break;
+                        case 9: $query->where('material_entry.remark', 'LIKE', "%{$search_val}%"); break;
+                        case 10: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
+                        case 11: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
+                        case 12: $query->where('material_entry.location', 'LIKE', "%{$search_val}%"); break;
+                        case 13: $query->where('material_entry.date', 'LIKE', "%{$search_val}%"); break;
                     }
                 }
             }
@@ -314,7 +337,8 @@ class MaterialEntryController extends Controller
             2 => 'materials.name',
             3 => 'units.name',
             4 => 'qty',
-            11 => 'date'
+            5 => 'converted_qty',
+            12 => 'date'
         ];
         
         if (isset($columns[$orderColumnIndex])) {
@@ -349,6 +373,7 @@ class MaterialEntryController extends Controller
             $material = $row->material;
             $unit = $row->unit;
             $qty = $row->qty;
+            $converted_qty = $row->converted_qty;
             $vehical = $row->vehical;
             $status = $row->status;
             $remark = $row->remark;
@@ -397,6 +422,7 @@ class MaterialEntryController extends Controller
                 $material,
                 $unit,
                 $qty,
+                $converted_qty,
                 $vehical,
                 $status,
                 $remark,
@@ -471,6 +497,17 @@ class MaterialEntryController extends Controller
                 \Log::error("Failed adding columns: " . $e->getMessage());
             }
         }
+
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'converted_qty')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->string('converted_qty', 255)->nullable()->after('qty');
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding converted_qty column: " . $e->getMessage());
+            }
+        }
+
         $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
@@ -537,6 +574,7 @@ class MaterialEntryController extends Controller
                     'material_id' => isset($data['material_id'][$i]) ? $data['material_id'][$i] : null,
                     'unit' => isset($data['unit'][$i]) ? $data['unit'][$i] : '',
                     'qty' => isset($data['qty'][$i]) ? $data['qty'][$i] : 0,
+                    'converted_qty' => isset($data['converted_qty'][$i]) ? $data['converted_qty'][$i] : null,
                     'vehical' => isset($data['vehical'][$i]) ? $data['vehical'][$i] : '',
                     'image' => $imagePath,
                     'remark' => isset($data['remark'][$i]) ? $data['remark'][$i] : '',
@@ -586,6 +624,16 @@ class MaterialEntryController extends Controller
                 });
             } catch (\Exception $e) {
                 \Log::error("Failed adding columns during update: " . $e->getMessage());
+            }
+        }
+
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'converted_qty')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->string('converted_qty', 255)->nullable()->after('qty');
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding converted_qty column: " . $e->getMessage());
             }
         }
 
@@ -722,6 +770,7 @@ class MaterialEntryController extends Controller
                 'material_id' => $data['material_id'],
                 'unit' => $data['unit'],
                 'qty' => $data['qty'],
+                'converted_qty' => isset($data['converted_qty']) ? $data['converted_qty'] : null,
                 'vehical' => $data['vehical'],
                 'image' => $finalImageStr,
                 'remark' => $data['remark'],
@@ -759,6 +808,7 @@ class MaterialEntryController extends Controller
         $data['units'] = DB::connection($user_db_conn_name)->table('units')->get();
         $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
         $data['materialentry'] = DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->first();
+        $data['conversion_format'] = DB::connection($user_db_conn_name)->table('material_conversion_rules')->join('units', 'units.id', '=', 'material_conversion_rules.to_unit')->select('material_conversion_rules.*', 'units.name as to_unit_name')->get();
 
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));

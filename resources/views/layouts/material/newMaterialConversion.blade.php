@@ -68,7 +68,7 @@
                                     <div class="col-lg-3 col-md-3 col-sm-3">
                                         <div class="form-group">
                                             <label>Updated Quantity</label>
-                                            <input type="number" placeholder="0.00" id="updated_qty" required readonly
+                                            <input type="number" placeholder="0.00" id="updated_qty" required
                                                 class="form-control" name="updated_qty" min="0" step="0.01"
                                                 pattern="^\d+(?:\.\d{1,2})?$">
 
@@ -262,13 +262,15 @@
             }
         }
 
-        function recalculate() {
+        function recalculate(isUnitChange = false) {
             let qty = parseFloat($('#qty').val());
             if (!isNaN(qty) && conversion_factor !== null) {
                 var updated_qty = (qty * conversion_factor);
                 $('#updated_qty').val(updated_qty.toFixed(2));
             } else {
-                $('#updated_qty').val('');
+                if (isUnitChange || isNaN(qty)) {
+                    $('#updated_qty').val('');
+                }
             }
         }
 
@@ -283,11 +285,11 @@
                 Number(item.to_unit) === Number(to_unit_id)
             );
             conversion_factor = result ? parseFloat(result.conversion_factor) : null;
-            recalculate();
+            recalculate(true);
         }
 
         $('#qty').on('input change', function() {
-            recalculate();
+            recalculate(false);
         });
     </script>
 @endsection

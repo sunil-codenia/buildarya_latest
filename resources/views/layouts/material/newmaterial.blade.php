@@ -211,19 +211,26 @@ function convertQuantity(rowId) {
     let selectedMaterialOption = materialSelect.querySelector('option[value="' + materialId + '"]');
     let isRoyalty = selectedMaterialOption ? selectedMaterialOption.getAttribute('data-is-royalty') : 0;
     
+    let selectedUnitOption = unitSelect.querySelector('option[value="' + unitId + '"]');
+    let unitName = selectedUnitOption ? selectedUnitOption.text.trim().toLowerCase() : '';
+    
     convertedQtyInput.value = '';
     
-    if (materialId && unitId && qty && isRoyalty == 1 && Array.isArray(conversionRules) && conversionRules.length > 0) {
-        // Find conversion rule: from_unit (input unit) to cubic meter (id = 1 or find by name 'Cubic Meter')
-        let rule = conversionRules.find(r => 
-            String(r.material_id) === String(materialId) && 
-            String(r.from_unit) === String(unitId) &&
-            r.to_unit_name && r.to_unit_name.toLowerCase().includes('cubic')
-        );
-        
-        if (rule && rule.conversion_factor) {
-            let convertedQty = qty * parseFloat(rule.conversion_factor);
-            convertedQtyInput.value = convertedQty.toFixed(2);
+    if (materialId && unitId && qty && isRoyalty == 1) {
+        if (unitName.includes('cubic')) {
+            convertedQtyInput.value = qty.toFixed(2);
+        } else if (Array.isArray(conversionRules) && conversionRules.length > 0) {
+            // Find conversion rule: from_unit (input unit) to cubic meter (id = 1 or find by name 'Cubic Meter')
+            let rule = conversionRules.find(r => 
+                String(r.material_id) === String(materialId) && 
+                String(r.from_unit) === String(unitId) &&
+                r.to_unit_name && r.to_unit_name.toLowerCase().includes('cubic')
+            );
+            
+            if (rule && rule.conversion_factor) {
+                let convertedQty = qty * parseFloat(rule.conversion_factor);
+                convertedQtyInput.value = convertedQty.toFixed(2);
+            }
         }
     }
 }

@@ -232,4 +232,84 @@ class ApiDashboardController extends Controller
         $web_dashboard = new \App\Http\Controllers\DashboardController();
         return $web_dashboard->exportCsv($request);
     }
+
+    /**
+     * Get SaaS Subscription Invoices from Shaarvik according to login
+     */
+    public function saasInvoices(Request $request)
+    {
+        $connName = config('database.default');
+
+        $company = DB::connection('mysql')->table('companies')
+            ->where('db_conn_name', $connName)
+            ->orWhere('db_name', $connName)
+            ->first();
+
+        if (!$company) {
+            return response()->json([
+                'status' => 'Failed',
+                'message' => 'Company not found for the current tenant.'
+            ], 404);
+        }
+
+        $companyUid = $company->uid;
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+
+        try {
+            // Fetch from Shaarvik
+            $response = \Illuminate\Support\Facades\Http::timeout(15)->get("{$shaarvikUrl}/api/mysql/invoices", [
+                'companyUid' => $companyUid,
+            ]);
+
+            if ($response->successful()) {
+                return response()->json([
+                    'status' => 'Ok',
+                    'data' => $response->json() ?: []
+                ]);
+            }
+
+            if ($response->status() == 400) {
+                // Fallback for older Shaarvik API using companyId and client-side filtering
+                $fallbackResponse = \Illuminate\Support\Facades\Http::timeout(15)->get("{$shaarvikUrl}/api/mysql/invoices", [
+                    'companyId' => 1,
+                ]);
+
+                if ($fallbackResponse->successful()) {
+                    $allInvoices = $fallbackResponse->json() ?: [];
+                    $companyName = $company->name;
+                    $companyEmail = $company->email;
+
+                    $filtered = array_values(array_filter($allInvoices, function ($inv) use ($companyUid, $companyName, $companyEmail) {
+                        $clientName = strtolower($inv['client']['name'] ?? $inv['client_name'] ?? '');
+                        $clientEmail = strtolower($inv['client']['email'] ?? $inv['client_email'] ?? '');
+                        $uidLower = strtolower($companyUid);
+                        $nameLower = strtolower($companyName);
+                        $emailLower = strtolower($companyEmail);
+
+                        return $clientName === $uidLower
+                            || (!empty($nameLower) && $clientName === $nameLower)
+                            || (!empty($emailLower) && !empty($clientEmail) && $clientEmail === $emailLower);
+                    }));
+
+                    return response()->json([
+                        'status' => 'Ok',
+                        'data' => $filtered
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'status' => 'Failed',
+                'message' => 'Failed to retrieve invoices from Shaarvik.',
+                'error' => $response->body()
+            ], $response->status());
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("SaaS Invoices API Connection failed: " . $e->getMessage());
+            return response()->json([
+                'status' => 'Error',
+                'message' => 'Could not connect to Shaarvik service to fetch invoices.'
+            ], 502);
+        }
+    }
 }

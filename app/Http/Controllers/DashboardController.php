@@ -90,6 +90,21 @@ class DashboardController extends Controller
      */
     public function downloadApk()
     {
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+        $apkUrl = "{$shaarvikUrl}/uploads/apk/buildarya_latest.apk";
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(30)->get($apkUrl);
+            if ($response->successful()) {
+                return response($response->body(), 200, [
+                    'Content-Type' => 'application/vnd.android.package-archive',
+                    'Content-Disposition' => 'attachment; filename="buildarya_latest.apk"',
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Log::error('Failed to proxy dashboard APK download from Shaarvik: ' . $e->getMessage());
+        }
+
         $path = public_path('uploads/apk/buildarya_latest.apk');
         if (file_exists($path)) {
             return response()->download($path);

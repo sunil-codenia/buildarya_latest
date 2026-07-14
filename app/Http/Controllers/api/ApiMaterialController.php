@@ -120,6 +120,7 @@ class ApiMaterialController extends Controller
                 'material_id' => $request->material_id,
                 'unit' => $request->unit,
                 'qty' => $request->qty,
+                'converted_qty' => $request->converted_qty,
                 'vehical' => $request->vehical,
                 'image' => $imagePath,
                 'status' => $status,
@@ -170,7 +171,7 @@ class ApiMaterialController extends Controller
                 }
             }
 
-            $updateData = $request->only(['site_id', 'supplier', 'material_id', 'unit', 'qty', 'vehical', 'remark', 'location', 'date']);
+            $updateData = $request->only(['site_id', 'supplier', 'material_id', 'unit', 'qty', 'converted_qty', 'vehical', 'remark', 'location', 'date']);
             
             if ($request->hasFile('image')) {
                 if (File::exists(public_path($entry->image)) && $entry->image != 'images/expense.png') {

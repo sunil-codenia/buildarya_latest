@@ -347,6 +347,7 @@ CREATE TABLE `material_entry` (
   `material_id` varchar(255) NOT NULL,
   `unit` varchar(255) NOT NULL,
   `qty` varchar(255) NOT NULL,
+  `converted_qty` varchar(255) DEFAULT NULL,
   `vehical` varchar(255) NOT NULL,
   `image` varchar(1000) DEFAULT NULL,
   `image2` varchar(2000) DEFAULT NULL,
