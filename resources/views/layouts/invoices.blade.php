@@ -34,19 +34,39 @@
                         </div>
                     @else
                         @php
-                            $latestInvoice = $invoices[0];
+                            $latestInvoice = null;
+                            foreach ($invoices as $inv) {
+                                if (!empty($inv['subscription_end_date'])) {
+                                    $latestInvoice = $inv;
+                                    break;
+                                }
+                            }
                             $hasNextPayment = false;
-                            if (!empty($latestInvoice['subscription_end_date'])) {
+                            if ($latestInvoice) {
                                 $hasNextPayment = true;
                                 $nextPaymentDate = \Carbon\Carbon::parse($latestInvoice['subscription_start_date'])->format('d M Y');
                                 $nextDueDate = \Carbon\Carbon::parse($latestInvoice['subscription_end_date'])->format('d M Y');
-                                $nextAmount = (float)($latestInvoice['subscription_amount'] ?? $latestInvoice['amount']);
+                                $nextAmountBase = (float)($latestInvoice['subscription_amount'] ?? $latestInvoice['amount']);
+                                $billingCycle = strtolower($latestInvoice['billing_cycle'] ?? 'monthly');
+                                $cycleMultiplier = 1;
+                                if ($billingCycle === 'yearly' || $billingCycle === 'annually') {
+                                    $cycleMultiplier = 12;
+                                } elseif ($billingCycle === 'quarterly') {
+                                    $cycleMultiplier = 3;
+                                }
+
+                                $extraUsers = isset($company->extra_users) ? (int)$company->extra_users : 0;
+                                $extraSites = isset($company->extra_sites) ? (int)$company->extra_sites : 0;
+                                $addonAmount = (($extraUsers * 100) + ($extraSites * 200)) * $cycleMultiplier;
+                                // The Shaarvik subscription amount already includes active addons, so we just use the base.
+                                $nextAmount = $nextAmountBase;
+                                
                                 $nextPlan = $latestInvoice['subscription_plan'] ?? 'SaaS Subscription';
 
                                 // Calculate new billing cycle dates
                                 $newStartDateRaw = $latestInvoice['subscription_end_date'];
                                 $newStartDateCarbon = \Carbon\Carbon::parse($newStartDateRaw);
-                                $billingCycle = $latestInvoice['billing_cycle'] ?? 'monthly';
+
                                 if ($billingCycle === 'yearly') {
                                     $newEndDateCarbon = (clone $newStartDateCarbon)->addYear();
                                 } elseif ($billingCycle === 'quarterly') {
@@ -80,7 +100,23 @@
                                         <tr style="background-color: #fffbeb;">
                                             <td>{{ $rowIndex++ }}</td>
                                             <td><span class="text-muted">-</span></td>
-                                            <td><strong>{{ $nextPlan }} (Next Payment)</strong></td>
+                                            <td>
+                                                <strong>{{ $nextPlan }} (Next Payment)</strong>
+                                                @if($extraUsers > 0 || $extraSites > 0)
+                                                    <div style="font-size: 11px; margin-top: 5px; color: #555;">
+                                                        @if($extraUsers > 0)
+                                                            <div>+ {{ $extraUsers }} Extra User(s) (₹{{ $extraUsers * 100 * $cycleMultiplier }}) 
+                                                                <button class="btn btn-xs btn-danger remove-addon-btn" data-type="user" style="padding: 0 4px; font-size: 10px; margin-left: 5px;" title="Remove 1 User"><i class="zmdi zmdi-minus"></i> Remove</button>
+                                                            </div>
+                                                        @endif
+                                                        @if($extraSites > 0)
+                                                            <div>+ {{ $extraSites }} Extra Site(s) (₹{{ $extraSites * 200 * $cycleMultiplier }})
+                                                                <button class="btn btn-xs btn-danger remove-addon-btn" data-type="site" style="padding: 0 4px; font-size: 10px; margin-left: 5px;" title="Remove 1 Site"><i class="zmdi zmdi-minus"></i> Remove</button>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+                                                @endif
+                                            </td>
                                             <td>{{ $nextPaymentDate }}</td>
                                             <td><strong class="text-danger">{{ $nextDueDate }}</strong></td>
                                             <td class="text-right">₹{{ number_format($nextAmount, 2) }}</td>
@@ -122,7 +158,14 @@
                                         <tr>
                                             <td>{{ $rowIndex++ }}</td>
                                             <td><strong>{{ $invoice['invoice_number'] }}</strong></td>
-                                            <td>{{ $invoice['subscription_plan'] ?? 'SaaS Subscription' }}</td>
+                                            <td>
+                                                <strong>{{ $invoice['plan_name'] ?? ($invoice['subscription_plan'] ?? 'SaaS Subscription') }}</strong>
+                                                @if(!empty($invoice['notes']))
+                                                    <div style="font-size: 11px; margin-top: 5px; color: #555;">
+                                                        {!! nl2br(e($invoice['notes'])) !!}
+                                                    </div>
+                                                @endif
+                                            </td>
                                             <td>{{ \Carbon\Carbon::parse($invoice['invoice_date'])->format('d M Y') }}</td>
                                             <td><span class="text-muted">-</span></td>
                                             <td class="text-right">₹{{ number_format((float)($invoice['final_amount'] ?? $invoice['amount']), 2) }}</td>
@@ -277,6 +320,32 @@
                         showAlert("Order Error", errMsg, "error");
                     }
                 });
+            });
+
+            $(document).on('click', '.remove-addon-btn', function() {
+                var type = $(this).data('type');
+                if (confirm('Are you sure you want to remove 1 extra ' + type + '? Your next billing amount will be updated.')) {
+                    $.ajax({
+                        url: '{{ url("/invoices/remove-addon") }}',
+                        method: 'POST',
+                        data: {
+                            _token: '{{ csrf_token() }}',
+                            type: type
+                        },
+                        success: function(res) {
+                            if (res.success) {
+                                showAlert("Success", res.message, "success");
+                            }
+                        },
+                        error: function(xhr) {
+                            var errMsg = 'Failed to remove addon.';
+                            if (xhr.responseJSON && xhr.responseJSON.error) {
+                                errMsg = xhr.responseJSON.error;
+                            }
+                            showAlert("Error", errMsg, "error");
+                        }
+                    });
+                }
             });
         });
     </script>

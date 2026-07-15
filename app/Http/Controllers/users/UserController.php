@@ -11,7 +11,8 @@ class UserController extends Controller
 {
     public function users(Request $request)
     {
-        return view('layouts.users.users');
+        $user_limit_reached = checkUserLimit();
+        return view('layouts.users.users', compact('user_limit_reached'));
     }
 
     public function get_users_ajax(Request $request)

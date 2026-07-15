@@ -262,9 +262,56 @@ class ApiDashboardController extends Controller
             ]);
 
             if ($response->successful()) {
+                $invoices = $response->json() ?: [];
+                
+                // Add pdf_url for the mobile app to download/view the invoice
+                $invoices = array_map(function($inv) {
+                    $inv['pdf_url'] = url("/api/v1/dashboard/saas-invoices/{$inv['id']}/download");
+                    return $inv;
+                }, $invoices);
+
+                // Calculate Upcoming Payment
+                $latestInvoice = null;
+                foreach ($invoices as $inv) {
+                    if (!empty($inv['subscription_end_date'])) {
+                        $latestInvoice = $inv;
+                        break;
+                    }
+                }
+
+                if ($latestInvoice) {
+                    $billingCycle = strtolower($latestInvoice['billing_cycle'] ?? 'monthly');
+                    $cycleMultiplier = ($billingCycle === 'yearly' || $billingCycle === 'annually') ? 12 : (($billingCycle === 'quarterly') ? 3 : 1);
+                    $extraUsers = isset($company->extra_users) ? (int)$company->extra_users : 0;
+                    $extraSites = isset($company->extra_sites) ? (int)$company->extra_sites : 0;
+                    $addonAmount = (($extraUsers * 100) + ($extraSites * 200)) * $cycleMultiplier;
+                    
+                    $nextAmount = (float)($latestInvoice['subscription_amount'] ?? $latestInvoice['amount']);
+                    
+                    $upcomingInvoice = [
+                        'id' => 'upcoming',
+                        'invoice_number' => '-',
+                        'plan_name' => ($latestInvoice['subscription_plan'] ?? 'SaaS Subscription') . ' (Next Payment)',
+                        'invoice_date' => \Carbon\Carbon::parse($latestInvoice['subscription_start_date'])->format('Y-m-d'),
+                        'due_date' => \Carbon\Carbon::parse($latestInvoice['subscription_end_date'])->format('Y-m-d'),
+                        'amount' => $nextAmount,
+                        'final_amount' => $nextAmount,
+                        'paid_amount' => 0,
+                        'balance_amount' => $nextAmount,
+                        'status' => 'Pending',
+                        'pdf_url' => null,
+                        'is_upcoming' => true,
+                        'subscription_id' => $latestInvoice['subscription_id'] ?? null,
+                        'extra_users' => $extraUsers,
+                        'extra_sites' => $extraSites,
+                        'addon_amount' => $addonAmount
+                    ];
+                    array_unshift($invoices, $upcomingInvoice);
+                }
+
                 return response()->json([
                     'status' => 'Ok',
-                    'data' => $response->json() ?: []
+                    'data' => $invoices
                 ]);
             }
 
@@ -291,6 +338,50 @@ class ApiDashboardController extends Controller
                             || (!empty($emailLower) && !empty($clientEmail) && $clientEmail === $emailLower);
                     }));
 
+                    $filtered = array_map(function($inv) {
+                        $inv['pdf_url'] = url("/api/v1/dashboard/saas-invoices/{$inv['id']}/download");
+                        return $inv;
+                    }, $filtered);
+
+                    // Calculate Upcoming Payment
+                    $latestInvoice = null;
+                    foreach ($filtered as $inv) {
+                        if (!empty($inv['subscription_end_date'])) {
+                            $latestInvoice = $inv;
+                            break;
+                        }
+                    }
+
+                    if ($latestInvoice) {
+                        $billingCycle = strtolower($latestInvoice['billing_cycle'] ?? 'monthly');
+                        $cycleMultiplier = ($billingCycle === 'yearly' || $billingCycle === 'annually') ? 12 : (($billingCycle === 'quarterly') ? 3 : 1);
+                        $extraUsers = isset($company->extra_users) ? (int)$company->extra_users : 0;
+                        $extraSites = isset($company->extra_sites) ? (int)$company->extra_sites : 0;
+                        $addonAmount = (($extraUsers * 100) + ($extraSites * 200)) * $cycleMultiplier;
+                        
+                        $nextAmount = (float)($latestInvoice['subscription_amount'] ?? $latestInvoice['amount']);
+                        
+                        $upcomingInvoice = [
+                            'id' => 'upcoming',
+                            'invoice_number' => '-',
+                            'plan_name' => ($latestInvoice['subscription_plan'] ?? 'SaaS Subscription') . ' (Next Payment)',
+                            'invoice_date' => \Carbon\Carbon::parse($latestInvoice['subscription_start_date'])->format('Y-m-d'),
+                            'due_date' => \Carbon\Carbon::parse($latestInvoice['subscription_end_date'])->format('Y-m-d'),
+                            'amount' => $nextAmount,
+                            'final_amount' => $nextAmount,
+                            'paid_amount' => 0,
+                            'balance_amount' => $nextAmount,
+                            'status' => 'Pending',
+                            'pdf_url' => null,
+                            'is_upcoming' => true,
+                            'subscription_id' => $latestInvoice['subscription_id'] ?? null,
+                            'extra_users' => $extraUsers,
+                            'extra_sites' => $extraSites,
+                            'addon_amount' => $addonAmount
+                        ];
+                        array_unshift($filtered, $upcomingInvoice);
+                    }
+
                     return response()->json([
                         'status' => 'Ok',
                         'data' => $filtered
@@ -311,5 +402,56 @@ class ApiDashboardController extends Controller
                 'message' => 'Could not connect to Shaarvik service to fetch invoices.'
             ], 502);
         }
+    }
+
+    /**
+     * Download SaaS Invoice PDF (API)
+     */
+    public function downloadPdf(Request $request, $id)
+    {
+        $connName = config('database.default');
+        $company = DB::connection('mysql')->table('companies')
+            ->where('db_conn_name', $connName)
+            ->orWhere('db_name', $connName)
+            ->first();
+
+        if (!$company) {
+            return response()->json(['status' => 'Failed', 'message' => 'Company not found'], 404);
+        }
+
+        $companyUid = $company->uid;
+        $shaarvikUrl = rtrim(env('SHAARVIK_URL', 'https://shaarviktechnologies.com'), '/');
+
+        try {
+            $invoices = [];
+            $response = \Illuminate\Support\Facades\Http::timeout(15)->get("{$shaarvikUrl}/api/mysql/invoices", [
+                'companyUid' => $companyUid,
+            ]);
+
+            if ($response->successful()) {
+                $invoices = $response->json() ?: [];
+            } else if ($response->status() == 400) {
+                $fallbackResponse = \Illuminate\Support\Facades\Http::timeout(15)->get("{$shaarvikUrl}/api/mysql/invoices", [
+                    'companyId' => 1,
+                ]);
+                if ($fallbackResponse->successful()) {
+                    $invoices = $fallbackResponse->json() ?: [];
+                }
+            }
+
+            if (!empty($invoices)) {
+                $invoice = collect($invoices)->firstWhere('id', $id);
+                if (!$invoice) {
+                    return response()->json(['status' => 'Failed', 'message' => 'Invoice not found'], 404);
+                }
+
+                $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('layouts.invoice_pdf', compact('invoice'));
+                return $pdf->download("Invoice_{$invoice['invoice_number']}.pdf");
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to generate API invoice PDF: " . $e->getMessage());
+        }
+
+        return response()->json(['status' => 'Error', 'message' => 'Could not download invoice PDF at this time'], 500);
     }
 }

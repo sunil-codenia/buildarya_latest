@@ -2460,7 +2460,19 @@ function checkUserLimit()
     }
     
     $maxUsers = $company->max_users;
-    if (is_null($maxUsers) || $maxUsers <= 0) {
+    if (is_null($maxUsers)) {
+        return false;
+    }
+    $maxUsers = (int)$maxUsers;
+
+    if (isset($company->extra_users) && $company->extra_users > 0) {
+        $extraExpired = $company->extra_users_expired;
+        if (!is_null($extraExpired) && strtotime($extraExpired) >= time()) {
+            $maxUsers += (int)$company->extra_users;
+        }
+    }
+
+    if ($maxUsers <= 0) {
         return false;
     }
     
@@ -2481,7 +2493,19 @@ function checkSiteLimit()
     }
     
     $maxSites = $company->max_sites;
-    if (is_null($maxSites) || $maxSites <= 0) {
+    if (is_null($maxSites)) {
+        return false;
+    }
+    $maxSites = (int)$maxSites;
+
+    if (isset($company->extra_sites) && $company->extra_sites > 0) {
+        $extraExpired = $company->extra_sites_expired;
+        if (!is_null($extraExpired) && strtotime($extraExpired) >= time()) {
+            $maxSites += (int)$company->extra_sites;
+        }
+    }
+
+    if ($maxSites <= 0) {
         return false;
     }
     

@@ -166,10 +166,17 @@
                     <ul class="header-dropdown">
                         <li>
                             @if (checkmodulepermission(1, 'can_add') == 1)
-                                <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10"
-                                    data-toggle="modal" data-target="#addnewuser" type="button">
-                                    <i class="zmdi zmdi-plus" style="color: white;"></i>
-                                </button>
+                                @if (isset($user_limit_reached) && $user_limit_reached)
+                                    <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                        data-toggle="modal" data-target="#upgradePlanModal" type="button" title="Upgrade Plan to Add Users">
+                                        <i class="zmdi zmdi-plus" style="color: white;"></i>
+                                    </button>
+                                @else
+                                    <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                        data-toggle="modal" data-target="#addnewuser" type="button">
+                                        <i class="zmdi zmdi-plus" style="color: white;"></i>
+                                    </button>
+                                @endif
                             @endif
                         </li>
                     </ul>

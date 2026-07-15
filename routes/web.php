@@ -78,6 +78,9 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/invoices/{id}/download', [\App\Http\Controllers\SaaSInvoiceController::class, 'downloadPdf']);
     Route::post('/invoices/create-razorpay-order', [\App\Http\Controllers\SaaSInvoiceController::class, 'createRazorpayOrder']);
     Route::post('/invoices/finalize-payment', [\App\Http\Controllers\SaaSInvoiceController::class, 'finalizePayment']);
+    Route::post('/invoices/create-addon-order', [\App\Http\Controllers\SaaSInvoiceController::class, 'createAddonOrder']);
+    Route::post('/invoices/finalize-addon-payment', [\App\Http\Controllers\SaaSInvoiceController::class, 'finalizeAddonPayment']);
+    Route::post('/invoices/remove-addon', [\App\Http\Controllers\SaaSInvoiceController::class, 'removeAddon']);
     Route::get('/switch_site/{id}', [DashboardController::class, 'switch_active_site']);
     Route::get('/dashboard/export', [DashboardController::class, 'exportCsv']);
     Route::post('/siteDashboard', [DashboardController::class, 'getSiteDashboardData']);

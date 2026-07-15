@@ -18,10 +18,10 @@ class SiteController extends Controller
     //
     public function site(Request $request)
     {
-
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data['data'] = DB::connection($user_db_conn_name)->table('sites')->get();
-        return  view('layouts.users.sites')->with('data', json_encode($data));
+        $site_limit_reached = checkSiteLimit();
+        return  view('layouts.users.sites', compact('site_limit_reached'))->with('data', json_encode($data));
     }
 
     public function addsites(Request $request)

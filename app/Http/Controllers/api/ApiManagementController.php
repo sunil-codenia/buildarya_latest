@@ -76,7 +76,24 @@ class ApiManagementController extends Controller
     public function storeUser(Request $request)
     {
         if (checkUserLimit()) {
-            return response()->json(['status' => 'Error', 'message' => 'Upgrade your plan'], 403);
+            $company = getCurrentCompany();
+            $maxUsers = (int)($company->max_users ?? 0);
+            $extraUsers = (int)($company->extra_users ?? 0);
+            $extraExpired = $company->extra_users_expired ?? null;
+            $totalAllowed = $maxUsers;
+            if ($extraUsers > 0 && !is_null($extraExpired) && strtotime($extraExpired) >= time()) {
+                $totalAllowed += $extraUsers;
+            }
+
+            return response()->json([
+                'status' => 'Error', 
+                'message' => 'User limit reached. Please upgrade your plan to add more users.',
+                'max_users' => $maxUsers,
+                'extra_users' => $extraUsers,
+                'extra_users_expired' => $extraExpired,
+                'total_allowed' => $totalAllowed,
+                'limit_reached' => true
+            ], 403);
         }
 
         $rules = [
@@ -442,7 +459,24 @@ class ApiManagementController extends Controller
             // ------------------------------------------------------------
             
             if (checkSiteLimit()) {
-                return response()->json(['status' => 'Error', 'message' => 'Upgrade your plan'], 403);
+                $company = getCurrentCompany();
+                $maxSites = (int)($company->max_sites ?? 0);
+                $extraSites = (int)($company->extra_sites ?? 0);
+                $extraExpired = $company->extra_sites_expired ?? null;
+                $totalAllowed = $maxSites;
+                if ($extraSites > 0 && !is_null($extraExpired) && strtotime($extraExpired) >= time()) {
+                    $totalAllowed += $extraSites;
+                }
+
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'Site limit reached. Please upgrade your plan to add more sites.',
+                    'max_sites' => $maxSites,
+                    'extra_sites' => $extraSites,
+                    'extra_sites_expired' => $extraExpired,
+                    'total_allowed' => $totalAllowed,
+                    'limit_reached' => true
+                ], 403);
             }
             
             $id = DB::connection($conn)->table('sites')->insertGetId([

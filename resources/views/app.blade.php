@@ -50,6 +50,7 @@ exit();
 </div>
 
 @include('templates.modal')
+@include('templates.upgrade_modal')
 @include('templates.footerscriptpart1')
 
 @yield('chart_scripts');
