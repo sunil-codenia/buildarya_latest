@@ -48,6 +48,7 @@ class ApiTaskController extends Controller
             $conn = $tenant['conn'];
 
             $site_id = $request->input('site_id');
+            $category_id = $request->input('category_id');
             $assigned_to = $request->input('assigned_to');
             $assigned_by = $request->input('assigned_by');
             $priority = $request->input('priority');
@@ -74,13 +75,12 @@ class ApiTaskController extends Controller
 
             $query = DB::connection($conn)->table('tasks')
                 ->leftJoin('sites', 'sites.id', '=', 'tasks.site_id')
-                ->leftJoin('users as assigned_to_user', 'assigned_to_user.id', '=', 'tasks.assigned_to')
+                ->leftJoin('task_categories', 'task_categories.id', '=', 'tasks.category_id')
                 ->leftJoin('users as assigned_by_user', 'assigned_by_user.id', '=', 'tasks.assigned_by')
                 ->select(
                     'tasks.*',
                     'sites.name as site_name',
-                    'assigned_to_user.name as assigned_to_name',
-                    'assigned_to_user.username as assigned_to_username',
+                    'task_categories.name as category_name',
                     'assigned_by_user.name as assigned_by_name',
                     'assigned_by_user.username as assigned_by_username'
                 );
@@ -88,8 +88,11 @@ class ApiTaskController extends Controller
             if ($site_id) {
                 $query->where('tasks.site_id', $site_id);
             }
+            if ($category_id) {
+                $query->where('tasks.category_id', $category_id);
+            }
             if ($assigned_to) {
-                $query->where('tasks.assigned_to', $assigned_to);
+                $query->whereRaw("FIND_IN_SET(?, tasks.assigned_to)", [$assigned_to]);
             }
             if ($assigned_by) {
                 $query->where('tasks.assigned_by', $assigned_by);
@@ -115,6 +118,21 @@ class ApiTaskController extends Controller
             }
 
             $tasks = $query->orderBy('tasks.id', 'desc')->paginate($perPage);
+
+            $users = DB::connection($conn)->table('users')->get()->keyBy('id');
+            foreach ($tasks->items() as $task) {
+                $assignedIds = array_filter(explode(',', $task->assigned_to));
+                $names = [];
+                $usernames = [];
+                foreach ($assignedIds as $id) {
+                    if (isset($users[$id])) {
+                        $names[] = $users[$id]->name;
+                        $usernames[] = $users[$id]->username;
+                    }
+                }
+                $task->assigned_to_name = implode(', ', $names);
+                $task->assigned_to_username = implode(', ', $usernames);
+            }
 
             return response()->json([
                 'status' => 'Ok',
@@ -150,14 +168,24 @@ class ApiTaskController extends Controller
             }
 
             $description = $request->input('description');
+            $category_id = $request->input('category_id');
             $site_id = $request->input('site_id');
-            $assigned_to = $request->input('assigned_to');
+            
+            $assigned = $request->input('assigned_to');
+            if (is_array($assigned)) {
+                $assigned_to = implode(',', $assigned);
+            } else {
+                $assigned_to = $assigned;
+            }
+            
             $priority = $request->input('priority') ?? 'Medium'; // Low, Medium, High, Urgent
             $due_date = $request->input('due_date');
+            $completed_at = $request->input('completed_at');
             $remarks = $request->input('remarks');
 
             $data = [
                 'title' => $title,
+                'category_id' => $category_id,
                 'description' => $description,
                 'site_id' => $site_id,
                 'assigned_to' => $assigned_to,
@@ -165,6 +193,7 @@ class ApiTaskController extends Controller
                 'priority' => $priority,
                 'status' => 'Pending',
                 'due_date' => $due_date,
+                'completed_at' => $completed_at,
                 'remarks' => $remarks,
                 'created_at' => now(),
                 'updated_at' => now()
@@ -230,13 +259,12 @@ class ApiTaskController extends Controller
 
             $task = DB::connection($conn)->table('tasks')
                 ->leftJoin('sites', 'sites.id', '=', 'tasks.site_id')
-                ->leftJoin('users as assigned_to_user', 'assigned_to_user.id', '=', 'tasks.assigned_to')
+                ->leftJoin('task_categories', 'task_categories.id', '=', 'tasks.category_id')
                 ->leftJoin('users as assigned_by_user', 'assigned_by_user.id', '=', 'tasks.assigned_by')
                 ->select(
                     'tasks.*',
                     'sites.name as site_name',
-                    'assigned_to_user.name as assigned_to_name',
-                    'assigned_to_user.username as assigned_to_username',
+                    'task_categories.name as category_name',
                     'assigned_by_user.name as assigned_by_name',
                     'assigned_by_user.username as assigned_by_username'
                 )
@@ -249,6 +277,24 @@ class ApiTaskController extends Controller
                     'status_code' => '300',
                     'message' => 'Task not found!'
                 ]);
+            }
+
+            $assignedIds = array_filter(explode(',', $task->assigned_to));
+            if (!empty($assignedIds)) {
+                $users = DB::connection($conn)->table('users')->whereIn('id', $assignedIds)->get()->keyBy('id');
+                $names = [];
+                $usernames = [];
+                foreach ($assignedIds as $uid) {
+                    if (isset($users[$uid])) {
+                        $names[] = $users[$uid]->name;
+                        $usernames[] = $users[$uid]->username;
+                    }
+                }
+                $task->assigned_to_name = implode(', ', $names);
+                $task->assigned_to_username = implode(', ', $usernames);
+            } else {
+                $task->assigned_to_name = null;
+                $task->assigned_to_username = null;
             }
 
             return response()->json([
@@ -304,25 +350,50 @@ class ApiTaskController extends Controller
             if ($request->has('site_id')) {
                 $updateData['site_id'] = $request->input('site_id');
             }
+            if ($request->has('category_id')) {
+                $updateData['category_id'] = $request->input('category_id');
+            }
             if ($request->has('assigned_to')) {
-                $updateData['assigned_to'] = $request->input('assigned_to');
+                $assigned = $request->input('assigned_to');
+                if (is_array($assigned)) {
+                    $updateData['assigned_to'] = implode(',', $assigned);
+                } else {
+                    $updateData['assigned_to'] = $assigned;
+                }
             }
             if ($request->has('priority')) {
                 $updateData['priority'] = $request->input('priority');
             }
             if ($request->has('status')) {
                 $status = $request->input('status');
-                if ($status === 'In Progress') {
+                
+                // Normalize status case
+                $lowerStatus = strtolower($status);
+                if ($lowerStatus === 'in progress' || $lowerStatus === 'progress') {
                     $status = 'Progress';
+                } elseif ($lowerStatus === 'completed') {
+                    $status = 'Completed';
+                } elseif ($lowerStatus === 'hold' || $lowerStatus === 'on hold') {
+                    $status = 'Hold';
+                } elseif ($lowerStatus === 'pending') {
+                    $status = 'Pending';
+                } else {
+                    // Fallback to ucfirst just in case
+                    $status = ucfirst($status);
                 }
+                
                 $updateData['status'] = $status;
                 
                 if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'completed_at')) {
                     if ($status === 'Completed') {
-                        $updateData['completed_at'] = now();
+                        $updateData['completed_at'] = $request->input('completed_at') ?? now();
                     } else {
                         $updateData['completed_at'] = null;
                     }
+                }
+            } elseif ($request->has('completed_at')) {
+                if (\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('tasks', 'completed_at')) {
+                    $updateData['completed_at'] = $request->input('completed_at');
                 }
             }
             if ($request->has('due_date')) {
