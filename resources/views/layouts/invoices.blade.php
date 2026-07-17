@@ -99,7 +99,10 @@
                                     @if ($hasNextPayment)
                                         <tr style="background-color: #fffbeb;">
                                             <td>{{ $rowIndex++ }}</td>
-                                            <td><span class="text-muted">-</span></td>
+                                            <td>
+                                                <strong>PRO-{{ \Carbon\Carbon::parse($newStartDate)->format('Ym') }}-{{ str_pad($latestInvoice['subscription_id'] ?? rand(1000,9999), 4, '0', STR_PAD_LEFT) }}</strong>
+                                                <div style="font-size: 10px; color: #777; margin-top: 3px;">Proforma</div>
+                                            </td>
                                             <td>
                                                 <strong>{{ $nextPlan }} (Next Payment)</strong>
                                                 @if($extraUsers > 0 || $extraSites > 0)
