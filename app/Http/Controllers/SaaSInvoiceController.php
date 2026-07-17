@@ -62,7 +62,7 @@ class SaaSInvoiceController extends Controller
     public function index(Request $request)
     {
         // Enforce superadmin authorization
-        if (!isSuperAdmin()) {
+        if (!isSuperAdmin() && checkmodulepermission(16, 'can_report') != 1) {
             abort(403, 'Unauthorized access. Only superadmins can view invoices.');
         }
 
@@ -95,7 +95,7 @@ class SaaSInvoiceController extends Controller
 
     public function downloadPdf($id)
     {
-        if (!isSuperAdmin()) {
+        if (!isSuperAdmin() && checkmodulepermission(16, 'can_report') != 1) {
             abort(403, 'Unauthorized access. Only superadmins can download invoices.');
         }
 
@@ -126,7 +126,7 @@ class SaaSInvoiceController extends Controller
 
     public function createRazorpayOrder(Request $request)
     {
-        if (!isSuperAdmin()) {
+        if (!isSuperAdmin() && checkmodulepermission(16, 'can_report') != 1) {
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 
@@ -158,7 +158,7 @@ class SaaSInvoiceController extends Controller
 
     public function finalizePayment(Request $request)
     {
-        if (!isSuperAdmin()) {
+        if (!isSuperAdmin() && checkmodulepermission(16, 'can_report') != 1) {
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 
@@ -205,7 +205,7 @@ class SaaSInvoiceController extends Controller
 
     public function createAddonOrder(Request $request)
     {
-        if (!isSuperAdmin()) {
+        if (!isSuperAdmin() && checkmodulepermission(16, 'can_report') != 1) {
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 
@@ -242,7 +242,7 @@ class SaaSInvoiceController extends Controller
 
     public function finalizeAddonPayment(Request $request)
     {
-        if (!isSuperAdmin()) {
+        if (!isSuperAdmin() && checkmodulepermission(16, 'can_report') != 1) {
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 
@@ -339,7 +339,7 @@ class SaaSInvoiceController extends Controller
 
     public function removeAddon(Request $request)
     {
-        if (!isSuperAdmin()) {
+        if (!isSuperAdmin() && checkmodulepermission(16, 'can_report') != 1) {
             return response()->json(['error' => 'Unauthorized.'], 403);
         }
 

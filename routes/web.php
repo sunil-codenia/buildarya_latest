@@ -76,6 +76,12 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/dashboard', [DashboardController::class, 'getCompanyDashboard']);
     Route::get('/invoices', [\App\Http\Controllers\SaaSInvoiceController::class, 'index']);
     Route::get('/invoices/{id}/download', [\App\Http\Controllers\SaaSInvoiceController::class, 'downloadPdf']);
+    
+    // Support Tickets
+    Route::get('/tickets', [\App\Http\Controllers\SupportTicketController::class, 'index'])->name('tickets.index');
+    Route::post('/tickets', [\App\Http\Controllers\SupportTicketController::class, 'store'])->name('tickets.store');
+    Route::get('/tickets/{id}', [\App\Http\Controllers\SupportTicketController::class, 'show'])->name('tickets.show');
+    Route::post('/tickets/{id}/reply', [\App\Http\Controllers\SupportTicketController::class, 'reply'])->name('tickets.reply');
     Route::post('/invoices/create-razorpay-order', [\App\Http\Controllers\SaaSInvoiceController::class, 'createRazorpayOrder']);
     Route::post('/invoices/finalize-payment', [\App\Http\Controllers\SaaSInvoiceController::class, 'finalizePayment']);
     Route::post('/invoices/create-addon-order', [\App\Http\Controllers\SaaSInvoiceController::class, 'createAddonOrder']);

@@ -288,9 +288,14 @@ class ApiDashboardController extends Controller
                     
                     $nextAmount = (float)($latestInvoice['subscription_amount'] ?? $latestInvoice['amount']);
                     
+                    $newStartDateRaw = $latestInvoice['subscription_end_date'];
+                    $newStartDateCarbon = \Carbon\Carbon::parse($newStartDateRaw);
+                    $subId = $latestInvoice['subscription_id'] ?? rand(1000, 9999);
+                    $proformaNumber = 'PRO-' . $newStartDateCarbon->format('Ym') . '-' . str_pad($subId, 4, '0', STR_PAD_LEFT);
+                    
                     $upcomingInvoice = [
                         'id' => 'upcoming',
-                        'invoice_number' => '-',
+                        'invoice_number' => $proformaNumber,
                         'plan_name' => ($latestInvoice['subscription_plan'] ?? 'SaaS Subscription') . ' (Next Payment)',
                         'invoice_date' => \Carbon\Carbon::parse($latestInvoice['subscription_start_date'])->format('Y-m-d'),
                         'due_date' => \Carbon\Carbon::parse($latestInvoice['subscription_end_date'])->format('Y-m-d'),
@@ -361,9 +366,14 @@ class ApiDashboardController extends Controller
                         
                         $nextAmount = (float)($latestInvoice['subscription_amount'] ?? $latestInvoice['amount']);
                         
+                        $newStartDateRaw = $latestInvoice['subscription_end_date'];
+                        $newStartDateCarbon = \Carbon\Carbon::parse($newStartDateRaw);
+                        $subId = $latestInvoice['subscription_id'] ?? rand(1000, 9999);
+                        $proformaNumber = 'PRO-' . $newStartDateCarbon->format('Ym') . '-' . str_pad($subId, 4, '0', STR_PAD_LEFT);
+                        
                         $upcomingInvoice = [
                             'id' => 'upcoming',
-                            'invoice_number' => '-',
+                            'invoice_number' => $proformaNumber,
                             'plan_name' => ($latestInvoice['subscription_plan'] ?? 'SaaS Subscription') . ' (Next Payment)',
                             'invoice_date' => \Carbon\Carbon::parse($latestInvoice['subscription_start_date'])->format('Y-m-d'),
                             'due_date' => \Carbon\Carbon::parse($latestInvoice['subscription_end_date'])->format('Y-m-d'),

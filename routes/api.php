@@ -30,6 +30,7 @@ use App\Http\Controllers\api\ApiAttendanceController;
 use App\Http\Controllers\api\ApiTaskController;
 use App\Http\Controllers\api\ApiChatController;
 use App\Http\Controllers\api\LeadController;
+use App\Http\Controllers\api\ApiSupportTicketController;
 
 /*
 |--------------------------------------------------------------------------
@@ -698,5 +699,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/settings/currency', [ApiSettingsController::class, 'updateCurrency']);
         Route::post('/settings/upload-sources', [ApiSettingsController::class, 'updateUploadSources']);
         Route::post('/settings/update-batch', [ApiSettingsController::class, 'updateSettingGeneral']);
+
+        // Support Tickets API Suite
+        Route::get('/support-tickets', [ApiSupportTicketController::class, 'index']);
+        Route::post('/support-tickets', [ApiSupportTicketController::class, 'store']);
+        Route::get('/support-tickets/{id}', [ApiSupportTicketController::class, 'show'])->where('id', '[0-9]+');
+        Route::post('/support-tickets/{id}/reply', [ApiSupportTicketController::class, 'reply'])->where('id', '[0-9]+');
     });
 });

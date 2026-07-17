@@ -21,8 +21,11 @@
             </li>
             <li class="header">MAIN</li>
             <li class="{{ Request::is('dashboard') ? 'active open' : '' }}"><a href="{{url('/dashboard')}}"><i class="zmdi zmdi-view-dashboard"></i><span>Dashboard</span></a></li> 
-            @if (isSuperAdmin())
+            @if (isSuperAdmin() || checkmodulepermission(16, 'can_report') == 1)
             <li class="{{ Request::is('invoices') ? 'active open' : '' }}"><a href="{{url('/invoices')}}"><i class="zmdi zmdi-file-text"></i><span>Invoices</span></a></li>
+            @endif
+            @if (isSuperAdmin() || checkmodulepermission(17, 'can_report') == 1)
+            <li class="{{ Request::is('tickets*') ? 'active open' : '' }}"><a href="{{url('/tickets')}}"><i class="zmdi zmdi-receipt"></i><span>Support Tickets</span></a></li>
             @endif
 
             {{-- Module 1: Sites & Users --}}

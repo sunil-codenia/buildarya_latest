@@ -41,7 +41,7 @@
                 'maxSites' => null,
                 'billingCycle' => '',
                 'description' => 'Custom solutions for larger teams.',
-                'moduleNames' => ['Site Bills', 'Cost Category', 'Attendance Management', 'Task Management', 'Expense', 'Contacts', 'Documents', 'Site & User Management', 'Materials', 'Payment Vouchers', 'Sales', 'Machinery', 'Assets']
+                'moduleNames' => ['Site Bills', 'Cost Category', 'Attendance Management', 'Task Management', 'Expense', 'Contacts', 'Documents', 'Site & User Management', 'Materials', 'Payment Vouchers', 'Sales', 'Machinery', 'Assets', 'Invoices', 'Support Tickets']
             ];
         }
 
@@ -60,7 +60,8 @@
             ['key' => 'document_management', 'label' => 'Document Management', 'db_names' => ['Documents', 'Document Management']],
             ['key' => 'contact_management', 'label' => 'Contact Management', 'db_names' => ['Contacts', 'Contact Management']],
             ['key' => 'attendance_labour', 'label' => 'Attendance & Labour', 'db_names' => ['Attendance Management']],
-            ['key' => 'task_management', 'label' => 'Task Management', 'db_names' => ['Task Management']],
+            ['key' => 'invoices', 'label' => 'Invoices', 'db_names' => ['Invoices']],
+            ['key' => 'support_tickets', 'label' => 'Support Tickets', 'note' => 'Free', 'db_names' => ['Support Tickets']],
             ['key' => 'management', 'label' => 'Management', 'note' => 'Free', 'db_names' => ['System Management']],
         ];
     @endphp
