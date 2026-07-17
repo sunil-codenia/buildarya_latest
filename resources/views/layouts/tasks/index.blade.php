@@ -161,13 +161,14 @@
                                                 $isPastDue = $task->due_date && \Carbon\Carbon::parse($task->due_date)->startOfDay()->lt($today);
                                                 $assignedIds = array_filter(explode(',', $task->assigned_to));
                                                 $isAssignedUser = in_array(session('uid'), $assignedIds);
-                                                $canChangeStatus = ($isAdmin || $isAssignedUser) && !$isPastDue;
-                                                $statusClass = 'btn-secondary';
+                                                $canChangeStatus = ($isAdmin || $isAssignedUser);
+                                                
+                                                $statusClass = 'btn-primary';
                                                 if($task->status == 'Progress' || $task->status == 'In Progress') $statusClass = 'btn-warning';
                                                 elseif($task->status == 'Completed') $statusClass = 'btn-success';
                                                 elseif($task->status == 'On Hold') $statusClass = 'btn-info';
                                                 
-                                                $badgeClass = 'badge-secondary';
+                                                $badgeClass = 'badge-primary';
                                                 if($task->status == 'Progress' || $task->status == 'In Progress') $badgeClass = 'badge-warning';
                                                 elseif($task->status == 'Completed') $badgeClass = 'badge-success';
                                                 elseif($task->status == 'On Hold') $badgeClass = 'badge-info';
@@ -176,7 +177,7 @@
                                             @if($canChangeStatus)
                                                 <div class="dropdown">
                                                     <button class="btn {{ $statusClass }} btn-sm dropdown-toggle btn-round" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                                        {{ $task->status == 'Progress' ? 'In Progress' : $task->status }}
+                                                        {{ $task->status == 'Progress' ? 'In Progress' : ($task->status ?: 'Pending') }}
                                                     </button>
                                                     <div class="dropdown-menu">
                                                         <a class="dropdown-item" href="{{ url('/tasks/status/'.$task->id.'?status=Pending') }}">Pending</a>
@@ -185,14 +186,9 @@
                                                         <a class="dropdown-item btn-status-hold" href="#" data-id="{{ $task->id }}" data-remarks="{{ $task->remarks }}">On Hold</a>
                                                     </div>
                                                 </div>
-                                            @elseif($isPastDue && ($isAdmin || $isAssignedUser))
-                                                {{-- Past due-date task: show status badge with lock icon --}}
-                                                <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;" title="Cannot change status: Due date has passed">
-                                                    <i class="zmdi zmdi-lock mr-1"></i> {{ $task->status == 'Progress' ? 'In Progress' : $task->status }}
-                                                </span>
                                             @else
                                                 {{-- Not assigned to this user --}}
-                                                <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;">{{ $task->status == 'Progress' ? 'In Progress' : $task->status }}</span>
+                                                <span class="badge {{ $badgeClass }} p-2" style="border-radius: 6px;">{{ $task->status == 'Progress' ? 'In Progress' : ($task->status ?: 'Pending') }}</span>
                                             @endif
 
                                             @if($task->status == 'Completed')

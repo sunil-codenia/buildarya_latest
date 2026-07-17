@@ -182,7 +182,8 @@
                                             <td class="text-center">
                                                 <a href="{{ url('/invoices/' . $invoice['id'] . '/download') }}" 
                                                    class="btn btn-primary btn-round btn-sm waves-effect" 
-                                                   title="Download PDF">
+                                                   title="Download PDF"
+                                                   style="color: white !important;">
                                                     <i class="zmdi zmdi-download"></i> Download
                                                 </a>
                                             </td>

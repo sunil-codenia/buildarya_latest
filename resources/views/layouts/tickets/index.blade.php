@@ -11,7 +11,7 @@
                     </h2>
                     <ul class="header-dropdown">
                         <li>
-                            <button class="btn btn-primary btn-round waves-effect" data-toggle="modal" data-target="#createTicketModal">
+                            <button class="btn btn-primary btn-round waves-effect" data-toggle="modal" data-target="#createTicketModal" style="color: white !important;">
                                 <i class="zmdi zmdi-plus"></i> Create Ticket
                             </button>
                         </li>

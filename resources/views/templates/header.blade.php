@@ -30,6 +30,69 @@
 
 <link rel="stylesheet" href="/css/custom.css"/>
 
+<style>
+    /* Global fix for btn-primary text color overriding from color_skins.css */
+    body .btn-primary:not(.btn-simple), 
+    body .btn-primary:not(.btn-simple):hover, 
+    body .btn-primary:not(.btn-simple):focus, 
+    body .btn-primary:not(.btn-simple):active,
+    body a.btn-primary:not(.btn-simple), 
+    body a.btn-primary:not(.btn-simple):hover, 
+    body a.btn-primary:not(.btn-simple):focus, 
+    body a.btn-primary:not(.btn-simple):active,
+    body .btn-primary:not(.btn-simple) i,
+    .theme-blue .btn-primary:not(.btn-simple),
+    .theme-custom .btn-primary:not(.btn-simple) {
+        color: #ffffff !important;
+    }
+    
+    /* Ensure btn-simple buttons with primary class are fully visible */
+    body .btn-primary.btn-simple {
+        background-color: transparent !important;
+        color: var(--custom-primary, #764ba2) !important;
+        border: 1px solid var(--custom-primary, #764ba2) !important;
+    }
+    
+    body .btn-primary.btn-simple a,
+    body .btn-primary.btn-simple i,
+    body .btn-primary.btn-simple span {
+        color: var(--custom-primary, #764ba2) !important;
+    }
+    
+    body .btn-primary.btn-simple:hover {
+        background-color: var(--custom-primary, #764ba2) !important;
+        color: #ffffff !important;
+    }
+
+    body .btn-primary.btn-simple:hover a,
+    body .btn-primary.btn-simple:hover i,
+    body .btn-primary.btn-simple:hover span {
+        color: #ffffff !important;
+    }
+    
+    /* Perfect vertical centering for form controls and selects */
+    body .form-control,
+    body .bootstrap-select > .btn {
+        height: 42px !important;
+        padding: 0 18px !important;
+        line-height: 40px !important;
+        font-size: 14px !important;
+    }
+
+    body .bootstrap-select .filter-option,
+    body .bootstrap-select .filter-option-inner-inner {
+        height: 40px !important;
+        line-height: 40px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Force all buttons in modals to be round (pill-shaped) */
+    body .modal .btn {
+        border-radius: 30px !important;
+    }
+</style>
+
 </head>   <!-- include header -->
 
 {{-- @if(Session::has('theme'))
