@@ -21,7 +21,8 @@ class InvoiceHeadsController extends Controller
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
        $check = DB::connection($user_db_conn_name)->table('sales_manage_invoice')->where('type_id','=',$id)->get();
-       $headname = DB::connection($user_db_conn_name)->table('sales_dedadd')->where('id','=',$id)->get()[0];
+       $headname_obj = DB::connection($user_db_conn_name)->table('sales_dedadd')->where('id','=',$id)->first();
+       $headname = $headname_obj ? $headname_obj->name : 'Unknown';
        if(Count($check) > 0){
     return redirect('/sales_inv_head')
     ->with('error', 'This Head Cannot Be Deleted. Head Is Used In Invoices!');

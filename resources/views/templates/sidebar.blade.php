@@ -12,7 +12,7 @@
                         <small style="color: #FFC107;">Expires: {{ Session::get('expiry_date') }}</small>
                     </div>
                     <a href="{{url('/profile')}}" title="Profile & Password"><i class="zmdi zmdi-account"></i></a>
-                    <a href="{{url('/dashboard')}}" title="Dashboard"><i class="zmdi zmdi-home"></i></a>
+                    <a href="{{url('/invoices')}}" title="Invoices"><i class="zmdi zmdi-file-text"></i></a>
                     <a href="{{url('/contacts')}}" title="Contact List"><i class="zmdi zmdi-account-box-phone"></i></a>
                     <a href="{{url('/file-structure')}}" title="Chat App"><i class="zmdi zmdi-folder-star"></i></a>
                     <a href="{{url('/activity')}}" title="Chat App"><i class="zmdi zmdi-chart"></i></a>
@@ -21,12 +21,7 @@
             </li>
             <li class="header">MAIN</li>
             <li class="{{ Request::is('dashboard') ? 'active open' : '' }}"><a href="{{url('/dashboard')}}"><i class="zmdi zmdi-view-dashboard"></i><span>Dashboard</span></a></li> 
-            @if (isSuperAdmin() || checkmodulepermission(16, 'can_report') == 1)
-            <li class="{{ Request::is('invoices') ? 'active open' : '' }}"><a href="{{url('/invoices')}}"><i class="zmdi zmdi-file-text"></i><span>Invoices</span></a></li>
-            @endif
-            @if (isSuperAdmin() || checkmodulepermission(17, 'can_report') == 1)
-            <li class="{{ Request::is('tickets*') ? 'active open' : '' }}"><a href="{{url('/tickets')}}"><i class="zmdi zmdi-receipt"></i><span>Support Tickets</span></a></li>
-            @endif
+
 
             {{-- Module 1: Sites & Users --}}
             @if (canViewModule(1))
@@ -218,15 +213,18 @@
             <li class="{{ Request::is('settings') || Request::is('sales_companies') || Request::is('activity') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-settings"></i><span>Management</span> </a>
                 <ul style="list-style-type: none; display: {{ Request::is('settings') || Request::is('sales_companies') || Request::is('activity') ? 'block' : 'none' }};">
                     <li class="{{ Request::is('settings') ? 'active' : '' }}"><a href="{{url('/settings')}}"> <i class="zmdi zmdi-settings"></i> Settings</a></li>
-                    <li class="{{ Request::is('sales_companies') ? 'active' : '' }}"><a href="{{url('/sales_companies')}}"> <i class="zmdi zmdi-city"></i> My Companies</a></li>
+                    <li class="{{ Request::is('sales_companies') ? 'active' : '' }}"><a href="{{url('/sales_companies')}}"> <i class="zmdi zmdi-city"></i> Companies</a></li>
                     <li class="{{ Request::is('activity') ? 'active' : '' }}"><a href="{{url('/activity')}}"> <i class="zmdi zmdi-chart"></i> System Activity</a></li>
-
-                    {{-- <li><a href="{{url('/management_report')}}"> <i class="zmdi zmdi-city"></i>Reports</a></li> --}}
-                    
                 </ul>
             </li>
             @endif
 
+            {{-- @if (isSuperAdmin() || checkmodulepermission(16, 'can_report') == 1)
+            <li class="{{ Request::is('invoices') ? 'active open' : '' }}"><a href="{{url('/invoices')}}"><i class="zmdi zmdi-file-text"></i><span>Invoices</span></a></li>
+            @endif --}}
+            @if (isSuperAdmin() || checkmodulepermission(17, 'can_report') == 1)
+            <li class="{{ Request::is('tickets*') ? 'active open' : '' }}"><a href="{{url('/tickets')}}"><i class="zmdi zmdi-receipt"></i><span>Support Tickets</span></a></li>
+            @endif
             <li class="header">APPS</li>
             @if(isSuperAdmin())
             <li class="{{ Request::is('dashboard/upload_apk') ? 'active open' : '' }}">

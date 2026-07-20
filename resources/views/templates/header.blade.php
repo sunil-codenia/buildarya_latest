@@ -70,13 +70,36 @@
         color: #ffffff !important;
     }
     
-    /* Perfect vertical centering for form controls and selects */
-    body .form-control,
-    body .bootstrap-select > .btn {
+    /* Cross-browser perfect vertical centering for text inputs */
+    body input.form-control {
         height: 42px !important;
-        padding: 0 18px !important;
+        padding: 8px 15px !important;
+        line-height: 1.5 !important;
+        font-size: 14px !important;
+        border-radius: 8px !important;
+    }
+    
+    /* Perfect vertical centering for select dropdowns */
+    body select.form-control {
+        height: 42px !important;
+        padding: 0 15px !important;
         line-height: 40px !important;
         font-size: 14px !important;
+        border-radius: 8px !important;
+    }
+    
+    body textarea.form-control {
+        height: auto !important;
+        min-height: 80px;
+    }
+
+    /* Fix for Bootstrap Select Dropdowns */
+    body .bootstrap-select > .btn {
+        height: 42px !important;
+        padding: 8px 15px !important;
+        line-height: 1.5 !important;
+        font-size: 14px !important;
+        border-radius: 8px !important;
     }
 
     body .bootstrap-select .filter-option,

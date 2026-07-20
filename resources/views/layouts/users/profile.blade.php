@@ -18,6 +18,9 @@
                         <p><strong>Contact:</strong> {{ $user->contact_no }}</p>
                         <p><strong>Role:</strong> {{ getRoleDetailsById($user->role_id)->name }}</p>
                         <p><strong style="color: #eda61a;">Subscription Expires:</strong> {{ Session::get('expiry_date') }}</p>
+                        @if (isSuperAdmin() || checkmodulepermission(16, 'can_report') == 1)
+                            <a href="{{url('/invoices')}}" class="btn btn-primary btn-round btn-sm waves-effect m-t-10"><i class="zmdi zmdi-file-text"></i> View Invoices</a>
+                        @endif
                     </div>
                 </div>
             </div>

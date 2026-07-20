@@ -364,14 +364,15 @@ function isSuperAdmin()
 
 function canViewModule($module_id)
 {
+    if (isSuperAdmin()) {
+        return true;
+    }
+
     $company_modules = session()->get('company_modules', []);
     if (!in_array($module_id, $company_modules)) {
         return false;
     }
 
-    if (isSuperAdmin()) {
-        return true;
-    }
     return checkmodulepermission($module_id, 'can_view') == 1;
 }
 

@@ -1,10 +1,11 @@
+
 <div class="col-lg-12 col-md-12 col-sm-12">
-    <div class="card">
+    <div class="card" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: none; margin-bottom: 25px;">
         <div class="body">
             <form action="{{ url('/dashboard') }}" method="GET" id="dashboard_filter_form">
                 <div class="row clearfix align-items-end">
                     <div class="col-lg-2 col-md-4 col-sm-6">
-                        <label>Date Filter</label>
+                        <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #888;">Date Filter</label>
                         <select class="form-control" name="date_filter" id="date_filter" onchange="toggleCustomDate()">
                             <option value="today" {{ $filter_type == 'today' ? 'selected' : '' }}>Today</option>
                             <option value="this_week" {{ $filter_type == 'this_week' ? 'selected' : '' }}>This Week</option>
@@ -16,12 +17,12 @@
                     </div>
 
                     <div class="col-lg-2 col-md-4 col-sm-6 custom-date-fields" style="display: {{ $filter_type == 'custom' ? 'block' : 'none' }}">
-                        <label>From</label>
+                        <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #888;">From</label>
                         <input type="date" name="from_date" class="form-control" value="{{ $from_date }}">
                     </div>
 
                     <div class="col-lg-2 col-md-4 col-sm-6 custom-date-fields" style="display: {{ $filter_type == 'custom' ? 'block' : 'none' }}">
-                        <label>To</label>
+                        <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #888;">To</label>
                         <input type="date" name="to_date" class="form-control" value="{{ $to_date }}">
                     </div>
 
@@ -34,7 +35,7 @@
 
                     @if(isset($sitesnameadd))
                     <div class="col-lg-2 col-md-4 col-sm-6">
-                        <label>Site Filter</label>
+                        <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #888;">Site Filter</label>
                         <select class="form-control" name="site_id" id="site_id">
                             @if($visiblity_at_site != 'current')
                                 <option value="all">All Sites</option>
@@ -58,7 +59,7 @@
                     </div>
 
                     <div id="comparison_site_div" class="col-lg-2 col-md-4 col-sm-6" style="display: {{ isset($compare_site_id) ? 'block' : 'none' }}">
-                        <label>Compare With</label>
+                        <label style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: #888;">Compare With</label>
                         <select class="form-control" name="compare_site_id">
                             <option value="">Select Site</option>
                             @foreach($sitesnameadd ?? [] as $site)
@@ -68,9 +69,9 @@
                     </div>
 
                     <div class="col-lg-2 col-md-4 col-sm-6 d-flex align-items-end" style="justify-content:space-between; gap:5px;">
-                        <button type="submit" class="btn btn-info" style="font-size:smaller; flex:1; white-space: nowrap;">Filter</button>
-                        <button type="button" onclick="switchSiteNow()" class="btn btn-warning" title="Switch as Active Site" style="font-size:smaller; flex:0 0 auto; white-space: nowrap;"><i class="zmdi zmdi-apps"></i> Switch</button>
-                        <button type="submit" formaction="{{ url('/dashboard/export') }}" class="btn btn-success" style="font-size:smaller; flex:1; white-space: nowrap;">Export CSV</button>
+                        <button type="submit" class="btn btn-info btn-round" style="font-size:smaller; flex:1; white-space: nowrap; box-shadow: 0 4px 10px rgba(0,188,212,0.3);">Filter</button>
+                        <button type="button" onclick="switchSiteNow()" class="btn btn-warning btn-round" title="Switch as Active Site" style="font-size:smaller; flex:0 0 auto; white-space: nowrap; box-shadow: 0 4px 10px rgba(255,152,0,0.3);"><i class="zmdi zmdi-apps"></i> Switch</button>
+                        <button type="submit" formaction="{{ url('/dashboard/export') }}" class="btn btn-success btn-round" style="font-size:smaller; flex:1; white-space: nowrap; box-shadow: 0 4px 10px rgba(76,175,80,0.3);">Export CSV</button>
                     </div>
                 </div>
             </form>

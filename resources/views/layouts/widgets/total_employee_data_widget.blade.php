@@ -1,18 +1,16 @@
-<div class="col-lg-3 col-md-6">
-    <div class="card">
-        <div class="body">
-            <div style="    text-align-last: center;">
-                <i class="zmdi zmdi-accounts-alt col-purple" style="    font-size: 110px;"></i></div>
-            <h3 class="number count-to" data-from="0" data-to="2000" data-speed="2000"
-            data-fresh-interval="2000">
-               {{get_total_employee_data_widget()}}
-            </h3>
-            <p class="text-muted">Total Employees</p>
-            <div class="progress">
-                <div class="progress-bar l-parpl" role="progressbar" aria-valuenow="100" aria-valuemin="0"
-                    aria-valuemax="100" style="width: 100%;"></div>
+<div class="col-lg-4 col-md-6 col-sm-12">
+    <div class="card" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: none;">
+        <div class="body d-flex align-items-center p-4">
+            <div class="icon d-flex align-items-center justify-content-center" style="width: 65px; height: 65px; border-radius: 15px; background: rgba(156, 39, 176, 0.1);">
+                <i class="zmdi zmdi-accounts-alt col-purple" style="font-size: 32px;"></i>
             </div>
-            {{-- <small>Change 13%</small> --}}
+            <div style="margin-left: 20px;">
+                <p class="text-muted mb-1" style="font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Total Employees</p>
+                <h3 class="number mb-0" style="font-weight: 700; color: #2c2c2c;">{{get_total_employee_data_widget()}}</h3>
+            </div>
+        </div>
+        <div class="progress" style="height: 4px; margin: 0; border-radius: 0 0 12px 12px; background-color: #f5f5f5;">
+            <div class="progress-bar bg-purple" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100" style="width: 100%; background-color: #9c27b0;"></div>
         </div>
     </div>
 </div>
