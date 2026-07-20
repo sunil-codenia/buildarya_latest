@@ -277,6 +277,26 @@ class ApiChatController extends Controller
                 $msgRecord->image_url = null;
             }
 
+            // --- Generate Web Notification ---
+            $notifMsg = $request->filled('message') ? \Illuminate\Support\Str::limit($request->message, 30) : 'Sent an attachment';
+            $senderName = DB::connection($conn)->table('users')->where('id', $currentUser)->value('name');
+            
+            if ($isAdmin) {
+                // Admin sending to specific user
+                if ((int)$threadUserId != (int)$currentUser) {
+                    saveWebNotification((int)$threadUserId, "New Support Message", $senderName . ": " . $notifMsg, '/tasks', $conn);
+                }
+            } else {
+                // User sending to admin(s)
+                $admins = DB::connection($conn)->table('users')->where('role_id', 1)->get();
+                foreach($admins as $admin) {
+                    if ($admin->id != $currentUser) {
+                        saveWebNotification($admin->id, "New Support Message from " . $senderName, $notifMsg, '/tasks', $conn);
+                    }
+                }
+            }
+            // --------------------------------
+
             return response()->json([
                 'status' => 'Ok',
                 'status_code' => '200',
@@ -600,6 +620,29 @@ class ApiChatController extends Controller
             } else if ($msgRecord) {
                 $msgRecord->image_url = null;
             }
+
+            // --- Generate Web Notification ---
+            $notifMsg = $request->filled('message') ? \Illuminate\Support\Str::limit($request->message, 30) : 'Sent an attachment';
+            $senderName = DB::connection($conn)->table('users')->where('id', $currentUser)->value('name');
+            $assignedIds = array_filter(explode(',', $task->assigned_to));
+            
+            // Notify assigned users
+            foreach ($assignedIds as $assignedId) {
+                if ((int)$assignedId != (int)$currentUser) {
+                    saveWebNotification((int)$assignedId, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
+                }
+            }
+            
+            // If sender is not an admin, notify admins too
+            if (!$isAdmin) {
+                $admins = DB::connection($conn)->table('users')->where('role_id', 1)->get();
+                foreach($admins as $admin) {
+                    if ($admin->id != $currentUser && !in_array($admin->id, $assignedIds)) {
+                        saveWebNotification($admin->id, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
+                    }
+                }
+            }
+            // --------------------------------
 
             return response()->json([
                 'status' => 'Ok',

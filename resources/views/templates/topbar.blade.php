@@ -18,8 +18,72 @@
             <h5>{{ Session::get('comp_name') }}</h5>
         </div>
 
-        <!-- Right Icons Area -->
         <ul class="nav navbar-nav navbar-right d-flex align-items-center">
+            <li class="dropdown">
+                <a href="javascript:void(0);" class="dropdown-toggle" data-toggle="dropdown" role="button" style="display: flex; align-items: center;" onclick="markAllNotificationsRead()">
+                    <div style="position: relative; display: inline-block;">
+                        <i class="zmdi zmdi-notifications"></i>
+                        @php 
+                            $unreadCount = 0; 
+                            $webNotifications = collect();
+                            $conn = session()->get('comp_db_conn_name');
+                            $uid = session()->get('uid');
+                            if ($conn && $uid) {
+                                if (\Illuminate\Support\Facades\Schema::connection($conn)->hasTable('web_notifications')) {
+                                    $webNotifications = DB::connection($conn)->table('web_notifications')
+                                        ->where('user_id', $uid)
+                                        ->orderBy('created_at', 'desc')
+                                        ->limit(10)
+                                        ->get();
+                                    $unreadCount = $webNotifications->where('is_read', 0)->count();
+                                }
+                            }
+                        @endphp
+                        @if($unreadCount > 0)
+                            <span class="badge badge-danger notif-badge" style="position: absolute; top: -10px; right: -12px; border-radius: 50%; padding: 4px 6px; font-size: 10px; line-height: 1; background: #e43a45; color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">{{ $unreadCount }}</span>
+                        @endif
+                    </div>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-right slideDown" style="width: 320px; padding: 0; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-radius: 8px; border: none; overflow: hidden; margin-top: 5px;">
+                    <li class="header" style="background: #f8f9fa; padding: 15px 20px; font-weight: 700; color: #333; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; font-size: 13px; letter-spacing: 0.5px;">
+                        NOTIFICATIONS
+                        @if($unreadCount > 0)
+                            <span class="badge notif-badge" style="background-color: var(--custom-primary, #764ba2); color: white; border-radius: 12px; padding: 4px 8px; font-size: 11px;">{{ $unreadCount }} New</span>
+                        @endif
+                    </li>
+                    <li class="body" style="max-height: 350px; overflow-y: auto; padding: 0;">
+                        <ul class="list-unstyled" style="margin: 0; padding: 0;">
+                            @if(count($webNotifications) > 0)
+                                @foreach($webNotifications as $notif)
+                                    <li style="margin: 0 !important; padding: 0 !important; height: auto !important; min-height: 0 !important; border: none !important;">
+                                        <a href="{{ route('notifications.read', ['id' => $notif->id]) }}" style="display: flex !important; align-items: flex-start !important; padding: 15px 20px !important; border-bottom: 1px solid #f1f1f1 !important; background-color: {{ $notif->is_read ? '#ffffff' : '#fcfaff' }} !important; height: auto !important; min-height: 0 !important; white-space: normal !important; line-height: normal !important; transition: all 0.2s ease; width: 100% !important; box-sizing: border-box !important;">
+                                            <div style="flex-shrink: 0 !important; width: 38px !important; height: 38px !important; border-radius: 50% !important; display: flex !important; align-items: center !important; justify-content: center !important; margin-right: 15px !important; background: {{ $notif->is_read ? '#f0f0f0' : 'linear-gradient(135deg, #764ba2, #a88be8)' }} !important; color: {{ $notif->is_read ? '#999' : '#fff' }} !important; box-shadow: {{ $notif->is_read ? 'none' : '0 2px 5px rgba(118,75,162,0.3)' }} !important;">
+                                                <i class="zmdi zmdi-notifications-active" style="font-size: 18px !important;"></i>
+                                            </div>
+                                            <div class="menu-info" style="flex: 1 !important; min-width: 0 !important; text-align: left !important; overflow: hidden !important; padding: 0 !important; margin: 0 !important;">
+                                                <h4 style="margin: 0 0 5px 0 !important; padding: 0 !important; font-size: 13px !important; color: #222 !important; {{ $notif->is_read ? 'font-weight: 500;' : 'font-weight: 700;' }} line-height: 1.3 !important; display: block !important; word-break: break-word !important; white-space: normal !important; overflow-wrap: break-word !important;">{{ $notif->title }}</h4>
+                                                <p style="margin: 0 0 5px 0 !important; padding: 0 !important; font-size: 12px !important; color: #555 !important; white-space: normal !important; line-height: 1.4 !important; display: block !important; text-align: left !important; word-break: break-word !important; overflow-wrap: break-word !important;">{{ $notif->message }}</p>
+                                                <p style="margin: 0 !important; padding: 0 !important; font-size: 11px !important; color: #999 !important; display: block !important; text-align: left !important;"><i class="zmdi zmdi-time" style="margin-right: 3px;"></i> {{ \Carbon\Carbon::parse($notif->created_at)->diffForHumans() }}</p>
+                                            </div>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            @else
+                                <li style="margin: 0; padding: 0;">
+                                    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center;">
+                                        <i class="zmdi zmdi-notifications-none" style="font-size: 40px; color: #e0e0e0; margin-bottom: 15px;"></i>
+                                        <h4 style="margin: 0 0 5px 0; font-size: 14px; color: #666; font-weight: 600;">All Caught Up!</h4>
+                                        <p style="margin: 0; font-size: 12px; color: #999;">You have no new notifications.</p>
+                                    </div>
+                                </li>
+                            @endif
+                        </ul>
+                    </li>
+                    <li class="footer" style="padding: 0; text-align: center; border-top: 1px solid #eee; background: #fff;"> 
+                        <a href="javascript:void(0);" style="display: block !important; padding: 12px !important; color: var(--custom-primary, #764ba2) !important; font-weight: 600 !important; font-size: 12px !important; text-transform: uppercase !important; letter-spacing: 0.5px !important; transition: background 0.2s !important;">View All Notifications</a> 
+                    </li>
+                </ul>
+            </li>
             <li>
                 <a title="Sign-out" data-toggle="modal" data-target="#logoutmodal" class="mega-menu" data-close="true">
                     <i class="zmdi zmdi-power"></i>
@@ -157,4 +221,21 @@
             }
         }
     });
+</script>
+<script>
+function markAllNotificationsRead() {
+    var badges = document.querySelectorAll('.notif-badge');
+    badges.forEach(b => b.style.display = 'none');
+    
+    fetch('{{ route("notifications.markAllRead") }}', {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        }
+    }).then(r => r.json()).then(data => {
+        if(data.status === 'success'){
+            console.log('All notifications marked as read.');
+        }
+    }).catch(e => console.error(e));
+}
 </script>

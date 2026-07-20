@@ -222,6 +222,13 @@ class ApiTaskController extends Controller
 
             addActivity($task_id, 'tasks', "New task created: " . $title, 14, $uid, $conn);
 
+            // Notify assigned users
+            $assignedIds = array_filter(explode(',', $assigned_to));
+            foreach ($assignedIds as $assignedId) {
+                sendAlertNotification($assignedId, 'You have been assigned a new task: ' . $title, 'Task Assigned', $conn);
+                saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $title, '/tasks', $conn);
+            }
+
             $record = DB::connection($conn)->table('tasks')->where('id', $task_id)->first();
 
             return response()->json([
@@ -416,6 +423,15 @@ class ApiTaskController extends Controller
             DB::connection($conn)->table('tasks')->where('id', $task_id)->update($updateData);
 
             addActivity($task_id, 'tasks', "Task updated: " . ($updateData['title'] ?? $task->title), 14, $uid, $conn);
+
+            if (isset($updateData['status'])) {
+                $assigned_to_use = isset($updateData['assigned_to']) ? $updateData['assigned_to'] : $task->assigned_to;
+                $assignedIds = array_filter(explode(',', $assigned_to_use));
+                foreach ($assignedIds as $assignedId) {
+                    sendAlertNotification($assignedId, 'Task "' . ($updateData['title'] ?? $task->title) . '" status updated to: ' . $updateData['status'], 'Task Status Updated', $conn);
+                    saveWebNotification($assignedId, 'Task Status Updated', 'Task "' . ($updateData['title'] ?? $task->title) . '" status updated to: ' . $updateData['status'], '/tasks', $conn);
+                }
+            }
 
             $record = DB::connection($conn)->table('tasks')->where('id', $task_id)->first();
 
@@ -684,5 +700,83 @@ class ApiTaskController extends Controller
                 'message' => 'Failed to delete task category: ' . $e->getMessage()
             ]);
         }
+    }
+
+    public function getNotifications(Request $request)
+    {
+        $uid = \Illuminate\Support\Facades\Auth::id();
+        $conn = session()->get('comp_db_conn_name');
+
+        if (!$uid || !$conn) {
+            return response()->json([
+                'status' => 'Failed',
+                'status_code' => '401',
+                'message' => 'Unauthorized or missing company context'
+            ]);
+        }
+
+        if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasTable('web_notifications')) {
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'data' => [],
+                'unread_count' => 0
+            ]);
+        }
+
+        $notifications = DB::connection($conn)->table('web_notifications')
+            ->where('user_id', $uid)
+            ->orderBy('id', 'desc')
+            ->take(50)
+            ->get();
+
+        $unreadCount = DB::connection($conn)->table('web_notifications')
+            ->where('user_id', $uid)
+            ->where('is_read', 0)
+            ->count();
+
+        return response()->json([
+            'status' => 'Ok',
+            'status_code' => '200',
+            'data' => $notifications,
+            'unread_count' => $unreadCount
+        ]);
+    }
+
+    public function markNotificationsRead(Request $request)
+    {
+        $uid = \Illuminate\Support\Facades\Auth::id();
+        $conn = session()->get('comp_db_conn_name');
+        $notif_id = $request->input('notif_id'); // Optional, if provided mark single, else mark all
+
+        if (!$uid || !$conn) {
+            return response()->json([
+                'status' => 'Failed',
+                'status_code' => '401',
+                'message' => 'Unauthorized or missing company context'
+            ]);
+        }
+
+        if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasTable('web_notifications')) {
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'message' => 'Notifications updated successfully'
+            ]);
+        }
+
+        $query = DB::connection($conn)->table('web_notifications')->where('user_id', $uid);
+        
+        if ($notif_id) {
+            $query->where('id', $notif_id);
+        }
+
+        $query->update(['is_read' => 1]);
+
+        return response()->json([
+            'status' => 'Ok',
+            'status_code' => '200',
+            'message' => 'Notifications marked as read'
+        ]);
     }
 }

@@ -161,7 +161,7 @@
                                                 $isPastDue = $task->due_date && \Carbon\Carbon::parse($task->due_date)->startOfDay()->lt($today);
                                                 $assignedIds = array_filter(explode(',', $task->assigned_to));
                                                 $isAssignedUser = in_array(session('uid'), $assignedIds);
-                                                $canChangeStatus = ($isAdmin || $isAssignedUser);
+                                                $canChangeStatus = true; // Allow all users to change status as requested
                                                 
                                                 $statusClass = 'btn-primary';
                                                 if($task->status == 'Progress' || $task->status == 'In Progress') $statusClass = 'btn-warning';

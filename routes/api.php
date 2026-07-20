@@ -486,6 +486,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('/attendance/{id}', [ApiAttendanceController::class, 'destroy']);
 
         // Task Management API Suite
+        Route::get('/notifications', [ApiTaskController::class, 'getNotifications']);
+        Route::post('/notifications/read', [ApiTaskController::class, 'markNotificationsRead']);
+
         Route::get('/tasks', [ApiTaskController::class, 'index']);
         Route::post('/tasks', [ApiTaskController::class, 'store']);
         Route::get('/tasks/chats', [ApiChatController::class, 'fetchTaskChats']);

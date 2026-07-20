@@ -21,6 +21,42 @@ class DashboardController extends Controller
         return view('layouts.apk_upload');
     }
 
+    public function markNotificationRead($id)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        $uid = session()->get('uid');
+        if ($conn && $uid) {
+            $notif = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                ->where('id', $id)
+                ->where('user_id', $uid)
+                ->first();
+                
+            if ($notif) {
+                \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                    ->where('id', $id)
+                    ->update(['is_read' => 1]);
+                
+                if ($notif->url) {
+                    return redirect($notif->url);
+                }
+            }
+        }
+        return redirect()->back();
+    }
+
+    public function markAllNotificationsRead()
+    {
+        $conn = session()->get('comp_db_conn_name');
+        $uid = session()->get('uid');
+        if ($conn && $uid) {
+            \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                ->where('user_id', $uid)
+                ->where('is_read', 0)
+                ->update(['is_read' => 1]);
+        }
+        return response()->json(['status' => 'success']);
+    }
+
     /**
      * Store Uploaded APK
      */

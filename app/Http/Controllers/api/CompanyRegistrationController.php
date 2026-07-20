@@ -632,6 +632,21 @@ class CompanyRegistrationController extends Controller
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
             
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `web_notifications` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id` INT NOT NULL,
+                    `title` VARCHAR(255) NULL,
+                    `message` TEXT NULL,
+                    `url` VARCHAR(255) NULL,
+                    `is_read` TINYINT(1) DEFAULT 0,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`user_id`),
+                    INDEX (`is_read`),
+                    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+            
             \Log::info("Attendance, tasks, and task_chats tables successfully created for connection: {$connName}");
         } catch (\Exception $e) {
             \Log::error("Failed to dynamically create modules tables: " . $e->getMessage());

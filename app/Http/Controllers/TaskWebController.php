@@ -148,6 +148,13 @@ class TaskWebController extends Controller
 
         DB::connection($conn)->table('tasks')->insert($data);
 
+        // Notify assigned users
+        $assignedIds = array_filter(explode(',', $assigned));
+        foreach ($assignedIds as $assignedId) {
+            sendAlertNotification($assignedId, 'You have been assigned a new task: ' . $request->title, 'Task Assigned');
+            saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $request->title, '/tasks', $conn);
+        }
+
         return redirect()->back()->with('success', 'Task created successfully!');
     }
 
@@ -212,16 +219,7 @@ class TaskWebController extends Controller
             return redirect()->back()->with('errorcode', 'Task not found.');
         }
 
-        // Non-admin users can only update their own assigned tasks
-        $assignedIds = array_filter(explode(',', $task->assigned_to));
-        if (!$isAdmin && !in_array($uid, $assignedIds)) {
-            return redirect()->back()->with('errorcode', 'You can only update status of your own tasks.');
-        }
-
-        // Block status change if task due_date is in the past (and not an admin)
-        if (!$isAdmin && $task->due_date && Carbon::parse($task->due_date)->startOfDay()->lt(Carbon::today())) {
-            return redirect()->back()->with('errorcode', 'Cannot change status of a task whose due date has already passed.');
-        }
+        // Removed restrictions to allow users to freely update status
 
         $request->validate([
             'status' => 'required|in:Pending,Progress,Completed,On Hold',
@@ -243,6 +241,13 @@ class TaskWebController extends Controller
         }
 
         DB::connection($conn)->table('tasks')->where('id', $id)->update($updateData);
+
+        // Notify assigned users of status change
+        $assignedIds = array_filter(explode(',', $task->assigned_to));
+        foreach ($assignedIds as $assignedId) {
+            sendAlertNotification($assignedId, 'Task "' . $task->title . '" status updated to: ' . $request->status, 'Task Status Updated');
+            saveWebNotification($assignedId, 'Task Status Updated', 'Task "' . $task->title . '" status updated to: ' . $request->status, '/tasks', $conn);
+        }
 
         return redirect()->back()->with('success', 'Task status updated to "' . $request->status . '" successfully!');
     }
@@ -284,6 +289,13 @@ class TaskWebController extends Controller
         }
 
         $this->ensureTableExists($conn);
+
+        // Mark support chat notifications as read for this user
+        DB::connection($conn)->table('web_notifications')
+            ->where('user_id', $uid)
+            ->where('title', 'like', '%Support Message%')
+            ->where('is_read', 0)
+            ->update(['is_read' => 1]);
 
         $messages = DB::connection($conn)
             ->table('task_chats')
@@ -375,6 +387,24 @@ class TaskWebController extends Controller
             'updated_at' => Carbon::now()->toDateTimeString(),
         ]);
 
+        $notifMsg = $request->filled('message') ? \Illuminate\Support\Str::limit($request->message, 30) : 'Sent an image';
+        $senderName = DB::connection($conn)->table('users')->where('id', $uid)->value('name');
+        
+        if ($isChatAdmin) {
+            // Notify the specific user
+            if ((int)$request->user_id != (int)$uid) {
+                saveWebNotification((int)$request->user_id, "New Support Message", $senderName . ": " . $notifMsg, '/tasks', $conn);
+            }
+        } else {
+            // Notify super admins or users with role_id = 1
+            $admins = DB::connection($conn)->table('users')->where('role_id', 1)->get();
+            foreach($admins as $admin) {
+                if ($admin->id != $uid) {
+                    saveWebNotification($admin->id, "New Support Message from " . $senderName, $notifMsg, '/tasks', $conn);
+                }
+            }
+        }
+
         return response()->json(['status' => 'success']);
     }
 
@@ -406,6 +436,13 @@ class TaskWebController extends Controller
         }
 
         $this->ensureTableExists($conn);
+
+        // Mark task chat notifications as read for this user
+        DB::connection($conn)->table('web_notifications')
+            ->where('user_id', $uid)
+            ->where('title', 'like', 'Task Chat: %')
+            ->where('is_read', 0)
+            ->update(['is_read' => 1]);
 
         $messages = DB::connection($conn)
             ->table('task_chats')
@@ -507,6 +544,26 @@ class TaskWebController extends Controller
             'created_at' => Carbon::now()->toDateTimeString(),
             'updated_at' => Carbon::now()->toDateTimeString(),
         ]);
+
+        $notifMsg = $request->filled('message') ? \Illuminate\Support\Str::limit($request->message, 30) : 'Sent an image';
+        $senderName = DB::connection($conn)->table('users')->where('id', $uid)->value('name');
+        
+        // Notify all assigned users
+        foreach ($assignedIds as $assignedId) {
+            if ((int)$assignedId != (int)$uid) {
+                saveWebNotification((int)$assignedId, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
+            }
+        }
+        
+        // If sender is not an admin, notify admins too
+        if (!$isChatAdmin) {
+            $admins = DB::connection($conn)->table('users')->where('role_id', 1)->get();
+            foreach($admins as $admin) {
+                if ($admin->id != $uid && !in_array($admin->id, $assignedIds)) {
+                    saveWebNotification($admin->id, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
+                }
+            }
+        }
 
         return response()->json(['status' => 'success']);
     }

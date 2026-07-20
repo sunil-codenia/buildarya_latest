@@ -74,6 +74,8 @@ Route::post('/change-language', [DashboardController::class, 'changeLanguage']);
 Route::group(['middleware' => ['auth']], function () {
 
     Route::get('/dashboard', [DashboardController::class, 'getCompanyDashboard']);
+    Route::get('/notifications/mark-all-read', [DashboardController::class, 'markAllNotificationsRead'])->name('notifications.markAllRead');
+    Route::get('/notifications/{id}/read', [DashboardController::class, 'markNotificationRead'])->name('notifications.read');
     Route::get('/invoices', [\App\Http\Controllers\SaaSInvoiceController::class, 'index']);
     Route::get('/invoices/{id}/download', [\App\Http\Controllers\SaaSInvoiceController::class, 'downloadPdf']);
     
@@ -93,6 +95,11 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/dashboard/upload_apk', [DashboardController::class, 'uploadApkPage']);
     Route::post('/dashboard/upload_apk', [DashboardController::class, 'storeApk']);
     Route::get('/download-apk', [DashboardController::class, 'downloadApk']);
+    
+    // User Profile Routes (Global access)
+    Route::get('/profile', [UserController::class, 'profile']);
+    Route::post('/update_password', [UserController::class, 'updatePassword']);
+    Route::post('/update_profile', [UserController::class, 'updateProfile']);
 
 
     Route::get('/pie', [ChartController::class, 'pieChart']);
@@ -190,10 +197,6 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/assign_permission', [UserController::class, 'assign_permission']);
         Route::post('/update_user_permission', [UserController::class, 'update_user_permission']);
         Route::get('/update_user_status', [UserController::class, 'update_user_status']);
-        Route::get('/profile', [UserController::class, 'profile']);
-        Route::post('/update_password', [UserController::class, 'updatePassword']);
-        Route::post('/update_profile', [UserController::class, 'updateProfile']);
-
         Route::post('/siteToSiteBalanceTransfer', [SiteController::class, 'siteToSiteBalanceTransfer']);
 
         // roles route

@@ -208,7 +208,7 @@ input:checked+.switch:active::before {
 }
 
 .navbar-right li {
-    display: flex !important;
+    /* display: flex !important; */
     align-items: center !important;
     height: 100% !important;
 }
@@ -522,7 +522,7 @@ body.menu_dark {
     color: #e0e0e0 !important;
 }
 
-body.menu_dark .content, 
+body.menu_dark .content,
 body.menu_dark .content.home {
     background-color: #121212 !important;
     color: #e0e0e0 !important;
@@ -542,7 +542,7 @@ body.menu_dark .card {
     background-color: #1e1e1e !important;
     color: #ffffff !important;
     border: 1px solid #2d2d2d !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
 }
 
 body.menu_dark .card .header h2,
@@ -556,11 +556,21 @@ body.menu_dark .card .body {
 }
 
 /* Typography, Headings & Text states */
-body.menu_dark h1, body.menu_dark h2, body.menu_dark h3, 
-body.menu_dark h4, body.menu_dark h5, body.menu_dark h6,
-body.menu_dark p, body.menu_dark span, body.menu_dark label,
-body.menu_dark small, body.menu_dark strong, body.menu_dark b, 
-body.menu_dark th, body.menu_dark td, body.menu_dark a {
+body.menu_dark h1,
+body.menu_dark h2,
+body.menu_dark h3,
+body.menu_dark h4,
+body.menu_dark h5,
+body.menu_dark h6,
+body.menu_dark p,
+body.menu_dark span,
+body.menu_dark label,
+body.menu_dark small,
+body.menu_dark strong,
+body.menu_dark b,
+body.menu_dark th,
+body.menu_dark td,
+body.menu_dark a {
     color: #ffffff !important;
 }
 
@@ -642,7 +652,7 @@ body.menu_dark .sidebar .menu .list li a:hover {
     color: #ffffff !important;
 }
 
-body.menu_dark .sidebar .menu .list li.active > a {
+body.menu_dark .sidebar .menu .list li.active>a {
     color: #ffffff !important;
 }
 
@@ -722,10 +732,15 @@ body {
     top: 0px !important;
     position: static !important;
 }
+
 html {
     top: 0px !important;
 }
-.skiptranslate, .goog-te-banner-frame, iframe.skiptranslate, #goog-gt-tt {
+
+.skiptranslate,
+.goog-te-banner-frame,
+iframe.skiptranslate,
+#goog-gt-tt {
     display: none !important;
     visibility: hidden !important;
 }

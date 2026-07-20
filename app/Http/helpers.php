@@ -1128,10 +1128,10 @@ function getMachineryNextService($id)
 
 
 
-function sendAlertNotification($user_id, $msg, $title)
+function sendAlertNotification($user_id, $msg, $title, $conn = null)
 {
     //   $access_token = $this->generateAccessToken();
-    $user_db_conn_name = session()->get('comp_db_conn_name');
+    $user_db_conn_name = $conn ?: session()->get('comp_db_conn_name');
 
     $user = DB::connection($user_db_conn_name)->table('users')->where('id', '=', $user_id)->first();
     $fcm_code = $user ? $user->fcm_id : '';
@@ -2563,4 +2563,38 @@ function getUserAddDuration($user, $conn = null) {
         }
     }
     return 'anytime';
+}
+
+function saveWebNotification($user_id, $title, $msg, $url = null, $conn = null)
+{
+    $user_db_conn_name = $conn ?: session()->get('comp_db_conn_name');
+    if (!$user_db_conn_name) return;
+
+    try {
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasTable('web_notifications')) {
+            DB::connection($user_db_conn_name)->statement("
+                CREATE TABLE IF NOT EXISTS `web_notifications` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id` INT NOT NULL,
+                    `title` VARCHAR(255) NULL,
+                    `message` TEXT NULL,
+                    `url` VARCHAR(255) NULL,
+                    `is_read` TINYINT(1) DEFAULT 0,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX (`user_id`),
+                    INDEX (`is_read`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        }
+
+        DB::connection($user_db_conn_name)->table('web_notifications')->insert([
+            'user_id' => $user_id,
+            'title' => $title,
+            'message' => $msg,
+            'url' => $url,
+            'created_at' => \Carbon\Carbon::now()->toDateTimeString()
+        ]);
+    } catch (\Exception $e) {
+        \Log::error("Failed to save web notification: " . $e->getMessage());
+    }
 }
