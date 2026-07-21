@@ -74,6 +74,34 @@
                                 </div>
                             </div>
 
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">State <span class="text-primary">*</span></label>
+                                    <select name="state" required class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all">
+                                        <option value="" disabled selected>Select State</option>
+                                        @foreach([
+                                            "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana",
+                                            "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+                                            "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+                                            "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman and Nicobar Islands",
+                                            "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Jammu and Kashmir", "Ladakh",
+                                            "Lakshadweep", "Puducherry"
+                                        ] as $st)
+                                            <option value="{{ $st }}">{{ $st }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">GST Number</label>
+                                    <input type="text" name="gst_number" placeholder="Enter GST number (optional)" class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">Address</label>
+                                <textarea name="address" rows="2" placeholder="Enter Company Address" class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all resize-none"></textarea>
+                            </div>
+
                             <div>
                                 <label class="block text-xs font-semibold text-fg mb-1.5 uppercase tracking-wide">Message</label>
                                 <textarea name="message" rows="4" placeholder="Tell us about your business needs..." class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all resize-none"></textarea>

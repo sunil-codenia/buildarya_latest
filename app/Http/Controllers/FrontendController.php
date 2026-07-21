@@ -131,11 +131,14 @@ class FrontendController extends Controller
     public function submitContact(Request $request)
     {
         $validated = $request->validate([
-            'name'    => 'required|string|max:100',
-            'email'   => 'required|email|max:100',
-            'company' => 'nullable|string|max:100',
-            'phone'   => 'nullable|string|max:20',
-            'message' => 'nullable|string|max:2000',
+            'name'       => 'required|string|max:100',
+            'email'      => 'required|email|max:100',
+            'company'    => 'nullable|string|max:100',
+            'phone'      => 'nullable|string|max:20',
+            'state'      => 'required|string|max:100',
+            'gst_number' => 'nullable|string|max:50',
+            'address'    => 'nullable|string|max:500',
+            'message'    => 'nullable|string|max:2000',
         ]);
 
         // Hit Shaarvik external leads API
@@ -223,12 +226,15 @@ class FrontendController extends Controller
 
         try {
             $response = Http::timeout(10)->post($baseUrl . '/api/public/leads', [
-                'name'    => $data['name'],
-                'email'   => $data['email'],
-                'company' => $data['company'] ?? null,
-                'phone'   => $data['phone'] ?? null,
-                'notes'   => $data['message'] ?? null,
-                'source'  => $source,
+                'name'       => $data['name'],
+                'email'      => $data['email'],
+                'company'    => $data['company'] ?? null,
+                'phone'      => $data['phone'] ?? null,
+                'state'      => $data['state'] ?? null,
+                'gst_number' => $data['gst_number'] ?? null,
+                'address'    => $data['address'] ?? null,
+                'notes'      => $data['message'] ?? null,
+                'source'     => $source,
             ]);
 
             if (!$response->successful()) {

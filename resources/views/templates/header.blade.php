@@ -70,7 +70,7 @@
         color: #ffffff !important;
     }
     
-    /* Cross-browser perfect vertical centering for text inputs */
+    /* Cross-browser perfect vertical centering for text inputs */                        
     body input.form-control {
         height: 42px !important;
         padding: 8px 15px !important;
