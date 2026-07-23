@@ -114,7 +114,7 @@
                     </form>
                 </div>
                 <div class="body p-4">
-                    <div class="table-responsive">
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
                         <table class="table table-hover mb-0" id="taskTable">
                             <thead>
                                 <tr style="color: #888; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;">
@@ -429,6 +429,13 @@
     .emoji-item:hover {
         background-color: #f0f2f5;
         transform: scale(1.2);
+    }
+    #taskTable thead th {
+        position: sticky;
+        top: 0;
+        background: #ffffff;
+        z-index: 10;
+        box-shadow: inset 0 -1px 0 #eee;
     }
     </style>
 @endsection

@@ -140,12 +140,12 @@
     <!-- Header -->
     <header id="main-header" class="fixed top-0 left-0 right-0 z-50 transition-all duration-300 bg-transparent">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-24 md:h-28">
-                <a href="{{ url('/') }}" class="flex items-center flex-shrink-0">
-                    <img src="{{ asset('images/buildarya.png') }}" style="width: 220px;" alt="Buildarya Logo">
+            <div class="flex items-center justify-between h-20">
+                <a href="{{ url('/') }}" class="flex items-center flex-shrink-0 overflow-hidden" style="width: 205px; height: 65px; position: relative;">
+                    <img src="{{ asset('images/buildarya.png') }}" style="position: absolute; width: 320px; max-width: none; left: -61px; top: -63px;" alt="Buildarya Logo">
                 </a>
 
-                <nav class="hidden md:flex items-center gap-1">
+                <nav class="hidden lg:flex items-center gap-1">
                     <a href="{{ url('/') }}" class="px-4 py-2 text-sm font-medium text-fg-muted hover:text-fg hover:bg-bg-surface rounded-lg transition-all duration-200">Home</a>
                     <a href="{{ url('/features') }}" class="px-4 py-2 text-sm font-medium text-fg-muted hover:text-fg hover:bg-bg-surface rounded-lg transition-all duration-200">Features</a>
                     <a href="{{ url('/modules') }}" class="px-4 py-2 text-sm font-medium text-fg-muted hover:text-fg hover:bg-bg-surface rounded-lg transition-all duration-200">Modules</a>
@@ -153,15 +153,15 @@
                     <a href="{{ url('/contact') }}" class="px-4 py-2 text-sm font-medium text-fg-muted hover:text-fg hover:bg-bg-surface rounded-lg transition-all duration-200">Contact</a>
                 </nav>
 
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 md:gap-3">
                     <!-- Language Selection Dropdown -->
                     <div class="relative inline-block text-left" id="langDropdownContainer">
-                        <button type="button" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200" id="langDropdownButton" aria-expanded="false" aria-haspopup="true">
+                        <button type="button" class="inline-flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl text-xs font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200" id="langDropdownButton" aria-expanded="false" aria-haspopup="true">
                             <svg class="w-5 h-5 text-fg-muted" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-.778.099-1.533.284-2.253"></path>
                             </svg>
                             <span class="selected-lang-label uppercase font-bold text-fg">EN</span>
-                            <svg class="w-4 h-4 text-fg-muted" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <svg class="w-3.5 h-3.5 text-fg-muted" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path>
                             </svg>
                         </button>
@@ -182,18 +182,18 @@
                             </div>
                         </div>
                     </div>
-                    <a href="{{ url('/login') }}" class="hidden md:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200">
+                    <a href="{{ url('/login') }}" class="hidden sm:inline-flex items-center justify-center h-10 px-4 rounded-xl text-xs font-semibold border border-border text-fg hover:bg-bg-surface transition-all duration-200">
                         Login
                     </a>
-                    <button type="button" id="apk-modal-btn" class="hidden md:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-primary/40 text-primary hover:bg-primary/5 transition-all duration-200">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 16l-6-6h4V4h4v6h4l-6 6z" fill="currentColor"/><path d="M20 18H4v2h16v-2z" fill="currentColor"/></svg>
+                    <button type="button" id="apk-modal-btn" class="hidden md:inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl text-xs font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-all duration-200">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 16l-6-6h4V4h4v6h4l-6 6z" fill="currentColor"/><path d="M20 18H4v2h16v-2z" fill="currentColor"/></svg>
                         Download APK
                     </button>
-                    <a href="{{ url('/contact') }}" class="hidden md:inline-flex items-center gap-2 btn-accent px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200">
+                    <a href="{{ url('/contact') }}" class="hidden lg:inline-flex items-center justify-center gap-1.5 btn-accent h-10 px-4 rounded-xl text-xs font-semibold transition-all duration-200">
                         Book Free Demo
                     </a>
                     <!-- Hamburger -->
-                    <button id="mobile-menu-btn" class="md:hidden flex flex-col gap-1.5 w-8 h-8 items-center justify-center">
+                    <button id="mobile-menu-btn" class="lg:hidden flex flex-col gap-1.5 w-8 h-8 items-center justify-center">
                         <span class="w-5 h-0.5 bg-fg rounded-full transition-all duration-300"></span>
                         <span class="w-5 h-0.5 bg-fg rounded-full transition-all duration-300"></span>
                         <span class="w-5 h-0.5 bg-fg rounded-full transition-all duration-300"></span>

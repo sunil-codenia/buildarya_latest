@@ -24,9 +24,10 @@ class TaskWebController extends Controller
         $users = DB::connection($conn)->table('users')->get();
         $categories = DB::connection($conn)->table('task_categories')->get();
 
-        // Admins (can_add permission) see all tasks; regular users only see their own
-        $isAdmin = (checkmodulepermission(14, 'can_add') == 1);
-        $isChatAdmin = isSuperAdmin();
+        // Admins see all tasks; regular users only see their own / involved tasks
+        $isSuperAdmin = isSuperAdmin();
+        $isChatAdmin = $isSuperAdmin;
+        $isAdmin = $isSuperAdmin;
 
         // Query Tasks
         $query = DB::connection($conn)->table('tasks')
@@ -35,10 +36,11 @@ class TaskWebController extends Controller
             ->leftJoin('task_categories', 'task_categories.id', '=', 'tasks.category_id')
             ->select('tasks.*', 'creators.name as creator_name', 'sites.name as site_name', 'task_categories.name as category_name');
 
-        // Non-admin users only see tasks assigned to them
-        if (!$isAdmin) {
+        // Non-superadmin users only see tasks they are involved in (assigned to them or created by them)
+        if (!$isSuperAdmin) {
             $query->where(function($q) use ($uid) {
-                $q->whereRaw("FIND_IN_SET(?, tasks.assigned_to)", [$uid]);
+                $q->whereRaw("FIND_IN_SET(?, tasks.assigned_to)", [$uid])
+                  ->orWhere('tasks.assigned_by', '=', $uid);
             });
         }
 
@@ -170,6 +172,19 @@ class TaskWebController extends Controller
             return redirect('/login');
         }
 
+        $task = DB::connection($conn)->table('tasks')->where('id', $id)->first();
+        if (!$task) {
+            return redirect()->back()->with('errorcode', 'Task not found.');
+        }
+
+        if (!isSuperAdmin()) {
+            $uid = session()->get('uid');
+            $assignedIds = array_filter(explode(',', $task->assigned_to));
+            if (!in_array($uid, $assignedIds) && $task->assigned_by != $uid) {
+                return redirect()->back()->with('errorcode', 'You do not have permission to modify this task.');
+            }
+        }
+
         $request->validate([
             'title' => 'required|string|max:255',
             'category_id' => 'nullable|integer',
@@ -219,6 +234,13 @@ class TaskWebController extends Controller
             return redirect()->back()->with('errorcode', 'Task not found.');
         }
 
+        if (!isSuperAdmin()) {
+            $assignedIds = array_filter(explode(',', $task->assigned_to));
+            if (!in_array($uid, $assignedIds) && $task->assigned_by != $uid) {
+                return redirect()->back()->with('errorcode', 'You do not have permission to modify this task.');
+            }
+        }
+
         // Removed restrictions to allow users to freely update status
 
         $request->validate([
@@ -262,6 +284,19 @@ class TaskWebController extends Controller
         $conn = session()->get('comp_db_conn_name');
         if (!$conn) {
             return redirect('/login');
+        }
+
+        $task = DB::connection($conn)->table('tasks')->where('id', $id)->first();
+        if (!$task) {
+            return redirect()->back()->with('errorcode', 'Task not found.');
+        }
+
+        if (!isSuperAdmin()) {
+            $uid = session()->get('uid');
+            $assignedIds = array_filter(explode(',', $task->assigned_to));
+            if (!in_array($uid, $assignedIds) && $task->assigned_by != $uid) {
+                return redirect()->back()->with('errorcode', 'You do not have permission to delete this task.');
+            }
         }
 
         DB::connection($conn)->table('tasks')->where('id', $id)->delete();

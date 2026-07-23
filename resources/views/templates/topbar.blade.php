@@ -8,8 +8,8 @@
             <a href="javascript:void(0);" class="ls-toggle-btn bars d-xl-none" data-close="true" style="padding: 0 15px; z-index: 102;">
                 <i class="zmdi zmdi-menu" style="color: #ffffff; font-size: 28px;"></i>
             </a>
-            <a class="navbar-brand dashboard-logo-link m-0" href="{{url('/dashboard')}}">
-                <img src="{{asset($logo)}}" class="dashboard-logo" alt="Buildarya" style="width: auto; max-height: none !important;">
+            <a class="navbar-brand dashboard-logo-link m-0" href="{{url('/dashboard')}}" style="width: 180px !important; height: 52px !important; position: relative !important; display: inline-block !important; overflow: hidden !important; background: #ffffff !important; border-radius: 26px !important; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08) !important; margin-left: 10px !important;">
+                <img src="{{asset($logo)}}" alt="Buildarya" style="position: absolute !important; width: 240px !important; max-width: none !important; left: -33px !important; top: -46px !important; height: auto !important; transform: none !important; filter: none !important;">
             </a>
         </div>
 

@@ -60,7 +60,7 @@ class ApiTaskController extends Controller
             $perPage = $request->input('per_page', 15);
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
-            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1);
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
 
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $tenant['uid'])
@@ -84,6 +84,13 @@ class ApiTaskController extends Controller
                     'assigned_by_user.name as assigned_by_name',
                     'assigned_by_user.username as assigned_by_username'
                 );
+
+            if (!$isSuperAdmin) {
+                $query->where(function ($q) use ($tenant) {
+                    $q->whereRaw("FIND_IN_SET(?, tasks.assigned_to)", [$tenant['uid']])
+                      ->orWhere('tasks.assigned_by', '=', $tenant['uid']);
+                });
+            }
 
             if ($site_id) {
                 $query->where('tasks.site_id', $site_id);
@@ -286,6 +293,20 @@ class ApiTaskController extends Controller
                 ]);
             }
 
+            $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+
+            if (!$isSuperAdmin) {
+                $assignedIds = array_filter(explode(',', $task->assigned_to));
+                if (!in_array($tenant['uid'], $assignedIds) && $task->assigned_by != $tenant['uid']) {
+                    return response()->json([
+                        'status' => 'Failed',
+                        'status_code' => '403',
+                        'message' => 'Access Denied! You are not involved in this task.'
+                    ], 403);
+                }
+            }
+
             $assignedIds = array_filter(explode(',', $task->assigned_to));
             if (!empty($assignedIds)) {
                 $users = DB::connection($conn)->table('users')->whereIn('id', $assignedIds)->get()->keyBy('id');
@@ -344,6 +365,20 @@ class ApiTaskController extends Controller
                     'status_code' => '300',
                     'message' => 'Task not found!'
                 ]);
+            }
+
+            $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+
+            if (!$isSuperAdmin) {
+                $assignedIds = array_filter(explode(',', $task->assigned_to));
+                if (!in_array($uid, $assignedIds) && $task->assigned_by != $uid) {
+                    return response()->json([
+                        'status' => 'Failed',
+                        'status_code' => '403',
+                        'message' => 'Access Denied! You are not involved in this task.'
+                    ], 403);
+                }
             }
 
             $updateData = [];
@@ -476,6 +511,20 @@ class ApiTaskController extends Controller
                     'status_code' => '300',
                     'message' => 'Task not found!'
                 ]);
+            }
+
+            $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+
+            if (!$isSuperAdmin) {
+                $assignedIds = array_filter(explode(',', $task->assigned_to));
+                if (!in_array($uid, $assignedIds) && $task->assigned_by != $uid) {
+                    return response()->json([
+                        'status' => 'Failed',
+                        'status_code' => '403',
+                        'message' => 'Access Denied! You are not involved in this task.'
+                    ], 403);
+                }
             }
 
             DB::connection($conn)->table('tasks')->where('id', $task_id)->delete();
@@ -724,16 +773,19 @@ class ApiTaskController extends Controller
             ]);
         }
 
-        $notifications = DB::connection($conn)->table('web_notifications')
-            ->where('user_id', $uid)
-            ->orderBy('id', 'desc')
-            ->take(50)
-            ->get();
+        $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+        $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
 
-        $unreadCount = DB::connection($conn)->table('web_notifications')
-            ->where('user_id', $uid)
-            ->where('is_read', 0)
-            ->count();
+        $notifsQuery = DB::connection($conn)->table('web_notifications');
+        $unreadQuery = DB::connection($conn)->table('web_notifications')->where('is_read', 0);
+
+        if (!$isSuperAdmin) {
+            $notifsQuery->where('user_id', $uid);
+            $unreadQuery->where('user_id', $uid);
+        }
+
+        $notifications = $notifsQuery->orderBy('id', 'desc')->take(50)->get();
+        $unreadCount = $unreadQuery->count();
 
         return response()->json([
             'status' => 'Ok',
@@ -765,7 +817,14 @@ class ApiTaskController extends Controller
             ]);
         }
 
-        $query = DB::connection($conn)->table('web_notifications')->where('user_id', $uid);
+        $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+        $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+
+        $query = DB::connection($conn)->table('web_notifications');
+        
+        if (!$isSuperAdmin) {
+            $query->where('user_id', $uid);
+        }
         
         if ($notif_id) {
             $query->where('id', $notif_id);
