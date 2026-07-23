@@ -226,17 +226,88 @@ class UserController extends Controller
     public function update_fcm_id(Request $request)
     {
         try {
-
             $conn = $request->post('conn');
             $user_id = $request->post('user_id');
             $fcm_id = $request->post('fcm_id');
+            
+            // 1. Maintain backward compatibility (legacy fcm_id column in users table)
             DB::connection($conn)->table('users')->where('id', '=', $user_id)->update(['fcm_id' => $fcm_id]);
+
+            // 2. Ensure user_devices table exists on this connection
+            if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasTable('user_devices')) {
+                DB::connection($conn)->statement("
+                    CREATE TABLE IF NOT EXISTS `user_devices` (
+                        `id` bigint(20) unsigned AUTO_INCREMENT PRIMARY KEY,
+                        `user_id` bigint(20) unsigned NOT NULL,
+                        `platform` enum('android','ios','web') NOT NULL,
+                        `device_name` varchar(255) NULL,
+                        `fcm_token` text NOT NULL,
+                        `is_active` tinyint(1) DEFAULT 1,
+                        `created_at` timestamp NULL,
+                        `updated_at` timestamp NULL,
+                        INDEX (`user_id`),
+                        INDEX (`is_active`)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                ");
+            }
+
+            // 3. Normalize platform: check request post parameter or guess from User-Agent
+            $platform = $request->post('platform');
+            if (!$platform || !in_array(strtolower($platform), ['android', 'ios', 'web'])) {
+                $userAgent = strtolower($request->header('User-Agent', ''));
+                if (strpos($userAgent, 'android') !== false) {
+                    $platform = 'android';
+                } elseif (strpos($userAgent, 'iphone') !== false || strpos($userAgent, 'ipad') !== false || strpos($userAgent, 'ipod') !== false) {
+                    $platform = 'ios';
+                } else {
+                    $platform = 'web';
+                }
+            } else {
+                $platform = strtolower($platform);
+            }
+
+            $deviceName = $request->post('device_name') ?: $request->header('User-Agent', 'Unknown Device');
+
+            // 4. Deactivate this FCM token for other users to prevent cross-account notifications
+            DB::connection($conn)->table('user_devices')
+                ->where('fcm_token', '=', $fcm_id)
+                ->where('user_id', '!=', $user_id)
+                ->update(['is_active' => 0]);
+
+            // 5. Update or insert the device record
+            $existing = DB::connection($conn)->table('user_devices')
+                ->where('user_id', '=', $user_id)
+                ->where('fcm_token', '=', $fcm_id)
+                ->first();
+
+            if ($existing) {
+                DB::connection($conn)->table('user_devices')
+                    ->where('id', '=', $existing->id)
+                    ->update([
+                        'platform' => $platform,
+                        'device_name' => $deviceName,
+                        'is_active' => 1,
+                        'updated_at' => \Carbon\Carbon::now()->toDateTimeString()
+                    ]);
+            } else {
+                DB::connection($conn)->table('user_devices')->insert([
+                    'user_id' => $user_id,
+                    'platform' => $platform,
+                    'device_name' => $deviceName,
+                    'fcm_token' => $fcm_id,
+                    'is_active' => 1,
+                    'created_at' => \Carbon\Carbon::now()->toDateTimeString(),
+                    'updated_at' => \Carbon\Carbon::now()->toDateTimeString()
+                ]);
+            }
+
             $data = [
                 "status" => "Ok",
                 "status_code" => "200",
                 "message" => "FCM Code Updated Successfully!"
             ];
         } catch (\Exception $e) {
+            \Log::error("FCM update_fcm_id error: " . $e->getMessage());
             $data = [
                 "status" => "Failed",
                 "status_code" => "300",

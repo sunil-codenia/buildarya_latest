@@ -1130,50 +1130,99 @@ function getMachineryNextService($id)
 
 function sendAlertNotification($user_id, $msg, $title, $conn = null)
 {
-    //   $access_token = $this->generateAccessToken();
     $user_db_conn_name = $conn ?: session()->get('comp_db_conn_name');
+    if (!$user_db_conn_name) return;
 
     $user = DB::connection($user_db_conn_name)->table('users')->where('id', '=', $user_id)->first();
-    $fcm_code = $user ? $user->fcm_id : '';
+    
+    // Retrieve all active FCM tokens for this user from user_devices table if it exists
+    $tokens = [];
+    try {
+        if (\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasTable('user_devices')) {
+            $tokens = DB::connection($user_db_conn_name)->table('user_devices')
+                ->where('user_id', '=', $user_id)
+                ->where('is_active', '=', 1)
+                ->pluck('fcm_token')
+                ->toArray();
+        }
+    } catch (\Exception $e) {
+        \Log::error("Failed to query user_devices for user " . $user_id . ": " . $e->getMessage());
+    }
+
+    // Fall back to legacy user fcm_id if no active tokens are in user_devices
+    if (empty($tokens) && $user && !empty($user->fcm_id)) {
+        $tokens[] = $user->fcm_id;
+    }
+
+    if (empty($tokens)) {
+        return;
+    }
 
     try {
-        $access_token = sendPushNotification();
-        $response = Http::withHeaders([
+        // Resolve credentials file and dynamically read project_id
+        $credentialsFilePath = base_path("build-arya-firebase-adminsdk-fbsvc-20fd91bb67.json");
+        if (!file_exists($credentialsFilePath)) {
+            $credentialsFilePath = base_path("constructionmunshi-firebase-adminsdk-9ibpz-ec7993929c.json");
+        }
 
-            'Content-type' => 'application/json',
-            'Authorization' => 'Bearer ' . $access_token
-        ])->post('https://fcm.googleapis.com/v1/projects/constructionmunshi/messages:send', [
-            'message' => [
-                'token' => $fcm_code,
-                'notification' => [
-                    'title' => $title,
-                    'body' => $msg
+        $projectId = 'build-arya'; // Default fallback
+        if (file_exists($credentialsFilePath)) {
+            $json = json_decode(file_get_contents($credentialsFilePath), true);
+            if (!empty($json['project_id'])) {
+                $projectId = $json['project_id'];
+            }
+        }
 
-                ],
-                'apns' => [
-                    'payload' => [
-                        'aps' => [
-                            'sound' => 'alert.mp3'
+        $apiUrl = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
+        $access_token = sendPushNotification($credentialsFilePath);
+
+        foreach ($tokens as $token) {
+            if (empty($token)) continue;
+
+            try {
+                $response = Http::withHeaders([
+                    'Content-type' => 'application/json',
+                    'Authorization' => 'Bearer ' . $access_token
+                ])->post($apiUrl, [
+                    'message' => [
+                        'token' => $token,
+                        'notification' => [
+                            'title' => $title,
+                            'body' => $msg
                         ],
-                    ],
-                ]
-            ]
-        ]);
+                        'apns' => [
+                            'payload' => [
+                                'aps' => [
+                                    'sound' => 'alert.mp3'
+                                ],
+                            ],
+                        ]
+                    ]
+                ]);
+                \Log::info("FCM push sent to user {$user_id} token " . substr($token, 0, 15) . "... Response: " . $response->body());
+            } catch (\Exception $e) {
+                \Log::error("FCM push failed for user {$user_id} token " . substr($token, 0, 15) . "... Error: " . $e->getMessage());
+            }
+        }
     } catch (\Exception $e) {
-        // Log or ignore notification failure to prevent crashing main process
+        \Log::error("Failed to send FCM alerts for user {$user_id}: " . $e->getMessage());
     }
 }
 
 
 
-function sendPushNotification()
+function sendPushNotification($credentialsFilePath = null)
 {
+    if (!$credentialsFilePath) {
+        $credentialsFilePath = base_path("build-arya-firebase-adminsdk-fbsvc-20fd91bb67.json");
+        if (!file_exists($credentialsFilePath)) {
+            $credentialsFilePath = base_path("constructionmunshi-firebase-adminsdk-9ibpz-ec7993929c.json");
+        }
+    }
 
-    $credentialsFilePath = base_path("constructionmunshi-firebase-adminsdk-9ibpz-ec7993929c.json");
     $client = new \Google_Client();
     $client->setAuthConfig($credentialsFilePath);
     $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
-    $apiurl = 'https://fcm.googleapis.com/v1/projects/constructionmunshi/messages:send';
     $client->refreshTokenWithAssertion();
     $token = $client->getAccessToken();
     $access_token = $token['access_token'];
@@ -2594,6 +2643,12 @@ function saveWebNotification($user_id, $title, $msg, $url = null, $conn = null)
             'url' => $url,
             'created_at' => \Carbon\Carbon::now()->toDateTimeString()
         ]);
+
+        // Automatically trigger FCM push notification for messages (e.g., chat/support)
+        // Task Assigned and Task Status Updated are excluded to prevent duplicate triggers
+        if (!in_array($title, ['Task Assigned', 'Task Status Updated'])) {
+            sendAlertNotification($user_id, $msg, $title, $user_db_conn_name);
+        }
     } catch (\Exception $e) {
         \Log::error("Failed to save web notification: " . $e->getMessage());
     }

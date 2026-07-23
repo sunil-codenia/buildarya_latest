@@ -646,8 +646,22 @@ class CompanyRegistrationController extends Controller
                     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `user_devices` (
+                    `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    `user_id` BIGINT UNSIGNED NOT NULL,
+                    `platform` VARCHAR(255) NOT NULL DEFAULT 'web',
+                    `device_name` VARCHAR(255) DEFAULT NULL,
+                    `fcm_token` TEXT NOT NULL,
+                    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+                    `created_at` TIMESTAMP NULL DEFAULT NULL,
+                    `updated_at` TIMESTAMP NULL DEFAULT NULL,
+                    INDEX (`user_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
             
-            \Log::info("Attendance, tasks, and task_chats tables successfully created for connection: {$connName}");
+            \Log::info("Attendance, tasks, task_chats, web_notifications, and user_devices tables successfully created for connection: {$connName}");
         } catch (\Exception $e) {
             \Log::error("Failed to dynamically create modules tables: " . $e->getMessage());
             throw new \Exception("Failed to dynamically create modules tables: " . $e->getMessage());

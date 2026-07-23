@@ -74,6 +74,7 @@ Route::post('/change-language', [DashboardController::class, 'changeLanguage']);
 Route::group(['middleware' => ['auth']], function () {
 
     Route::get('/dashboard', [DashboardController::class, 'getCompanyDashboard']);
+    Route::get('/notifications/unread-count', [DashboardController::class, 'getUnreadNotificationsCount'])->name('notifications.unreadCount');
     Route::get('/notifications/mark-all-read', [DashboardController::class, 'markAllNotificationsRead'])->name('notifications.markAllRead');
     Route::get('/notifications/{id}/read', [DashboardController::class, 'markNotificationRead'])->name('notifications.read');
     Route::get('/invoices', [\App\Http\Controllers\SaaSInvoiceController::class, 'index']);

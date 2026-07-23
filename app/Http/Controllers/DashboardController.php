@@ -57,6 +57,43 @@ class DashboardController extends Controller
         return response()->json(['status' => 'success']);
     }
 
+    public function getUnreadNotificationsCount()
+    {
+        $conn = session()->get('comp_db_conn_name');
+        $uid = session()->get('uid');
+        $unreadCount = 0;
+        $notifications = [];
+        if ($conn && $uid) {
+            if (\Illuminate\Support\Facades\Schema::connection($conn)->hasTable('web_notifications')) {
+                $unreadCount = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                    ->where('user_id', $uid)
+                    ->where('is_read', 0)
+                    ->count();
+
+                $notifs = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                    ->where('user_id', $uid)
+                    ->orderBy('created_at', 'desc')
+                    ->limit(10)
+                    ->get();
+
+                foreach ($notifs as $n) {
+                    $notifications[] = [
+                        'id' => $n->id,
+                        'title' => $n->title,
+                        'message' => $n->message,
+                        'url' => route('notifications.read', ['id' => $n->id]),
+                        'is_read' => $n->is_read,
+                        'created_at_diff' => \Carbon\Carbon::parse($n->created_at)->diffForHumans()
+                    ];
+                }
+            }
+        }
+        return response()->json([
+            'unread_count' => $unreadCount,
+            'notifications' => $notifications
+        ]);
+    }
+
     /**
      * Store Uploaded APK
      */
