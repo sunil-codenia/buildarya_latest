@@ -60,7 +60,21 @@ class ApiTaskController extends Controller
             $perPage = $request->input('per_page', 15);
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
-            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+            $isSuperAdmin = false;
+            if ($userRecord) {
+                if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                    $isSuperAdmin = true;
+                } else {
+                    $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                    if ($role && (
+                        (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
+                        strtolower($role->name) == 'admin' || 
+                        strtolower($role->name) == 'superadmin'
+                    )) {
+                        $isSuperAdmin = true;
+                    }
+                }
+            }
 
             $perm = DB::connection($conn)->table('user_permission')
                 ->where('user_id', $tenant['uid'])
@@ -294,7 +308,21 @@ class ApiTaskController extends Controller
             }
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
-            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+            $isSuperAdmin = false;
+            if ($userRecord) {
+                if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                    $isSuperAdmin = true;
+                } else {
+                    $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                    if ($role && (
+                        (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
+                        strtolower($role->name) == 'admin' || 
+                        strtolower($role->name) == 'superadmin'
+                    )) {
+                        $isSuperAdmin = true;
+                    }
+                }
+            }
 
             if (!$isSuperAdmin) {
                 $assignedIds = array_filter(explode(',', $task->assigned_to));
@@ -368,7 +396,21 @@ class ApiTaskController extends Controller
             }
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
-            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+            $isSuperAdmin = false;
+            if ($userRecord) {
+                if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                    $isSuperAdmin = true;
+                } else {
+                    $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                    if ($role && (
+                        (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
+                        strtolower($role->name) == 'admin' || 
+                        strtolower($role->name) == 'superadmin'
+                    )) {
+                        $isSuperAdmin = true;
+                    }
+                }
+            }
 
             if (!$isSuperAdmin) {
                 $assignedIds = array_filter(explode(',', $task->assigned_to));
@@ -514,7 +556,21 @@ class ApiTaskController extends Controller
             }
 
             $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
-            $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+            $isSuperAdmin = false;
+            if ($userRecord) {
+                if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                    $isSuperAdmin = true;
+                } else {
+                    $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                    if ($role && (
+                        (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
+                        strtolower($role->name) == 'admin' || 
+                        strtolower($role->name) == 'superadmin'
+                    )) {
+                        $isSuperAdmin = true;
+                    }
+                }
+            }
 
             if (!$isSuperAdmin) {
                 $assignedIds = array_filter(explode(',', $task->assigned_to));
@@ -774,7 +830,21 @@ class ApiTaskController extends Controller
         }
 
         $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
-        $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+        $isSuperAdmin = false;
+        if ($userRecord) {
+            if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                $isSuperAdmin = true;
+            } else {
+                $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                if ($role && (
+                    (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
+                    strtolower($role->name) == 'admin' || 
+                    strtolower($role->name) == 'superadmin'
+                )) {
+                    $isSuperAdmin = true;
+                }
+            }
+        }
 
         $notifsQuery = DB::connection($conn)->table('web_notifications');
         $unreadQuery = DB::connection($conn)->table('web_notifications')->where('is_read', 0);
@@ -818,7 +888,21 @@ class ApiTaskController extends Controller
         }
 
         $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
-        $isSuperAdmin = $userRecord && ($userRecord->role_id == 1 || $userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1');
+        $isSuperAdmin = false;
+        if ($userRecord) {
+            if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                $isSuperAdmin = true;
+            } else {
+                $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                if ($role && (
+                    (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
+                    strtolower($role->name) == 'admin' || 
+                    strtolower($role->name) == 'superadmin'
+                )) {
+                    $isSuperAdmin = true;
+                }
+            }
+        }
 
         $query = DB::connection($conn)->table('web_notifications');
         
