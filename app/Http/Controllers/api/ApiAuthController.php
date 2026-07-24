@@ -100,6 +100,7 @@ class ApiAuthController extends Controller
             if ($fcm_id) {
                 try {
                     DB::connection($company->db_conn_name)->table('users')->where('id', '=', $userData->id)->update(['fcm_id' => $fcm_id]);
+                    $userData->fcm_id = $fcm_id;
 
                     if (!\Illuminate\Support\Facades\Schema::connection($company->db_conn_name)->hasTable('user_devices')) {
                         DB::connection($company->db_conn_name)->statement("
