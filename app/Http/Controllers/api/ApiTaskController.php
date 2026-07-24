@@ -829,33 +829,16 @@ class ApiTaskController extends Controller
             ]);
         }
 
-        $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
-        $isSuperAdmin = false;
-        if ($userRecord) {
-            if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
-                $isSuperAdmin = true;
-            } else {
-                $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
-                if ($role && (
-                    (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
-                    strtolower($role->name) == 'admin' || 
-                    strtolower($role->name) == 'superadmin'
-                )) {
-                    $isSuperAdmin = true;
-                }
-            }
-        }
+        $notifications = DB::connection($conn)->table('web_notifications')
+            ->where('user_id', $uid)
+            ->orderBy('id', 'desc')
+            ->take(50)
+            ->get();
 
-        $notifsQuery = DB::connection($conn)->table('web_notifications');
-        $unreadQuery = DB::connection($conn)->table('web_notifications')->where('is_read', 0);
-
-        if (!$isSuperAdmin) {
-            $notifsQuery->where('user_id', $uid);
-            $unreadQuery->where('user_id', $uid);
-        }
-
-        $notifications = $notifsQuery->orderBy('id', 'desc')->take(50)->get();
-        $unreadCount = $unreadQuery->count();
+        $unreadCount = DB::connection($conn)->table('web_notifications')
+            ->where('user_id', $uid)
+            ->where('is_read', 0)
+            ->count();
 
         return response()->json([
             'status' => 'Ok',
@@ -887,28 +870,7 @@ class ApiTaskController extends Controller
             ]);
         }
 
-        $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
-        $isSuperAdmin = false;
-        if ($userRecord) {
-            if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
-                $isSuperAdmin = true;
-            } else {
-                $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
-                if ($role && (
-                    (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
-                    strtolower($role->name) == 'admin' || 
-                    strtolower($role->name) == 'superadmin'
-                )) {
-                    $isSuperAdmin = true;
-                }
-            }
-        }
-
-        $query = DB::connection($conn)->table('web_notifications');
-        
-        if (!$isSuperAdmin) {
-            $query->where('user_id', $uid);
-        }
+        $query = DB::connection($conn)->table('web_notifications')->where('user_id', $uid);
         
         if ($notif_id) {
             $query->where('id', $notif_id);

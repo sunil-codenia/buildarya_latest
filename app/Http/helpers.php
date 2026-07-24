@@ -362,6 +362,26 @@ function isSuperAdmin()
     return $val === 'yes' || $val == '1' || session()->get('role') == 1;
 }
 
+function getAllAdminUsers($conn)
+{
+    try {
+        $adminRoles = DB::connection($conn)->table('roles')
+            ->where('is_superadmin', 'yes')
+            ->orWhere('is_superadmin', '1')
+            ->orWhereRaw('LOWER(name) = ?', ['admin'])
+            ->orWhereRaw('LOWER(name) = ?', ['superadmin'])
+            ->pluck('id')
+            ->toArray();
+
+        return DB::connection($conn)->table('users')
+            ->where('role_id', 1)
+            ->orWhereIn('role_id', $adminRoles)
+            ->get();
+    } catch (\Exception $e) {
+        return DB::connection($conn)->table('users')->where('role_id', 1)->get();
+    }
+}
+
 function canViewModule($module_id)
 {
     if (isSuperAdmin()) {

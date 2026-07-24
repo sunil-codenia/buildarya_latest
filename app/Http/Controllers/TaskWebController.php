@@ -431,8 +431,8 @@ class TaskWebController extends Controller
                 saveWebNotification((int)$request->user_id, "New Support Message", $senderName . ": " . $notifMsg, '/tasks', $conn);
             }
         } else {
-            // Notify super admins or users with role_id = 1
-            $admins = DB::connection($conn)->table('users')->where('role_id', 1)->get();
+            // Notify all admins and superadmins
+            $admins = getAllAdminUsers($conn);
             foreach($admins as $admin) {
                 if ($admin->id != $uid) {
                     saveWebNotification($admin->id, "New Support Message from " . $senderName, $notifMsg, '/tasks', $conn);
@@ -592,7 +592,7 @@ class TaskWebController extends Controller
         
         // If sender is not an admin, notify admins too
         if (!$isChatAdmin) {
-            $admins = DB::connection($conn)->table('users')->where('role_id', 1)->get();
+            $admins = getAllAdminUsers($conn);
             foreach($admins as $admin) {
                 if ($admin->id != $uid && !in_array($admin->id, $assignedIds)) {
                     saveWebNotification($admin->id, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);

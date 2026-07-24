@@ -288,7 +288,7 @@ class ApiChatController extends Controller
                 }
             } else {
                 // User sending to admin(s)
-                $admins = DB::connection($conn)->table('users')->where('role_id', 1)->get();
+                $admins = getAllAdminUsers($conn);
                 foreach($admins as $admin) {
                     if ($admin->id != $currentUser) {
                         saveWebNotification($admin->id, "New Support Message from " . $senderName, $notifMsg, '/tasks', $conn);
@@ -635,7 +635,7 @@ class ApiChatController extends Controller
             
             // If sender is not an admin, notify admins too
             if (!$isAdmin) {
-                $admins = DB::connection($conn)->table('users')->where('role_id', 1)->get();
+                $admins = getAllAdminUsers($conn);
                 foreach($admins as $admin) {
                     if ($admin->id != $currentUser && !in_array($admin->id, $assignedIds)) {
                         saveWebNotification($admin->id, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);

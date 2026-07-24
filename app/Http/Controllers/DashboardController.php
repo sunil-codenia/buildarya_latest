@@ -26,13 +26,10 @@ class DashboardController extends Controller
         $conn = session()->get('comp_db_conn_name');
         $uid = session()->get('uid');
         if ($conn && $uid) {
-            $isSuperAdmin = isSuperAdmin();
-            $query = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
-                ->where('id', $id);
-            if (!$isSuperAdmin) {
-                $query->where('user_id', $uid);
-            }
-            $notif = $query->first();
+            $notif = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                ->where('id', $id)
+                ->where('user_id', $uid)
+                ->first();
                 
             if ($notif) {
                 \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
@@ -52,13 +49,10 @@ class DashboardController extends Controller
         $conn = session()->get('comp_db_conn_name');
         $uid = session()->get('uid');
         if ($conn && $uid) {
-            $isSuperAdmin = isSuperAdmin();
-            $query = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
-                ->where('is_read', 0);
-            if (!$isSuperAdmin) {
-                $query->where('user_id', $uid);
-            }
-            $query->update(['is_read' => 1]);
+            \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                ->where('user_id', $uid)
+                ->where('is_read', 0)
+                ->update(['is_read' => 1]);
         }
         return response()->json(['status' => 'success']);
     }
@@ -71,21 +65,14 @@ class DashboardController extends Controller
         $notifications = [];
         if ($conn && $uid) {
             if (\Illuminate\Support\Facades\Schema::connection($conn)->hasTable('web_notifications')) {
-                $isSuperAdmin = isSuperAdmin();
-                
-                $unreadQuery = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
-                    ->where('is_read', 0);
-                
-                $notifsQuery = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications');
+                $unreadCount = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                    ->where('user_id', $uid)
+                    ->where('is_read', 0)
+                    ->count();
 
-                if (!$isSuperAdmin) {
-                    $unreadQuery->where('user_id', $uid);
-                    $notifsQuery->where('user_id', $uid);
-                }
-
-                $unreadCount = $unreadQuery->count();
-
-                $notifs = $notifsQuery->orderBy('created_at', 'desc')
+                $notifs = \Illuminate\Support\Facades\DB::connection($conn)->table('web_notifications')
+                    ->where('user_id', $uid)
+                    ->orderBy('created_at', 'desc')
                     ->limit(10)
                     ->get();
 
