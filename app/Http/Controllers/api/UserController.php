@@ -25,7 +25,7 @@ class UserController extends Controller
                     $userdata = DB::connection($compdata->db_conn_name)->table('users')->where('username', $uname)->where('pass', $pass)->first();
                     
                     // Automatically save/register FCM token if present in login payload
-                    $fcm_id = $request->input('fcm_id') ?? $request->input('fcm_token') ?? $request->input('fcm');
+                    $fcm_id = $request->input('fcm_id') ?? $request->input('fcm_token') ?? $request->input('fcm_code') ?? $request->input('fcm');
                     if ($fcm_id) {
                         try {
                             DB::connection($compdata->db_conn_name)->table('users')->where('id', '=', $userdata->id)->update(['fcm_id' => $fcm_id]);
@@ -303,7 +303,7 @@ class UserController extends Controller
         try {
             $conn = $request->input('conn') ?? $request->input('comp_db_conn_name') ?? $request->post('conn') ?? $request->post('comp_db_conn_name') ?? $request->get('conn') ?? $request->get('comp_db_conn_name');
             $user_id = $request->input('user_id') ?? $request->input('uid') ?? $request->post('user_id') ?? $request->post('uid') ?? $request->get('user_id') ?? $request->get('uid');
-            $fcm_id = $request->input('fcm_id') ?? $request->input('fcm_token') ?? $request->post('fcm_id') ?? $request->post('fcm_token') ?? $request->get('fcm_id') ?? $request->get('fcm_token');
+            $fcm_id = $request->input('fcm_id') ?? $request->input('fcm_token') ?? $request->input('fcm_code') ?? $request->post('fcm_id') ?? $request->post('fcm_token') ?? $request->post('fcm_code') ?? $request->get('fcm_id') ?? $request->get('fcm_token') ?? $request->get('fcm_code');
 
             // Resolve conn via company UID or ID if still null
             $company_uid = $request->input('comp_uid') ?? $request->input('company_uid') ?? $request->input('company_id') ?? $request->post('comp_uid') ?? $request->post('company_uid') ?? $request->post('company_id');
