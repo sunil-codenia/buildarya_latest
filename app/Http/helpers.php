@@ -1207,8 +1207,16 @@ function sendAlertNotification($user_id, $msg, $title, $conn = null)
                     'message' => [
                         'token' => $token,
                         'notification' => [
-                            'title' => $title,
-                            'body' => $msg
+                            'title' => (string) $title,
+                            'body' => (string) $msg
+                        ],
+                        'android' => [
+                            'priority' => 'high',
+                            'notification' => [
+                                'sound' => 'default',
+                                'default_sound' => true,
+                                'notification_priority' => 'PRIORITY_HIGH'
+                            ]
                         ],
                         'apns' => [
                             'payload' => [
@@ -1216,6 +1224,12 @@ function sendAlertNotification($user_id, $msg, $title, $conn = null)
                                     'sound' => 'alert.mp3'
                                 ],
                             ],
+                        ],
+                        'data' => [
+                            'title' => (string) $title,
+                            'body' => (string) $msg,
+                            'message' => (string) $msg,
+                            'click_action' => 'FLUTTER_NOTIFICATION_CLICK'
                         ]
                     ]
                 ]);

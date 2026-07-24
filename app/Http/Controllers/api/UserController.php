@@ -226,10 +226,49 @@ class UserController extends Controller
     public function update_fcm_id(Request $request)
     {
         try {
-            $conn = $request->post('conn');
-            $user_id = $request->post('user_id');
-            $fcm_id = $request->post('fcm_id');
-            
+            $conn = $request->input('conn') ?? $request->input('comp_db_conn_name') ?? $request->post('conn') ?? $request->post('comp_db_conn_name') ?? $request->get('conn') ?? $request->get('comp_db_conn_name');
+            $user_id = $request->input('user_id') ?? $request->input('uid') ?? $request->post('user_id') ?? $request->post('uid') ?? $request->get('user_id') ?? $request->get('uid');
+            $fcm_id = $request->input('fcm_id') ?? $request->input('fcm_token') ?? $request->post('fcm_id') ?? $request->post('fcm_token') ?? $request->get('fcm_id') ?? $request->get('fcm_token');
+
+            // Resolve conn via company UID or ID if still null
+            $company_uid = $request->input('comp_uid') ?? $request->input('company_uid') ?? $request->input('company_id') ?? $request->post('comp_uid') ?? $request->post('company_uid') ?? $request->post('company_id');
+            if (!$conn && $company_uid) {
+                if (is_numeric($company_uid)) {
+                    $company = DB::table('companies')->where('id', $company_uid)->first();
+                } else {
+                    $company = DB::table('companies')->where('uid', $company_uid)->first();
+                }
+                if ($company) {
+                    $conn = $company->db_conn_name;
+                }
+            }
+
+            // Fallback: Resolve from Bearer token
+            if ((!$conn || !$user_id) && $request->bearerToken()) {
+                $tokenStr = $request->bearerToken();
+                $tokenId = null;
+                if (strpos($tokenStr, '|') !== false) {
+                    [$tokenId, $tokenStr] = explode('|', $tokenStr, 2);
+                }
+                $token = DB::connection('mysql')->table('personal_access_tokens')->where('id', $tokenId)->first();
+                if ($token) {
+                    $conn = $conn ?? $token->name;
+                    $user_id = $user_id ?? $token->tokenable_id;
+                }
+            }
+
+            if (!$conn) {
+                $conn = config('database.default');
+            }
+
+            if (!$user_id || !$fcm_id) {
+                return json_encode([
+                    "status" => "Failed",
+                    "status_code" => "300",
+                    "message" => "User ID (uid/user_id) and FCM Token (fcm_id/fcm_token) are required!"
+                ]);
+            }
+
             // 1. Maintain backward compatibility (legacy fcm_id column in users table)
             DB::connection($conn)->table('users')->where('id', '=', $user_id)->update(['fcm_id' => $fcm_id]);
 
@@ -251,8 +290,8 @@ class UserController extends Controller
                 ");
             }
 
-            // 3. Normalize platform: check request post parameter or guess from User-Agent
-            $platform = $request->post('platform');
+            // 3. Normalize platform: check request parameter or guess from User-Agent
+            $platform = $request->input('platform');
             if (!$platform || !in_array(strtolower($platform), ['android', 'ios', 'web'])) {
                 $userAgent = strtolower($request->header('User-Agent', ''));
                 if (strpos($userAgent, 'android') !== false) {
@@ -266,7 +305,7 @@ class UserController extends Controller
                 $platform = strtolower($platform);
             }
 
-            $deviceName = $request->post('device_name') ?: $request->header('User-Agent', 'Unknown Device');
+            $deviceName = $request->input('device_name') ?: $request->header('User-Agent', 'Unknown Device');
 
             // 4. Deactivate this FCM token for other users to prevent cross-account notifications
             DB::connection($conn)->table('user_devices')
@@ -311,7 +350,7 @@ class UserController extends Controller
             $data = [
                 "status" => "Failed",
                 "status_code" => "300",
-                "message" => "FCM Code Updation Failed!"
+                "message" => "FCM Code Updation Failed! " . $e->getMessage()
             ];
         }
         return json_encode($data);
