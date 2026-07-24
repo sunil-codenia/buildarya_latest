@@ -93,6 +93,80 @@ class ApiAuthController extends Controller
                 ], 403);
             }
 
+            // Automatically save/register FCM token if present in login payload
+            $fcm_id = $request->input('fcm_id') ?? $request->input('fcm_token') ?? $request->input('fcm');
+            if ($fcm_id) {
+                try {
+                    DB::connection($company->db_conn_name)->table('users')->where('id', '=', $userData->id)->update(['fcm_id' => $fcm_id]);
+
+                    if (!\Illuminate\Support\Facades\Schema::connection($company->db_conn_name)->hasTable('user_devices')) {
+                        DB::connection($company->db_conn_name)->statement("
+                            CREATE TABLE IF NOT EXISTS `user_devices` (
+                                `id` bigint(20) unsigned AUTO_INCREMENT PRIMARY KEY,
+                                `user_id` bigint(20) unsigned NOT NULL,
+                                `platform` enum('android','ios','web') NOT NULL,
+                                `device_name` varchar(255) NULL,
+                                `fcm_token` text NOT NULL,
+                                `is_active` tinyint(1) DEFAULT 1,
+                                `created_at` timestamp NULL,
+                                `updated_at` timestamp NULL,
+                                INDEX (`user_id`),
+                                INDEX (`is_active`)
+                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                        ");
+                    }
+
+                    $platform = $request->input('platform');
+                    if (!$platform || !in_array(strtolower($platform), ['android', 'ios', 'web'])) {
+                        $userAgent = strtolower($request->header('User-Agent', ''));
+                        if (strpos($userAgent, 'android') !== false) {
+                            $platform = 'android';
+                        } elseif (strpos($userAgent, 'iphone') !== false || strpos($userAgent, 'ipad') !== false || strpos($userAgent, 'ipod') !== false) {
+                            $platform = 'ios';
+                        } else {
+                            $platform = 'web';
+                        }
+                    } else {
+                        $platform = strtolower($platform);
+                    }
+
+                    $deviceName = $request->input('device_name') ?: $request->header('User-Agent', 'Unknown Device');
+
+                    DB::connection($company->db_conn_name)->table('user_devices')
+                        ->where('fcm_token', '=', $fcm_id)
+                        ->where('user_id', '!=', $userData->id)
+                        ->update(['is_active' => 0]);
+
+                    $existing = DB::connection($company->db_conn_name)->table('user_devices')
+                        ->where('user_id', '=', $userData->id)
+                        ->where('fcm_token', '=', $fcm_id)
+                        ->first();
+
+                    if ($existing) {
+                        DB::connection($company->db_conn_name)->table('user_devices')
+                            ->where('id', '=', $existing->id)
+                            ->update([
+                                'platform' => $platform,
+                                'device_name' => $deviceName,
+                                'is_active' => 1,
+                                'updated_at' => \Carbon\Carbon::now()->toDateTimeString()
+                            ]);
+                    } else {
+                        DB::connection($company->db_conn_name)->table('user_devices')->insert([
+                            'user_id' => $userData->id,
+                            'platform' => $platform,
+                            'device_name' => $deviceName,
+                            'fcm_token' => $fcm_id,
+                            'is_active' => 1,
+                            'created_at' => \Carbon\Carbon::now()->toDateTimeString(),
+                            'updated_at' => \Carbon\Carbon::now()->toDateTimeString()
+                        ]);
+                    }
+                } catch (\Exception $ex) {
+                    \Log::error("FCM save during API login failed: " . $ex->getMessage());
+                }
+            }
+
             // 4. Generate Sanctum Token
             // We create a temporary User model instance to generate the token
             $user = new User();
