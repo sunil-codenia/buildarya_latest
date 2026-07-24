@@ -17,6 +17,8 @@ class ApiAuthController extends Controller
      */
     public function login(Request $request)
     {
+        \Log::info("Flutter API Login request parameters: " . json_encode($request->except(['password'])));
+
         $request->validate([
             'username' => 'required',
             'password' => 'required',
