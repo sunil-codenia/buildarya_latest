@@ -64,15 +64,16 @@ class SupportTicketController extends Controller
         }
 
         $shaarvikUrl = $this->getShaarvikUrl();
-        $user = auth()->user();
+        $userName = session()->get('name') ?? '';
+        $userEmail = session()->get('username') ?? '';
 
         try {
             $response = Http::timeout(10)->post("{$shaarvikUrl}/api/mysql/tickets", [
                 'companyUid' => $companyUid,
                 'subject' => $request->subject,
                 'description' => $request->description,
-                'createdByName' => $user->name ?? '',
-                'createdByEmail' => $user->email ?? ''
+                'createdByName' => $userName,
+                'createdByEmail' => $userEmail
             ]);
 
             if ($response->successful()) {
@@ -127,14 +128,15 @@ class SupportTicketController extends Controller
         ]);
 
         $shaarvikUrl = $this->getShaarvikUrl();
-        $user = auth()->user();
+        $userName = session()->get('name') ?? '';
+        $userEmail = session()->get('username') ?? '';
 
         try {
             $response = Http::timeout(10)->post("{$shaarvikUrl}/api/mysql/tickets/{$id}", [
                 'replyText' => $request->reply_text,
                 'isAdminReply' => false,
-                'repliedByName' => $user->name ?? '',
-                'repliedByEmail' => $user->email ?? ''
+                'repliedByName' => $userName,
+                'repliedByEmail' => $userEmail
             ]);
 
             if ($response->successful()) {

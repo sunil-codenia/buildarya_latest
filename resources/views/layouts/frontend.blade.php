@@ -343,8 +343,6 @@
                     <div class="flex flex-col gap-3">
                         <a href="{{ url('/') }}" class="text-sm font-medium text-fg-muted hover:text-fg transition-colors">About</a>
                         <a href="{{ url('/contact') }}" class="text-sm font-medium text-fg-muted hover:text-fg transition-colors">Contact</a>
-                        <a href="{{ url('/privacy-policy') }}" class="text-sm font-medium text-fg-muted hover:text-fg transition-colors">Privacy Policy</a>
-                        <a href="{{ url('/terms-and-conditions') }}" class="text-sm font-medium text-fg-muted hover:text-fg transition-colors">Terms & Conditions</a>
                     </div>
                 </div>
             </div>
