@@ -101,6 +101,15 @@ $max_date = substr($duration['max'], 0, 10);
                               @endif
                               @endforeach
                            </optgroup>
+                           <optgroup label="Other Parties">
+                              @foreach($other_parties as $party)
+                              @if($paymentvoucher['party_type'] == 'other' && $paymentvoucher['party_id'] == $party['id'])
+                              <option selected value = "{{$party['id']}}||other">{{$party['name']}}</option>
+                              @else
+                              <option value = "{{$party['id']}}||other">{{$party['name']}}</option>
+                              @endif
+                              @endforeach
+                           </optgroup>
 
                        </select>
 
