@@ -86,27 +86,36 @@ $max_date = substr($duration['max'], 0, 10);
                            <optgroup label="Material Supplier">
                               @foreach($material_suppliers as $party)
                               @if($paymentvoucher['party_type'] == 'material' && $paymentvoucher['party_id'] == $party['id'])
-                              <option selected value = "{{$party['id']}}||material">{{$party['name']}}</option>
+                              <option selected value = "{{$party['id']}}||material">{{ trim(str_replace('BILL%%', '', $party['name'])) }}</option>
                               @else
-                              <option value = "{{$party['id']}}||material">{{$party['name']}}</option>
+                              <option value = "{{$party['id']}}||material">{{ trim(str_replace('BILL%%', '', $party['name'])) }}</option>
                               @endif
                               @endforeach
                            </optgroup>
                            <optgroup label="Bill Parties">
                               @foreach($bill_parties as $party)
                               @if($paymentvoucher['party_type'] == 'bill' && $paymentvoucher['party_id'] == $party['id'])
-                              <option selected value = "{{$party['id']}}||bill">{{$party['name']}}</option>
+                              <option selected value = "{{$party['id']}}||bill">{{ trim(str_replace('BILL%%', '', $party['name'])) }}</option>
                               @else
-                              <option value = "{{$party['id']}}||bill">{{$party['name']}}</option>
+                              <option value = "{{$party['id']}}||bill">{{ trim(str_replace('BILL%%', '', $party['name'])) }}</option>
                               @endif
                               @endforeach
                            </optgroup>
                            <optgroup label="Other Parties">
                               @foreach($other_parties as $party)
                               @if($paymentvoucher['party_type'] == 'other' && $paymentvoucher['party_id'] == $party['id'])
-                              <option selected value = "{{$party['id']}}||other">{{$party['name']}}</option>
+                              <option selected value = "{{$party['id']}}||other">{{ trim(str_replace('BILL%%', '', $party['name'])) }}</option>
                               @else
-                              <option value = "{{$party['id']}}||other">{{$party['name']}}</option>
+                              <option value = "{{$party['id']}}||other">{{ trim(str_replace('BILL%%', '', $party['name'])) }}</option>
+                              @endif
+                              @endforeach
+                           </optgroup>
+                           <optgroup label="Sites">
+                              @foreach($sites as $party)
+                              @if($paymentvoucher['party_type'] == 'site' && $paymentvoucher['party_id'] == $party['id'])
+                              <option selected value = "{{$party['id']}}||site||W">{{ trim(str_replace('BILL%%', '', $party['name'])) }}</option>
+                              @else
+                              <option value = "{{$party['id']}}||site||W">{{ trim(str_replace('BILL%%', '', $party['name'])) }}</option>
                               @endif
                               @endforeach
                            </optgroup>
