@@ -656,6 +656,7 @@ class UserController extends Controller
             }
 
             // Password update handling
+            $password_changed = false;
             if ($request->has('new_password')) {
                 if ($user->pass !== $request->post('current_password')) {
                     return response()->json([
@@ -665,11 +666,16 @@ class UserController extends Controller
                     ]);
                 }
                 $updateData['pass'] = $request->post('new_password');
+                $password_changed = true;
             }
 
             if (!empty($updateData)) {
                 DB::connection($conn)->table('users')->where('id', $user_id)->update($updateData);
                 addActivity($user_id, 'users', "Profile Updated via API", 1, $user_id, $conn);
+
+                if ($password_changed) {
+                    $this->sendPasswordEmail($user, $updateData['pass'], $conn);
+                }
             }
 
             // Get fresh profile data for response
@@ -894,6 +900,39 @@ class UserController extends Controller
             return response()->json(['status' => true, 'data' => $data]);
         } catch (\Exception $e) {
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function sendPasswordEmail($user, $new_password, $user_db_conn_name)
+    {
+        $email = null;
+        if (filter_var($user->username, FILTER_VALIDATE_EMAIL)) {
+            $email = $user->username;
+        } else {
+            $phone = $user->contact_no;
+            if ($phone) {
+                $email = DB::connection($user_db_conn_name)->table('contact')
+                    ->where('phone', $phone)
+                    ->whereNotNull('email')
+                    ->where('email', '!=', '')
+                    ->value('email');
+            }
+        }
+
+        if ($email) {
+            try {
+                \Illuminate\Support\Facades\Mail::raw(
+                    "Hello {$user->name},\n\nYour password for Buildarya has been updated.\n\nYour new password is: {$new_password}\n\nRegards,\nBuildarya Team",
+                    function ($mail) use ($email, $user) {
+                        $mail->to($email)
+                             ->subject('Buildarya — Password Updated');
+                    }
+                );
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to send password update email via API to ' . $email . ': ' . $e->getMessage());
+            }
+        } else {
+            \Illuminate\Support\Facades\Log::warning('No valid email found to send password update via API for user ID ' . $user->id);
         }
     }
 }

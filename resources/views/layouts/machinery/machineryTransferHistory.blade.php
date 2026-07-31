@@ -10,8 +10,12 @@ $history = $data['history'];
         <div class="col-md-12 col-sm-12 col-xs-12">
             <div class="card project_list">
                 <div class="header">
-                    <h2><strong>Machineries Transfer</strong> History</h2>
-                    <br>
+                    <h2>
+                        <a href="{{ url('/machinery?machinery_id=' . $machinery['head_id']) }}" class="btn btn-primary btn-round waves-effect" style="color: white !important; margin-right: 10px; padding: 6px 12px; vertical-align: middle;">
+                            <i class="zmdi zmdi-arrow-left"></i> Back
+                        </a>
+                        <strong>Machineries Transfer</strong> History
+                    </h2>
                     <h2><strong>Machinery Name - </strong>{{$machinery['name']}}<br>
                         <strong> Head -</strong> {{$machinery['head']}}<br> 
                         <strong>Currently At Site - </strong>{{($machinery['status'] != "Sold") ? getSiteDetailsById($machinery['site_id'])->name : "Already Sold From Site (".getSiteDetailsById($machinery['site_id'])->name.")"}} </h2>

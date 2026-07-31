@@ -8,12 +8,14 @@
             $count = 0;
             @endphp
             <div class="body" id="expense_area_chart_div">
+                @if($filter_type != 'this_month' && $data['filteredExpense'])
+                    <div class="text-center" style="margin-bottom: 15px;">
+                        <span class="badge badge-info" style="font-size: 14px; padding: 5px 10px; display: inline-block;">Filtered Range: {{ $data['filteredExpense'] }}</span>
+                    </div>
+                @endif
                 <div class="row text-center">
                     <div class="col-sm-4 col-6">
                         <h5 class="m-t-0">
-                            @if($filter_type != 'this_month' && $data['filteredExpense'])
-                                <span class="badge badge-info mb-1" style="font-size: 14px;">Filtered Range: {{ $data['filteredExpense'] }}</span><br>
-                            @endif
                             {{$data['todayExpense']}}
                         </h5>
                         <p class="text-muted"> Today's</p>

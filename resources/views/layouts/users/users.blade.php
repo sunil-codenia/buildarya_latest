@@ -53,8 +53,13 @@
                                                 <div class="col-lg-3 col-md-3 col-sm-3">
                                                     <div class="form-group">
                                                         <label for="pass">Password</label>
-                                                        <input type="password" id="pass" required class="form-control"
-                                                            value="{{ $editdata['pass'] }}" name="pass">
+                                                        @if (Session::get('role') == 1)
+                                                            <input type="text" id="pass" required class="form-control"
+                                                                value="{{ $editdata['pass'] }}" name="pass">
+                                                        @else
+                                                            <input type="password" id="pass" required class="form-control"
+                                                                value="********" name="pass">
+                                                        @endif
                                                     </div>
                                                 </div>
                                                 <div class="col-lg-3 col-md-3 col-sm-3">
@@ -111,12 +116,11 @@
                                                     </div>
                                                 </div>
                                                 <div class="col-lg-3 col-md-3 col-sm-3">
-                                                    <div class="form-group"><b>Company</b>
-                                                        <select name="company_id" class="form-control show-tick" data-live-search="true" required>
-                                                            @foreach (getallCompanies() as $comp)
-                                                                <option {{ $comp->id == ($editdata['company_id'] ?? '') ? 'selected' : '' }} value="{{ $comp->id }}">{{ $comp->name }}</option>
-                                                            @endforeach
-                                                        </select>
+                                                    <div class="form-group">
+                                                        <label for="company_name">Company</label>
+                                                        <input type="text" id="company_name" class="form-control"
+                                                            value="{{ session()->get('comp_name') }}" readonly>
+                                                        <input type="hidden" name="company_id" value="{{ session()->get('comp_db_id') }}">
                                                     </div>
                                                 </div>
                                                 <div class="col-lg-6 col-md-6 col-sm-12">

@@ -43,8 +43,9 @@ class LoginController extends Controller
                         ensureCentralModulesExist();
 
                         $company_modules = [];
-                        if ($userdata->subscription_plan_id) {
-                            $sub = DB::table('subscription_plans')->where('id', $userdata->subscription_plan_id)->first();
+                        $plan_id = isset($userdata->subscription_plan_id) ? $userdata->subscription_plan_id : (isset($userdata->company_plan_id) ? $userdata->company_plan_id : null);
+                        if ($plan_id) {
+                            $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
                             $company_modules = $sub ? json_decode($sub->modules, true) : [];
                             if (in_array(14, $company_modules) && !in_array(15, $company_modules)) {
                                 $company_modules[] = 15;
@@ -73,7 +74,7 @@ class LoginController extends Controller
                             "comp_db_conn_name" => $compdata->db_conn_name,
                             "view_duration" => getUserViewDuration($userdata, $compdata->db_conn_name),
                             "add_duration" => getUserAddDuration($userdata, $compdata->db_conn_name),
-                             "subscription_plan_id" => $userdata->subscription_plan_id,
+                             "subscription_plan_id" => $plan_id,
                              "expiry_date" => !empty($compdata->expired) ? Carbon::parse($compdata->expired)->format('d M Y') : 'N/A',
                              "raw_expiry_date" => $compdata->expired,
                              "company_modules" => $company_modules

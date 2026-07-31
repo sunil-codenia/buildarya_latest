@@ -9,11 +9,16 @@
       
             <div class="header">
 
-                <h2><strong>Machinery's Expense Head</strong> List</h2>
-                <ul class="header-dropdown">
+                <h2>
+                    <a href="{{ url('/machinery_head') }}" class="btn btn-primary btn-round waves-effect" style="color: white !important; margin-right: 10px; padding: 6px 12px; vertical-align: middle;">
+                        <i class="zmdi zmdi-arrow-left"></i> Back
+                    </a>
+                    <strong>Machinery's Expense Head</strong> List
+                </h2>
+                <ul class="header-dropdown" style="display: flex; align-items: center; gap: 10px;">
                     <li>
                     @if(checkmodulepermission(6,'can_add') == 1)
-                        <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10" data-toggle="modal" data-target="#newmachineryExpensehead1" type="button">
+                        <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right" data-toggle="modal" data-target="#newmachineryExpensehead1" type="button">
                             <i class="zmdi zmdi-plus" style="color: white;"></i>
                         </button>
                         @endif

@@ -7,13 +7,14 @@
     $count=0;
     @endphp
     <div class="body">
-       
+        @if($data['filteredBill'])
+            <div class="text-center" style="margin-bottom: 15px;">
+                <span class="badge badge-info" style="font-size: 14px; padding: 5px 10px; display: inline-block;">Filtered Range: {{ $data['filteredBill'] }}</span>
+            </div>
+        @endif
         <div class="row text-center">
             <div class="col-sm-4 col-6">
                 <h4 class="m-t-0">
-                    @if($data['filteredBill'])
-                        <span class="badge badge-info mb-1" style="font-size: 14px;">Filtered Range: {{ $data['filteredBill'] }}</span><br>
-                    @endif
                     {{$data['todaybill']}}
                 </h4>
                 <p class="text-muted"> Today's</p>

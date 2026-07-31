@@ -54,7 +54,12 @@ $dataarray = json_decode($data, true);
     <div class="col-md-12 col-sm-12 col-xs-12">
         <div class="card project_list">
             <div class="header">
-                <h2><strong>Machinery</strong> List</h2>
+                <h2>
+                    <a href="{{ url('/dashboard') }}" class="btn btn-primary btn-round waves-effect" style="color: white !important; margin-right: 10px; padding: 6px 12px; vertical-align: middle;">
+                        <i class="zmdi zmdi-arrow-left"></i> Back
+                    </a>
+                    <strong>Machinery</strong> List
+                </h2>
 
                 <ul class="header-dropdown" style="    display: flex;align-items: center;">
                     <li>

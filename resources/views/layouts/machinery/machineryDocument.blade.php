@@ -80,17 +80,22 @@ $dataarray = json_decode($data, true);
     <div class="col-md-12 col-sm-12 col-xs-12">
         <div class="card project_list">
             <div class="header">
-                <h2><strong>Machinery Document</strong> List</h2>
+                <h2>
+                    <a href="{{ url('/machinery?machinery_id=' . $machinery['head_id']) }}" class="btn btn-primary btn-round waves-effect" style="color: white !important; margin-right: 10px; padding: 6px 12px; vertical-align: middle;">
+                        <i class="zmdi zmdi-arrow-left"></i> Back
+                    </a>
+                    <strong>Machinery Document</strong> List
+                </h2>
                 <br>
                 <h2><strong>Machinery Name - </strong>{{$machinery['name']}}<br>
                     <strong> Head -</strong> {{$machinery['head']}}<br> 
                     <strong>Currently At Site - </strong>{{($machinery['status'] != "Sold") ? getSiteDetailsById($machinery['site_id'])->name : "Already Sold From Site (".getSiteDetailsById($machinery['site_id'])->name.")"}} 
                 </h2>
          
-                <ul class="header-dropdown">
+                <ul class="header-dropdown" style="display: flex; align-items: center; gap: 10px;">
                     <li>
                     @if(checkmodulepermission(6,'can_add') == 1)
-                        <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right m-l-10" onclick="opennewdocmodel({{$machinery['id']}})" type="button">
+                        <button class="btn btn-primary btn-icon btn-round hidden-sm-down float-right" onclick="opennewdocmodel({{$machinery['id']}})" type="button">
                             <i class="zmdi zmdi-plus" style="color: white;"></i>
                         </button>
                         @endif

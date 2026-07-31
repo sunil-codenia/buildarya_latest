@@ -182,11 +182,15 @@ class UserController extends Controller
                 $actionHtml .= '<button title="Assign Permission" onclick="assignPerm('.$ddid.')" style="all:unset"><img src="'.asset('/images/permission.png').'" style="width:20px" /></button>&nbsp;';
                 $actionHtml .= '<button title="Edit" onclick="editdata('.$ddid.')" style="all:unset;"><i class="zmdi zmdi-edit"></i></button>&nbsp;';
             }
-            if (isUserDeletable($ddid) && checkmodulepermission(1, 'can_delete') == 1) {
+            if (isUserDeletable($ddid) && checkmodulepermission(1, 'can_delete') == 1 && $user->role_id != 1 && strtolower($role_name) != 'superadmin') {
                 $actionHtml .= '<button title="delete" onclick="deleteUser('.$ddid.')" style="all:unset"><i class="zmdi zmdi-delete"></i></button>';
             }
 
-            $checkboxHtml = '<input type="checkbox" class="user-checkbox" value="'.$ddid.'">';
+            if ($user->role_id == 1 || strtolower($role_name) == 'superadmin') {
+                $checkboxHtml = '';
+            } else {
+                $checkboxHtml = '<input type="checkbox" class="user-checkbox" value="'.$ddid.'">';
+            }
             
             $rowData = [
                 $checkboxHtml,
@@ -203,7 +207,7 @@ class UserController extends Controller
             ];
 
             if ($current_role == 1) {
-                $rowData[] = $user->pass;
+                $rowData[] = '********';
             }
             
             $rowData[] = $user->create_datetime;
@@ -300,11 +304,12 @@ class UserController extends Controller
             }
         }
         
+        $plan_col = $this->getPlanColName($user_db_conn_name);
+
         $data = [
             'name' => $name,
             'username' => $username,
             'pass' => $password,
-            'subscription_plan_id' => $subscription_plan_id,
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,
@@ -314,6 +319,9 @@ class UserController extends Controller
             'view_duration' => $request->view_duration,
             'add_duration' => $request->add_duration,
         ];
+        if ($plan_col) {
+            $data[$plan_col] = $subscription_plan_id;
+        }
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {
             $user_id = DB::connection($user_db_conn_name)->table('users')->insertGetId($data);
@@ -423,6 +431,16 @@ class UserController extends Controller
     {
         $id = $request->get('id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        $user = DB::connection($user_db_conn_name)->table('users')
+            ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
+            ->select('users.*', 'roles.name as role_name')
+            ->where('users.id', $id)
+            ->first();
+        if ($user && ($user->role_id == 1 || strtolower($user->role_name) == 'superadmin')) {
+            return redirect('/users')->with('error', 'SuperAdmin cannot be deleted!');
+        }
+
         $users = DB::connection($user_db_conn_name)->table('users')->where('id',$id)->get()[0]->name;
         DB::connection($user_db_conn_name)->table('users')->where('id', '=', $id)->delete();
         addActivity(0,'users',"User Deleted - ".$users,1);
@@ -456,7 +474,14 @@ class UserController extends Controller
             $deletable_ids = [];
             foreach ($ids as $id) {
                 if (isUserDeletable($id)) {
-                    $deletable_ids[] = $id;
+                    $user = DB::connection($user_db_conn_name)->table('users')
+                        ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
+                        ->select('users.*', 'roles.name as role_name')
+                        ->where('users.id', $id)
+                        ->first();
+                    if ($user && $user->role_id != 1 && strtolower($user->role_name) != 'superadmin') {
+                        $deletable_ids[] = $id;
+                    }
                 }
             }
 
@@ -486,11 +511,12 @@ class UserController extends Controller
         
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
-        // Ensure subscription_plan_id is not wiped if missing from request
+        // Ensure subscription plan is not wiped if missing from request
+        $plan_col = $this->getPlanColName($user_db_conn_name);
         $subscription_plan_id = $request->subscription_plan_id;
-        if (!$subscription_plan_id) {
+        if ($plan_col && !$subscription_plan_id) {
             $existing_user = DB::connection($user_db_conn_name)->table('users')->where('id', $id)->first();
-            $subscription_plan_id = $existing_user ? $existing_user->subscription_plan_id : null;
+            $subscription_plan_id = $existing_user ? $existing_user->$plan_col : null;
         }
 
         // If still null, try to fallback to company active plan
@@ -504,11 +530,21 @@ class UserController extends Controller
             $subscription_plan_id = $active_plan ? $active_plan->id : null;
         }
 
+        $existing_user = DB::connection($user_db_conn_name)->table('users')->where('id', $id)->first();
+        $password_changed = false;
+
+        if ($password === '********') {
+            $password = $existing_user ? $existing_user->pass : '';
+        } else {
+            if ($existing_user && $existing_user->pass !== $password) {
+                $password_changed = true;
+            }
+        }
+
         $updateData = [
             'name' => $name,
             'username' => $username,
             'pass' => $password,
-            'subscription_plan_id' => $subscription_plan_id,
             'site_id' => $site_id,
             'role_id' => $role_id,
             'pan_no' => $pan_no,
@@ -517,6 +553,9 @@ class UserController extends Controller
             'view_duration' => $request->view_duration,
             'add_duration' => $request->add_duration,
         ];
+        if ($plan_col) {
+            $updateData[$plan_col] = $subscription_plan_id;
+        }
 
         if (isset($request->image)) {
             $request->validate(
@@ -535,6 +574,10 @@ class UserController extends Controller
         }
 
         DB::connection($user_db_conn_name)->table('users')->where('id', $id)->update($updateData);
+
+        if ($password_changed && $existing_user) {
+            $this->sendPasswordEmail($existing_user, $password, $user_db_conn_name);
+        }
 
         // Update session if the admin is editing their own profile
         if ($id == session()->get('uid')) {
@@ -772,6 +815,10 @@ class UserController extends Controller
 
         addActivity($user_id, 'users', "User Password Updated", 1);
 
+        if ($user) {
+            $this->sendPasswordEmail($user, $request->new_password, $user_db_conn_name);
+        }
+
         return redirect()->back()->with('success', 'Password updated successfully!');
     }
 
@@ -823,5 +870,50 @@ class UserController extends Controller
         addActivity($user_id, 'users', "Profile Updated", 1);
 
         return redirect()->back()->with('success', 'Profile updated successfully!');
+    }
+
+    private function sendPasswordEmail($user, $new_password, $user_db_conn_name)
+    {
+        $email = null;
+        if (filter_var($user->username, FILTER_VALIDATE_EMAIL)) {
+            $email = $user->username;
+        } else {
+            $phone = $user->contact_no;
+            if ($phone) {
+                $email = DB::connection($user_db_conn_name)->table('contact')
+                    ->where('phone', $phone)
+                    ->whereNotNull('email')
+                    ->where('email', '!=', '')
+                    ->value('email');
+            }
+        }
+
+        if ($email) {
+            try {
+                \Illuminate\Support\Facades\Mail::raw(
+                    "Hello {$user->name},\n\nYour password for Buildarya has been updated.\n\nYour new password is: {$new_password}\n\nRegards,\nBuildarya Team",
+                    function ($mail) use ($email, $user) {
+                        $mail->to($email)
+                             ->subject('Buildarya — Password Updated');
+                    }
+                );
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Failed to send password update email to ' . $email . ': ' . $e->getMessage());
+            }
+        } else {
+            \Illuminate\Support\Facades\Log::warning('No valid email found to send password update for user ID ' . $user->id);
+        }
+    }
+
+    private function getPlanColName($user_db_conn_name)
+    {
+        $columns = \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->getColumnListing('users');
+        if (in_array('subscription_plan_id', $columns)) {
+            return 'subscription_plan_id';
+        }
+        if (in_array('company_plan_id', $columns)) {
+            return 'company_plan_id';
+        }
+        return null;
     }
 }
