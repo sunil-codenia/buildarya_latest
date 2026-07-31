@@ -611,6 +611,40 @@ class ApiTaskController extends Controller
             $conn = $tenant['conn'];
             $perPage = $request->input('per_page', 15);
 
+            $userRecord = DB::connection($conn)->table('users')->where('id', $tenant['uid'])->first();
+            $isSuperAdmin = false;
+            if ($userRecord) {
+                if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                    $isSuperAdmin = true;
+                } else {
+                    $roleObj = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                    if ($roleObj && (
+                        (isset($roleObj->is_superadmin) && ($roleObj->is_superadmin === 'yes' || $roleObj->is_superadmin == '1')) || 
+                        strtolower($roleObj->name) == 'admin' || 
+                        strtolower($roleObj->name) == 'superadmin'
+                    )) {
+                        $isSuperAdmin = true;
+                    }
+                }
+            }
+
+            $has_task_perm = $isSuperAdmin;
+            if (!$has_task_perm) {
+                $has_task_perm = DB::connection($conn)->table('user_permission')
+                    ->where('user_id', $tenant['uid'])
+                    ->whereIn('module_id', [14, 15])
+                    ->where('can_view', 1)
+                    ->exists();
+            }
+
+            if (!$has_task_perm) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'status_code' => '403',
+                    'message' => 'Access Denied! You do not have permissions for tasks/categories.'
+                ], 403);
+            }
+
             $categories = DB::connection($conn)->table('task_categories')
                 ->orderBy('id', 'desc')
                 ->paginate($perPage);
@@ -638,6 +672,40 @@ class ApiTaskController extends Controller
             $tenant = $this->resolveTenant($request);
             $conn = $tenant['conn'];
             $uid = $tenant['uid'];
+
+            $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+            $isSuperAdmin = false;
+            if ($userRecord) {
+                if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                    $isSuperAdmin = true;
+                } else {
+                    $roleObj = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                    if ($roleObj && (
+                        (isset($roleObj->is_superadmin) && ($roleObj->is_superadmin === 'yes' || $roleObj->is_superadmin == '1')) || 
+                        strtolower($roleObj->name) == 'admin' || 
+                        strtolower($roleObj->name) == 'superadmin'
+                    )) {
+                        $isSuperAdmin = true;
+                    }
+                }
+            }
+
+            $has_task_perm = $isSuperAdmin;
+            if (!$has_task_perm) {
+                $has_task_perm = DB::connection($conn)->table('user_permission')
+                    ->where('user_id', $uid)
+                    ->where('module_id', 15)
+                    ->where('can_add', 1)
+                    ->exists();
+            }
+
+            if (!$has_task_perm) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'status_code' => '403',
+                    'message' => 'Access Denied! You do not have permission to add categories.'
+                ], 403);
+            }
 
             $name = $request->input('name');
             if (!$name) {
@@ -695,6 +763,40 @@ class ApiTaskController extends Controller
             $tenant = $this->resolveTenant($request);
             $conn = $tenant['conn'];
             $uid = $tenant['uid'];
+
+            $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+            $isSuperAdmin = false;
+            if ($userRecord) {
+                if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                    $isSuperAdmin = true;
+                } else {
+                    $roleObj = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                    if ($roleObj && (
+                        (isset($roleObj->is_superadmin) && ($roleObj->is_superadmin === 'yes' || $roleObj->is_superadmin == '1')) || 
+                        strtolower($roleObj->name) == 'admin' || 
+                        strtolower($roleObj->name) == 'superadmin'
+                    )) {
+                        $isSuperAdmin = true;
+                    }
+                }
+            }
+
+            $has_task_perm = $isSuperAdmin;
+            if (!$has_task_perm) {
+                $has_task_perm = DB::connection($conn)->table('user_permission')
+                    ->where('user_id', $uid)
+                    ->where('module_id', 15)
+                    ->where('can_edit', 1)
+                    ->exists();
+            }
+
+            if (!$has_task_perm) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'status_code' => '403',
+                    'message' => 'Access Denied! You do not have permission to edit categories.'
+                ], 403);
+            }
 
             $categoryId = $id ?? $request->input('id') ?? $request->get('id');
             if (!$categoryId) {
@@ -770,6 +872,40 @@ class ApiTaskController extends Controller
             $tenant = $this->resolveTenant($request);
             $conn = $tenant['conn'];
             $uid = $tenant['uid'];
+
+            $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+            $isSuperAdmin = false;
+            if ($userRecord) {
+                if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                    $isSuperAdmin = true;
+                } else {
+                    $roleObj = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+                    if ($roleObj && (
+                        (isset($roleObj->is_superadmin) && ($roleObj->is_superadmin === 'yes' || $roleObj->is_superadmin == '1')) || 
+                        strtolower($roleObj->name) == 'admin' || 
+                        strtolower($roleObj->name) == 'superadmin'
+                    )) {
+                        $isSuperAdmin = true;
+                    }
+                }
+            }
+
+            $has_task_perm = $isSuperAdmin;
+            if (!$has_task_perm) {
+                $has_task_perm = DB::connection($conn)->table('user_permission')
+                    ->where('user_id', $uid)
+                    ->where('module_id', 15)
+                    ->where('can_delete', 1)
+                    ->exists();
+            }
+
+            if (!$has_task_perm) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'status_code' => '403',
+                    'message' => 'Access Denied! You do not have permission to delete categories.'
+                ], 403);
+            }
 
             $categoryId = $id ?? $request->input('id') ?? $request->get('id');
             if (!$categoryId) {

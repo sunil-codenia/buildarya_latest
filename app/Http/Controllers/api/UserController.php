@@ -276,6 +276,38 @@ class UserController extends Controller
             $result_data['doc_head_option'] = DB::connection($conn)->table('doc_head_option')->get();
             $result_data['doc_upload'] = DB::connection($conn)->table('doc_upload')->where('created_by', $uid)->limit(100)->orderBy('id', 'desc')->get();
 
+            // Task Categories based on permissions
+            $is_superadmin = false;
+            if ($userdata) {
+                if ($userdata->role_id == 1 || (isset($userdata->is_superadmin) && ($userdata->is_superadmin === 'yes' || $userdata->is_superadmin == '1'))) {
+                    $is_superadmin = true;
+                } else {
+                    $roleObj = DB::connection($conn)->table('roles')->where('id', $userdata->role_id)->first();
+                    if ($roleObj && (
+                        (isset($roleObj->is_superadmin) && ($roleObj->is_superadmin === 'yes' || $roleObj->is_superadmin == '1')) || 
+                        strtolower($roleObj->name) == 'admin' || 
+                        strtolower($roleObj->name) == 'superadmin'
+                    )) {
+                        $is_superadmin = true;
+                    }
+                }
+            }
+
+            $has_task_perm = $is_superadmin;
+            if (!$has_task_perm) {
+                $has_task_perm = DB::connection($conn)->table('user_permission')
+                    ->where('user_id', $uid)
+                    ->whereIn('module_id', [14, 15])
+                    ->where('can_view', 1)
+                    ->exists();
+            }
+
+            if ($has_task_perm) {
+                $result_data['task_categories'] = DB::connection($conn)->table('task_categories')->get();
+            } else {
+                $result_data['task_categories'] = [];
+            }
+
             // $transactions = DB::connection($conn)->select("SELECT * FROM sites_transaction WHERE site_id = '$site_id'");
             // $site_trans = array();
             // foreach ($transactions as $dd) {

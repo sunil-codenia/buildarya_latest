@@ -222,9 +222,7 @@
             {{-- @if (isSuperAdmin() || checkmodulepermission(16, 'can_report') == 1)
             <li class="{{ Request::is('invoices') ? 'active open' : '' }}"><a href="{{url('/invoices')}}"><i class="zmdi zmdi-file-text"></i><span>Invoices</span></a></li>
             @endif --}}
-            @if (isSuperAdmin() || checkmodulepermission(17, 'can_report') == 1)
             <li class="{{ Request::is('tickets*') ? 'active open' : '' }}"><a href="{{url('/tickets')}}"><i class="zmdi zmdi-receipt"></i><span>Support Tickets</span></a></li>
-            @endif
             <li class="header">APPS</li>
             @if(isSuperAdmin())
             <li class="{{ Request::is('dashboard/upload_apk') ? 'active open' : '' }}">

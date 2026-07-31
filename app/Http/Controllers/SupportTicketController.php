@@ -16,9 +16,6 @@ class SupportTicketController extends Controller
 
     public function index()
     {
-        if (!isSuperAdmin() && checkmodulepermission(17, 'can_report') != 1) {
-            abort(403, 'Unauthorized access.');
-        }
 
         $companyUid = session()->get('comp_id');
         $tickets = [];
@@ -49,9 +46,6 @@ class SupportTicketController extends Controller
 
     public function store(Request $request)
     {
-        if (!isSuperAdmin() && checkmodulepermission(17, 'can_report') != 1) {
-            return back()->with('error', 'Unauthorized.');
-        }
 
         $request->validate([
             'subject' => 'required|string|max:255',
@@ -89,9 +83,6 @@ class SupportTicketController extends Controller
 
     public function show($id)
     {
-        if (!isSuperAdmin() && checkmodulepermission(17, 'can_report') != 1) {
-            abort(403, 'Unauthorized access.');
-        }
 
         $shaarvikUrl = $this->getShaarvikUrl();
         $ticket = null;
@@ -119,9 +110,6 @@ class SupportTicketController extends Controller
 
     public function reply(Request $request, $id)
     {
-        if (!isSuperAdmin() && checkmodulepermission(17, 'can_report') != 1) {
-            return back()->with('error', 'Unauthorized.');
-        }
 
         $request->validate([
             'reply_text' => 'required|string'
