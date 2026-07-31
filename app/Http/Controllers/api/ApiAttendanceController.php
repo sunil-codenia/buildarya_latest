@@ -60,6 +60,20 @@ class ApiAttendanceController extends Controller
             $date = $request->input('date') ?? Carbon::now()->format('Y-m-d');
             $in_time = $request->input('in_time') ?? Carbon::now()->format('Y-m-d H:i:s');
             $site_id = $request->input('site_id');
+            if (empty($site_id) || $site_id === 'null' || $site_id === 'undefined' || $site_id == 0) {
+                $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+                if ($userRecord && !empty($userRecord->site_id)) {
+                    $userSites = explode(',', (string)$userRecord->site_id);
+                    $firstUserSite = $userSites[0] ?? null;
+                    if (is_numeric($firstUserSite)) {
+                        $site_id = $firstUserSite;
+                    }
+                }
+                if (empty($site_id) || $site_id === 'null' || $site_id === 'undefined' || $site_id == 0) {
+                    $firstSite = DB::connection($conn)->table('sites')->first();
+                    $site_id = $firstSite ? $firstSite->id : null;
+                }
+            }
             $in_location = $request->input('in_location');
             $remarks = $request->input('remarks');
 
@@ -395,6 +409,22 @@ class ApiAttendanceController extends Controller
             $date = $request->input('date');
             $status = $request->input('status'); // Present, Absent, Half Day, Leave
             $site_id = $request->input('site_id');
+            if (empty($site_id) || $site_id === 'null' || $site_id === 'undefined' || $site_id == 0) {
+                if ($targetUserId && $targetUserId !== 'labour_contractor' && $targetUserId !== 'labour contractor' && is_numeric($targetUserId)) {
+                    $targetUser = DB::connection($conn)->table('users')->where('id', $targetUserId)->first();
+                    if ($targetUser && !empty($targetUser->site_id)) {
+                        $userSites = explode(',', (string)$targetUser->site_id);
+                        $firstUserSite = $userSites[0] ?? null;
+                        if (is_numeric($firstUserSite)) {
+                            $site_id = $firstUserSite;
+                        }
+                    }
+                }
+                if (empty($site_id) || $site_id === 'null' || $site_id === 'undefined' || $site_id == 0) {
+                    $firstSite = DB::connection($conn)->table('sites')->first();
+                    $site_id = $firstSite ? $firstSite->id : null;
+                }
+            }
             $in_time = $request->input('in_time') ?? $request->input('clock_in');
             $out_time = $request->input('out_time') ?? $request->input('clock_out');
             $remarks = $request->input('remarks');
@@ -622,7 +652,27 @@ class ApiAttendanceController extends Controller
                 $updateData['image'] = "images/app_images/{$comp_id}/attendance/{$fileName}";
             }
 
-            if ($request->has('site_id')) $updateData['site_id'] = $request->input('site_id');
+            if ($request->has('site_id')) {
+                $site_id = $request->input('site_id');
+                if (empty($site_id) || $site_id === 'null' || $site_id === 'undefined' || $site_id == 0) {
+                    $site_id = null;
+                    if ($record->user_id) {
+                        $userRecord = DB::connection($conn)->table('users')->where('id', $record->user_id)->first();
+                        if ($userRecord && !empty($userRecord->site_id)) {
+                            $userSites = explode(',', (string)$userRecord->site_id);
+                            $firstUserSite = $userSites[0] ?? null;
+                            if (is_numeric($firstUserSite)) {
+                                $site_id = $firstUserSite;
+                            }
+                        }
+                    }
+                    if (empty($site_id) || $site_id === 'null' || $site_id === 'undefined' || $site_id == 0) {
+                        $firstSite = DB::connection($conn)->table('sites')->first();
+                        $site_id = $firstSite ? $firstSite->id : null;
+                    }
+                }
+                $updateData['site_id'] = $site_id;
+            }
             if ($request->has('status')) $updateData['status'] = $request->input('status');
             if ($request->has('date')) $updateData['date'] = $request->input('date');
             

@@ -20,16 +20,17 @@ class AttendanceWebController extends Controller
         $date = $request->get('date', Carbon::today()->toDateString());
 
         $assignedSites = session()->get('assigned_site_ids', []);
+        $hasAllSites = empty($assignedSites) || in_array('all', $assignedSites);
 
         // Fetch all sites and users
         $sitesQuery = DB::connection($conn)->table('sites');
-        if (!empty($assignedSites)) {
+        if (!$hasAllSites) {
             $sitesQuery->whereIn('id', $assignedSites);
         }
         $sites = $sitesQuery->get();
 
         $usersQuery = DB::connection($conn)->table('users');
-        if (!empty($assignedSites)) {
+        if (!$hasAllSites) {
             $usersQuery->where(function($q) use ($assignedSites) {
                 foreach ($assignedSites as $sid) {
                     $q->orWhereRaw("FIND_IN_SET(?, site_id)", [$sid]);
@@ -47,17 +48,46 @@ class AttendanceWebController extends Controller
             ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id')
             ->where('attendance.date', $date);
 
-        if (!empty($assignedSites)) {
-            $attendanceLogsQuery->whereIn('attendance.site_id', $assignedSites);
+        if (!$hasAllSites) {
+            $attendanceLogsQuery->where(function($q) use ($assignedSites) {
+                $q->whereIn('attendance.site_id', $assignedSites)
+                  ->orWhere(function($sub) use ($assignedSites) {
+                      $sub->where(function($sub2) {
+                          $sub2->whereNull('attendance.site_id')
+                               ->orWhere('attendance.site_id', '=', 0);
+                      });
+                      $sub->where(function($sub3) use ($assignedSites) {
+                          foreach ($assignedSites as $sid) {
+                              $sub3->orWhereRaw("FIND_IN_SET(?, users.site_id)", [$sid]);
+                          }
+                      });
+                  });
+            });
         }
 
         $attendanceLogs = $attendanceLogsQuery->select(
                 'attendance.*', 
                 DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
                 DB::raw('COALESCE(users.username, "Labour Contractor") as user_username'),
-                'sites.name as site_name'
+                'sites.name as site_name',
+                'users.site_id as user_site_id'
             )
             ->get();
+
+        // Fallback site_name resolving in PHP for logs where site_id is empty/0
+        $siteNamesMap = $sites->pluck('name', 'id')->toArray();
+        foreach ($attendanceLogs as $log) {
+            if (empty($log->site_name) && !empty($log->user_site_id)) {
+                $userSites = explode(',', $log->user_site_id);
+                $firstUserSiteId = $userSites[0] ?? null;
+                if ($firstUserSiteId && isset($siteNamesMap[$firstUserSiteId])) {
+                    $log->site_name = $siteNamesMap[$firstUserSiteId];
+                }
+            }
+            if (empty($log->site_name)) {
+                $log->site_name = 'Head Office';
+            }
+        }
 
         // Calculate Stats
         $totalUsers = $users->count();
@@ -111,7 +141,8 @@ class AttendanceWebController extends Controller
         ]);
 
         $assignedSites = session()->get('assigned_site_ids', []);
-        if (!empty($assignedSites) && !in_array($request->site_id, $assignedSites)) {
+        $hasAllSites = empty($assignedSites) || in_array('all', $assignedSites);
+        if (!$hasAllSites && !in_array($request->site_id, $assignedSites)) {
             return redirect()->back()->with('errorcode', 'You do not have permission for this site.');
         }
 
@@ -199,7 +230,8 @@ class AttendanceWebController extends Controller
         ]);
 
         $assignedSites = session()->get('assigned_site_ids', []);
-        if (!empty($assignedSites) && !in_array($request->site_id, $assignedSites)) {
+        $hasAllSites = empty($assignedSites) || in_array('all', $assignedSites);
+        if (!$hasAllSites && !in_array($request->site_id, $assignedSites)) {
             return redirect()->back()->with('errorcode', 'You do not have permission for this site.');
         }
 
@@ -290,7 +322,8 @@ class AttendanceWebController extends Controller
         // Resolve site ID fallback
         if (!$siteId) {
             $assignedSites = session()->get('assigned_site_ids', []);
-            $siteId = (!empty($assignedSites) && is_numeric($assignedSites[0])) ? $assignedSites[0] : null;
+            $cleanAssignedSites = array_filter($assignedSites, 'is_numeric');
+            $siteId = !empty($cleanAssignedSites) ? reset($cleanAssignedSites) : null;
             if (!$siteId) {
                 $firstSite = DB::connection($conn)->table('sites')->first();
                 $siteId = $firstSite ? $firstSite->id : null;
