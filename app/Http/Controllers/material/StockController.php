@@ -32,8 +32,36 @@ class StockController extends Controller
             $filters_1 = [['material_consumption.status', '!=', 'Pending']];
             $filters_2 = [['material_wastage.status', '!=', 'Pending']];
         }
-        $material_consumption = DB::connection($user_db_conn_name)->table('material_consumption')->leftjoin('materials', 'materials.id', '=', 'material_consumption.material_id')->leftjoin('sites', 'sites.id', '=', 'material_consumption.site_id')->leftjoin('units', 'units.id', '=', 'material_consumption.unit')->leftjoin('users', 'users.id', '=', 'material_consumption.user_id')->select('material_consumption.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user')->where($filters_1)->whereBetween('material_consumption.date', [$min_date, $max_date])->orderBy('material_consumption.id', 'DESC')->get();
-        $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->leftjoin('materials', 'materials.id', '=', 'material_wastage.material_id')->leftjoin('sites', 'sites.id', '=', 'material_wastage.site_id')->leftjoin('units', 'units.id', '=', 'material_wastage.unit')->leftjoin('users', 'users.id', '=', 'material_wastage.user_id')->select('material_wastage.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user')->where($filters_2)->whereBetween('material_wastage.date', [$min_date, $max_date])->orderBy('material_wastage.id', 'DESC')->get();
+
+        $assignedSites = session()->get('assigned_site_ids', []);
+
+        $mcQuery = DB::connection($user_db_conn_name)->table('material_consumption')
+            ->leftjoin('materials', 'materials.id', '=', 'material_consumption.material_id')
+            ->leftjoin('sites', 'sites.id', '=', 'material_consumption.site_id')
+            ->leftjoin('units', 'units.id', '=', 'material_consumption.unit')
+            ->leftjoin('users', 'users.id', '=', 'material_consumption.user_id')
+            ->select('material_consumption.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user')
+            ->where($filters_1)
+            ->whereBetween('material_consumption.date', [$min_date, $max_date]);
+
+        if (!empty($assignedSites)) {
+            $mcQuery->whereIn('material_consumption.site_id', $assignedSites);
+        }
+        $material_consumption = $mcQuery->orderBy('material_consumption.id', 'DESC')->get();
+
+        $mwQuery = DB::connection($user_db_conn_name)->table('material_wastage')
+            ->leftjoin('materials', 'materials.id', '=', 'material_wastage.material_id')
+            ->leftjoin('sites', 'sites.id', '=', 'material_wastage.site_id')
+            ->leftjoin('units', 'units.id', '=', 'material_wastage.unit')
+            ->leftjoin('users', 'users.id', '=', 'material_wastage.user_id')
+            ->select('material_wastage.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user')
+            ->where($filters_2)
+            ->whereBetween('material_wastage.date', [$min_date, $max_date]);
+
+        if (!empty($assignedSites)) {
+            $mwQuery->whereIn('material_wastage.site_id', $assignedSites);
+        }
+        $material_wastage = $mwQuery->orderBy('material_wastage.id', 'DESC')->get();
 
         return  view('layouts.material.verified_consumption', compact(['material_consumption', 'material_wastage']));
     }
@@ -56,8 +84,36 @@ class StockController extends Controller
             $filters_1 = [['material_consumption.status', '=', 'Pending']];
             $filters_2 = [['material_wastage.status', '=', 'Pending']];
         }
-        $material_consumption = DB::connection($user_db_conn_name)->table('material_consumption')->leftjoin('materials', 'materials.id', '=', 'material_consumption.material_id')->leftjoin('sites', 'sites.id', '=', 'material_consumption.site_id')->leftjoin('units', 'units.id', '=', 'material_consumption.unit')->leftjoin('users', 'users.id', '=', 'material_consumption.user_id')->select('material_consumption.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user')->where($filters_1)->whereBetween('material_consumption.date', [$min_date, $max_date])->orderBy('material_consumption.id', 'DESC')->get();
-        $material_wastage = DB::connection($user_db_conn_name)->table('material_wastage')->leftjoin('materials', 'materials.id', '=', 'material_wastage.material_id')->leftjoin('sites', 'sites.id', '=', 'material_wastage.site_id')->leftjoin('units', 'units.id', '=', 'material_wastage.unit')->leftjoin('users', 'users.id', '=', 'material_wastage.user_id')->select('material_wastage.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user')->where($filters_2)->whereBetween('material_wastage.date', [$min_date, $max_date])->orderBy('material_wastage.id', 'DESC')->get();
+
+        $assignedSites = session()->get('assigned_site_ids', []);
+
+        $mcQuery = DB::connection($user_db_conn_name)->table('material_consumption')
+            ->leftjoin('materials', 'materials.id', '=', 'material_consumption.material_id')
+            ->leftjoin('sites', 'sites.id', '=', 'material_consumption.site_id')
+            ->leftjoin('units', 'units.id', '=', 'material_consumption.unit')
+            ->leftjoin('users', 'users.id', '=', 'material_consumption.user_id')
+            ->select('material_consumption.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user')
+            ->where($filters_1)
+            ->whereBetween('material_consumption.date', [$min_date, $max_date]);
+
+        if (!empty($assignedSites)) {
+            $mcQuery->whereIn('material_consumption.site_id', $assignedSites);
+        }
+        $material_consumption = $mcQuery->orderBy('material_consumption.id', 'DESC')->get();
+
+        $mwQuery = DB::connection($user_db_conn_name)->table('material_wastage')
+            ->leftjoin('materials', 'materials.id', '=', 'material_wastage.material_id')
+            ->leftjoin('sites', 'sites.id', '=', 'material_wastage.site_id')
+            ->leftjoin('units', 'units.id', '=', 'material_wastage.unit')
+            ->leftjoin('users', 'users.id', '=', 'material_wastage.user_id')
+            ->select('material_wastage.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user')
+            ->where($filters_2)
+            ->whereBetween('material_wastage.date', [$min_date, $max_date]);
+
+        if (!empty($assignedSites)) {
+            $mwQuery->whereIn('material_wastage.site_id', $assignedSites);
+        }
+        $material_wastage = $mwQuery->orderBy('material_wastage.id', 'DESC')->get();
 
         return  view('layouts.material.pending_consumption', compact(['material_consumption', 'material_wastage']));
     }
@@ -86,7 +142,16 @@ class StockController extends Controller
         $status = getInitialEntryStatusByRole($role_id);
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $length = count($data['site_id']);
-        
+
+        $assignedSites = session()->get('assigned_site_ids', []);
+        if (!empty($assignedSites)) {
+            foreach ($data['site_id'] as $siteId) {
+                if (!in_array($siteId, $assignedSites)) {
+                    return redirect()->back()->with('error', 'You do not have permission for the selected site.');
+                }
+            }
+        }
+
         $add_duration = $request->session()->get('add_duration');
         $duration = getdurationdates($add_duration);
         $min_date = $duration['min'];
@@ -377,10 +442,10 @@ class StockController extends Controller
             return redirect('/verified_consumption')->with('error', 'Material Consumption Entry Not Found!');
         }
 
-        $add_duration = $request->session()->get('add_duration');
-        $duration = getdurationdates($add_duration);
-        $min_date = $duration['min'];
-        $max_date = $duration['max'];
+        $assignedSites = session()->get('assigned_site_ids', []);
+        if (!empty($assignedSites) && !in_array($data['site_id'], $assignedSites)) {
+            return redirect()->back()->with('error', 'You do not have permission for the selected site.');
+        }
 
         if (strtotime($data['date']) < strtotime($min_date) || strtotime($data['date']) > strtotime($max_date)) {
             return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
@@ -434,10 +499,10 @@ class StockController extends Controller
             return redirect('/verified_consumption')->with('error', 'Material Wastage Entry Not Found!');
         }
 
-        $add_duration = $request->session()->get('add_duration');
-        $duration = getdurationdates($add_duration);
-        $min_date = $duration['min'];
-        $max_date = $duration['max'];
+        $assignedSites = session()->get('assigned_site_ids', []);
+        if (!empty($assignedSites) && !in_array($data['site_id'], $assignedSites)) {
+            return redirect()->back()->with('error', 'You do not have permission for the selected site.');
+        }
 
         if (strtotime($data['date']) < strtotime($min_date) || strtotime($data['date']) > strtotime($max_date)) {
             return redirect()->back()->with('error', "You don't have permission to update entry for date: " . $data['date']);
@@ -804,18 +869,45 @@ class StockController extends Controller
     public function stock_dashboard(Request $request)
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $sess_site_id = $request->session()->get('site_id');
         $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
         $site_wise_data = array();
-        $whole_comp_data =  DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->join('sites', 'sites.id', '=', 'material_stock_record.site_id')->where('sites.status', '=', 'Active')->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name', 'sites.name as site_name')->orderBy('material_stock_record.site_id')->orderBy('material_stock_record.material_id')->get();
+        
+        $whole_comp_query = DB::connection($user_db_conn_name)->table('material_stock_record')
+            ->join('materials', 'materials.id', '=', 'material_stock_record.material_id')
+            ->join('units', 'units.id', '=', 'material_stock_record.unit')
+            ->join('sites', 'sites.id', '=', 'material_stock_record.site_id')
+            ->where('sites.status', '=', 'Active');
+
+        if ($sess_site_id) {
+            $whole_comp_query->where('material_stock_record.site_id', '=', $sess_site_id);
+        }
+
+        $whole_comp_data = $whole_comp_query
+            ->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name', 'sites.name as site_name')
+            ->orderBy('material_stock_record.site_id')
+            ->orderBy('material_stock_record.material_id')
+            ->get();
+
         foreach ($sites as $site) {
-            $siteData = DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->where('material_stock_record.site_id', '=', $site->id)->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')->orderBy('material_stock_record.material_id')->get();
+            if ($sess_site_id && $site->id != $sess_site_id) {
+                continue;
+            }
+            $siteData = DB::connection($user_db_conn_name)->table('material_stock_record')
+                ->join('materials', 'materials.id', '=', 'material_stock_record.material_id')
+                ->join('units', 'units.id', '=', 'material_stock_record.unit')
+                ->where('material_stock_record.site_id', '=', $site->id)
+                ->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')
+                ->orderBy('material_stock_record.material_id')
+                ->get();
             $rawd = ['site_id' => $site->id, 'site_name' => $site->name, 'stock' => $siteData];
             array_push($site_wise_data, $rawd);
         }
+
         $material_wise_data = array();
         $materials = DB::connection($user_db_conn_name)->table('materials')->get();
         foreach ($materials as $mat) {
-            $matData = DB::connection($user_db_conn_name)->table('material_stock_record as msr')
+            $matDataQuery = DB::connection($user_db_conn_name)->table('material_stock_record as msr')
                 ->select(
                     'msr.*',
                     'sites.name as site_name',
@@ -826,12 +918,17 @@ class StockController extends Controller
                 ->where('msr.material_id', '=', $mat->id)
                 ->where('sites.status', '=', 'Active')
                 ->orderBy('msr.site_id')
-                ->orderBy('msr.unit')
-                ->get();
+                ->orderBy('msr.unit');
+
+            if ($sess_site_id) {
+                $matDataQuery->where('msr.site_id', '=', $sess_site_id);
+            }
+
+            $matData = $matDataQuery->get();
             $rawd = ['material_id' => $mat->id, 'material_name' => $mat->name, 'stock' => $matData];
             array_push($material_wise_data, $rawd);
         }
-        return  view('layouts.material.stockDashboard', compact(['site_wise_data', 'material_wise_data', 'sites', 'materials', 'whole_comp_data']));
+        return view('layouts.material.stockDashboard', compact(['site_wise_data', 'material_wise_data', 'sites', 'materials', 'whole_comp_data']));
     }
 public function view_mat_transaction(Request $request){
     $user_db_conn_name = $request->session()->get('comp_db_conn_name');

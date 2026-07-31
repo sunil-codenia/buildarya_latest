@@ -12,6 +12,8 @@
         $min_date = substr($duration['min'], 0, 10);
         $max_date = substr($duration['max'], 0, 10);
 
+        $sess_site_id = session()->get('site_id');
+        $has_locked_site = ($sess_site_id && $sess_site_id != 'all');
     @endphp
 
     <div class="row clearfix">
@@ -52,21 +54,25 @@
                                             <div class="col-lg-3 col-md-3 col-sm-3">
                                                 <div class="form-group">
                                                     <label>Site</label>
-                                                    <select name="site_id[]" id="site_id_1" onchange="sitechanges(1);"
-                                                        class="form-control show-tick" data-live-search="true" required>
-                                                        <option value="" selected disabled>--Select Site--</option>
-                                                        @if ($entry_at_site == 'current')
-                                                            <option  value="{{ $site_id }}">
-                                                                {{ getSiteDetailsById($site_id)->name }}
-                                                            </option>
-                                                        @else
-                                                            @foreach ($sites as $site)
-                                                                <option value="{{ $site->id }}">{{ $site->name }}
+                                                    @if ($has_locked_site)
+                                                        <input type="hidden" name="site_id[]" id="site_id_1" value="{{ $sess_site_id }}">
+                                                        <input type="text" class="form-control" value="{{ getSiteDetailsById($sess_site_id)->name }}" readonly>
+                                                    @else
+                                                        <select name="site_id[]" id="site_id_1" onchange="sitechanges(1);"
+                                                            class="form-control show-tick" data-live-search="true" required>
+                                                            <option value="" selected disabled>--Select Site--</option>
+                                                            @if ($entry_at_site == 'current')
+                                                                <option  value="{{ $site_id }}">
+                                                                    {{ getSiteDetailsById($site_id)->name }}
                                                                 </option>
-                                                            @endforeach
-                                                        @endif
-
-                                                    </select>
+                                                            @else
+                                                                @foreach ($sites as $site)
+                                                                    <option value="{{ $site->id }}">{{ $site->name }}
+                                                                    </option>
+                                                                @endforeach
+                                                            @endif
+                                                        </select>
+                                                    @endif
                                                 </div>
                                             </div>
 
@@ -235,8 +241,14 @@ function consumption_wastage_changes(id){
 
             count++;
             var consum_was_html = '<select name="consumption_wastage[]" onchange="consumption_wastage_changes('+count+');" id="consumption_wastage_'+count+'" class="form-control show-tick" data-live-search="true" required><option value="Consumption" selected >Consumption</option><option value="Wastage"  >Wastage</option></select>';
-            var site_html = '<select name="site_id[]" onchange="sitechanges('+count+')" id="site_id_' + count +
-                '" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Site--</option> @if ($entry_at_site == 'current')<option value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else @foreach ($sites as $site)<option value = "{{ $site->id }}">{{ $site->name }}</option>@endforeach @endif</select>';
+            
+            var site_html = '';
+            @if ($has_locked_site)
+                site_html = '<input type="hidden" name="site_id[]" id="site_id_' + count + '" value="{{ $sess_site_id }}"><input type="text" class="form-control" value="{{ getSiteDetailsById($sess_site_id)->name }}" readonly>';
+            @else
+                site_html = '<select name="site_id[]" onchange="sitechanges('+count+')" id="site_id_' + count + '" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Site--</option> @if ($entry_at_site == 'current')<option value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else @foreach ($sites as $site)<option value = "{{ $site->id }}">{{ $site->name }}</option>@endforeach @endif</select>';
+            @endif
+
             var material_html = '<select name="material_id[]" onchange="materialchanges('+count+')" id="material_id_' + count +
                 '"  class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Site First--</option></select>';
             var unit_html = '<select name="unit[]" id="unit_id_' + count +
@@ -270,9 +282,14 @@ function consumption_wastage_changes(id){
                 ')" class="btn btn-primary btn-simple btn-round waves-effect"><i class="zmdi zmdi-minus"  style="color: white;"></i></button></div></div></div></div></div></div>';
             console.log(result);
             $('#rowData').append(result);
-            $("#site_id_" + count).selectpicker({
-                liveSearch: true
-            });
+            
+            @if ($has_locked_site)
+                sitechanges(count);
+            @else
+                $("#site_id_" + count).selectpicker({
+                    liveSearch: true
+                });
+            @endif
 
             $("#material_id_" + count).selectpicker({
                 liveSearch: true
@@ -285,5 +302,11 @@ function consumption_wastage_changes(id){
         function deleterow(id) {
             $('#row_' + id).remove();
         }
+
+        $(document).ready(function() {
+            @if ($has_locked_site)
+                sitechanges(1);
+            @endif
+        });
     </script>
 @endsection

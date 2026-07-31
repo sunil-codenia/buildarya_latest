@@ -15,21 +15,18 @@
                                 style="display:flex;  box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
   transition: 0.3s; padding:20px 10px 20px 10px;    align-items: anchor-center;">
                                 <div class="col-3">
-                                    <h6>Showing Data Of : <br><span id="show_data_title">Whole Company</span></h6>
+                                    <h6>Showing Data Of : <br><span id="show_data_title">{{ session()->get('site_id') ? getSiteDetailsById(session()->get('site_id'))->name : 'Whole Company' }}</span></h6>
                                 </div>
                                 <div class="col-3">
                                     <label>Change Display Site</label><br><sub>Show Data According To Specific Site</sub>
                                     <select name="from_site" id="site_id" onchange="sitechanges()"
-                                        class="form-control show-tick" data-live-search="true" required>
-                                        <option value="" selected disabled>--Select Site--</option>
-
-
+                                        class="form-control show-tick" data-live-search="true" required
+                                        {{ session()->get('site_id') ? 'disabled' : '' }}>
+                                        <option value="" {{ !session()->get('site_id') ? 'selected' : '' }} disabled>--Select Site--</option>
                                         @foreach ($sites as $site)
-                                            <option value="{{ $site->id }}">
+                                            <option value="{{ $site->id }}" {{ session()->get('site_id') == $site->id ? 'selected' : '' }}>
                                                 {{ $site->name }}</option>
                                         @endforeach
-
-
                                     </select>
                                 </div>
                                 <div class="col-3">
@@ -38,14 +35,10 @@
                                     <select name="from_site" id="material_id" onchange="materialchanges()"
                                         class="form-control show-tick" data-live-search="true" required>
                                         <option value="" selected disabled>--Select Material--</option>
-
-
                                         @foreach ($materials as $mat)
                                             <option value="{{ $mat->id }}">
                                                 {{ $mat->name }}</option>
                                         @endforeach
-
-
                                     </select>
                                 </div>
                                 <div class="col-3">
@@ -152,7 +145,9 @@
             });
             table.rows.add(newData);
             table.draw();
-            $('#showWholeCompany_btn').css('display', 'block');
+            @if(!session()->get('site_id'))
+                $('#showWholeCompany_btn').css('display', 'block');
+            @endif
             $('#show_data_title').text("Site - "+site_name);
         }
 
@@ -182,7 +177,9 @@
             });
             table.rows.add(newData);
             table.draw();
-            $('#showWholeCompany_btn').css('display', 'block');
+            @if(!session()->get('site_id'))
+                $('#showWholeCompany_btn').css('display', 'block');
+            @endif
             $('#show_data_title').text("Material - "+material_name);     
         }
 

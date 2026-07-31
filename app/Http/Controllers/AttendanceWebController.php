@@ -19,18 +19,39 @@ class AttendanceWebController extends Controller
         // Selected Date filter
         $date = $request->get('date', Carbon::today()->toDateString());
 
+        $assignedSites = session()->get('assigned_site_ids', []);
+
         // Fetch all sites and users
-        $sites = DB::connection($conn)->table('sites')->get();
-        $users = DB::connection($conn)->table('users')->get();
+        $sitesQuery = DB::connection($conn)->table('sites');
+        if (!empty($assignedSites)) {
+            $sitesQuery->whereIn('id', $assignedSites);
+        }
+        $sites = $sitesQuery->get();
+
+        $usersQuery = DB::connection($conn)->table('users');
+        if (!empty($assignedSites)) {
+            $usersQuery->where(function($q) use ($assignedSites) {
+                foreach ($assignedSites as $sid) {
+                    $q->orWhereRaw("FIND_IN_SET(?, site_id)", [$sid]);
+                }
+            });
+        }
+        $users = $usersQuery->get();
+
         $billParties = DB::connection($conn)->table('bills_party')->where('status', 'Active')->get();
 
         // Fetch attendance logs for the selected date
-        $attendanceLogs = DB::connection($conn)->table('attendance')
+        $attendanceLogsQuery = DB::connection($conn)->table('attendance')
             ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
             ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
             ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id')
-            ->where('attendance.date', $date)
-            ->select(
+            ->where('attendance.date', $date);
+
+        if (!empty($assignedSites)) {
+            $attendanceLogsQuery->whereIn('attendance.site_id', $assignedSites);
+        }
+
+        $attendanceLogs = $attendanceLogsQuery->select(
                 'attendance.*', 
                 DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
                 DB::raw('COALESCE(users.username, "Labour Contractor") as user_username'),
@@ -88,6 +109,11 @@ class AttendanceWebController extends Controller
             'date' => 'required|date',
             'image' => 'nullable|image|max:5120'
         ]);
+
+        $assignedSites = session()->get('assigned_site_ids', []);
+        if (!empty($assignedSites) && !in_array($request->site_id, $assignedSites)) {
+            return redirect()->back()->with('errorcode', 'You do not have permission for this site.');
+        }
 
         $dateString = Carbon::parse($request->date)->toDateString();
 
@@ -171,6 +197,11 @@ class AttendanceWebController extends Controller
             'date' => 'required|date',
             'image' => 'nullable|image|max:5120'
         ]);
+
+        $assignedSites = session()->get('assigned_site_ids', []);
+        if (!empty($assignedSites) && !in_array($request->site_id, $assignedSites)) {
+            return redirect()->back()->with('errorcode', 'You do not have permission for this site.');
+        }
 
         $dateString = Carbon::parse($request->date)->toDateString();
 

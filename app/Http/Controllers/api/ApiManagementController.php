@@ -21,7 +21,16 @@ class ApiManagementController extends Controller
         try {
             $conn = config('database.default');
             $search = trim($request->get('search'));
-            \Illuminate\Support\Facades\Log::info("API Search Attempt:", ['conn' => $conn, 'search' => $search, 'all_params' => $request->all()]);
+            $site_name = trim($request->get('site_name'));
+            $site_id = trim($request->get('site_id'));
+            
+            \Illuminate\Support\Facades\Log::info("API Search Attempt:", [
+                'conn' => $conn, 
+                'search' => $search, 
+                'site_name' => $site_name,
+                'site_id' => $site_id,
+                'all_params' => $request->all()
+            ]);
             
             $query = DB::connection($conn)->table('users')
                 ->leftJoin('roles', 'roles.id', '=', 'users.role_id')
@@ -39,12 +48,22 @@ class ApiManagementController extends Controller
                 });
             }
 
+            if (!empty($site_name)) {
+                $query->where('sites.name', 'LIKE', "%{$site_name}%");
+            }
+
+            if (!empty($site_id)) {
+                $query->where('users.site_id', '=', $site_id);
+            }
+
             $users = $query->orderBy('users.id', 'desc')->paginate(10);
             
             return response()->json([
                 'status' => 'Ok', 
                 'data' => $users, 
                 'applied_search' => $search,
+                'applied_site_name' => $site_name,
+                'applied_site_id' => $site_id,
                 'server_time' => \Carbon\Carbon::now()->toDateTimeString()
             ]);
         } catch (\Exception $e) {

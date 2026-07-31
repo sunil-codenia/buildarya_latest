@@ -11,6 +11,8 @@
         $min_date = substr($duration['min'], 0, 10);
         $max_date = substr($duration['max'], 0, 10);
 
+        $sess_site_id = session()->get('site_id');
+        $has_locked_site = ($sess_site_id && $sess_site_id != 'all');
     @endphp
 
     <div class="row clearfix">
@@ -37,27 +39,31 @@
                                             <div class="col-lg-3 col-md-3 col-sm-3">
                                                 <div class="form-group">
                                                     <label>Site</label>
-                                                    <select name="site_id" id="site_id" onchange="sitechanges()" class="form-control show-tick"
-                                                        data-live-search="true" required>
-                                                        <option value="" selected disabled>--Select Site--</option>
+                                                    @if ($has_locked_site)
+                                                        <input type="hidden" name="site_id" id="site_id" value="{{ $wastage->site_id }}">
+                                                        <input type="text" class="form-control" value="{{ getSiteDetailsById($wastage->site_id)->name }}" readonly>
+                                                    @else
+                                                        <select name="site_id" id="site_id" onchange="sitechanges()" class="form-control show-tick"
+                                                            data-live-search="true" required>
+                                                            <option value="" selected disabled>--Select Site--</option>
 
-                                                        @if ($entry_at_site == 'current')
-                                                            <option selected value="{{ $site_id }}">
-                                                                {{ getSiteDetailsById($site_id)->name }}
-                                                            </option>
-                                                        @else
-                                                            @foreach ($sites as $site)
-                                                                @if ($wastage->site_id == $site->id)
-                                                                    <option selected value="{{ $site->id }}">
-                                                                        {{ $site->name }}</option>
-                                                                @else
-                                                                    <option value="{{ $site->id }}">{{ $site->name }}
-                                                                    </option>
-                                                                @endif
-                                                            @endforeach
-                                                        @endif
-
-                                                    </select>
+                                                            @if ($entry_at_site == 'current')
+                                                                <option selected value="{{ $site_id }}">
+                                                                    {{ getSiteDetailsById($site_id)->name }}
+                                                                </option>
+                                                            @else
+                                                                @foreach ($sites as $site)
+                                                                    @if ($wastage->site_id == $site->id)
+                                                                        <option selected value="{{ $site->id }}">
+                                                                            {{ $site->name }}</option>
+                                                                    @else
+                                                                        <option value="{{ $site->id }}">{{ $site->name }}
+                                                                        </option>
+                                                                    @endif
+                                                                @endforeach
+                                                            @endif
+                                                        </select>
+                                                    @endif
                                                 </div>
                                             </div>
 
