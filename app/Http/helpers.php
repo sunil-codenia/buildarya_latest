@@ -470,7 +470,7 @@ function getviewdurations($id = null)
         '12m' => 'Last 12 Months',
         'complete' => 'Complete Data',
     ];
-    if ($id != null) {
+    if ($id !== null && $id !== '') {
         if (strpos($id, ',') !== false) {
             $parts = explode(',', $id);
             $from = !empty($parts[0]) ? date('d-M-Y', strtotime($parts[0])) : 'Beginning';
@@ -482,7 +482,10 @@ function getviewdurations($id = null)
         }
         return isset($data[$id]) ? $data[$id] : $id;
     } else {
-        return $data;
+        if (func_num_args() === 0) {
+            return $data;
+        }
+        return 'Not Set';
     }
 }
 function getadddurations($id = null)
@@ -495,7 +498,7 @@ function getadddurations($id = null)
         '12m' => 'Last 12 Months',
         'anytime' => 'No Date Boundation',
     ];
-    if ($id != null) {
+    if ($id !== null && $id !== '') {
         if (strpos($id, ',') !== false) {
             $parts = explode(',', $id);
             $from = !empty($parts[0]) ? date('d-M-Y', strtotime($parts[0])) : 'Beginning';
@@ -507,7 +510,10 @@ function getadddurations($id = null)
         }
         return isset($data[$id]) ? $data[$id] : $id;
     } else {
-        return $data;
+        if (func_num_args() === 0) {
+            return $data;
+        }
+        return 'Not Set';
     }
 }
 function getInvoiceHeads($id = null)
