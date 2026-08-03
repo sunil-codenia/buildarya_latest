@@ -162,17 +162,12 @@ class RoleController extends Controller
         $comp_id = $request->session()->get('comp_db_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         
-        $plan_id = $request->session()->get('subscription_plan_id');
-        $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
-        $allowedModules = $sub ? json_decode($sub->modules, true) : [];
-        if (in_array(14, $allowedModules) && !in_array(15, $allowedModules)) {
-            $allowedModules[] = 15;
-        }
-        $raw_modules = DB::table('modules')->whereIn('id', $allowedModules)->get();
+        $raw_modules = DB::table('modules')->get();
                              
         $sidebar_map = [
             1 => 'Sites & Users',
             2 => 'Expenses',
+            12 => 'Cost Category',
             3 => 'Material Purchase & Manage Stock',
             4 => 'Site Bills',
             6 => 'Machinery',
@@ -184,7 +179,9 @@ class RoleController extends Controller
             13 => 'Attendance Management',
             14 => 'Tasks',
             15 => 'Task Category',
-            9 => 'Management'
+            9 => 'Management',
+            16 => 'Invoices',
+            17 => 'Support Tickets'
         ];
 
         $modules = [];
@@ -227,13 +224,7 @@ class RoleController extends Controller
         $pay = $request->get('pay') ?? [];
         $report = $request->get('report') ?? [];
 
-        $plan_id = $request->session()->get('subscription_plan_id');
-        $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
-        $allowedModules = $sub ? json_decode($sub->modules, true) : [];
-        if (in_array(14, $allowedModules) && !in_array(15, $allowedModules)) {
-            $allowedModules[] = 15;
-        }
-        $modules = DB::table('modules')->whereIn('id', $allowedModules)->get();
+        $modules = DB::table('modules')->get();
 
         $result = array();
         foreach ($modules as $module) {

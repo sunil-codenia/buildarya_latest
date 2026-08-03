@@ -905,24 +905,13 @@ class ApiManagementController extends Controller
                 return response()->json(['status' => 'Error', 'message' => 'No active subscription plan found.'], 404);
             }
 
-            $rawModules = $plan->modules;
-            $allowedModuleIds = [];
-            if (is_array($rawModules)) $allowedModuleIds = $rawModules;
-            elseif (is_string($rawModules)) {
-                $decoded = json_decode($rawModules, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) $allowedModuleIds = $decoded;
-                else $allowedModuleIds = explode(',', str_replace(['[', ']', '"', ' '], '', $rawModules));
-            }
-            if (in_array(14, $allowedModuleIds) && !in_array(15, $allowedModuleIds)) {
-                $allowedModuleIds[] = 15;
-            }
-
-            $raw_modules = DB::connection('mysql')->table('modules')->whereIn('id', $allowedModuleIds)->get();
+            $raw_modules = DB::connection('mysql')->table('modules')->get();
             
             // Sidebar Map from RoleController
             $sidebar_map = [
                 1 => 'Sites & Users',
                 2 => 'Expenses',
+                12 => 'Cost Category',
                 3 => 'Material Purchase & Manage Stock',
                 4 => 'Site Bills',
                 6 => 'Machinery',
@@ -934,7 +923,9 @@ class ApiManagementController extends Controller
                 13 => 'Attendance Management',
                 14 => 'Tasks',
                 15 => 'Task Category',
-                9 => 'Management'
+                9 => 'Management',
+                16 => 'Invoices',
+                17 => 'Support Tickets'
             ];
 
             $modules = [];

@@ -201,62 +201,54 @@ class ApiAuthController extends Controller
             }
 
             $authorizedModules = [];
-            if ($plan && !empty($plan->modules)) {
-                $allowedModuleIds = json_decode($plan->modules, true);
-                if (is_array($allowedModuleIds)) {
-                    // Fetch module definitions (Main DB)
-                    $modules = DB::table('modules')
-                        ->whereIn('id', $allowedModuleIds)
-                        ->get();
+            $modules = DB::table('modules')->get();
 
-                    // Fetch user permissions (Tenant DB)
-                    $userPermissions = DB::connection($company->db_conn_name)
-                        ->table('user_permission')
-                        ->where('user_id', $userData->id)
-                        ->get();
+            // Fetch user permissions (Tenant DB)
+            $userPermissions = DB::connection($company->db_conn_name)
+                ->table('user_permission')
+                ->where('user_id', $userData->id)
+                ->get();
 
-                    // Fallback to role_permission if user_permission is empty
-                    if ($userPermissions->isEmpty()) {
-                        $userPermissions = DB::connection($company->db_conn_name)
-                            ->table('role_permission')
-                            ->where('role_id', $userData->role_id)
-                            ->get();
-                    }
+            // Fallback to role_permission if user_permission is empty
+            if ($userPermissions->isEmpty()) {
+                $userPermissions = DB::connection($company->db_conn_name)
+                    ->table('role_permission')
+                    ->where('role_id', $userData->role_id)
+                    ->get();
+            }
 
-                    $userPermissions = $userPermissions->keyBy('module_id');
+            $userPermissions = $userPermissions->keyBy('module_id');
 
-                    foreach ($modules as $module) {
-                        $p = $userPermissions->get($module->id);
-                        $canView = 0;
+            foreach ($modules as $module) {
+                $p = $userPermissions->get($module->id);
+                $canView = 0;
 
-                        // Admin (Role 1) logic: See all subscribed modules
-                        if ($userData->role_id == 1) {
-                            $canView = 1;
-                            $perms = [
-                                'can_view' => 1, 'can_add' => 1, 'can_edit' => 1,
-                                'can_delete' => 1, 'can_certify' => 1, 'can_pay' => 1, 'can_report' => 1
-                            ];
-                        } else {
-                            $canView = ($p && $p->can_view == 1) ? 1 : 0;
-                            $perms = [
-                                'can_view' => $canView,
-                                'can_add' => ($p && $p->can_add == 1) ? 1 : 0,
-                                'can_edit' => ($p && $p->can_edit == 1) ? 1 : 0,
-                                'can_delete' => ($p && $p->can_delete == 1) ? 1 : 0,
-                                'can_certify' => ($p && $p->can_certify == 1) ? 1 : 0,
-                                'can_pay' => ($p && $p->can_pay == 1) ? 1 : 0,
-                                'can_report' => ($p && $p->can_report == 1) ? 1 : 0,
-                            ];
-                        }
+                // Admin (Role 1) logic: See all subscribed modules
+                if ($userData->role_id == 1) {
+                    $canView = 1;
+                    $perms = [
+                        'can_view' => 1, 'can_add' => 1, 'can_edit' => 1,
+                        'can_delete' => 1, 'can_certify' => 1, 'can_pay' => 1, 'can_report' => 1
+                    ];
+                } else {
+                    $canView = ($p && $p->can_view == 1) ? 1 : 0;
+                    $perms = [
+                        'can_view' => $canView,
+                        'can_add' => ($p && $p->can_add == 1) ? 1 : 0,
+                        'can_edit' => ($p && $p->can_edit == 1) ? 1 : 0,
+                        'can_delete' => ($p && $p->can_delete == 1) ? 1 : 0,
+                        'can_certify' => ($p && $p->can_certify == 1) ? 1 : 0,
+                        'can_pay' => ($p && $p->can_pay == 1) ? 1 : 0,
+                        'can_report' => ($p && $p->can_report == 1) ? 1 : 0,
+                    ];
+                }
 
-                        if ($canView) {
-                            $authorizedModules[] = [
-                                'module_id' => $module->id,
-                                'module_name' => $module->name,
-                                'permissions' => $perms
-                            ];
-                        }
-                    }
+                if ($canView) {
+                    $authorizedModules[] = [
+                        'module_id' => $module->id,
+                        'module_name' => $module->name,
+                        'permissions' => $perms
+                    ];
                 }
             }
 

@@ -264,17 +264,8 @@ function ensureCentralModulesExist()
 
 function getcompanyModules()
 {
-    $plan_id = session()->get('subscription_plan_id');
-    $sub = DB::table('subscription_plans')->where('id', $plan_id)->first();
-    $allowedModules = $sub ? json_decode($sub->modules, true) : [];
-    
     ensureCentralModulesExist();
-    
-    if (in_array(14, $allowedModules) && !in_array(15, $allowedModules)) {
-        $allowedModules[] = 15;
-    }
-    
-    return DB::table('modules')->whereIn('id', $allowedModules)->get();
+    return DB::table('modules')->get();
 }
 function getcompanyModulesName($id)
 {
@@ -386,11 +377,6 @@ function canViewModule($module_id)
 {
     if (isSuperAdmin()) {
         return true;
-    }
-
-    $company_modules = session()->get('company_modules', []);
-    if (!in_array($module_id, $company_modules)) {
-        return false;
     }
 
     return checkmodulepermission($module_id, 'can_view') == 1;
