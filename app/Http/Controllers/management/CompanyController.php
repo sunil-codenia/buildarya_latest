@@ -128,6 +128,9 @@ class CompanyController extends Controller
     public function management_report(Request $request) {}
     public function activity(Request $request)
     {
+        if (!isSuperAdmin()) {
+            return redirect('/dashboard')->with('error', 'Unauthorized Access!');
+        }
 
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $by_module = false;
@@ -136,6 +139,10 @@ class CompanyController extends Controller
     }
     public function moduleActivity(Request $request)
     {
+        if (!isSuperAdmin()) {
+            return redirect('/dashboard')->with('error', 'Unauthorized Access!');
+        }
+
         $module_id = $request->get('module_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $by_module = true;

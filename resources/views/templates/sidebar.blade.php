@@ -15,7 +15,9 @@
                     <a href="{{url('/invoices')}}" title="Invoices"><i class="zmdi zmdi-file-text"></i></a>
                     <a href="{{url('/contacts')}}" title="Contact List"><i class="zmdi zmdi-account-box-phone"></i></a>
                     <a href="{{url('/file-structure')}}" title="Chat App"><i class="zmdi zmdi-folder-star"></i></a>
+                    @if(isSuperAdmin())
                     <a href="{{url('/activity')}}" title="Chat App"><i class="zmdi zmdi-chart"></i></a>
+                    @endif
                    
                 </div>
             </li>
@@ -214,7 +216,9 @@
                 <ul style="list-style-type: none; display: {{ Request::is('settings') || Request::is('sales_companies') || Request::is('activity') ? 'block' : 'none' }};">
                     <li class="{{ Request::is('settings') ? 'active' : '' }}"><a href="{{url('/settings')}}"> <i class="zmdi zmdi-settings"></i> Settings</a></li>
                     <li class="{{ Request::is('sales_companies') ? 'active' : '' }}"><a href="{{url('/sales_companies')}}"> <i class="zmdi zmdi-city"></i> Companies</a></li>
+                    @if(isSuperAdmin())
                     <li class="{{ Request::is('activity') ? 'active' : '' }}"><a href="{{url('/activity')}}"> <i class="zmdi zmdi-chart"></i> System Activity</a></li>
+                    @endif
                 </ul>
             </li>
             @endif
