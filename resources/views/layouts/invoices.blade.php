@@ -221,7 +221,7 @@
                         <span aria-hidden="true" style="font-size: 1.5rem; color: white;">&times;</span>
                     </button>
                 </div>
-                <div class="modal-body" style="padding: 25px; background-color: #f8f9fa; overflow-y: auto; flex: 1 1 auto;">
+                <div class="modal-body" style="padding: 25px; overflow-y: auto; flex: 1 1 auto;">
                     <style>
                         /* Modal scroll & z-index fixes */
                         #changePlanModal {
@@ -237,8 +237,11 @@
                             max-height: calc(100vh - 60px);
                             display: flex;
                             flex-direction: column;
+                            background-color: #ffffff;
+                            color: #2c3e50;
                         }
                         #changePlanModal .modal-body {
+                            background-color: #f8f9fa;
                             overflow-y: auto !important;
                             -webkit-overflow-scrolling: touch;
                         }
@@ -247,6 +250,8 @@
                         }
                         #changePlanModal .modal-footer {
                             flex-shrink: 0;
+                            background-color: #ffffff;
+                            border-top: 1px solid #eee;
                         }
                         .modal-backdrop + .modal-backdrop {
                             display: none;
@@ -257,7 +262,19 @@
                             transition: all 0.3s ease !important;
                             cursor: pointer !important;
                             position: relative;
-                            background: white;
+                            background: #ffffff;
+                        }
+                        .plan-card h4 {
+                            color: #1f1b2d !important;
+                        }
+                        .plan-card p {
+                            color: #666666 !important;
+                        }
+                        .plan-card .plan-price-text {
+                            color: #3b2f54 !important;
+                        }
+                        .plan-card .plan-price-period {
+                            color: #777777 !important;
                         }
                         .plan-card:hover {
                             transform: translateY(-2px);
@@ -266,7 +283,7 @@
                         }
                         .plan-card.active {
                             border-color: #3b2f54 !important;
-                            background-color: rgba(59, 47, 84, 0.02) !important;
+                            background-color: rgba(59, 47, 84, 0.04) !important;
                             box-shadow: 0 8px 25px rgba(59, 47, 84, 0.15) !important;
                         }
                         .plan-card.active::after {
@@ -281,7 +298,8 @@
                         .cycle-btn {
                             flex: 1;
                             border: 1px solid #ced4da;
-                            background: #fff;
+                            background: #ffffff;
+                            color: #333333;
                             padding: 10px;
                             text-align: center;
                             border-radius: 8px;
@@ -294,9 +312,111 @@
                             color: #3b2f54;
                         }
                         .cycle-btn.active {
-                            background: #3b2f54;
-                            color: #fff;
-                            border-color: #3b2f54;
+                            background: #3b2f54 !important;
+                            color: #ffffff !important;
+                            border-color: #3b2f54 !important;
+                        }
+                        .price-breakdown-box {
+                            background-color: #ffffff;
+                            border-radius: 8px;
+                            border: 1px solid #e9ecef;
+                            padding: 15px;
+                            text-align: left;
+                        }
+                        .price-breakdown-box h6 {
+                            border-bottom: 1px solid #eee;
+                            padding-bottom: 8px;
+                            margin-top: 0;
+                            color: #1f1b2d;
+                        }
+                        .price-breakdown-box span {
+                            color: #555555;
+                        }
+                        .price-breakdown-box strong {
+                            color: #222222;
+                        }
+
+                        /* =========================================
+                           DARK MODE OVERRIDES (body.menu_dark)
+                        ========================================= */
+                        body.menu_dark #changePlanModal .modal-content {
+                            background-color: #1e1e2d !important;
+                            border: 1px solid #2d2d3f !important;
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal .modal-body {
+                            background-color: #14141f !important;
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal label.text-muted {
+                            color: #a0a0b8 !important;
+                        }
+                        body.menu_dark #changePlanModal .plan-card {
+                            background-color: #222232 !important;
+                            border-color: #323248 !important;
+                        }
+                        body.menu_dark #changePlanModal .plan-card:hover {
+                            border-color: #764ba2 !important;
+                        }
+                        body.menu_dark #changePlanModal .plan-card.active {
+                            background-color: #2b2640 !important;
+                            border-color: #9c88ff !important;
+                        }
+                        body.menu_dark #changePlanModal .plan-card.active::after {
+                            color: #9c88ff !important;
+                        }
+                        body.menu_dark #changePlanModal .plan-card h4 {
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal .plan-card p {
+                            color: #a0a0b8 !important;
+                        }
+                        body.menu_dark #changePlanModal .plan-card .plan-price-text {
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal .plan-card .plan-price-period {
+                            color: #a0a0b8 !important;
+                        }
+                        body.menu_dark #changePlanModal .cycle-btn {
+                            background-color: #222232 !important;
+                            border-color: #323248 !important;
+                            color: #e0e0e0 !important;
+                        }
+                        body.menu_dark #changePlanModal .cycle-btn:hover {
+                            border-color: #9c88ff !important;
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal .cycle-btn.active {
+                            background-color: #764ba2 !important;
+                            border-color: #764ba2 !important;
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal .price-breakdown-box {
+                            background-color: #222232 !important;
+                            border-color: #323248 !important;
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal .price-breakdown-box h6 {
+                            border-bottom-color: #323248 !important;
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal .price-breakdown-box span {
+                            color: #b0b0c8 !important;
+                        }
+                        body.menu_dark #changePlanModal .price-breakdown-box strong {
+                            color: #ffffff !important;
+                        }
+                        body.menu_dark #changePlanModal .price-breakdown-box hr {
+                            border-top-color: #323248 !important;
+                        }
+                        body.menu_dark #changePlanModal .modal-footer {
+                            background-color: #1e1e2d !important;
+                            border-top-color: #2d2d3f !important;
+                        }
+                        body.menu_dark #changePlanModal .cancel-btn {
+                            background-color: #2a2a3c !important;
+                            border-color: #38384f !important;
+                            color: #e0e0e0 !important;
                         }
                     </style>
                     
@@ -311,10 +431,10 @@
                                     <div class="col-md-6 mb-3">
                                         <div class="card h-100 plan-card" data-plan-id="{{ $plan['id'] }}" data-name="{{ $plan['name'] }}" data-price="{{ $plan['price'] }}">
                                             <div class="card-body p-3 text-center">
-                                                <h4 class="font-weight-bold mb-1 text-dark" style="margin-top: 5px;">{{ ucfirst($plan['name']) }}</h4>
-                                                <p class="text-muted text-sm mb-3">Up to {{ $plan['maxUsers'] ?? 0 }} users & {{ $plan['maxSites'] ?? 0 }} sites</p>
-                                                <h3 class="font-weight-bold text-primary mb-0" style="font-size: 1.6rem; color: #3b2f54;">
-                                                    ₹{{ number_format($plan['price']) }}<span style="font-size: 0.9rem; font-weight: normal; color: #777;"> / mo</span>
+                                                <h4 class="font-weight-bold mb-1" style="margin-top: 5px;">{{ ucfirst($plan['name']) }}</h4>
+                                                <p class="text-sm mb-3">Up to {{ $plan['maxUsers'] ?? 0 }} users & {{ $plan['maxSites'] ?? 0 }} sites</p>
+                                                <h3 class="font-weight-bold mb-0 plan-price-text" style="font-size: 1.6rem;">
+                                                    ₹{{ number_format($plan['price']) }}<span class="plan-price-period" style="font-size: 0.9rem; font-weight: normal;"> / mo</span>
                                                 </h3>
                                             </div>
                                         </div>
@@ -332,8 +452,8 @@
                         </div>
                     </div>
 
-                    <div class="p-3 mb-3" style="background-color: #fff; border-radius: 8px; border: 1px solid #e9ecef; text-align: left;">
-                        <h6 class="font-weight-bold border-b pb-2 mb-2" style="border-bottom: 1px solid #eee; padding-bottom: 8px; margin-top: 0;">Price Breakdown</h6>
+                    <div class="p-3 mb-3 price-breakdown-box">
+                        <h6 class="font-weight-bold border-b pb-2 mb-2">Price Breakdown</h6>
                         <div class="d-flex justify-content-between mb-2" style="display: flex; justify-content: space-between;">
                             <span>Base Plan Price:</span>
                             <strong id="breakdown-base-price">₹0.00</strong>
@@ -351,18 +471,18 @@
                             </div>
                         @endif
                         <hr style="margin: 10px 0;">
-                        <div class="d-flex justify-content-between mb-2" style="display: flex; justify-content: space-between; font-size: 1.1rem; color: #2b2b2b;">
+                        <div class="d-flex justify-content-between mb-2" style="display: flex; justify-content: space-between; font-size: 1.1rem;">
                             <strong>Total Amount:</strong>
                             <strong class="text-success" id="breakdown-total-price">₹0.00</strong>
                         </div>
-                        <div class="d-flex justify-content-between" style="display: flex; justify-content: space-between; font-size: 0.9rem; color: #777;">
+                        <div class="d-flex justify-content-between" style="display: flex; justify-content: space-between; font-size: 0.9rem;">
                             <span>Next Due Date:</span>
                             <strong id="breakdown-new-due-date">-</strong>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer bg-white border-0" style="padding: 15px 25px; display: flex; justify-content: space-between; flex-shrink: 0; border-top: 1px solid #eee;">
-                    <button type="button" class="btn btn-neutral btn-round" data-dismiss="modal" style="font-weight: bold; border: 1px solid #ddd; border-radius: 20px; margin: 0; padding: 8px 20px;">Cancel</button>
+                <div class="modal-footer border-0" style="padding: 15px 25px; display: flex; justify-content: space-between; flex-shrink: 0;">
+                    <button type="button" class="btn btn-neutral btn-round cancel-btn" data-dismiss="modal" style="font-weight: bold; border-radius: 20px; margin: 0; padding: 8px 20px;">Cancel</button>
                     <button type="button" class="btn btn-primary btn-round" id="confirm-plan-change-btn" style="font-weight: bold; border-radius: 20px; background-color: #3b2f54; border: none; color: white; margin: 0; padding: 8px 20px;">Apply Plan</button>
                 </div>
             </div>
