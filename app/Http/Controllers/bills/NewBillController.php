@@ -83,7 +83,7 @@ class NewBillController extends Controller
         $data = array();
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $data['sites'] = getallActivesites();
 
         // Always re-read add_duration fresh from DB (user-level first, role-level fallback)
         // This ensures the date picker is correct even after admin changes the user's setting post-login
@@ -311,7 +311,7 @@ class NewBillController extends Controller
         $data['bill'] = $bill;
         $data['bill_items'] = DB::connection($user_db_conn_name)->table('new_bills_item_entry')->leftJoin('bills_work', 'bills_work.id', '=', 'new_bills_item_entry.work_id')->where('new_bills_item_entry.bill_id', '=', $id)->get();
         $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $data['sites'] = getallActivesites();
 
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));

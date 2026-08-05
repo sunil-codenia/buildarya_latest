@@ -253,9 +253,9 @@
             var c_site_id = type[0];
             var c_site_name = $('#party_id_'+item_count).find(":selected").text();
             console.log(c_site_id,c_site_name);
-            var site_html = '<option value="" selected disabled >--Select Site--</option>@if ($entry_at_site == 'current')<option selected value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else <option selected value="'+c_site_id+'">'+c_site_name+'</option>  @foreach ($official_sites as $site)<option value = "{{ $site['id'] }}">{{ $site['name'] }}</option>@endforeach <option  value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option> @endif';
+            var site_html = '<option value="" disabled >--Select Site--</option><option selected value="'+c_site_id+'">'+c_site_name+'</option>  @foreach ($official_sites as $site)<option value = "{{ $site['id'] }}">{{ $site['name'] }}</option>@endforeach';
          }else{
-            var site_html = '<option value="" selected disabled >--Select Site--</option>@if ($entry_at_site == 'current')<option selected value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else @foreach ($sites as $site)<option value = "{{ $site['id'] }}">{{ $site['name'] }}</option>@endforeach @endif';
+            var site_html = '<option value="" disabled >--Select Site--</option>@foreach ($sites as $site)<option value = "{{ $site['id'] }}" {{ $site['id'] == $site_id ? "selected" : "" }}>{{ $site['name'] }}</option>@endforeach';
          }
          $('#site_id_'+item_count).empty(); 
          $('#site_id_'+item_count).append(site_html).val(null).trigger('change');

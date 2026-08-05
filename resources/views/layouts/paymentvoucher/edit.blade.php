@@ -61,11 +61,6 @@ $max_date = substr($duration['max'], 0, 10);
                               <select name="site_id"  class="form-control show-tick" data-live-search="true" required>
                                 <option value="" selected disabled >--Select Site--</option>
 
-                            @if ($entry_at_site == 'current')
-                                    <option selected value="{{ $site_id }}">
-                                       {{ getSiteDetailsById($site_id)->name }}
-                                    </option>
-                                    @else
                                     @foreach ($sites as $site)
                                     @if($paymentvoucher['site_id'] == $site['id'])
                                     <option selected value="{{$site['id']}}">{{$site['name']}}</option>
@@ -73,7 +68,6 @@ $max_date = substr($duration['max'], 0, 10);
                                     <option value="{{$site['id']}}">{{$site['name']}}</option>
                                     @endif
                                     @endforeach
-                                    @endif
 
                            </select>
                            </div>

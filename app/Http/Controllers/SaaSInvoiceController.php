@@ -90,7 +90,39 @@ class SaaSInvoiceController extends Controller
             $company = DB::table('companies')->where('id', $compDbId)->first();
         }
 
-        return view('layouts.invoices', compact('invoices', 'error', 'shaarvikUrl', 'company'));
+        // Fetch plans from Shaarvik
+        $plans = [];
+        try {
+            $response = Http::timeout(5)->get("{$shaarvikUrl}/api/public/pricing-plans");
+            if ($response->successful()) {
+                $plans = $response->json();
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to fetch plans: " . $e->getMessage());
+        }
+
+        if (empty($plans)) {
+            $plans = [
+                [
+                    'id' => '6',
+                    'name' => 'Starter',
+                    'price' => 750,
+                    'maxUsers' => 10,
+                    'maxSites' => 12,
+                    'billingCycle' => 'monthly',
+                ],
+                [
+                    'id' => '7',
+                    'name' => 'Growth',
+                    'price' => 1499,
+                    'maxUsers' => 18,
+                    'maxSites' => 16,
+                    'billingCycle' => 'monthly',
+                ]
+            ];
+        }
+
+        return view('layouts.invoices', compact('invoices', 'error', 'shaarvikUrl', 'company', 'plans'));
     }
 
     public function downloadPdf($id)

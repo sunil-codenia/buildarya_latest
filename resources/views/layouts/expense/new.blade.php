@@ -46,16 +46,10 @@
                                                     <select name="site_id[]" class="form-control show-tick"
                                                         data-live-search="true" required>
                                                         <option value="" selected disabled>--Select Site--</option>
-                                                        @if ($entry_at_site == 'current')
-                                                            <option selected value="{{ $site_id }}">
-                                                                {{ getSiteDetailsById($site_id)->name }}
+                                                        @foreach ($sites as $site)
+                                                            <option value="{{ $site['id'] }}">{{ $site['name'] }}
                                                             </option>
-                                                        @else
-                                                            @foreach ($sites as $site)
-                                                                <option value="{{ $site['id'] }}">{{ $site['name'] }}
-                                                                </option>
-                                                            @endforeach
-                                                        @endif
+                                                        @endforeach
                                                     </select>
                                                 </div>
                                             </div>
@@ -163,7 +157,7 @@
 
             count++;
             var site_html = '<select name="site_id[]"  id="site_id_' + count +
-                '" class="form-control show-tick" data-live-search="true"  required><option value="" selected disabled >--Select Site--</option> @if($entry_at_site == "current")<option selected value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else @foreach ($sites as $site)<option value = "{{ $site['id'] }}">{{ $site['name'] }}</option>@endforeach @endif</select>';
+                '" class="form-control show-tick" data-live-search="true"  required><option value="" {{ count($sites) != 1 ? "selected" : "" }} disabled >--Select Site--</option>@foreach ($sites as $site)<option value = "{{ $site['id'] }}" {{ count($sites) == 1 ? "selected" : "" }}>{{ $site['name'] }}</option>@endforeach</select>';
             var party_html = '<select name="party_id[]"  id="party_id_' + count +
                 '"  class="form-control show-tick" data-live-search="true" required><option disabled>--Expense Parties--</option>@foreach ($parties as $party)<option value = "{{ $party['id'] }}||expense" {{ $party['status'] == 'Pending' ? 'disabled' : '' }} data-cost-category="{{ $party['cost_category_id'] }}">{{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>@endforeach<option disabled>--Bill Parties--</option>@foreach ($bill_parties as $party)<option value = "{{ $party['id'] }}||bill" {{ $party['status'] == 'Pending' ? 'disabled' : '' }} data-cost-category="{{ $party['cost_category_id'] }}">{{ $party['name'] }}{{ $party['status'] == 'Pending' ? ' (Pending Activation)' : '' }}</option>@endforeach</select>';
             var head_html = '<select name="head_id[]"  id="head_id_' + count +

@@ -191,8 +191,22 @@ function getallmaterial()
 function getallActivesites()
 {
     $user_db_conn_name = session()->get('comp_db_conn_name');
-    $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
-    return $sites;
+    $role_id = session()->get('role');
+    $uid = session()->get('uid');
+
+    $query = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active');
+
+    if ($role_id && $role_id != 1 && $role_id != 2 && $uid) {
+        $user = DB::connection($user_db_conn_name)->table('users')->where('id', $uid)->first();
+        if ($user && !empty($user->site_id)) {
+            $assigned_site_ids = array_filter(array_map('trim', explode(',', (string)$user->site_id)));
+            if (!empty($assigned_site_ids)) {
+                $query->whereIn('id', $assigned_site_ids);
+            }
+        }
+    }
+
+    return $query->get();
 }
 function getallbillparties()
 {

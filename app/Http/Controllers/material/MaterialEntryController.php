@@ -461,7 +461,7 @@ class MaterialEntryController extends Controller
         $data['material_supplier'] = DB::connection($user_db_conn_name)->table('material_supplier')->whereIn('status', ['Active', 'Pending'])->get();
         $data['materials'] = DB::connection($user_db_conn_name)->table('materials')->get();
         $data['units'] = DB::connection($user_db_conn_name)->table('units')->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $data['sites'] = getallActivesites();
         $data['conversion_format'] = DB::connection($user_db_conn_name)->table('material_conversion_rules')->join('units', 'units.id', '=', 'material_conversion_rules.to_unit')->select('material_conversion_rules.*', 'units.name as to_unit_name')->get();
         return  view('layouts.material.newmaterial')->with('data', json_encode($data));
     }
@@ -829,7 +829,7 @@ class MaterialEntryController extends Controller
         $data['material_supplier'] = DB::connection($user_db_conn_name)->table('material_supplier')->whereIn('status', ['Active', 'Pending'])->get();
         $data['materials'] = DB::connection($user_db_conn_name)->table('materials')->get();
         $data['units'] = DB::connection($user_db_conn_name)->table('units')->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $data['sites'] = getallActivesites();
         $data['materialentry'] = DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->first();
         $data['conversion_format'] = DB::connection($user_db_conn_name)->table('material_conversion_rules')->join('units', 'units.id', '=', 'material_conversion_rules.to_unit')->select('material_conversion_rules.*', 'units.name as to_unit_name')->get();
 

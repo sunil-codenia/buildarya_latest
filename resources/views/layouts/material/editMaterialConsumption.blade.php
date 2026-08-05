@@ -47,11 +47,6 @@
                                                             data-live-search="true" required>
                                                             <option value="" selected disabled>--Select Site--</option>
 
-                                                            @if ($entry_at_site == 'current')
-                                                                <option selected value="{{ $site_id }}">
-                                                                    {{ getSiteDetailsById($site_id)->name }}
-                                                                </option>
-                                                            @else
                                                                 @foreach ($sites as $site)
                                                                     @if ($consumption->site_id == $site->id)
                                                                         <option selected value="{{ $site->id }}">
@@ -61,7 +56,6 @@
                                                                         </option>
                                                                     @endif
                                                                 @endforeach
-                                                            @endif
                                                         </select>
                                                     @endif
                                                 </div>

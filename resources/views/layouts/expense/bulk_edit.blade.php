@@ -51,16 +51,10 @@ $max_date = substr($duration['max'], 0, 10);
                                         <input type="hidden" name="id[]" value="{{$expense['id']}}" />
                                         <select name="site_id[]" class="form-control" required>
                                             <option value="" selected disabled>--Select Site--</option>
-                                            @if ($entry_at_site == 'current')
-                                                <option selected value="{{ $site_id }}">
-                                                    {{ getSiteDetailsById($site_id)->name }}
-                                                </option>
-                                            @else
-                                                @foreach ($sites as $site)
-                                                    @php $site = (array)$site; @endphp
-                                                    <option value="{{$site['id']}}" {{$expense['site_id'] == $site['id'] ? 'selected' : ''}}>{{$site['name']}}</option>
-                                                @endforeach
-                                            @endif
+                                            @foreach ($sites as $site)
+                                                @php $site = (array)$site; @endphp
+                                                <option value="{{$site['id']}}" {{$expense['site_id'] == $site['id'] ? 'selected' : ''}}>{{$site['name']}}</option>
+                                            @endforeach
                                         </select>
                                     </td>
                                     <td>

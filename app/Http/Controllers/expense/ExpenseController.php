@@ -911,7 +911,21 @@ class ExpenseController extends Controller
         $data['expense_head'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
         $data['expense_party'] = DB::connection($user_db_conn_name)->table('expense_party')->whereIn('status', ['Active', 'Pending'])->get();
         $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+
+        // Filter sites based on user's assigned sites in DB (non-admins only see their assigned sites)
+        $role_id = session()->get('role');
+        $uid = session()->get('uid');
+        $sitesQuery = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active');
+
+        if ($role_id != 1 && $role_id != 2) {
+            $user = DB::connection($user_db_conn_name)->table('users')->where('id', $uid)->first();
+            $assigned_site_ids = !empty($user->site_id) ? explode(',', (string)$user->site_id) : [];
+            if (!empty($assigned_site_ids)) {
+                $sitesQuery->whereIn('id', array_map('trim', $assigned_site_ids));
+            }
+        }
+        $data['sites'] = $sitesQuery->get();
+
         return  view('layouts.expense.new')->with('data', json_encode($data));
     }
     public function edit_expense(Request $request)
@@ -922,7 +936,19 @@ class ExpenseController extends Controller
         $data['expense_head'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
         $data['expense_party'] = DB::connection($user_db_conn_name)->table('expense_party')->whereIn('status', ['Active', 'Pending'])->get();
         $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->whereIn('status', ['Active', 'Pending'])->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        // Filter sites based on user's assigned sites in DB (non-admins only see their assigned sites)
+        $role_id_for_sites = session()->get('role');
+        $uid_for_sites = session()->get('uid');
+        $sitesQuery = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active');
+
+        if ($role_id_for_sites != 1 && $role_id_for_sites != 2) {
+            $user_sites_rec = DB::connection($user_db_conn_name)->table('users')->where('id', $uid_for_sites)->first();
+            $assigned_site_ids = !empty($user_sites_rec->site_id) ? explode(',', (string)$user_sites_rec->site_id) : [];
+            if (!empty($assigned_site_ids)) {
+                $sitesQuery->whereIn('id', array_map('trim', $assigned_site_ids));
+            }
+        }
+        $data['sites'] = $sitesQuery->get();
 
         $site_id = session()->get("site_id");
         $role_details = getRoleDetailsById(session()->get('role'));
@@ -957,7 +983,19 @@ class ExpenseController extends Controller
         $data['expense_head'] = DB::connection($user_db_conn_name)->table('expense_head')->get();
         $data['expense_party'] = DB::connection($user_db_conn_name)->table('expense_party')->where('status', '=', 'Active')->get();
         $data['bill_party'] = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Active')->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        // Filter sites based on user's assigned sites in DB (non-admins only see their assigned sites)
+        $role_id = session()->get('role');
+        $uid = session()->get('uid');
+        $sitesQuery = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active');
+
+        if ($role_id != 1 && $role_id != 2) {
+            $user_sites_rec = DB::connection($user_db_conn_name)->table('users')->where('id', $uid)->first();
+            $assigned_site_ids = !empty($user_sites_rec->site_id) ? explode(',', (string)$user_sites_rec->site_id) : [];
+            if (!empty($assigned_site_ids)) {
+                $sitesQuery->whereIn('id', array_map('trim', $assigned_site_ids));
+            }
+        }
+        $data['sites'] = $sitesQuery->get();
 
         return view('layouts.expense.bulk_edit')->with('data', json_encode($data));
     }

@@ -97,23 +97,23 @@
                                 <tbody>
                                     @php $rowIndex = 1; @endphp
                                     @if ($hasNextPayment)
-                                        <tr style="background-color: #fffbeb;">
+                                        <tr style="background-color: #fffbeb;" id="pending-invoice-row">
                                             <td>{{ $rowIndex++ }}</td>
                                             <td>
                                                 <strong>PRO-{{ \Carbon\Carbon::parse($newStartDate)->format('Ym') }}-{{ str_pad($latestInvoice['subscription_id'] ?? rand(1000,9999), 4, '0', STR_PAD_LEFT) }}</strong>
                                                 <div style="font-size: 10px; color: #777; margin-top: 3px;">Proforma</div>
                                             </td>
                                             <td>
-                                                <strong>{{ $nextPlan }} (Next Payment)</strong>
+                                                <strong id="display-plan-name">{{ $nextPlan }} (Next Payment)</strong>
                                                 @if($extraUsers > 0 || $extraSites > 0)
-                                                    <div style="font-size: 11px; margin-top: 5px; color: #555;">
+                                                    <div style="font-size: 11px; margin-top: 5px; color: #555;" id="addons-list-container">
                                                         @if($extraUsers > 0)
-                                                            <div>+ {{ $extraUsers }} Extra User(s) (₹{{ $extraUsers * 100 * $cycleMultiplier }}) 
+                                                            <div id="addon-user-item">+ <span class="addon-user-count">{{ $extraUsers }}</span> Extra User(s) (<span id="addon-user-price-text">₹{{ $extraUsers * 100 * $cycleMultiplier }}</span>) 
                                                                 <button class="btn btn-xs btn-danger remove-addon-btn" data-type="user" style="padding: 0 4px; font-size: 10px; margin-left: 5px;" title="Remove 1 User"><i class="zmdi zmdi-minus"></i> Remove</button>
                                                             </div>
                                                         @endif
                                                         @if($extraSites > 0)
-                                                            <div>+ {{ $extraSites }} Extra Site(s) (₹{{ $extraSites * 200 * $cycleMultiplier }})
+                                                            <div id="addon-site-item">+ <span class="addon-site-count">{{ $extraSites }}</span> Extra Site(s) (<span id="addon-site-price-text">₹{{ $extraSites * 200 * $cycleMultiplier }}</span>)
                                                                 <button class="btn btn-xs btn-danger remove-addon-btn" data-type="site" style="padding: 0 4px; font-size: 10px; margin-left: 5px;" title="Remove 1 Site"><i class="zmdi zmdi-minus"></i> Remove</button>
                                                             </div>
                                                         @endif
@@ -121,10 +121,10 @@
                                                 @endif
                                             </td>
                                             <td>{{ $nextPaymentDate }}</td>
-                                            <td><strong class="text-danger">{{ $nextDueDate }}</strong></td>
-                                            <td class="text-right">₹{{ number_format($nextAmount, 2) }}</td>
+                                            <td><strong class="text-danger" id="display-due-date">{{ $nextDueDate }}</strong></td>
+                                            <td class="text-right" id="display-amount">₹{{ number_format($nextAmount, 2) }}</td>
                                             <td class="text-right text-success">₹0.00</td>
-                                            <td class="text-right text-danger">₹{{ number_format($nextAmount, 2) }}</td>
+                                            <td class="text-right text-danger" id="display-balance">₹{{ number_format($nextAmount, 2) }}</td>
                                             <td>
                                                 <span class="badge badge-warning" style="font-size: 11px; padding: 4px 8px; text-transform: uppercase;">
                                                     Pending
@@ -133,7 +133,7 @@
                                             <td class="text-center">
                                                 <button type="button" 
                                                    class="btn btn-warning btn-round btn-sm waves-effect pay-now-btn" 
-                                                   style="font-weight: bold;"
+                                                   style="font-weight: bold; width: 100%;"
                                                    data-amount="{{ $nextAmount }}"
                                                    data-sub-id="{{ $latestInvoice['subscription_id'] }}"
                                                    data-plan-id="{{ $latestInvoice['saas_plan_id'] ?? '' }}"
@@ -145,6 +145,14 @@
                                                    data-plan-name="{{ $nextPlan }}"
                                                    title="Pay Subscription via Razorpay">
                                                     <i class="zmdi zmdi-card"></i> Pay Now
+                                                </button>
+                                                <button type="button" 
+                                                   class="btn btn-info btn-round btn-sm waves-effect change-plan-btn" 
+                                                   style="font-weight: bold; margin-top: 5px; display: block; width: 100%; background-color: #3b2f54; border: none; color: white;"
+                                                   data-toggle="modal"
+                                                   data-target="#changePlanModal"
+                                                   title="Upgrade/Downgrade Subscription Plan">
+                                                    <i class="zmdi zmdi-swap"></i> Upgrade/Downgrade
                                                 </button>
                                             </td>
                                         </tr>
@@ -193,6 +201,169 @@
                             </table>
                         </div>
                     @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+@endsection
+
+@section('models')
+    <!-- Upgrade / Downgrade Plan Modal -->
+    <div class="modal fade" id="changePlanModal" tabindex="-1" role="dialog" style="z-index: 1060; overflow-y: auto;">
+        <div class="modal-dialog modal-dialog-centered" role="document" style="margin: 30px auto; max-height: calc(100vh - 60px);">
+            <div class="modal-content" style="border-radius: 16px; overflow: visible; border: none; box-shadow: 0 15px 35px rgba(0,0,0,0.2); display: flex; flex-direction: column; max-height: calc(100vh - 60px);">
+                <div class="modal-header text-white" style="background: linear-gradient(135deg, #1f1b2d 0%, #3b2f54 100%); border: none; padding: 20px;">
+                    <h5 class="modal-title font-weight-bold" style="display: flex; align-items: center; gap: 10px; margin: 0; color: white;">
+                        <i class="zmdi zmdi-swap text-info" style="font-size: 24px;"></i> Upgrade / Downgrade Plan
+                    </h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" style="position: absolute; right: 20px; top: 20px; outline: none; background: none; border: none; opacity: 0.8;">
+                        <span aria-hidden="true" style="font-size: 1.5rem; color: white;">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" style="padding: 25px; background-color: #f8f9fa; overflow-y: auto; flex: 1 1 auto;">
+                    <style>
+                        /* Modal scroll & z-index fixes */
+                        #changePlanModal {
+                            overflow-y: auto !important;
+                        }
+                        #changePlanModal .modal-dialog {
+                            margin: 30px auto !important;
+                            display: flex;
+                            align-items: flex-start;
+                            min-height: calc(100% - 60px);
+                        }
+                        #changePlanModal .modal-content {
+                            max-height: calc(100vh - 60px);
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        #changePlanModal .modal-body {
+                            overflow-y: auto !important;
+                            -webkit-overflow-scrolling: touch;
+                        }
+                        #changePlanModal .modal-header {
+                            flex-shrink: 0;
+                        }
+                        #changePlanModal .modal-footer {
+                            flex-shrink: 0;
+                        }
+                        .modal-backdrop + .modal-backdrop {
+                            display: none;
+                        }
+                        .plan-card {
+                            border: 2px solid #e9ecef !important;
+                            border-radius: 12px !important;
+                            transition: all 0.3s ease !important;
+                            cursor: pointer !important;
+                            position: relative;
+                            background: white;
+                        }
+                        .plan-card:hover {
+                            transform: translateY(-2px);
+                            border-color: #3b2f54 !important;
+                            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+                        }
+                        .plan-card.active {
+                            border-color: #3b2f54 !important;
+                            background-color: rgba(59, 47, 84, 0.02) !important;
+                            box-shadow: 0 8px 25px rgba(59, 47, 84, 0.15) !important;
+                        }
+                        .plan-card.active::after {
+                            content: '\f26b'; /* zmdi-check-circle */
+                            font-family: 'Material-Design-Iconic-Font';
+                            position: absolute;
+                            top: 10px;
+                            right: 10px;
+                            font-size: 20px;
+                            color: #3b2f54;
+                        }
+                        .cycle-btn {
+                            flex: 1;
+                            border: 1px solid #ced4da;
+                            background: #fff;
+                            padding: 10px;
+                            text-align: center;
+                            border-radius: 8px;
+                            font-weight: bold;
+                            cursor: pointer;
+                            transition: all 0.2s;
+                        }
+                        .cycle-btn:hover {
+                            border-color: #3b2f54;
+                            color: #3b2f54;
+                        }
+                        .cycle-btn.active {
+                            background: #3b2f54;
+                            color: #fff;
+                            border-color: #3b2f54;
+                        }
+                    </style>
+                    
+                    <div class="form-group mb-4" style="text-align: left;">
+                        <label class="font-weight-bold text-muted mb-2 d-block">Select Plan</label>
+                        <div class="row">
+                            @foreach($plans as $plan)
+                                @php
+                                    $lowerName = strtolower($plan['name']);
+                                @endphp
+                                @if($lowerName === 'starter' || $lowerName === 'growth')
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card h-100 plan-card" data-plan-id="{{ $plan['id'] }}" data-name="{{ $plan['name'] }}" data-price="{{ $plan['price'] }}">
+                                            <div class="card-body p-3 text-center">
+                                                <h4 class="font-weight-bold mb-1 text-dark" style="margin-top: 5px;">{{ ucfirst($plan['name']) }}</h4>
+                                                <p class="text-muted text-sm mb-3">Up to {{ $plan['maxUsers'] ?? 0 }} users & {{ $plan['maxSites'] ?? 0 }} sites</p>
+                                                <h3 class="font-weight-bold text-primary mb-0" style="font-size: 1.6rem; color: #3b2f54;">
+                                                    ₹{{ number_format($plan['price']) }}<span style="font-size: 0.9rem; font-weight: normal; color: #777;"> / mo</span>
+                                                </h3>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endif
+                            @endforeach
+                        </div>
+                    </div>
+                    
+                    <div class="form-group mb-4" style="text-align: left;">
+                        <label class="font-weight-bold text-muted mb-2 d-block">Billing Cycle</label>
+                        <div class="d-flex" style="gap: 10px; display: flex;">
+                            <div class="cycle-btn active" data-cycle="monthly">Monthly</div>
+                            <div class="cycle-btn" data-cycle="yearly">Yearly (Save more)</div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 mb-3" style="background-color: #fff; border-radius: 8px; border: 1px solid #e9ecef; text-align: left;">
+                        <h6 class="font-weight-bold border-b pb-2 mb-2" style="border-bottom: 1px solid #eee; padding-bottom: 8px; margin-top: 0;">Price Breakdown</h6>
+                        <div class="d-flex justify-content-between mb-2" style="display: flex; justify-content: space-between;">
+                            <span>Base Plan Price:</span>
+                            <strong id="breakdown-base-price">₹0.00</strong>
+                        </div>
+                        @if($extraUsers > 0)
+                            <div class="d-flex justify-content-between mb-2" style="display: flex; justify-content: space-between;">
+                                <span>+ {{ $extraUsers }} Extra User(s):</span>
+                                <strong id="breakdown-extra-users">₹0.00</strong>
+                            </div>
+                        @endif
+                        @if($extraSites > 0)
+                            <div class="d-flex justify-content-between mb-2" style="display: flex; justify-content: space-between;">
+                                <span>+ {{ $extraSites }} Extra Site(s):</span>
+                                <strong id="breakdown-extra-sites">₹0.00</strong>
+                            </div>
+                        @endif
+                        <hr style="margin: 10px 0;">
+                        <div class="d-flex justify-content-between mb-2" style="display: flex; justify-content: space-between; font-size: 1.1rem; color: #2b2b2b;">
+                            <strong>Total Amount:</strong>
+                            <strong class="text-success" id="breakdown-total-price">₹0.00</strong>
+                        </div>
+                        <div class="d-flex justify-content-between" style="display: flex; justify-content: space-between; font-size: 0.9rem; color: #777;">
+                            <span>Next Due Date:</span>
+                            <strong id="breakdown-new-due-date">-</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-white border-0" style="padding: 15px 25px; display: flex; justify-content: space-between; flex-shrink: 0; border-top: 1px solid #eee;">
+                    <button type="button" class="btn btn-neutral btn-round" data-dismiss="modal" style="font-weight: bold; border: 1px solid #ddd; border-radius: 20px; margin: 0; padding: 8px 20px;">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-round" id="confirm-plan-change-btn" style="font-weight: bold; border-radius: 20px; background-color: #3b2f54; border: none; color: white; margin: 0; padding: 8px 20px;">Apply Plan</button>
                 </div>
             </div>
         </div>
@@ -351,6 +522,200 @@
                     });
                 }
             });
+
+            // ========================================================
+            // Upgrade / Downgrade Plan Modal Logic
+            // ========================================================
+            @if($hasNextPayment)
+            var changePlan = {
+                selectedPlanId: null,
+                selectedPlanName: '',
+                selectedPlanPrice: 0,
+                selectedCycle: '{{ $latestInvoice["billing_cycle"] ?? "monthly" }}',
+                extraUsers: {{ $extraUsers ?? 0 }},
+                extraSites: {{ $extraSites ?? 0 }},
+                currentPlanId: '{{ $latestInvoice["saas_plan_id"] ?? "" }}',
+                currentCycle: '{{ $latestInvoice["billing_cycle"] ?? "monthly" }}',
+                currentStartDate: '{{ $newStartDate ?? "" }}',
+            };
+
+            // Initialize modal on open: pre-select current plan and cycle
+            $('#changePlanModal').on('show.bs.modal', function() {
+                $('#changePlanModal').appendTo('body');
+                var currentId = changePlan.currentPlanId;
+                var currentCycle = changePlan.currentCycle;
+                
+                // Pre-select current plan card
+                $('.plan-card').removeClass('active');
+                var $currentCard = $('.plan-card[data-plan-id="' + currentId + '"]');
+                if ($currentCard.length) {
+                    $currentCard.addClass('active');
+                    changePlan.selectedPlanId = currentId;
+                    changePlan.selectedPlanName = $currentCard.data('name');
+                    changePlan.selectedPlanPrice = parseFloat($currentCard.data('price'));
+                } else {
+                    // Select first card if current not found
+                    var $first = $('.plan-card').first();
+                    if ($first.length) {
+                        $first.addClass('active');
+                        changePlan.selectedPlanId = $first.data('plan-id');
+                        changePlan.selectedPlanName = $first.data('name');
+                        changePlan.selectedPlanPrice = parseFloat($first.data('price'));
+                    }
+                }
+
+                // Pre-select current cycle
+                $('.cycle-btn').removeClass('active');
+                var normCycle = currentCycle.toLowerCase();
+                if (normCycle === 'yearly' || normCycle === 'annually') {
+                    $('.cycle-btn[data-cycle="yearly"]').addClass('active');
+                    changePlan.selectedCycle = 'yearly';
+                } else {
+                    $('.cycle-btn[data-cycle="monthly"]').addClass('active');
+                    changePlan.selectedCycle = 'monthly';
+                }
+
+                recalcBreakdown();
+            });
+
+            // Plan card selection
+            $(document).on('click', '.plan-card', function() {
+                $('.plan-card').removeClass('active');
+                $(this).addClass('active');
+                changePlan.selectedPlanId = $(this).data('plan-id');
+                changePlan.selectedPlanName = $(this).data('name');
+                changePlan.selectedPlanPrice = parseFloat($(this).data('price'));
+                recalcBreakdown();
+            });
+
+            // Billing cycle selection
+            $(document).on('click', '.cycle-btn', function() {
+                $('.cycle-btn').removeClass('active');
+                $(this).addClass('active');
+                changePlan.selectedCycle = $(this).data('cycle');
+                recalcBreakdown();
+            });
+
+            // Recalculate the breakdown in the modal
+            function recalcBreakdown() {
+                var cycle = changePlan.selectedCycle;
+                var multiplier = 1;
+                if (cycle === 'yearly' || cycle === 'annually') {
+                    multiplier = 12;
+                } else if (cycle === 'quarterly') {
+                    multiplier = 3;
+                }
+
+                var basePlanTotal = changePlan.selectedPlanPrice * multiplier;
+                var extraUserTotal = changePlan.extraUsers * 100 * multiplier;
+                var extraSiteTotal = changePlan.extraSites * 200 * multiplier;
+                var grandTotal = basePlanTotal + extraUserTotal + extraSiteTotal;
+
+                $('#breakdown-base-price').text('₹' + basePlanTotal.toLocaleString('en-IN', {minimumFractionDigits: 2}));
+                if ($('#breakdown-extra-users').length) {
+                    $('#breakdown-extra-users').text('₹' + extraUserTotal.toLocaleString('en-IN', {minimumFractionDigits: 2}));
+                }
+                if ($('#breakdown-extra-sites').length) {
+                    $('#breakdown-extra-sites').text('₹' + extraSiteTotal.toLocaleString('en-IN', {minimumFractionDigits: 2}));
+                }
+                $('#breakdown-total-price').text('₹' + grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2}));
+
+                // Calculate new end date from current start date
+                var newEndDate = calculateEndDate(changePlan.currentStartDate, cycle);
+                $('#breakdown-new-due-date').text(formatDateForDisplay(newEndDate));
+            }
+
+            function calculateEndDate(startDateStr, cycle) {
+                if (!startDateStr) return '';
+                var d = new Date(startDateStr + 'T00:00:00');
+                if (isNaN(d.getTime())) return '';
+                
+                if (cycle === 'yearly' || cycle === 'annually') {
+                    d.setFullYear(d.getFullYear() + 1);
+                } else if (cycle === 'quarterly') {
+                    d.setMonth(d.getMonth() + 3);
+                } else {
+                    d.setMonth(d.getMonth() + 1);
+                }
+                return d.toISOString().slice(0, 10); // YYYY-MM-DD
+            }
+
+            function formatDateForDisplay(dateStr) {
+                if (!dateStr) return '-';
+                var d = new Date(dateStr + 'T00:00:00');
+                if (isNaN(d.getTime())) return '-';
+                var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                return d.getDate().toString().padStart(2, '0') + ' ' + months[d.getMonth()] + ' ' + d.getFullYear();
+            }
+
+            // Apply Plan button: update the pending invoice row and Pay Now button
+            $('#confirm-plan-change-btn').on('click', function() {
+                if (!changePlan.selectedPlanId) {
+                    showAlert('Error', 'Please select a plan.', 'error');
+                    return;
+                }
+
+                var cycle = changePlan.selectedCycle;
+                var multiplier = 1;
+                if (cycle === 'yearly' || cycle === 'annually') {
+                    multiplier = 12;
+                } else if (cycle === 'quarterly') {
+                    multiplier = 3;
+                }
+
+                var basePlanTotal = changePlan.selectedPlanPrice * multiplier;
+                var extraUserTotal = changePlan.extraUsers * 100 * multiplier;
+                var extraSiteTotal = changePlan.extraSites * 200 * multiplier;
+                var newTotalAmount = basePlanTotal + extraUserTotal + extraSiteTotal;
+                var newEndDate = calculateEndDate(changePlan.currentStartDate, cycle);
+                var planDisplayName = changePlan.selectedPlanName;
+
+                // Determine if this is upgrade, downgrade, or same
+                var changeType = '';
+                if (String(changePlan.selectedPlanId) !== String(changePlan.currentPlanId)) {
+                    changeType = changePlan.selectedPlanPrice > 0 ? ' (Plan Change)' : '';
+                } else if (cycle !== changePlan.currentCycle) {
+                    changeType = ' (Cycle Change)';
+                }
+
+                // Update display elements on the invoice row
+                $('#display-plan-name').text(planDisplayName + changeType + ' (Next Payment)');
+                $('#display-amount').text('₹' + newTotalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2}));
+                $('#display-balance').text('₹' + newTotalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2}));
+                $('#display-due-date').text(formatDateForDisplay(newEndDate));
+
+                // Update addon price text if visible
+                if ($('#addon-user-price-text').length) {
+                    $('#addon-user-price-text').text('₹' + extraUserTotal.toLocaleString('en-IN'));
+                }
+                if ($('#addon-site-price-text').length) {
+                    $('#addon-site-price-text').text('₹' + extraSiteTotal.toLocaleString('en-IN'));
+                }
+
+                // Update the Pay Now button's data attributes
+                var $payBtn = $('.pay-now-btn');
+                $payBtn.data('amount', newTotalAmount);
+                $payBtn.data('plan-id', changePlan.selectedPlanId);
+                $payBtn.data('cycle', cycle);
+                $payBtn.data('end-date', newEndDate);
+                $payBtn.data('plan-name', planDisplayName);
+
+                // Also update the raw attributes for jQuery .data() caching
+                $payBtn.attr('data-amount', newTotalAmount);
+                $payBtn.attr('data-plan-id', changePlan.selectedPlanId);
+                $payBtn.attr('data-cycle', cycle);
+                $payBtn.attr('data-end-date', newEndDate);
+                $payBtn.attr('data-plan-name', planDisplayName);
+
+                // Close modal
+                $('#changePlanModal').modal('hide');
+
+                // Show confirmation
+                showAlert('Plan Updated', 
+                    'Your plan has been changed to ' + planDisplayName + ' (' + cycle + '). New amount: ₹' + newTotalAmount.toLocaleString('en-IN', {minimumFractionDigits: 2}) + '. Click "Pay Now" to complete the payment.', 
+                    'info');
+            });
+            @endif
         });
     </script>
 @endsection

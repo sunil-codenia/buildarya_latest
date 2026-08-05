@@ -137,7 +137,7 @@ class PaymentVoucherController extends Controller
         }
         $data['companies'] = DB::connection($user_db_conn_name)->table('sales_company')->where('status', '=', 'Active')->get();
         $data['material_suppliers'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('status', '=', 'Active')->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $data['sites'] = getallActivesites();
         $data['official_sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->where('sites_type', '=','Office Site')->get();
         $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Active')->get();
         $data['other_parties'] = DB::connection($user_db_conn_name)->table('other_parties')->where('status', '=', 'Active')->get();
@@ -163,7 +163,7 @@ class PaymentVoucherController extends Controller
         $data['paymentvoucher'] = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', $request->get('id'))->get()[0];
         $data['companies'] = DB::connection($user_db_conn_name)->table('sales_company')->where('status', '=', 'Active')->get();
         $data['material_suppliers'] = DB::connection($user_db_conn_name)->table('material_supplier')->where('status', '=', 'Active')->get();
-        $data['sites'] = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $data['sites'] = getallActivesites();
         $data['bill_parties'] = DB::connection($user_db_conn_name)->table('bills_party')->where('status', '=', 'Active')->get();
         $data['other_parties'] = DB::connection($user_db_conn_name)->table('other_parties')->where('status', '=', 'Active')->get();
 

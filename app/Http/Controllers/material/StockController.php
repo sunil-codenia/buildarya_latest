@@ -125,7 +125,7 @@ class StockController extends Controller
         $materials = DB::connection($user_db_conn_name)->table('materials')->get();
         $units = DB::connection($user_db_conn_name)->table('units')->get();
         $material_stock_record = DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')->get();
-        $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $sites = getallActivesites();
 
         return  view('layouts.material.newconsumption', compact(['materials', 'units', 'material_stock_record', 'sites']));
     }
@@ -378,7 +378,7 @@ class StockController extends Controller
         $materials = DB::connection($user_db_conn_name)->table('materials')->get();
         $units = DB::connection($user_db_conn_name)->table('units')->get();
         $material_stock_record = DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')->get();
-        $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $sites = getallActivesites();
         $consumption = DB::connection($user_db_conn_name)->table('material_consumption')->where('id', $id)->first();
         if (!$consumption) {
             return redirect('/pending_consumption')->with('error', 'Material Consumption Entry Not Found!');
@@ -407,7 +407,7 @@ class StockController extends Controller
         $materials = DB::connection($user_db_conn_name)->table('materials')->get();
         $units = DB::connection($user_db_conn_name)->table('units')->get();
         $material_stock_record = DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')->get();
-        $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $sites = getallActivesites();
         $wastage = DB::connection($user_db_conn_name)->table('material_wastage')->where('id', $id)->first();
         if (!$wastage) {
             return redirect('/pending_consumption')->with('error', 'Material Wastage Entry Not Found!');
@@ -624,7 +624,7 @@ class StockController extends Controller
         $materials = DB::connection($user_db_conn_name)->table('materials')->get();
         $units = DB::connection($user_db_conn_name)->table('units')->get();
         $material_stock_record = DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')->get();
-        $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $sites = getallActivesites();
         return  view('layouts.material.transferMaterialSites', compact(['materials', 'units', 'material_stock_record', 'sites']));
     }
     public function newMaterialTransferForm(Request $request)
@@ -760,7 +760,7 @@ class StockController extends Controller
         $materials = DB::connection($user_db_conn_name)->table('materials')->get();
         $units = DB::connection($user_db_conn_name)->table('units')->get();
         $material_stock_record = DB::connection($user_db_conn_name)->table('material_stock_record')->join('materials', 'materials.id', '=', 'material_stock_record.material_id')->join('units', 'units.id', '=', 'material_stock_record.unit')->select('material_stock_record.*', 'materials.name as material_name', 'units.name as unit_name')->get();
-        $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $sites = getallActivesites();
         $conversion_format = DB::connection($user_db_conn_name)->table('material_conversion_rules')->join('units', 'units.id', '=', 'material_conversion_rules.to_unit')->select('material_conversion_rules.*', 'units.name as to_unit_name')->get();
         return  view('layouts.material.newMaterialConversion', compact(['materials', 'units', 'material_stock_record', 'sites', 'conversion_format']));
     }
@@ -870,7 +870,7 @@ class StockController extends Controller
     {
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         $sess_site_id = $request->session()->get('site_id');
-        $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $sites = getallActivesites();
         $site_wise_data = array();
         
         $whole_comp_query = DB::connection($user_db_conn_name)->table('material_stock_record')
@@ -985,7 +985,7 @@ return  view('layouts.material.materialTransaction', compact(['transactions', 'c
             ->whereIn('msr.status', ['Rejected', 'Approved', 'Converted']) // Optimized condition for multiple values
             ->get();
 
-        $sites = DB::connection($user_db_conn_name)->table('sites')->where('status', '=', 'Active')->get();
+        $sites = getallActivesites();
         return  view('layouts.material.reconsilationList', compact(['pending_list', 'submitted_list', 'verified_list', 'sites']));
     }
     public function request_reconsilation(Request $request)

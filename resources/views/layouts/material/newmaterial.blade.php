@@ -62,16 +62,9 @@ $site_id = session()->get("site_id");
                                  <label>Site</label>
                                  <select name="site_id[]"   class="form-control show-tick" data-live-search="true" required>
                                    <option value="" selected disabled >--Select Site--</option>
-                                   @if ($entry_at_site == 'current')
-                                                            <option selected value="{{ $site_id }}">
-                                                                {{ getSiteDetailsById($site_id)->name }}
-                                                            </option>
-                                                        @else
-                                                            @foreach ($sites as $site)
-                                                                <option value="{{ $site['id'] }}">{{ $site['name'] }}
-                                                                </option>
-                                                            @endforeach
-                                                        @endif
+                                    @foreach ($sites as $site)
+                                        <option value="{{ $site['id'] }}">{{ $site['name'] }}</option>
+                                    @endforeach
                                                  
                            </select>
                               </div>
@@ -258,7 +251,7 @@ var count = 1;
 $('#addrow').click(function() {
   
        count++;
-       var site_html = '<select name="site_id[]" id="site_id_'+count+'" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Site--</option> @if($entry_at_site == "current")<option selected value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else @foreach ($sites as $site)<option value = "{{ $site['id'] }}">{{ $site['name'] }}</option>@endforeach @endif</select>';
+       var site_html = '<select name="site_id[]" id="site_id_'+count+'" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Site--</option> @foreach ($sites as $site)<option value="{{ $site['id'] }}">{{ $site['name'] }}</option>@endforeach </select>';
 var supplier_html = '<select name="supplier[]" id="supplier_id_'+count+'" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Supplier--</option>@foreach($suppliers as $supplier)<option value = "{{$supplier['id']}}" {{ ($supplier['status'] ?? "") == "Pending" ? "disabled" : "" }}>{{$supplier['name']}}{{ ($supplier['status'] ?? "") == "Pending" ? " (Pending Activation)" : "" }}</option>@endforeach</select>';
 var material_html = '<select name="material_id[]" id="material_id_'+count+'" onchange="convertQuantity('+count+')" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Material--</option>@foreach($materials as $material)<option value = "{{$material['id']}}" data-is-royalty="{{$material['is_royalty'] ?? 0}}">{{$material['name']}}</option>@endforeach</select>';
 var unit_html = '<select name="unit[]" id="unit_id_'+count+'" onchange="convertQuantity('+count+')" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Unit--</option>@foreach($units as $unit)<option value = "{{$unit['id']}}">{{$unit['name']}}</option>@endforeach</select>';

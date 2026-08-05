@@ -61,16 +61,9 @@
                                                         <select name="site_id[]" id="site_id_1" onchange="sitechanges(1);"
                                                             class="form-control show-tick" data-live-search="true" required>
                                                             <option value="" selected disabled>--Select Site--</option>
-                                                            @if ($entry_at_site == 'current')
-                                                                <option  value="{{ $site_id }}">
-                                                                    {{ getSiteDetailsById($site_id)->name }}
-                                                                </option>
-                                                            @else
-                                                                @foreach ($sites as $site)
-                                                                    <option value="{{ $site->id }}">{{ $site->name }}
-                                                                    </option>
-                                                                @endforeach
-                                                            @endif
+                                                            @foreach ($sites as $site)
+                                                                <option value="{{ $site->id }}">{{ $site->name }}</option>
+                                                            @endforeach
                                                         </select>
                                                     @endif
                                                 </div>
@@ -246,7 +239,7 @@ function consumption_wastage_changes(id){
             @if ($has_locked_site)
                 site_html = '<input type="hidden" name="site_id[]" id="site_id_' + count + '" value="{{ $sess_site_id }}"><input type="text" class="form-control" value="{{ getSiteDetailsById($sess_site_id)->name }}" readonly>';
             @else
-                site_html = '<select name="site_id[]" onchange="sitechanges('+count+')" id="site_id_' + count + '" class="form-control show-tick" data-live-search="true" required><option value="" selected disabled >--Select Site--</option> @if ($entry_at_site == 'current')<option value="{{ $site_id }}">{{ getSiteDetailsById($site_id)->name }}</option>@else @foreach ($sites as $site)<option value = "{{ $site->id }}">{{ $site->name }}</option>@endforeach @endif</select>';
+                site_html = '<select name="site_id[]" onchange="sitechanges('+count+')" id="site_id_' + count + '" class="form-control show-tick" data-live-search="true" required><option value="" disabled >--Select Site--</option> @foreach ($sites as $site)<option value = "{{ $site->id }}" {{ $site->id == $site_id ? "selected" : "" }}>{{ $site->name }}</option>@endforeach </select>';
             @endif
 
             var material_html = '<select name="material_id[]" onchange="materialchanges('+count+')" id="material_id_' + count +

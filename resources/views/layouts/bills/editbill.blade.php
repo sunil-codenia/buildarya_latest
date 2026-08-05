@@ -54,11 +54,6 @@
                                                     <option value="" >--Select Site--</option>
                                              
 
-                                                    @if ($entry_at_site == 'current')
-                                    <option selected value="{{ $site_id }}">
-                                       {{ getSiteDetailsById($site_id)->name }}
-                                    </option>
-                                    @else
                                     @foreach ($sites as $site)
                                     @if($bill['site_id'] == $site['id'])
                                     <option selected value="{{$site['id']}}">{{$site['name']}}</option>
@@ -66,7 +61,6 @@
                                     <option value="{{$site['id']}}">{{$site['name']}}</option>
                                     @endif
                                     @endforeach
-                                    @endif
 
                                                 </select>
                                             </div>
