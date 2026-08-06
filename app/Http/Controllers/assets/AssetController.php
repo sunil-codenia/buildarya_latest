@@ -214,7 +214,7 @@ class AssetController extends Controller
         
       
         $data['edit_data'] = DB::connection($user_db_conn_name)->table('asset_head')->where('id', '=', $id)->get();
-        return  view('layouts.asset.head')->with('data', json_encode($data));
+        return  view('layouts.asset.head')->with('data', json_encode($data))->with('showing_data','all');
     }
     public function delete_asset_head(Request $request)
     {
