@@ -73,7 +73,7 @@ $dataarray = json_decode($data, true);
                         <div class="col-lg-3 col-md-3 col-sm-4">
                             <div class="form-group">
                             <label for="Name">Cost Category</label>
-                                <select name="cost_category_id" class="form-control show-tick" required>
+                                <select name="cost_category_id" class="form-control show-tick" data-live-search="true" required>
                                     <option value="">Select Cost Category</option>
                                     @foreach($dataarray['cost_categories'] as $cat)
                                         <option value="{{ $cat['id'] }}" {{ $editdata['cost_category_id'] == $cat['id'] ? 'selected' : '' }}>{{ $cat['name'] }}</option>
@@ -234,7 +234,7 @@ $dataarray = json_decode($data, true);
                                 </div>
                                 <div class="col-lg-8 col-md-8 col-sm-8">
                                     <div class="form-group">
-                                        <select name="cost_category_id" class="form-control show-tick" required>
+                                        <select name="cost_category_id" class="form-control show-tick" data-live-search="true" required>
                                             <option value="">Select Cost Category</option>
                                             @foreach($dataarray['cost_categories'] as $cat)
                                                 <option value="{{ $cat['id'] }}">{{ $cat['name'] }}</option>

@@ -107,6 +107,9 @@
                                 <textarea name="message" rows="4" placeholder="Tell us about your business needs..." class="w-full px-4 py-3 rounded-xl border border-border bg-bg text-sm text-fg focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all resize-none"></textarea>
                             </div>
 
+                            <!-- Cloudflare Turnstile -->
+                            <div class="cf-turnstile mb-4" data-sitekey="{{ config('services.turnstile.site_key') }}" data-theme="light"></div>
+
                             <button type="submit" class="btn-accent w-full py-3.5 rounded-xl text-sm font-semibold shadow-accent hover:shadow-lg flex items-center justify-center gap-2">
                                 Send Message
                                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -177,4 +180,8 @@
             </div>
         </div>
     </section>
+@endsection
+
+@section('scripts')
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 @endsection

@@ -139,7 +139,27 @@ class FrontendController extends Controller
             'gst_number' => 'nullable|string|max:50',
             'address'    => 'nullable|string|max:500',
             'message'    => 'nullable|string|max:2000',
+            'cf-turnstile-response' => 'required',
+        ], [
+            'cf-turnstile-response.required' => 'Please complete the Cloudflare verification check.',
         ]);
+
+        // Verify Cloudflare Turnstile Token
+        try {
+            $turnstileResponse = Http::asForm()->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', [
+                'secret'   => config('services.turnstile.secret_key'),
+                'response' => $request->input('cf-turnstile-response'),
+                'remoteip' => $request->ip(),
+            ]);
+
+            if (!$turnstileResponse->json('success')) {
+                return redirect()->back()
+                    ->withErrors(['cf-turnstile-response' => 'Cloudflare verification failed. Please try again.'])
+                    ->withInput();
+            }
+        } catch (\Exception $e) {
+            Log::error('Cloudflare Turnstile verification error: ' . $e->getMessage());
+        }
 
         // Hit Shaarvik external leads API
         $this->pushToShaarvik($validated, 'contact_form');
