@@ -199,7 +199,7 @@
                     @endif
 
                     @if ($pv->status == 'Paid')
-                        <h4> <img src="{{ url('/images/paid.webp') }}" height="100px" width="100px" /></h4>
+                        <h4> <img src="{{ url('/images/paid.png') }}" height="100px" width="100px" /></h4>
                     @endif
 
                     @if ($pv->status == 'Pending')
