@@ -39,7 +39,13 @@ class AttendanceWebController extends Controller
         }
         $users = $usersQuery->get();
 
-        $billParties = DB::connection($conn)->table('bills_party')->where('status', 'Active')->get();
+        $billParties = DB::connection($conn)->table('bills_party')
+            ->where(function($q) {
+                $q->whereNull('status')
+                  ->orWhereNotIn('status', ['Deactive', 'deactive', 'Disabled']);
+            })
+            ->orderBy('name', 'asc')
+            ->get();
 
         // Fetch attendance logs for the selected date
         $attendanceLogsQuery = DB::connection($conn)->table('attendance')
@@ -77,6 +83,14 @@ class AttendanceWebController extends Controller
         // Fallback site_name resolving in PHP for logs where site_id is empty/0
         $siteNamesMap = $sites->pluck('name', 'id')->toArray();
         foreach ($attendanceLogs as $log) {
+            if (!empty($log->bills_party_id)) {
+                $log->labour_count = DB::connection($conn)->table('contractor_labour_attendance')
+                    ->where('attendance_id', $log->id)
+                    ->count();
+            } else {
+                $log->labour_count = 0;
+            }
+
             if (empty($log->site_name) && !empty($log->user_site_id)) {
                 $userSites = explode(',', $log->user_site_id);
                 $firstUserSiteId = $userSites[0] ?? null;
@@ -193,6 +207,7 @@ class AttendanceWebController extends Controller
         ];
 
         if ($existing) {
+            $attendanceId = $existing->id;
             if (!$imagePath) {
                 unset($data['image']);
             }
@@ -200,10 +215,154 @@ class AttendanceWebController extends Controller
         } else {
             $data['date'] = $dateString;
             $data['created_at'] = Carbon::now()->toDateTimeString();
-            DB::connection($conn)->table('attendance')->insert($data);
+            $attendanceId = DB::connection($conn)->table('attendance')->insertGetId($data);
+        }
+
+        // Save dynamic individual labours for Labour Contractor if provided
+        if ($billsPartyId && $request->has('labour_name') && is_array($request->labour_name)) {
+            $labourNames = $request->labour_name;
+            $labourMobiles = $request->labour_mobile ?? [];
+            $labourAddresses = $request->labour_address ?? [];
+            $labourCheckins = $request->labour_checkin ?? [];
+            $labourCheckouts = $request->labour_checkout ?? [];
+            $labourPhotos = $request->file('labour_photo') ?? [];
+
+            foreach ($labourNames as $idx => $lName) {
+                if (empty(trim($lName))) continue;
+
+                $lMobile = trim($labourMobiles[$idx] ?? '');
+                $lAddress = trim($labourAddresses[$idx] ?? '');
+                $lCheckin = !empty($labourCheckins[$idx]) ? Carbon::parse($dateString . ' ' . $labourCheckins[$idx])->toDateTimeString() : ($request->clock_in ? Carbon::parse($dateString . ' ' . $request->clock_in)->toDateTimeString() : Carbon::now()->toDateTimeString());
+                $lCheckout = !empty($labourCheckouts[$idx]) ? Carbon::parse($dateString . ' ' . $labourCheckouts[$idx])->toDateTimeString() : ($request->clock_out ? Carbon::parse($dateString . ' ' . $request->clock_out)->toDateTimeString() : null);
+
+                $lPhotoPath = null;
+                if (isset($labourPhotos[$idx]) && $labourPhotos[$idx]->isValid()) {
+                    $pFile = $labourPhotos[$idx];
+                    $pDir = public_path("images/app_images/{$comp_id}/labour_photos");
+                    if (!File::exists($pDir)) {
+                        File::makeDirectory($pDir, 0755, true);
+                    }
+                    $pName = time() . '_labour_' . $idx . '_' . uniqid() . '.' . $pFile->getClientOriginalExtension();
+                    $pFile->move($pDir, $pName);
+                    $lPhotoPath = "images/app_images/{$comp_id}/labour_photos/{$pName}";
+                }
+
+                $labourId = null;
+                if (!empty($lMobile)) {
+                    $existingLabour = DB::connection($conn)->table('labours')->where('mobile_number', $lMobile)->first();
+                    if ($existingLabour) {
+                        $labourId = $existingLabour->id;
+                        $updateData = ['name' => $lName];
+                        if (!empty($lAddress)) $updateData['address'] = $lAddress;
+                        if (!empty($lPhotoPath)) $updateData['photo'] = $lPhotoPath;
+                        DB::connection($conn)->table('labours')->where('id', $labourId)->update($updateData);
+                    }
+                }
+
+                if (!$labourId) {
+                    $labourId = DB::connection($conn)->table('labours')->insertGetId([
+                        'name' => $lName,
+                        'mobile_number' => $lMobile ?: null,
+                        'address' => $lAddress ?: null,
+                        'photo' => $lPhotoPath,
+                        'created_at' => Carbon::now()->toDateTimeString(),
+                        'updated_at' => Carbon::now()->toDateTimeString()
+                    ]);
+                }
+
+                DB::connection($conn)->table('contractor_labour_attendance')->insert([
+                    'attendance_id' => $attendanceId,
+                    'contractor_id' => $billsPartyId,
+                    'labour_id' => $labourId,
+                    'site_id' => $request->site_id,
+                    'date' => $dateString,
+                    'name' => $lName,
+                    'mobile_number' => $lMobile ?: null,
+                    'address' => $lAddress ?: null,
+                    'photo' => $lPhotoPath,
+                    'checkin_datetime' => $lCheckin,
+                    'checkout_datetime' => $lCheckout,
+                    'status' => $request->status == 'Leave' ? 'Absent' : $request->status,
+                    'created_at' => Carbon::now()->toDateTimeString(),
+                    'updated_at' => Carbon::now()->toDateTimeString()
+                ]);
+            }
         }
 
         return redirect()->back()->with('success', 'Attendance record saved successfully!');
+    }
+
+    public function searchLabourByMobile(Request $request)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $mobile = trim($request->input('mobile_number'));
+        if (empty($mobile)) {
+            return response()->json(['status' => 'not_found']);
+        }
+
+        $labour = DB::connection($conn)->table('labours')->where('mobile_number', $mobile)->first();
+        if ($labour) {
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'id' => $labour->id,
+                    'name' => $labour->name,
+                    'mobile_number' => $labour->mobile_number,
+                    'address' => $labour->address,
+                    'photo' => $labour->photo ? asset($labour->photo) : null
+                ]
+            ]);
+        }
+
+        return response()->json(['status' => 'not_found']);
+    }
+
+    public function getContractorLabours($attendanceId)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $labours = DB::connection($conn)->table('contractor_labour_attendance')
+            ->where('attendance_id', $attendanceId)
+            ->get();
+
+        foreach ($labours as $l) {
+            $l->photo_url = $l->photo ? asset($l->photo) : null;
+            $l->checkin_formatted = $l->checkin_datetime ? date('d M Y, h:i A', strtotime($l->checkin_datetime)) : '--';
+            $l->checkout_formatted = $l->checkout_datetime ? date('d M Y, h:i A', strtotime($l->checkout_datetime)) : '--';
+        }
+
+        return response()->json(['status' => 'success', 'data' => $labours]);
+    }
+
+    public function clockOutLabour(Request $request)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'id' => 'required',
+            'checkout_datetime' => 'required'
+        ]);
+
+        $checkout = Carbon::parse($request->checkout_datetime)->toDateTimeString();
+
+        DB::connection($conn)->table('contractor_labour_attendance')
+            ->where('id', $request->id)
+            ->update([
+                'checkout_datetime' => $checkout,
+                'updated_at' => Carbon::now()->toDateTimeString()
+            ]);
+
+        return response()->json(['status' => 'success', 'message' => 'Labour clocked out successfully!']);
     }
 
     public function updateManual(Request $request, $id)

@@ -138,6 +138,13 @@
                                             <div>
                                                 <h6 class="m-0 font-weight-bold" style="color: #333;">{{ $log->user_name }}</h6>
                                                 <small class="text-muted">{{ $log->user_username }}</small>
+                                                @if(!empty($log->bills_party_id))
+                                                    <div class="mt-1">
+                                                        <button type="button" class="btn btn-xs btn-info btn-round px-2 py-1" style="font-size: 11px; background: #162447; border: none;" onclick="openContractorLaboursModal({{ $log->id }}, '{{ addslashes($log->user_name) }}')">
+                                                            <i class="zmdi zmdi-accounts-alt mr-1"></i> View Labours ({{ $log->labour_count }})
+                                                        </button>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </td>
                                         <td><strong>{{ $log->site_name ?? 'N/A' }}</strong></td>
@@ -467,6 +474,11 @@
                                 <label class="font-weight-bold" style="color: #555;">Upload Photo</label>
                                 <input type="file" name="image" class="form-control" accept="image/*">
                             </div>
+                            <div class="form-group mb-3" id="contractor_labour_count_wrapper" style="display: none;">
+                                <label class="font-weight-bold" style="color: #555;">How Many Labours?</label>
+                                <input type="number" id="manual_labour_count" class="form-control" min="1" max="100" placeholder="e.g. 3" onchange="generateLabourRows()" onkeyup="generateLabourRows()">
+                            </div>
+                            <div id="contractor_labour_rows_container" class="mb-3" style="display: none;"></div>
                             <div class="form-group mb-3">
                                 <label class="font-weight-bold" style="color: #555;">Select Site</label>
                                 <select name="site_id" class="form-control show-tick" data-live-search="true" required>
@@ -521,6 +533,42 @@
             </div>
         </div>
     @endif
+
+    <!-- Contractor Labours Details Modal -->
+    <div class="modal fade" id="contractorLaboursModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content" style="border-radius: 15px; overflow: hidden; border: none;">
+                <div class="modal-header p-4" style="background: linear-gradient(135deg, #162447 0%, #1f4068 100%); color: white;">
+                    <h4 class="title m-0" style="font-weight: bold;"><i class="zmdi zmdi-accounts-list mr-2"></i> Labours Logged for <span id="modalContractorName"></span></h4>
+                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr style="color: #888; font-weight: 600; text-transform: uppercase; font-size: 11px;">
+                                    <th>#</th>
+                                    <th>Photo</th>
+                                    <th>Labour Name</th>
+                                    <th>Mobile</th>
+                                    <th>Address</th>
+                                    <th>Check-In</th>
+                                    <th>Check-Out</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contractorLaboursList">
+                                <!-- Dynamic rows via AJAX -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer p-4" style="border-top: 1px solid #f1f2f6;">
+                    <button type="button" class="btn btn-secondary btn-round" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('scripts')
@@ -535,13 +583,28 @@
             if ($(this).val() === 'labour_contractor') {
                 $('#contractor_select_wrapper').show();
                 $('#contractor_image_wrapper').show();
+                $('#contractor_labour_count_wrapper').show();
+                $('#contractor_labour_rows_container').show();
                 $('#manual_bills_party_id').attr('required', true);
             } else {
                 $('#contractor_select_wrapper').hide();
                 $('#contractor_image_wrapper').hide();
+                $('#contractor_labour_count_wrapper').hide();
+                $('#contractor_labour_rows_container').hide().empty();
+                $('#manual_labour_count').val('');
                 $('#manual_bills_party_id').removeAttr('required').val('');
             }
-            if ($('#manual_bills_party_id').hasClass('show-tick')) { $('#manual_bills_party_id').selectpicker('refresh'); }
+            setTimeout(function() {
+                if ($('#manual_bills_party_id').data('selectpicker') || $('#manual_bills_party_id').hasClass('show-tick')) {
+                    $('#manual_bills_party_id').selectpicker('refresh');
+                }
+            }, 100);
+        });
+
+        $('#manualAttendanceModal').on('shown.bs.modal', function () {
+            if ($('#manual_bills_party_id').data('selectpicker') || $('#manual_bills_party_id').hasClass('show-tick')) {
+                $('#manual_bills_party_id').selectpicker('refresh');
+            }
         });
 
         $('#edit_user_id').on('change', function() {
@@ -848,6 +911,156 @@
         $('#edit_clock_out').val(clockOut);
         
         $('#editAttendanceModal').modal('show');
+    }
+
+    /* Dynamic Labour Generator & AJAX functions */
+    function generateLabourRows() {
+        const count = parseInt($('#manual_labour_count').val()) || 0;
+        const container = $('#contractor_labour_rows_container');
+        container.empty();
+
+        if (count <= 0) return;
+
+        for (let i = 0; i < count; i++) {
+            const card = `
+                <div class="card p-3 mb-2" style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 10px;">
+                    <h6 class="font-weight-bold mb-2 text-primary"><i class="zmdi zmdi-account mr-1"></i> Labour #${i + 1}</h6>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            <label class="small font-weight-bold">Mobile Number (Search)</label>
+                            <input type="text" name="labour_mobile[]" class="form-control form-control-sm labour-mobile-input" placeholder="e.g. 9876543210" onchange="searchLabourByMobile(this)">
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <label class="small font-weight-bold">Labour Name *</label>
+                            <input type="text" name="labour_name[]" class="form-control form-control-sm labour-name-input" placeholder="Enter Full Name" required>
+                        </div>
+                        <div class="col-md-12 mb-2">
+                            <label class="small font-weight-bold">Address</label>
+                            <input type="text" name="labour_address[]" class="form-control form-control-sm labour-address-input" placeholder="Enter Address">
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="small font-weight-bold">Check-In Time</label>
+                            <input type="time" name="labour_checkin[]" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="small font-weight-bold">Check-Out Time</label>
+                            <input type="time" name="labour_checkout[]" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            <label class="small font-weight-bold">Worker Photo</label>
+                            <input type="file" name="labour_photo[]" class="form-control-file form-control-sm" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.append(card);
+        }
+    }
+
+    function searchLabourByMobile(input) {
+        const mobile = $(input).val().trim();
+        if (mobile.length < 5) return;
+
+        const card = $(input).closest('.card');
+
+        $.ajax({
+            url: '{{ url("/attendance/search-labour") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                mobile_number: mobile
+            },
+            success: function(res) {
+                if (res.status === 'success' && res.data) {
+                    card.find('.labour-name-input').val(res.data.name);
+                    if (res.data.address) {
+                        card.find('.labour-address-input').val(res.data.address);
+                    }
+                }
+            }
+        });
+    }
+
+    function openContractorLaboursModal(attendanceId, contractorName) {
+        $('#modalContractorName').text(contractorName);
+        const tbody = $('#contractorLaboursList');
+        tbody.html('<tr><td colspan="8" class="text-center p-4"><i class="zmdi zmdi-spinner zmdi-hc-spin font-20"></i> Loading labours...</td></tr>');
+
+        $('#contractorLaboursModal').modal('show');
+
+        $.ajax({
+            url: '{{ url("/attendance/contractor-labours") }}/' + attendanceId,
+            type: 'GET',
+            success: function(res) {
+                if (res.status === 'success') {
+                    tbody.empty();
+                    if (res.data.length === 0) {
+                        tbody.html('<tr><td colspan="8" class="text-center p-4 text-muted">No individual labours recorded for this entry.</td></tr>');
+                        return;
+                    }
+                    res.data.forEach(function(l, idx) {
+                        const photoImg = l.photo_url 
+                            ? `<img src="${l.photo_url}" style="width: 35px; height: 35px; border-radius: 50%; object-fit: cover;" onclick="previewLogPhoto('${l.photo_url}')" class="c_pointer">` 
+                            : `<div style="width: 35px; height: 35px; border-radius: 50%; background: #e0e0e0; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; color: #555;">${l.name.substring(0,2).toUpperCase()}</div>`;
+                        
+                        let checkoutAction = '';
+                        if (!l.checkout_datetime) {
+                            checkoutAction = `
+                                <div class="d-flex align-items-center">
+                                    <input type="time" id="checkout_time_${l.id}" class="form-control form-control-sm mr-1" style="width: 105px;">
+                                    <button class="btn btn-xs btn-danger btn-round" onclick="saveLabourClockOut(${l.id})">Out</button>
+                                </div>
+                            `;
+                        } else {
+                            checkoutAction = `<span class="badge badge-secondary">Completed</span>`;
+                        }
+
+                        const row = `
+                            <tr>
+                                <td>${idx + 1}</td>
+                                <td>${photoImg}</td>
+                                <td><strong>${l.name}</strong></td>
+                                <td>${l.mobile_number || '--'}</td>
+                                <td>${l.address || '--'}</td>
+                                <td><span class="text-success font-weight-bold">${l.checkin_formatted}</span></td>
+                                <td><span class="text-danger font-weight-bold" id="checkout_text_${l.id}">${l.checkout_formatted}</span></td>
+                                <td>${checkoutAction}</td>
+                            </tr>
+                        `;
+                        tbody.append(row);
+                    });
+                }
+            }
+        });
+    }
+
+    function saveLabourClockOut(labourId) {
+        const timeVal = $(`#checkout_time_${labourId}`).val();
+        if (!timeVal) {
+            alert('Please select a clock-out time');
+            return;
+        }
+
+        const todayDate = '{{ date("Y-m-d") }}';
+        const fullDateTime = todayDate + ' ' + timeVal;
+
+        $.ajax({
+            url: '{{ url("/attendance/labour-checkout") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                id: labourId,
+                checkout_datetime: fullDateTime
+            },
+            success: function(res) {
+                if (res.status === 'success') {
+                    $(`#checkout_text_${labourId}`).text(timeVal);
+                    $(`#checkout_time_${labourId}`).closest('td').html('<span class="badge badge-secondary">Clocked Out</span>');
+                } else {
+                    alert(res.message || 'Error clocking out labour');
+                }
+            }
+        });
     }
 </script>
 @endsection

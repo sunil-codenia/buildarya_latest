@@ -556,6 +556,9 @@ Route::group(['middleware' => ['auth']], function () {
         Route::delete('/attendance/delete/{id}', [AttendanceWebController::class, 'delete']);
         Route::post('/attendance/clock-in', [AttendanceWebController::class, 'webClockIn']);
         Route::post('/attendance/clock-out', [AttendanceWebController::class, 'webClockOut']);
+        Route::post('/attendance/search-labour', [AttendanceWebController::class, 'searchLabourByMobile']);
+        Route::get('/attendance/contractor-labours/{attendanceId}', [AttendanceWebController::class, 'getContractorLabours']);
+        Route::post('/attendance/labour-checkout', [AttendanceWebController::class, 'clockOutLabour']);
     });
 
     // tasks module

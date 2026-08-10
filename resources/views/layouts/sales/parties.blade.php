@@ -4,10 +4,12 @@
 @php
 $edit=false;
 $dataarray = json_decode($data, true);
-                            if(isset(json_decode($data, true)['edit_data'])){
-                            $editdata = $dataarray['edit_data'][0];
-                            $edit=true;
-                            }
+$parties = $dataarray;
+if(isset($dataarray['edit_data'])){
+    $editdata = $dataarray['edit_data'][0] ?? null;
+    $parties = $dataarray['data'] ?? [];
+    $edit=true;
+}
 @endphp
 <div class="row clearfix">
 
@@ -111,7 +113,7 @@ $dataarray = json_decode($data, true);
                             @php
                             $i=1;
                             @endphp
-                            @foreach($dataarray as $dd)
+                            @foreach($parties as $dd)
                             @php
                             $ddid = $dd['id'];
                             @endphp

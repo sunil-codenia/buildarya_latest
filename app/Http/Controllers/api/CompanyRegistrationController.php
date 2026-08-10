@@ -660,8 +660,46 @@ class CompanyRegistrationController extends Controller
                     INDEX (`user_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `labours` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(255) NOT NULL,
+                    `mobile_number` VARCHAR(20) DEFAULT NULL,
+                    `address` TEXT DEFAULT NULL,
+                    `photo` VARCHAR(500) DEFAULT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`mobile_number`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `contractor_labour_attendance` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `attendance_id` INT DEFAULT NULL,
+                    `contractor_id` INT DEFAULT NULL,
+                    `labour_id` INT DEFAULT NULL,
+                    `site_id` INT DEFAULT NULL,
+                    `date` DATE NOT NULL,
+                    `name` VARCHAR(255) DEFAULT NULL,
+                    `mobile_number` VARCHAR(20) DEFAULT NULL,
+                    `address` TEXT DEFAULT NULL,
+                    `photo` VARCHAR(500) DEFAULT NULL,
+                    `checkin_datetime` DATETIME DEFAULT NULL,
+                    `checkout_datetime` DATETIME DEFAULT NULL,
+                    `status` ENUM('Present', 'Absent', 'Half Day', 'Leave', 'Holiday') DEFAULT 'Present',
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX (`attendance_id`),
+                    INDEX (`contractor_id`),
+                    INDEX (`labour_id`),
+                    INDEX (`site_id`),
+                    INDEX (`date`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
             
-            \Log::info("Attendance, tasks, task_chats, web_notifications, and user_devices tables successfully created for connection: {$connName}");
+            \Log::info("Attendance, tasks, task_chats, web_notifications, user_devices, labours, and contractor_labour_attendance tables successfully created for connection: {$connName}");
         } catch (\Exception $e) {
             \Log::error("Failed to dynamically create modules tables: " . $e->getMessage());
             throw new \Exception("Failed to dynamically create modules tables: " . $e->getMessage());
