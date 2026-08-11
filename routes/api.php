@@ -208,6 +208,8 @@ Route::prefix('v1')->group(function () {
         // Material Entries (Transactions)
         Route::get('/materials/entries/pending', [ApiManagementController::class, 'listPendingMaterialEntries']);
         Route::get('/materials/entries/pending/export/csv', [ApiManagementController::class, 'exportPendingMaterialEntriesCsv']);
+        Route::get('/materials/entries/returned', [ApiManagementController::class, 'listReturnedMaterialEntries']);
+        Route::get('/materials/entries/returned/export/csv', [ApiManagementController::class, 'exportReturnedMaterialEntriesCsv']);
         Route::get('/materials/entries/verified', [ApiManagementController::class, 'listVerifiedMaterialEntries']);
         Route::get('/materials/entries/verified/export/csv', [ApiManagementController::class, 'exportVerifiedMaterialEntriesCsv']);
         
@@ -221,10 +223,14 @@ Route::prefix('v1')->group(function () {
         Route::delete('/materials/entries/{id}', [ApiManagementController::class, 'deleteMaterialEntry'])->where('id', '[0-9,]+');
         Route::post('/materials/entries/{id}/approve', [ApiManagementController::class, 'approveMaterialEntry'])->where('id', '[0-9,]+');
         Route::post('/materials/entries/{id}/reject', [ApiManagementController::class, 'rejectMaterialEntry'])->where('id', '[0-9,]+');
+        Route::post('/materials/entries/{id}/return', [ApiManagementController::class, 'returnMaterialEntry'])->where('id', '[0-9,]+');
+        Route::post('/materials/entries/{id}/resubmit', [ApiManagementController::class, 'resubmitMaterialEntry'])->where('id', '[0-9,]+');
 
         // Explicit Bulk Routes
         Route::post('/materials/entries/bulk/approve', [ApiManagementController::class, 'approveMaterialEntry']);
         Route::post('/materials/entries/bulk/reject', [ApiManagementController::class, 'rejectMaterialEntry']);
+        Route::post('/materials/entries/bulk/return', [ApiManagementController::class, 'returnMaterialEntry']);
+        Route::post('/materials/entries/bulk/resubmit', [ApiManagementController::class, 'resubmitMaterialEntry']);
         Route::post('/materials/entries/bulk/delete', [ApiManagementController::class, 'deleteMaterialEntry']);
 
         // Material Stock
@@ -299,6 +305,8 @@ Route::prefix('v1')->group(function () {
         // Materials
         Route::get('/materials/summary', [ApiMaterialController::class, 'summary']);
         Route::get('/materials', [ApiMaterialController::class, 'index']);
+        Route::post('/materials/return', [ApiMaterialController::class, 'returnMaterial']);
+        Route::post('/materials/resubmit', [ApiMaterialController::class, 'resubmitMaterial']);
         Route::post('/materials', [ApiMaterialController::class, 'store']);
         Route::post('/materials/{id}', [ApiMaterialController::class, 'update']);
         Route::delete('/materials/{id}', [ApiMaterialController::class, 'destroy']);

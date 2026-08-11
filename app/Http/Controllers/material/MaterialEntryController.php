@@ -411,6 +411,11 @@ class MaterialEntryController extends Controller
             $imageHtml .= '</div>';
 
             $actionHtml = '';
+            if ($can_certify) {
+                $actionHtml .= '<button title="Approve" type="button" onclick="approvematerial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-check-circle"></i></button>&nbsp;';
+                $actionHtml .= '<button title="Reject" type="button" onclick="rejectmaterial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-block"></i></button>&nbsp;';
+                $actionHtml .= '<button title="Return" type="button" onclick="returnmaterial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-undo"></i></button>&nbsp;';
+            }
             if ($can_edit) {
                 $actionHtml .= '<button title="Edit" type="button" onclick="editmaterial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>';
             }
@@ -441,6 +446,319 @@ class MaterialEntryController extends Controller
             "recordsFiltered" => $filteredRecords,
             "data" => $formattedData
         ]);
+    }
+
+    public function return_material(Request $request)
+    {
+        return view('layouts.material.return');
+    }
+
+    public function get_return_material_ajax(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'converted_qty')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->string('converted_qty', 255)->nullable()->after('qty');
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding converted_qty column in return AJAX: " . $e->getMessage());
+            }
+        }
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'return_comment')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->text('return_comment')->nullable();
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding return_comment column: " . $e->getMessage());
+            }
+        }
+        $role_id = $request->session()->get('role');
+        $site_id = $request->session()->get('site_id');
+        $role_details = getRoleDetailsById($role_id);
+        $view_duration = $request->session()->get('view_duration');
+        $visiblity_at_site = $role_details->visiblity_at_site;
+
+        $from_date = $request->input('from_date');
+        $to_date = $request->input('to_date');
+        if ($from_date && $to_date) {
+            $min_date = date('Y-m-d', strtotime($from_date));
+            $max_date = date('Y-m-d', strtotime($to_date));
+        } else {
+            $dates = getdurationdates($view_duration);
+            $min_date = date('Y-m-d', strtotime($dates['min']));
+            $max_date = date('Y-m-d', strtotime($dates['max']));
+        }
+
+        $req_site_id = $request->input('site_id');
+
+        $query = DB::connection($user_db_conn_name)->table('material_entry')
+            ->leftjoin('materials', 'materials.id', '=', 'material_entry.material_id')
+            ->leftjoin('material_supplier', 'material_supplier.id', '=', 'material_entry.supplier')
+            ->leftjoin('sites', 'sites.id', '=', 'material_entry.site_id')
+            ->leftjoin('units', 'units.id', '=', 'material_entry.unit')
+            ->leftjoin('users', 'users.id', '=', 'material_entry.user_id')
+            ->select('material_entry.*', 'materials.name as material', 'units.name as unit', 'sites.name as site', 'users.name as user', 'material_supplier.name as supplier')
+            ->where('material_entry.status', '=', 'Returned');
+
+        if ($visiblity_at_site == 'current') {
+            apply_site_filter($query, $site_id, 'material_entry.site_id');
+        } else {
+            if ($req_site_id && $req_site_id != 'all') {
+                $query->where('material_entry.site_id', '=', $req_site_id);
+            }
+        }
+
+        $query->whereBetween('material_entry.date', [$min_date, $max_date]);
+
+        $totalRecords = $query->count();
+
+        $search = $request->input('search.value');
+        if (!empty($search)) {
+            $query->where(function ($q) use ($search) {
+                $q->where('material_supplier.name', 'LIKE', "%{$search}%")
+                    ->orWhere('materials.name', 'LIKE', "%{$search}%")
+                    ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                    ->orWhere('users.name', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.vehical', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.remark', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.return_comment', 'LIKE', "%{$search}%")
+                    ->orWhere('material_entry.date', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Individual Column Searching
+        $columns_search = $request->input('columns');
+        if ($columns_search) {
+            foreach ($columns_search as $index => $column) {
+                $search_val = $column['search']['value'];
+                if (!empty($search_val)) {
+                    switch ($index) {
+                        case 2: $query->where('material_supplier.name', 'LIKE', "%{$search_val}%"); break;
+                        case 3: $query->where('materials.name', 'LIKE', "%{$search_val}%"); break;
+                        case 4: $query->where('units.name', 'LIKE', "%{$search_val}%"); break;
+                        case 5: $query->where('material_entry.qty', 'LIKE', "%{$search_val}%"); break;
+                        case 6: $query->where('material_entry.converted_qty', 'LIKE', "%{$search_val}%"); break;
+                        case 7: $query->where('material_entry.vehical', 'LIKE', "%{$search_val}%"); break;
+                        case 8: $query->where('material_entry.status', 'LIKE', "%{$search_val}%"); break;
+                        case 9: $query->where(function($q) use ($search_val) {
+                            $q->where('material_entry.remark', 'LIKE', "%{$search_val}%")
+                              ->orWhere('material_entry.return_comment', 'LIKE', "%{$search_val}%");
+                        }); break;
+                        case 10: $query->where('sites.name', 'LIKE', "%{$search_val}%"); break;
+                        case 11: $query->where('users.name', 'LIKE', "%{$search_val}%"); break;
+                        case 12: $query->where('material_entry.location', 'LIKE', "%{$search_val}%"); break;
+                        case 13: $query->where('material_entry.date', 'LIKE', "%{$search_val}%"); break;
+                    }
+                }
+            }
+        }
+
+        $filteredRecords = $query->count();
+
+        $orderColumnIndex = $request->input('order.0.column');
+        $orderDir = $request->input('order.0.dir', 'desc');
+
+        $columns = [
+            1 => 'material_supplier.name',
+            2 => 'materials.name',
+            3 => 'units.name',
+            4 => 'qty',
+            5 => 'converted_qty',
+            13 => 'date'
+        ];
+
+        if (isset($columns[$orderColumnIndex])) {
+            $query->orderBy($columns[$orderColumnIndex], $orderDir);
+        } else {
+            $query->orderBy('material_entry.id', 'desc');
+        }
+
+        $start = $request->input('start', 0);
+        $length = $request->input('length', 10);
+
+        if ($length != -1) {
+            $query->skip($start)->take($length);
+        }
+
+        $data = $query->get();
+        $formattedData = [];
+        $i = $start + 1;
+
+        $can_edit = checkmodulepermission(3, 'can_edit') == 1;
+
+        foreach ($data as $row) {
+            $ddid = $row->id;
+
+            $checkbox = '<div class="checkbox"><input id="check_'.$ddid.'" name="check_list[]" class="check_item" type="checkbox" value="'.$ddid.'"><label for="check_'.$ddid.'">&nbsp;</label></div>';
+
+            $supplier = $row->supplier;
+            $material = $row->material;
+            $unit = $row->unit;
+            $qty = $row->qty;
+            $converted_qty = $row->converted_qty;
+            $vehical = $row->vehical;
+            $status = '<span class="badge badge-warning">Returned</span>';
+
+            $remark_comment = '';
+            if (!empty($row->remark)) {
+                $remark_comment .= '<div><strong>Remark:</strong> ' . e($row->remark) . '</div>';
+            }
+            if (!empty($row->return_comment)) {
+                $remark_comment .= '<div class="text-danger"><strong>Return Reason:</strong> ' . e($row->return_comment) . '</div>';
+            }
+            if (empty($remark_comment)) {
+                $remark_comment = '-';
+            }
+
+            $site = $row->site;
+            $user = $row->user;
+            $location = $row->location;
+            $date = $row->date;
+
+            $imageHtml = '<div class="d-flex">';
+            if (!empty($row->image)) {
+                $images = explode(',', $row->image);
+                foreach ($images as $img) {
+                    $img = trim($img);
+                    if ($img && $img != 'images/expense.png') {
+                        $imageHtml .= '<img class="lazy" src="'.asset($img).'" onclick="enlargeImage(\''.asset($img).'\')" height="50px" width="50px" />&nbsp;';
+                    }
+                }
+            }
+            if (!empty($row->image2) && $row->image2 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image2).'" onclick="enlargeImage(\''.asset($row->image2).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image3) && $row->image3 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image3).'" onclick="enlargeImage(\''.asset($row->image3).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image4) && $row->image4 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image4).'" onclick="enlargeImage(\''.asset($row->image4).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if (!empty($row->image5) && $row->image5 != 'images/expense.png') {
+                $imageHtml .= '<img class="lazy" src="'.asset($row->image5).'" onclick="enlargeImage(\''.asset($row->image5).'\')" height="50px" width="50px" />&nbsp;';
+            }
+            if ($imageHtml == '<div class="d-flex">') {
+                $imageHtml .= '<img class="lazy" src="'.asset('images/expense.png').'" onclick="enlargeImage(\''.asset('images/expense.png').'\')" height="50px" width="50px" />';
+            }
+            $imageHtml .= '</div>';
+
+            $actionHtml = '';
+            if ($can_edit) {
+                $actionHtml .= '<button title="Edit" type="button" onclick="editmaterial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-edit"></i></button>&nbsp;';
+                $actionHtml .= '<button title="Resubmit" type="button" onclick="resubmitmaterial(\''.$ddid.'\')" style="all:unset"><i class="zmdi zmdi-refresh-sync"></i></button>';
+            }
+
+            $formattedData[] = [
+                $checkbox,
+                $i++,
+                $supplier,
+                $material,
+                $unit,
+                $qty,
+                $converted_qty,
+                $vehical,
+                $status,
+                $remark_comment,
+                $site,
+                $user,
+                $location,
+                $date,
+                $imageHtml,
+                $actionHtml
+            ];
+        }
+
+        return response()->json([
+            "draw" => intval($request->input('draw')),
+            "recordsTotal" => $totalRecords,
+            "recordsFiltered" => $filteredRecords,
+            "data" => $formattedData
+        ]);
+    }
+
+    public function return_material_action(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        if (!\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasColumn('material_entry', 'return_comment')) {
+            try {
+                \Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->table('material_entry', function ($table) {
+                    $table->text('return_comment')->nullable();
+                });
+            } catch (\Exception $e) {
+                \Log::error("Failed adding return_comment column in return_material_action: " . $e->getMessage());
+            }
+        }
+        $ids = $request->input('check_list');
+        $comment = $request->input('return_comment');
+
+        if (empty($ids)) {
+            return response()->json(['status' => 'error', 'message' => 'Please select at least one material entry!']);
+        }
+
+        try {
+            DB::connection($user_db_conn_name)->table('material_entry')
+                ->whereIn('id', $ids)
+                ->update([
+                    'status' => 'Returned',
+                    'return_comment' => $comment
+                ]);
+
+            foreach ($ids as $id) {
+                addActivity($id, 'material_entry', "Material Entry Returned with comment: " . $comment, 3);
+                $mat_entry = DB::connection($user_db_conn_name)->table('material_entry')->where('id', $id)->first();
+                if ($mat_entry && $mat_entry->user_id) {
+                    sendAlertNotification($mat_entry->user_id, 'Your material entry has been returned. Comment: ' . $comment, 'Material Returned');
+                }
+            }
+
+            return response()->json(['status' => 'success', 'message' => 'Selected Material Entries Returned Successfully!']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Error while returning material entries: ' . $e->getMessage()]);
+        }
+    }
+
+    public function resubmit_returned_material(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $id = $request->input('id');
+
+        try {
+            DB::connection($user_db_conn_name)->table('material_entry')
+                ->where('id', $id)
+                ->update(['status' => 'Pending']);
+
+            addActivity($id, 'material_entry', "Material Entry Resubmitted to Pending", 3);
+
+            return response()->json(['status' => 'success', 'message' => 'Material Entry Resubmitted Successfully!']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Error while resubmitting material entry!']);
+        }
+    }
+
+    public function bulk_resubmit_returned_material(Request $request)
+    {
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $ids = $request->input('check_list');
+
+        if (empty($ids)) {
+            return response()->json(['status' => 'error', 'message' => 'Please select at least one material entry!']);
+        }
+
+        try {
+            DB::connection($user_db_conn_name)->table('material_entry')
+                ->whereIn('id', $ids)
+                ->update(['status' => 'Pending']);
+
+            foreach ($ids as $id) {
+                addActivity($id, 'material_entry', "Material Entry Resubmitted to Pending (Bulk)", 3);
+            }
+
+            return response()->json(['status' => 'success', 'message' => 'Selected Material Entries Resubmitted Successfully!']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Error while resubmitting material entries!']);
+        }
     }
     public function new_material(Request $request)
     {

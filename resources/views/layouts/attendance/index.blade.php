@@ -315,8 +315,22 @@
                         </div>
 
                         <!-- Status/Feedback panel -->
-                        <div class="alert alert-info py-2" id="attendanceLocationStatus" style="font-size: 13px; font-weight: 600; border-radius: 10px; border: none; background: #e8f4fd; color: #1f4068;">
+                        <div class="alert alert-info py-2 mb-2" id="attendanceLocationStatus" style="font-size: 13px; font-weight: 600; border-radius: 10px; border: none; background: #e8f4fd; color: #1f4068;">
                             <i class="zmdi zmdi-gps-dot zmdi-hc-spin mr-1"></i> Requesting GPS coordinates...
+                        </div>
+
+                        <!-- Camera Fallback Alert & Photo Upload -->
+                        <div class="alert alert-warning py-2 mb-2" id="cameraStatusAlert" style="display: none; font-size: 13px; font-weight: 600; border-radius: 10px;">
+                            <div><i class="zmdi zmdi-alert-triangle mr-1"></i> Camera unavailable <span id="cameraErrorReason" style="font-weight: normal; font-style: italic;"></span>. You can retry, upload a photo, or click Submit Attendance.</div>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-primary btn-round mr-1" style="font-size: 11px; font-weight: bold;" onclick="startWebcam()">
+                                    <i class="zmdi zmdi-refresh mr-1"></i> Retry Camera
+                                </button>
+                                <label class="btn btn-sm btn-info btn-round mb-0" style="font-size: 11px; font-weight: bold; cursor: pointer;">
+                                    <i class="zmdi zmdi-upload mr-1"></i> Upload Photo (Optional)
+                                    <input type="file" id="fallbackPhotoInput" accept="image/*" style="display: none;" onchange="handleFallbackFileUpload(this)">
+                                </label>
+                            </div>
                         </div>
 
                         <!-- Camera Action Bar -->
@@ -687,6 +701,8 @@
         $('#selfAttendancePhoto').val('');
         $('#selfAttendanceLat').val('0.0000');
         $('#selfAttendanceLng').val('0.0000');
+        $('#cameraStatusAlert').hide();
+        $('#fallbackPhotoInput').val('');
         locationResolved = false;
 
         $('#selfWebcam').show();
@@ -720,22 +736,52 @@
 
     function startWebcam() {
         const video = document.getElementById('selfWebcam');
+        $('#cameraErrorReason').text("(Connecting to camera...)");
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+            navigator.mediaDevices.getUserMedia({ video: true })
                 .then(function(stream) {
                     localStream = stream;
                     video.srcObject = stream;
+                    video.play().catch(function(e) { console.log("Video play warning:", e); });
+                    $('#cameraStatusAlert').hide();
+                    $('#selfWebcam').show();
+                    $('#btnCapturePhoto').show();
                 })
                 .catch(function(err) {
                     console.error("Camera access failed:", err);
-                    $('#attendanceLocationStatus')
-                        .removeClass('alert-info')
-                        .addClass('alert-warning')
-                        .html('<i class="zmdi zmdi-alert-triangle mr-1"></i> Camera access denied or unavailable. Please submit fallback attendance.');
+                    let reason = "";
+                    if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+                        reason = "(Permission blocked by browser or system)";
+                    } else if (err.name === "NotReadableError" || err.name === "TrackStartError") {
+                        reason = "(In use by another application)";
+                    } else if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
+                        reason = "(No camera hardware found)";
+                    } else if (err.name) {
+                        reason = `(${err.name})`;
+                    }
+                    $('#cameraErrorReason').text(reason);
+                    $('#cameraStatusAlert').show();
                     enableFallbackCheckIn();
                 });
         } else {
+            $('#cameraErrorReason').text("(Not supported by browser)");
+            $('#cameraStatusAlert').show();
             enableFallbackCheckIn();
+        }
+    }
+
+    function handleFallbackFileUpload(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                $('#selfAttendancePhoto').val(dataUrl);
+                $('#selfCapturedImage').attr('src', dataUrl).css('transform', 'none').show();
+                $('#selfWebcam').hide();
+                $('#btnCapturePhoto').hide();
+                checkFormSubmissionReady();
+            };
+            reader.readAsDataURL(input.files[0]);
         }
     }
 

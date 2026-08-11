@@ -62,8 +62,8 @@
 
             {{-- Module 3: Material Purchase --}}
             @if (canViewModule(3))
-            <li class="{{ Request::is('materialsupplier') || Request::is('material') || Request::is('materialunit') || Request::is('new_material') || Request::is('pending_material') || Request::is('verified_material') || Request::is('materials_report') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-landscape"></i><span>Material Purchase</span> </a>
-                <ul style="list-style-type: none; display: {{ Request::is('materialsupplier') || Request::is('material') || Request::is('materialunit') || Request::is('new_material') || Request::is('pending_material') || Request::is('verified_material') || Request::is('materials_report') ? 'block' : 'none' }};">
+            <li class="{{ Request::is('materialsupplier') || Request::is('material') || Request::is('materialunit') || Request::is('new_material') || Request::is('pending_material') || Request::is('verified_material') || Request::is('return_material') || Request::is('materials_report') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-landscape"></i><span>Material Purchase</span> </a>
+                <ul style="list-style-type: none; display: {{ Request::is('materialsupplier') || Request::is('material') || Request::is('materialunit') || Request::is('new_material') || Request::is('pending_material') || Request::is('verified_material') || Request::is('return_material') || Request::is('materials_report') ? 'block' : 'none' }};">
                     <li class="{{ Request::is('materialsupplier') ? 'active' : '' }}"><a href="{{url('/materialsupplier')}}"> <i class="zmdi zmdi-face"></i> Material Suppliers</a></li>
                     <li class="{{ Request::is('material') ? 'active' : '' }}"><a href="{{url('/material')}}"> <i class="zmdi zmdi-landscape"></i> Materials</a></li>
                     <li class="{{ Request::is('materialunit') ? 'active' : '' }}"><a href="{{url('/materialunit')}}"> <i class="zmdi zmdi-ruler"></i> Units</a></li>
@@ -71,6 +71,7 @@
                     <li class="{{ Request::is('new_material') ? 'active' : '' }}"><a href="{{url('/new_material')}}"> <i class="zmdi zmdi-plus-circle"></i> New Materials Entry</a></li>
                     @endif
                     <li class="{{ Request::is('pending_material') ? 'active' : '' }}"><a href="{{url('/pending_material')}}"> <i class="zmdi zmdi-dot-circle"></i> Pending Materials Entry</a></li>
+                    <li class="{{ Request::is('return_material') ? 'active' : '' }}"><a href="{{url('/return_material')}}"> <i class="zmdi zmdi-alert-circle"></i> Returned Materials Entry</a></li>
                     <li class="{{ Request::is('verified_material') ? 'active' : '' }}"><a href="{{url('/verified_material')}}"> <i class="zmdi zmdi-check-circle"></i> Verified Materials Entry</a></li>
 
                     @if (isSuperAdmin() || checkmodulepermission(3, 'can_report') == 1)

@@ -39,6 +39,8 @@ class ApiMaterialController extends Controller
             $user = $request->user();
             $site_id = $request->get('site_id', $user->site_id);
             $search = $request->get('search');
+            $status = $request->get('status');
+            $per_page = $request->get('per_page', 20);
             
             $role_id = $user->role_id;
             $role_details = DB::table('roles')->where('id', $role_id)->first();
@@ -63,15 +65,26 @@ class ApiMaterialController extends Controller
                 $query->where('material_entry.site_id', $site_id);
             }
 
+            if ($status) {
+                if (strpos($status, ',') !== false) {
+                    $query->whereIn('material_entry.status', explode(',', $status));
+                } else {
+                    $query->where('material_entry.status', $status);
+                }
+            }
+
             if ($search) {
                 $query->where(function($q) use ($search) {
                     $q->where('material_entry.remark', 'like', "%$search%")
+                      ->orWhere('material_entry.return_comment', 'like', "%$search%")
                       ->orWhere('materials.name', 'like', "%$search%")
-                      ->orWhere('material_supplier.name', 'like', "%$search%");
+                      ->orWhere('material_supplier.name', 'like', "%$search%")
+                      ->orWhere('material_entry.vehical', 'like', "%$search%")
+                      ->orWhere('sites.name', 'like', "%$search%");
                 });
             }
 
-            $entries = $query->paginate(20);
+            $entries = $query->paginate($per_page);
 
             return response()->json(['status' => 'Ok', 'data' => $entries]);
         } catch (\Exception $e) {
@@ -220,6 +233,103 @@ class ApiMaterialController extends Controller
 
             return response()->json(['status' => 'Ok', 'message' => 'Material entry deleted successfully']);
 
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Return Material Entry (Move to Returned status with return comment)
+     */
+    public function returnMaterial(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = isset($input['ids']) ? (array)$input['ids'] : (isset($input['id']) ? [$input['id']] : (array)($input['check_list'] ?? []));
+            $return_comment = $input['return_comment'] ?? ($input['comment'] ?? ($input['remark'] ?? 'Returned for corrections'));
+
+            if (empty($ids)) {
+                return response()->json(['status' => 'Failed', 'message' => 'No material entry IDs provided'], 400);
+            }
+
+            if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('material_entry', 'return_comment')) {
+                try {
+                    \Illuminate\Support\Facades\Schema::connection($conn)->table('material_entry', function ($table) {
+                        $table->text('return_comment')->nullable();
+                    });
+                } catch (\Exception $e) {
+                    \Log::error("Failed adding return_comment column: " . $e->getMessage());
+                }
+            }
+
+            $count = 0;
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+
+                $entry = DB::table('material_entry')->where('id', $singleId)->first();
+                if (!$entry) continue;
+
+                DB::table('material_entry')->where('id', $singleId)->update([
+                    'status' => 'Returned',
+                    'return_comment' => $return_comment
+                ]);
+
+                addActivity($singleId, 'material_entry', "Material Entry Returned via API with comment: " . $return_comment, 3, $user->id, $conn);
+                
+                if (function_exists('sendAlertNotification') && !empty($entry->user_id)) {
+                    try {
+                        sendAlertNotification($entry->user_id, 'Your material entry has been returned. Comment: ' . $return_comment, 'Material Returned');
+                    } catch (\Exception $e) {
+                        \Log::error("Failed to send notification: " . $e->getMessage());
+                    }
+                }
+
+                $count++;
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "$count material entries returned successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Resubmit Returned Material Entry (Move back to Pending)
+     */
+    public function resubmitMaterial(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            $user = $request->user();
+
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = isset($input['ids']) ? (array)$input['ids'] : (isset($input['id']) ? [$input['id']] : (array)($input['check_list'] ?? []));
+
+            if (empty($ids)) {
+                return response()->json(['status' => 'Failed', 'message' => 'No material entry IDs provided'], 400);
+            }
+
+            $count = 0;
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+
+                $entry = DB::table('material_entry')->where('id', $singleId)->first();
+                if (!$entry) continue;
+
+                DB::table('material_entry')->where('id', $singleId)->update([
+                    'status' => 'Pending'
+                ]);
+
+                addActivity($singleId, 'material_entry', "Material Entry Resubmitted to Pending via API", 3, $user->id, $conn);
+                $count++;
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "$count material entries resubmitted to Pending successfully"]);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }

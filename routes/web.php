@@ -269,6 +269,11 @@ Route::group(['middleware' => ['auth']], function () {
     Route::post('/verified_material_ajax', [MaterialEntryController::class, 'get_verified_material_ajax']);
         Route::get('/pending_material', [MaterialEntryController::class, 'pending_material']);
     Route::post('/pending_material_ajax', [MaterialEntryController::class, 'get_pending_material_ajax']);
+    Route::get('/return_material', [MaterialEntryController::class, 'return_material']);
+    Route::post('/return_material_ajax', [MaterialEntryController::class, 'get_return_material_ajax']);
+    Route::post('/return_material_action', [MaterialEntryController::class, 'return_material_action']);
+    Route::post('/resubmit_returned_material', [MaterialEntryController::class, 'resubmit_returned_material']);
+    Route::post('/bulk_resubmit_returned_material', [MaterialEntryController::class, 'bulk_resubmit_returned_material']);
     Route::get('/approve_material_by_id', [MaterialEntryController::class, 'approve_material_by_id']);
     Route::get('/edit_material_entry', [MaterialEntryController::class, 'edit_material_entry']);
     Route::get('/reject_material_by_id', [MaterialEntryController::class, 'reject_material_by_id']);

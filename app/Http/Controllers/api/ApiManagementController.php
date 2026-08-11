@@ -3202,9 +3202,19 @@ class ApiManagementController extends Controller
         return $this->listMaterialEntriesByStatus($request, 'Pending');
     }
 
+    public function listReturnedMaterialEntries(Request $request)
+    {
+        return $this->listMaterialEntriesByStatus($request, 'Returned');
+    }
+
     public function listVerifiedMaterialEntries(Request $request)
     {
         return $this->listMaterialEntriesByStatus($request, 'Verified'); // Or not Pending
+    }
+
+    public function exportReturnedMaterialEntriesCsv(Request $request)
+    {
+        return $this->exportMaterialEntriesCsvByStatus($request, 'Returned');
     }
 
     public function generateMaterialReport(Request $request)
@@ -5997,6 +6007,8 @@ class ApiManagementController extends Controller
 
             if ($statusType == 'Pending') {
                 $query->where('material_entry.status', '=', 'Pending');
+            } elseif ($statusType == 'Returned') {
+                $query->where('material_entry.status', '=', 'Returned');
             } else {
                 $query->where('material_entry.status', '!=', 'Pending');
             }
@@ -6022,7 +6034,8 @@ class ApiManagementController extends Controller
                         ->orWhere('materials.name', 'LIKE', "%{$search}%")
                         ->orWhere('material_entry.vehical', 'LIKE', "%{$search}%")
                         ->orWhere('sites.name', 'LIKE', "%{$search}%")
-                        ->orWhere('material_entry.remark', 'LIKE', "%{$search}%");
+                        ->orWhere('material_entry.remark', 'LIKE', "%{$search}%")
+                        ->orWhere('material_entry.return_comment', 'LIKE', "%{$search}%");
                 });
             }
 
@@ -6430,6 +6443,89 @@ class ApiManagementController extends Controller
         addActivity($id, 'material_entry', "Material Entry Rejected via API", 3, $userId, $conn);
     }
 
+    public function returnMaterialEntry(Request $request, $id = null)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = isset($input['ids']) ? (array)$input['ids'] : (isset($input['check_list']) ? (array)$input['check_list'] : (isset($input['id']) ? [$input['id']] : explode(',', $id ?? '')));
+            $comment = $input['return_comment'] ?? ($input['comment'] ?? ($input['remark'] ?? 'Returned for corrections'));
+
+            if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasColumn('material_entry', 'return_comment')) {
+                try {
+                    \Illuminate\Support\Facades\Schema::connection($conn)->table('material_entry', function ($table) {
+                        $table->text('return_comment')->nullable();
+                    });
+                } catch (\Exception $e) {
+                    \Log::error("Failed adding return_comment column via API: " . $e->getMessage());
+                }
+            }
+
+            $count = 0;
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+
+                $entry = DB::connection($conn)->table('material_entry')->where('id', $singleId)->first();
+                if (!$entry) continue;
+
+                DB::connection($conn)->table('material_entry')->where('id', $singleId)->update([
+                    'status' => 'Returned',
+                    'return_comment' => $comment
+                ]);
+
+                addActivity($singleId, 'material_entry', "Material Entry Returned via API with comment: " . $comment, 3, $user->id, $conn);
+                
+                if (function_exists('sendAlertNotification') && !empty($entry->user_id)) {
+                    try {
+                        sendAlertNotification($entry->user_id, 'Your material entry has been returned. Comment: ' . $comment, 'Material Returned');
+                    } catch (\Exception $e) {
+                        \Log::error("Failed to send notification: " . $e->getMessage());
+                    }
+                }
+
+                $count++;
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "$count material entries returned successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function resubmitMaterialEntry(Request $request, $id = null)
+    {
+        try {
+            $user = $request->user('sanctum');
+            $conn = config('database.default');
+
+            $input = json_decode($request->getContent(), true) ?? $request->all();
+            $ids = isset($input['ids']) ? (array)$input['ids'] : (isset($input['check_list']) ? (array)$input['check_list'] : (isset($input['id']) ? [$input['id']] : explode(',', $id ?? '')));
+
+            $count = 0;
+            foreach ($ids as $singleId) {
+                $singleId = trim($singleId);
+                if (empty($singleId)) continue;
+
+                $entry = DB::connection($conn)->table('material_entry')->where('id', $singleId)->first();
+                if (!$entry) continue;
+
+                DB::connection($conn)->table('material_entry')->where('id', $singleId)->update([
+                    'status' => 'Pending'
+                ]);
+
+                addActivity($singleId, 'material_entry', "Material Entry Resubmitted to Pending via API", 3, $user->id, $conn);
+                $count++;
+            }
+
+            return response()->json(['status' => 'Ok', 'message' => "$count material entries resubmitted to Pending successfully"]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     private function exportMaterialEntriesCsvByStatus(Request $request, $statusType)
     {
         try {
@@ -6453,6 +6549,7 @@ class ApiManagementController extends Controller
                     'material_entry.vehical',
                     'material_entry.status',
                     'material_entry.remark',
+                    'material_entry.return_comment',
                     'sites.name as site',
                     'users.name as user',
                     'material_entry.date'
@@ -6460,6 +6557,8 @@ class ApiManagementController extends Controller
 
             if ($statusType == 'Pending') {
                 $query->where('material_entry.status', '=', 'Pending');
+            } elseif ($statusType == 'Returned') {
+                $query->where('material_entry.status', '=', 'Returned');
             } else {
                 $query->where('material_entry.status', '!=', 'Pending');
             }
@@ -6477,7 +6576,9 @@ class ApiManagementController extends Controller
                     $q->where('material_supplier.name', 'LIKE', "%{$search}%")
                         ->orWhere('materials.name', 'LIKE', "%{$search}%")
                         ->orWhere('material_entry.vehical', 'LIKE', "%{$search}%")
-                        ->orWhere('sites.name', 'LIKE', "%{$search}%");
+                        ->orWhere('sites.name', 'LIKE', "%{$search}%")
+                        ->orWhere('material_entry.remark', 'LIKE', "%{$search}%")
+                        ->orWhere('material_entry.return_comment', 'LIKE', "%{$search}%");
                 });
             }
 

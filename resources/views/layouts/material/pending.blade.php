@@ -24,6 +24,10 @@
                                 title="Reject Selected" type="button" onclick="bulkAction('reject')">
                                 <i class="zmdi zmdi-close" style="color: white;"></i>
                             </button>
+                            <button class="btn btn-info btn-icon btn-round hidden-sm-down float-right m-l-10"
+                                title="Return Selected" type="button" onclick="openReturnModal()">
+                                <i class="zmdi zmdi-undo" style="color: white;"></i>
+                            </button>
                         @endif
                     </li>
                 </ul>
@@ -94,8 +98,184 @@
 </div>
 @endsection
 
+@section('models')
+    @if (checkmodulepermission(3, 'can_certify') == 1 || (session()->get('role') == 1 || session()->get('role') == 2))
+        <div class="modal fade" id="returnmaterialmodal" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-md" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h4 class="title">Return Material Entry</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row clearfix">
+                            <div class="col-lg-12">
+                                <div class="form-group">
+                                    <label>Return Comment</label>
+                                    <textarea id="return_comment" class="form-control" placeholder="Enter reason for returning these material entries..." rows="4"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary btn-simple waves-effect" data-dismiss="modal"><a>CLOSE</a></button>
+                        <button type="button" onclick="submitReturn()" class="btn btn-primary btn-simple btn-round waves-effect"><a>Submit</a></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+@endsection
+
 @section('scripts')
 <script type="text/javascript">
+    function approvematerial(id) {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You Want To Approve This Material Entry ?",
+            icon: 'success',
+            showCancelButton: true,
+            confirmButtonColor: '#17ce0a',
+            cancelButtonColor: '#000000',
+            confirmButtonText: 'Approve',
+            cancelButtonText: 'Cancel',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                var url = "{{ url('/approve_material_by_id?id=') }}" + id;
+                window.location.href = url;
+            }
+        });
+    }
+
+    function rejectmaterial(id) {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You Want To Reject This Material Entry?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ff0000',
+            cancelButtonColor: '#000000',
+            confirmButtonText: 'Reject',
+            cancelButtonText: 'Cancel',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                var url = "{{ url('/reject_material_by_id?id=') }}" + id;
+                window.location.href = url;
+            }
+        });
+    }
+
+    function returnmaterial(id) {
+        Swal.fire({
+            title: 'Return Material Entry',
+            text: "Enter reason for returning this material entry:",
+            input: 'textarea',
+            inputPlaceholder: 'Reason...',
+            showCancelButton: true,
+            confirmButtonText: 'Return',
+            showLoaderOnConfirm: true,
+            preConfirm: (comment) => {
+                if (!comment) {
+                    Swal.showValidationMessage('Please enter a reason');
+                }
+                return $.ajax({
+                    url: "{{ url('/return_material_action') }}",
+                    type: "POST",
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        check_list: [id],
+                        return_comment: comment
+                    }
+                }).then(response => {
+                    if (response.status !== 'success') {
+                        throw new Error(response.message);
+                    }
+                    return response;
+                }).catch(error => {
+                    Swal.showValidationMessage(`Request failed: ${error}`);
+                });
+            },
+            allowOutsideClick: () => !Swal.isLoading()
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire('Success!', 'Material entry has been returned.', 'success').then(() => {
+                    $('#pendingMaterialTable').DataTable().ajax.reload();
+                });
+            }
+        });
+    }
+
+    function openReturnModal() {
+        if ($('.check_item:checked').length == 0) {
+            Swal.fire({
+                title: 'Error!',
+                text: "Please select at least one material entry to return!",
+                icon: 'error',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+            });
+            return;
+        }
+        $('#returnmaterialmodal').modal();
+    }
+
+    function submitReturn() {
+        var ids = [];
+        $('.check_item:checked').each(function() {
+            ids.push($(this).val());
+        });
+        var comment = $('#return_comment').val();
+        if (comment == "") {
+            Swal.fire({
+                title: 'Error!',
+                text: "Please enter a return comment!",
+                icon: 'error',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+            });
+            return;
+        }
+
+        $.ajax({
+            url: "{{ url('/return_material_action') }}",
+            type: "POST",
+            data: {
+                _token: "{{ csrf_token() }}",
+                check_list: ids,
+                return_comment: comment
+            },
+            success: function(response) {
+                if (response.status == 'success') {
+                    Swal.fire({
+                        title: 'Success!',
+                        text: response.message,
+                        icon: 'success',
+                        timer: 2000,
+                        showConfirmButton: false
+                    }).then(() => {
+                        window.location.href = "{{ url('/return_material') }}";
+                    });
+                } else {
+                    Swal.fire({
+                        title: 'Error!',
+                        text: response.message,
+                        icon: 'error',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true,
+                    });
+                }
+            }
+        });
+    }
+
     function editmaterial(id) {
         Swal.fire({
             title: 'Are you sure?',
