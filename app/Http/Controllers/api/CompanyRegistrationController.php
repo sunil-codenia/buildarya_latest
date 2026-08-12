@@ -699,7 +699,18 @@ class CompanyRegistrationController extends Controller
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
             
-            \Log::info("Attendance, tasks, task_chats, web_notifications, user_devices, labours, and contractor_labour_attendance tables successfully created for connection: {$connName}");
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `quick_action` (
+                    `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                    `user_id` BIGINT UNSIGNED NULL DEFAULT NULL,
+                    `quick_action_text` TEXT NULL DEFAULT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP NULL DEFAULT NULL,
+                    INDEX (`user_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+            
+            \Log::info("Attendance, tasks, task_chats, web_notifications, user_devices, labours, contractor_labour_attendance, and quick_action tables successfully created for connection: {$connName}");
         } catch (\Exception $e) {
             \Log::error("Failed to dynamically create modules tables: " . $e->getMessage());
             throw new \Exception("Failed to dynamically create modules tables: " . $e->getMessage());

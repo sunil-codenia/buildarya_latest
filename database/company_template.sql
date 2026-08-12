@@ -1158,4 +1158,15 @@ INSERT INTO `settings` (`name`, `value`, `uid`) VALUES
 
 INSERT INTO `roles` (`id`, `name`, `is_superadmin`, `visibility_at_site`, `data_access`, `view_duration`, `add_duration`) VALUES (1, 'Super Admin', 1, 1, 'all', 'all', 'all');
 
+-- --------------------------------------------------------
+
+CREATE TABLE `quick_action` (
+  `id` bigint(20) UNSIGNED NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  `user_id` bigint(20) UNSIGNED DEFAULT NULL,
+  `quick_action_text` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL,
+  KEY `quick_action_user_id_index` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;

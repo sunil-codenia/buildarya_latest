@@ -31,6 +31,7 @@ use App\Http\Controllers\api\ApiTaskController;
 use App\Http\Controllers\api\ApiChatController;
 use App\Http\Controllers\api\LeadController;
 use App\Http\Controllers\api\ApiSupportTicketController;
+use App\Http\Controllers\api\ApiQuickActionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -716,5 +717,20 @@ Route::prefix('v1')->group(function () {
         Route::post('/support-tickets', [ApiSupportTicketController::class, 'store']);
         Route::get('/support-tickets/{id}', [ApiSupportTicketController::class, 'show'])->where('id', '[0-9]+');
         Route::post('/support-tickets/{id}/reply', [ApiSupportTicketController::class, 'reply'])->where('id', '[0-9]+');
+
+        // Quick Action API Suite
+        Route::get('/quick-actions', [ApiQuickActionController::class, 'index']);
+        Route::post('/quick-actions', [ApiQuickActionController::class, 'store']);
+        Route::get('/quick-actions/{id}', [ApiQuickActionController::class, 'show'])->where('id', '[0-9]+');
+        Route::delete('/quick-actions/{id}', [ApiQuickActionController::class, 'destroy'])->where('id', '[0-9]+');
+        Route::post('/quick-actions/delete/{id?}', [ApiQuickActionController::class, 'destroy']);
+
+        // Aliases for quick action
+        Route::get('/quick_action', [ApiQuickActionController::class, 'index']);
+        Route::post('/quick_action', [ApiQuickActionController::class, 'store']);
+        Route::get('/quick_action/{id}', [ApiQuickActionController::class, 'show'])->where('id', '[0-9]+');
+        Route::delete('/quick_action/{id}', [ApiQuickActionController::class, 'destroy'])->where('id', '[0-9]+');
+        Route::post('/quick_action/delete/{id?}', [ApiQuickActionController::class, 'destroy']);
     });
 });
+
