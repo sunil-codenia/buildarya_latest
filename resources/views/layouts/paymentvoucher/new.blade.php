@@ -38,10 +38,18 @@
                                 <div class="row clearfix">
                                     <div class="col-lg-3 col-md-3 col-sm-3">
                                         <div class="form-group">
-                                            <img height= "150" width="150" id="user_image"
+                                            <label>Voucher Image</label>
+                                            <img height= "120" width="120" id="user_image"
                                                 src="{{ asset('/images/expense.png') }}" class="rounded-circle img-raised">
                                             <input type="file" accept="Image/*" name="image[]"
                                                 onchange="document.getElementById('user_image').src = window.URL.createObjectURL(this.files[0])">
+                                        </div>
+                                        <div class="form-group" style="margin-top: 10px;">
+                                            <label>QR Code Image</label>
+                                            <img height= "120" width="120" id="qr_image_1"
+                                                src="{{ asset('/images/expense.png') }}" class="rounded-circle img-raised">
+                                            <input type="file" accept="Image/*" name="qr_code[]"
+                                                onchange="document.getElementById('qr_image_1').src = window.URL.createObjectURL(this.files[0])">
                                         </div>
                                     </div>
                                     <div class="col-lg-9 col-md-9 col-sm-9">
@@ -205,10 +213,10 @@
             company_html += '<select id="company_id_' + count + '" class="form-control show-tick" data-live-search="true" disabled><option value="" {{ empty($selected_company_id) ? "selected" : "" }} disabled >--Select Company--</option>@foreach ($companies as $company)<option value = "{{ $company['id'] }}" {{ $company['id'] == $selected_company_id ? "selected" : "" }}>{{ $company['name'] }}</option>@endforeach</select>';
 
             var result = '<div  id="row_' + count +
-                '"><hr><div class="row clearfix"><div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><img height= "150" width="150" id="' +
-                count + '" src=' + "{{ asset('/images/expense.png') }}" +
-                '  class="rounded-circle img-raised"><input type="file" accept="Image/*" name="image[]" onchange="document.getElementById(' +
-                count + ').src = window.URL.createObjectURL(this.files[0])"></div></div>';
+                '"><hr><div class="row clearfix"><div class="col-lg-3 col-md-3 col-sm-3">' +
+                '<div class="form-group"><label>Voucher Image</label><img height= "120" width="120" id="' + count + '" src=' + "{{ asset('/images/expense.png') }}" + '  class="rounded-circle img-raised"><input type="file" accept="Image/*" name="image[]" onchange="document.getElementById(' + count + ').src = window.URL.createObjectURL(this.files[0])"></div>' +
+                '<div class="form-group" style="margin-top: 10px;"><label>QR Code Image</label><img height= "120" width="120" id="qr_' + count + '" src=' + "{{ asset('/images/expense.png') }}" + '  class="rounded-circle img-raised"><input type="file" accept="Image/*" name="qr_code[]" onchange="document.getElementById(\'qr_' + count + '\').src = window.URL.createObjectURL(this.files[0])"></div>' +
+                '</div>';
             result +=
                 '<div class="col-lg-9 col-md-9 col-sm-9"><div class="row clearfix"><div class="col-lg-3 col-md-3 col-sm-3"><div class="form-group"><label>Company</label>' +
                 company_html + '</div></div>';

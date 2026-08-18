@@ -16,7 +16,7 @@
                 <div class="col-md-12 col-sm-12 col-xs-12">
                     <div class="card project_list">
 
-                        <form action="{{ url('/updateotherparty') }}" method="post" class="form">
+                        <form action="{{ url('/updateotherparty') }}" method="post" class="form" enctype="multipart/form-data">
                             @csrf
                             <div class="modal-content">
                                 <div class="modal-header">
@@ -35,7 +35,7 @@
                                         <div class="col-lg-4 col-md-4 col-sm-4">
                                             <div class="form-group">
                                                 <label for="Name">Pan No.</label>
-
+ 
                                                 <input type="text" id="panno" required class="form-control"
                                                     value="{{ $editdata['panno'] }}" name="panno">
                                             </div>
@@ -43,12 +43,12 @@
                                         <div class="col-lg-4 col-md-4 col-sm-4">
                                             <div class="form-group">
                                                 <label for="Name">Address</label>
-
+ 
                                                 <input type="text" id="address" required class="form-control"
                                                     value="{{ $editdata['address'] }}" name="address">
                                             </div>
                                         </div>
-
+ 
                                         <div class="col-lg-4 col-md-4 col-sm-4">
                                             <div class="form-group">
                                                 <label for="Name">Bank A/C</label>
@@ -86,6 +86,19 @@
                                                         <option value="{{$category->id}}" {{$editdata['cost_category_id'] == $category->id ? 'selected' : ''}}>{{$category->name}}</option>
                                                     @endforeach
                                                 </select>
+                                            </div>
+                                        </div>
+                                        <div class="col-lg-4 col-md-4 col-sm-4">
+                                            <div class="form-group">
+                                                <label for="qr_code">QR Code Image</label>
+                                                <input type="file" id="qr_code" class="form-control" name="qr_code" accept="image/*">
+                                                @if(!empty($editdata['qr_code']))
+                                                    <div class="mt-2" style="margin-top: 10px;">
+                                                        <a href="{{ asset($editdata['qr_code']) }}" target="_blank">
+                                                            <img src="{{ asset($editdata['qr_code']) }}" alt="QR Code" style="max-height: 70px; border-radius: 4px; border: 1px solid #ddd;">
+                                                        </a>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </div>
                                     </div>
@@ -132,6 +145,7 @@
                                         <th>Address</th>
                                         <th>Bank Details</th>
                                         <th>Cost Category</th>
+                                        <th>QR Code</th>
                                         <th>Status</th>
                                         <th>Action</th>
 
@@ -169,6 +183,15 @@
                                             </td>
                                             <td>
                                                 <a class="single-user-name" href="#">{{ $dd['category_name'] }}</a>
+                                            </td>
+                                            <td>
+                                                @if(!empty($dd['qr_code']))
+                                                    <a href="{{ asset($dd['qr_code']) }}" target="_blank">
+                                                        <img src="{{ asset($dd['qr_code']) }}" alt="QR" style="max-height: 50px; border-radius: 4px; border: 1px solid #ddd;">
+                                                    </a>
+                                                @else
+                                                    <span class="text-muted">No QR</span>
+                                                @endif
                                             </td>
                                             <td>
                                                 @if ($dd['status'] == 'Active')
@@ -217,7 +240,7 @@
     @if (checkmodulepermission(8, 'can_add') == 1)
         <div class="modal fade" id="newexpensehead1" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-lg" role="document">
-                <form action="{{ url('/addotherparty') }}" method="post" class="form">
+                <form action="{{ url('/addotherparty') }}" method="post" class="form" enctype="multipart/form-data">
                     @csrf
                     <div class="modal-content">
                         <div class="modal-header">
@@ -291,6 +314,12 @@
                                                 <option value="{{$category->id}}">{{$category->name}}</option>
                                             @endforeach
                                         </select>
+                                    </div>
+                                </div>
+                                <div class="col-lg-4 col-md-4 col-sm-4">
+                                    <div class="form-group">
+                                        <label for="qr_code">QR Code Image</label>
+                                        <input type="file" id="qr_code" class="form-control" name="qr_code" accept="image/*">
                                     </div>
                                 </div>
                             </div>

@@ -158,6 +158,31 @@ class CompanyRegistrationController extends Controller
                         // Column might already exist if template was updated
                     }
 
+                    // Ensure qr_code fields exist (in case template is old)
+                    try {
+                        DB::connection($connName)->statement("ALTER TABLE `bills_party` ADD COLUMN `qr_code` VARCHAR(2000) NULL DEFAULT NULL AFTER `cost_category_id`");
+                    } catch (\Exception $e) {
+                        // Already exists
+                    }
+
+                    try {
+                        DB::connection($connName)->statement("ALTER TABLE `material_supplier` ADD COLUMN `qr_code` VARCHAR(2000) NULL DEFAULT NULL AFTER `cost_category_id`");
+                    } catch (\Exception $e) {
+                        // Already exists
+                    }
+
+                    try {
+                        DB::connection($connName)->statement("ALTER TABLE `payment_vouchers` ADD COLUMN `qr_code` VARCHAR(2000) NULL DEFAULT NULL AFTER `payment_image`");
+                    } catch (\Exception $e) {
+                        // Already exists
+                    }
+
+                    try {
+                        DB::connection($connName)->statement("ALTER TABLE `other_parties` ADD COLUMN `qr_code` VARCHAR(2000) NULL DEFAULT NULL AFTER `cost_category_id`");
+                    } catch (\Exception $e) {
+                        // Already exists
+                    }
+
                     // Step 4.2: Create Task and Attendance tables dynamically
                     $this->createCompanyModulesTables($connName);
 

@@ -16,7 +16,7 @@
                 @if (checkmodulepermission(4, 'can_edit') == 1)
                     <div class="card project_list">
 
-                        <form action="{{ url('/updatebillparty') }}" method="post" class="form">
+                        <form action="{{ url('/updatebillparty') }}" method="post" class="form" enctype="multipart/form-data">
                             @csrf
                             <div class="modal-content">
                                 <div class="modal-header">
@@ -88,6 +88,19 @@
                                                 </select>
                                             </div>
                                         </div>
+                                        <div class="col-lg-4 col-md-4 col-sm-4">
+                                            <div class="form-group">
+                                                <label for="qr_code">QR Code Image</label>
+                                                <input type="file" id="qr_code" class="form-control" name="qr_code" accept="image/*">
+                                                @if(!empty($editdata['qr_code']))
+                                                    <div style="margin-top: 5px;">
+                                                        <a href="{{ asset($editdata['qr_code']) }}" target="_blank">
+                                                            <img src="{{ asset($editdata['qr_code']) }}" alt="QR Code" style="max-height: 40px; border-radius: 4px;">
+                                                        </a>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
@@ -137,6 +150,7 @@
                                         <th>Bank Ifsc</th>
                                         <th>Bank Name</th>
                                         <th>Bank A/C Holder</th>
+                                        <th>QR Code</th>
                                         <th>Status</th>
                                         <th>Action</th>
 
@@ -183,6 +197,15 @@
                                             <td>
                                                 <a class="single-user-name"
                                                     href="#">{{ $dd['ac_holder_name'] }}</a>
+                                            </td>
+                                            <td>
+                                                @if(!empty($dd['qr_code']))
+                                                    <a href="{{ asset($dd['qr_code']) }}" target="_blank">
+                                                        <img src="{{ asset($dd['qr_code']) }}" alt="QR" style="max-height: 40px; border-radius: 4px;">
+                                                    </a>
+                                                @else
+                                                    -
+                                                @endif
                                             </td>
 
                                             @if ($dd['status'] == 'Active')
@@ -240,7 +263,7 @@
     @if (checkmodulepermission(4, 'can_add') == 1)
         <div class="modal fade" id="newexpensehead1" tabindex="-1" role="dialog">
             <div class="modal-dialog modal-md" role="document">
-                <form action="{{ url('/addbillparty') }}" method="post" class="form">
+                <form action="{{ url('/addbillparty') }}" method="post" class="form" enctype="multipart/form-data">
                     @csrf
                     <div class="modal-content">
                         <div class="modal-header">
@@ -314,6 +337,12 @@
                                                 <option value="{{$category->id}}">{{$category->name}}</option>
                                             @endforeach
                                         </select>
+                                    </div>
+                                </div>
+                                <div class="col-lg-12 col-md-12 col-sm-12">
+                                    <div class="form-group">
+                                        <label for="qr_code">QR Code Image</label>
+                                        <input type="file" id="qr_code" class="form-control" name="qr_code" accept="image/*">
                                     </div>
                                 </div>
                             </div>

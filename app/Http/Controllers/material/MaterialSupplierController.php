@@ -68,7 +68,7 @@ class MaterialSupplierController extends Controller
             7 => 'bank_name',
             8 => 'bank_ac_holder',
             9 => 'expense_head.name',
-            10 => 'status'
+            11 => 'status'
         ];
         
         if (isset($columns[$orderColumnIndex])) {
@@ -107,6 +107,13 @@ class MaterialSupplierController extends Controller
             $bank_ac_holder = '<a class="single-user-name" href="#">'.htmlspecialchars((string)$row->bank_ac_holder).'</a>';
             $category = '<a class="single-user-name" href="#">'.htmlspecialchars((string)$row->category_name).'</a>';
             
+            $qrCodeHtml = '';
+            if (!empty($row->qr_code)) {
+                $qrCodeHtml = '<a href="'.asset($row->qr_code).'" target="_blank"><img src="'.asset($row->qr_code).'" alt="QR" style="max-height: 40px; border-radius: 4px;"></a>';
+            } else {
+                $qrCodeHtml = '-';
+            }
+
             $statusHtml = '';
             if ($row->status == 'Active') {
                 if ($can_certify) {
@@ -141,6 +148,7 @@ class MaterialSupplierController extends Controller
                 $bank_name,
                 $bank_ac_holder,
                 $category,
+                $qrCodeHtml,
                 $statusHtml,
                 $actionHtml
             ];
@@ -178,6 +186,20 @@ class MaterialSupplierController extends Controller
         $bank_name = $request->input('bank_name');
         $bank_ac_holder = $request->input('bank_ac_holder');
         $cost_category_id = $request->input('cost_category_id');
+        $comp_id = $request->session()->get('comp_id');
+
+        $qrCodePath = null;
+        if ($request->hasFile('qr_code')) {
+            $file = $request->file('qr_code');
+            $dirPath = public_path("images/app_images/{$comp_id}/qrcode");
+            if (!File::exists($dirPath)) {
+                File::makeDirectory($dirPath, 0755, true);
+            }
+            $fileName = time() . '_qr_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($dirPath, $fileName);
+            $qrCodePath = "images/app_images/{$comp_id}/qrcode/{$fileName}";
+        }
+
         $data = [
             'name' => $name,
             'address' => $address,
@@ -187,6 +209,7 @@ class MaterialSupplierController extends Controller
             'bank_name' => $bank_name,
             'bank_ac_holder' => $bank_ac_holder,
             'cost_category_id' => $cost_category_id,
+            'qr_code' => $qrCodePath,
             'status' => 'Active',
             'create_datetime' => date('Y-m-d H:i:s')
         ];
@@ -219,7 +242,9 @@ class MaterialSupplierController extends Controller
         $bank_ac_holder = $request->input('bank_ac_holder');
         $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $id)->update([
+        $comp_id = $request->session()->get('comp_id');
+
+        $updateData = [
             'name' => $name, 
             'address' => $address, 
             'gstin' => $gstin, 
@@ -228,7 +253,24 @@ class MaterialSupplierController extends Controller
             'bank_name' => $bank_name, 
             'bank_ac_holder' => $bank_ac_holder,
             'cost_category_id' => $cost_category_id
-        ]);
+        ];
+
+        if ($request->hasFile('qr_code')) {
+            $supplier = DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $id)->first();
+            if ($supplier && !empty($supplier->qr_code) && File::exists(public_path($supplier->qr_code))) {
+                File::delete(public_path($supplier->qr_code));
+            }
+            $file = $request->file('qr_code');
+            $dirPath = public_path("images/app_images/{$comp_id}/qrcode");
+            if (!File::exists($dirPath)) {
+                File::makeDirectory($dirPath, 0755, true);
+            }
+            $fileName = time() . '_qr_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($dirPath, $fileName);
+            $updateData['qr_code'] = "images/app_images/{$comp_id}/qrcode/{$fileName}";
+        }
+
+        DB::connection($user_db_conn_name)->table('material_supplier')->where('id', $id)->update($updateData);
         addActivity($id, 'material_supplier', "Material Supplier Updated", 3);
         return redirect('/materialsupplier');
     }

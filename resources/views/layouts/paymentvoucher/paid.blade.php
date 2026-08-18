@@ -30,9 +30,8 @@
                                         <th>Status</th>
                                         <th>Remark</th>
                                         <th>Image</th>
-                                       
+                                        <th>QR Code</th>
                                         <th>Action</th>
-                                        
                                     </tr>
                                 </thead>
 
@@ -95,6 +94,13 @@
                                                     <img class="lazy" data-src="{{ $dd['payment_image'] }}" onclick="enlargeImage('{{$payment_image}}')" height="50px"
                                                     width="50px" />
 
+                                            </td>
+                                            <td>
+                                                @if(!empty($dd['qr_code']))
+                                                    <img class="lazy" data-src="{{ $dd['qr_code'] }}" onclick="enlargeImage('{{$dd['qr_code']}}')" height="50px" width="50px" />
+                                                @else
+                                                    -
+                                                @endif
                                             </td>
                                             <?php
                                             $ddid = $dd['id'];?>

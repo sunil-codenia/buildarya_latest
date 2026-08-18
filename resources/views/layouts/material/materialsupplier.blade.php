@@ -16,7 +16,7 @@ $dataarray = json_decode($data, true);
     <div class="col-md-12 col-sm-12 col-xs-12">
         <div class="card project_list">
 
-        <form action="{{url('/updatematerialsupplier')}}" method="post" class="form">
+        <form action="{{url('/updatematerialsupplier')}}" method="post" class="form" enctype="multipart/form-data">
             @csrf
             <div class="modal-content">
                 <div class="modal-header">
@@ -82,6 +82,19 @@ $dataarray = json_decode($data, true);
                                 </select>
                             </div>
                         </div>
+                        <div class="col-lg-4 col-md-4 col-sm-4">
+                            <div class="form-group">
+                                <label for="qr_code">QR Code Image</label>
+                                <input type="file" id="qr_code" class="form-control" name="qr_code" accept="image/*">
+                                @if(!empty($editdata['qr_code']))
+                                    <div style="margin-top: 5px;">
+                                        <a href="{{ asset($editdata['qr_code']) }}" target="_blank">
+                                            <img src="{{ asset($editdata['qr_code']) }}" alt="QR Code" style="max-height: 40px; border-radius: 4px;">
+                                        </a>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -141,6 +154,7 @@ $dataarray = json_decode($data, true);
                                 <th>Bank Name</th>
                                 <th>Bank A/C Holder</th>
                                 <th>Cost Category</th>
+                                <th>QR Code</th>
                                 <th>Status</th>
                                 <th style="width: 100px;">Action</th>
                                 
@@ -168,7 +182,7 @@ $dataarray = json_decode($data, true);
 @if(checkmodulepermission(3,'can_add') == 1)
 <div class="modal fade" id="newexpensehead1" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-xl" role="document">
-        <form action="{{url('/addmaterialsupplier')}}" method="post" class="form">
+        <form action="{{url('/addmaterialsupplier')}}" method="post" class="form" enctype="multipart/form-data">
             @csrf
             <div class="modal-content">
                 <div class="modal-header">
@@ -237,6 +251,12 @@ $dataarray = json_decode($data, true);
                                         <option value="{{$category['id']}}">{{$category['name']}}</option>
                                     @endforeach
                                 </select>
+                            </div>
+                        </div>
+                        <div class="col-lg-4 col-md-4 col-sm-4">
+                            <div class="form-group">
+                                <label for="qr_code">QR Code Image</label>
+                                <input type="file" id="qr_code" class="form-control" name="qr_code" accept="image/*">
                             </div>
                         </div>
                     </div>
@@ -445,7 +465,7 @@ $dataarray = json_decode($data, true);
                     }
                 },
                 columnDefs: [
-                    { orderable: false, targets: [0, 1, 11] }
+                    { orderable: false, targets: [0, 1, 10, 12] }
                 ],
                 responsive: true,
                 dom: 'lBfrtip<"actions">',

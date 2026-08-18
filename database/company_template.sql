@@ -74,6 +74,7 @@ CREATE TABLE `bills_party` (
   `site_id` varchar(50) DEFAULT NULL,
   `ac_holder_name` varchar(2000) DEFAULT NULL,
   `cost_category_id` int(11) DEFAULT NULL,
+  `qr_code` varchar(2000) DEFAULT NULL,
   `create_datetime` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -443,6 +444,7 @@ CREATE TABLE `material_supplier` (
   `bank_name` varchar(255) DEFAULT NULL,
   `bank_ac_holder` varchar(255) DEFAULT NULL,
   `cost_category_id` int(11) DEFAULT NULL,
+  `qr_code` varchar(2000) DEFAULT NULL,
   `status` varchar(250) NOT NULL DEFAULT 'Active',
   `create_datetime` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -534,6 +536,7 @@ CREATE TABLE `other_parties` (
   `bank_ac_holder` varchar(250) DEFAULT NULL,
   `bank_ifsc` varchar(250) DEFAULT NULL,
   `cost_category_id` int(11) DEFAULT NULL,
+  `qr_code` varchar(2000) DEFAULT NULL,
   `status` varchar(250) NOT NULL DEFAULT 'Active',
   `create_datetime` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
@@ -567,6 +570,7 @@ CREATE TABLE `payment_vouchers` (
   `paid_by` varchar(250) DEFAULT NULL,
   `image` varchar(2000) DEFAULT NULL,
   `payment_image` varchar(250) DEFAULT NULL,
+  `qr_code` varchar(2000) DEFAULT NULL,
   `status` varchar(250) NOT NULL DEFAULT 'Pending',
   `create_datetime` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;

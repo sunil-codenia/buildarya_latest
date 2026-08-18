@@ -37,6 +37,7 @@
                                 <th>User</th>
                                 <th>Remark</th>
                                 <th>Image</th>
+                                <th>QR Code</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -90,6 +91,13 @@
                                             @endphp
                                       
                                             <img class="lazy" data-src="{{$dd['image']}}" height="50px" onclick="enlargeImage('{{$image}}')" width="50px" />
+                                        </td>
+                                        <td>
+                                            @if(!empty($dd['qr_code']))
+                                                <img class="lazy" data-src="{{$dd['qr_code']}}" height="50px" onclick="enlargeImage('{{$dd['qr_code']}}')" width="50px" />
+                                            @else
+                                                -
+                                            @endif
                                         </td>
                                         <td>
                                             <input type="checkbox" name="check_list[]" value="{{$dd['id']}}"> 

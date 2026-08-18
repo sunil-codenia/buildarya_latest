@@ -5,6 +5,7 @@ namespace App\Http\Controllers\paymentvoucher;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 
 class OtherPartiesController extends Controller
 {
@@ -26,7 +27,6 @@ class OtherPartiesController extends Controller
     }
     public function addotherparty(Request $request){
         $name = $request->input('name');
-        $name = $request->input('name');
         $panno = $request->input('panno');
         $address = $request->input('address');
         $bank_ac = $request->input('bank_ac');
@@ -35,10 +35,31 @@ class OtherPartiesController extends Controller
         $bank_ac_holder = $request->input('bank_ac_holder');
         $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        $data=['name'=>$name,'panno'=>$panno,'address'=>$address,'bank_ac'=>$bank_ac,'bank_ifsc'=>$bank_ifsc,'bank_name'=>$bank_name,'bank_ac_holder'=>$bank_ac_holder, 'cost_category_id'=>$cost_category_id
-    ];
 
-        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $qrCodePath = null;
+        if ($request->hasFile('qr_code')) {
+            $file = $request->file('qr_code');
+            $dir = public_path('images/app_images/' . $user_db_conn_name . '/qrcode');
+            if (!File::exists($dir)) {
+                File::makeDirectory($dir, 0777, true, true);
+            }
+            $qrName = time() . '_qr_' . uniqid() . '.' . $file->extension();
+            $file->move($dir, $qrName);
+            $qrCodePath = "images/app_images/" . $user_db_conn_name . "/qrcode/" . $qrName;
+        }
+
+        $data=[
+            'name'=>$name,
+            'panno'=>$panno,
+            'address'=>$address,
+            'bank_ac'=>$bank_ac,
+            'bank_ifsc'=>$bank_ifsc,
+            'bank_name'=>$bank_name,
+            'bank_ac_holder'=>$bank_ac_holder,
+            'cost_category_id'=>$cost_category_id,
+            'qr_code' => $qrCodePath
+        ];
+
         try {
            $id = DB::connection($user_db_conn_name)->table('other_parties')->insertGetId($data);
             addActivity($id,'other_parties',"New Other Party Created",8);
@@ -70,7 +91,34 @@ class OtherPartiesController extends Controller
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
          
          try {
-            DB::connection($user_db_conn_name)->table('other_parties')->where('id', $id)->update(['name'=>$name,'panno'=>$panno,'address'=>$address,'bank_ac'=>$bank_ac,'bank_ifsc'=>$bank_ifsc,'bank_name'=>$bank_name,'bank_ac_holder'=>$bank_ac_holder, 'cost_category_id'=>$cost_category_id]);
+            $party = DB::connection($user_db_conn_name)->table('other_parties')->where('id', $id)->first();
+            
+            $updateData = [
+                'name'=>$name,
+                'panno'=>$panno,
+                'address'=>$address,
+                'bank_ac'=>$bank_ac,
+                'bank_ifsc'=>$bank_ifsc,
+                'bank_name'=>$bank_name,
+                'bank_ac_holder'=>$bank_ac_holder,
+                'cost_category_id'=>$cost_category_id
+            ];
+
+            if ($request->hasFile('qr_code')) {
+                if ($party && !empty($party->qr_code) && File::exists(public_path($party->qr_code))) {
+                    File::delete(public_path($party->qr_code));
+                }
+                $file = $request->file('qr_code');
+                $dir = public_path('images/app_images/' . $user_db_conn_name . '/qrcode');
+                if (!File::exists($dir)) {
+                    File::makeDirectory($dir, 0777, true, true);
+                }
+                $qrName = time() . '_qr_' . uniqid() . '.' . $file->extension();
+                $file->move($dir, $qrName);
+                $updateData['qr_code'] = "images/app_images/" . $user_db_conn_name . "/qrcode/" . $qrName;
+            }
+
+            DB::connection($user_db_conn_name)->table('other_parties')->where('id', $id)->update($updateData);
             addActivity($id,'other_parties',"Other Party Data Updated",8);
  
             return redirect('/otherparty')
@@ -79,10 +127,10 @@ class OtherPartiesController extends Controller
           if($e->getCode() == 23000){
    return redirect('/otherparty')
                  ->with('error', 'Party Already Exists!');
-         }else{
-               return redirect('/otherparty')
+          }else{
+                return redirect('/otherparty')
                  ->with('error', 'Error While Updating other Party!');
-         }
+          }
          }
           
     }

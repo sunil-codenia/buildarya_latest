@@ -30,9 +30,15 @@ $max_date = substr($duration['max'], 0, 10);
                  <hr>
                <div class="row clearfix">
                   <div class="col-lg-3 col-md-3 col-sm-3">
-                     <div class="form-group">                                   
-                        <img height= "150" width="150" id="user_image" src="{{asset($paymentvoucher['image'])}}"  class="rounded-circle img-raised"> 
+                     <div class="form-group">
+                        <label>Voucher Image</label>
+                        <img height= "120" width="120" id="user_image" src="{{asset($paymentvoucher['image'])}}"  class="rounded-circle img-raised"> 
                         <input type="file" accept="Image/*"  name="image" onchange="document.getElementById('user_image').src = window.URL.createObjectURL(this.files[0])">            
+                     </div>
+                     <div class="form-group" style="margin-top: 10px;">
+                        <label>QR Code Image</label>
+                        <img height= "120" width="120" id="qr_image" src="{{ !empty($paymentvoucher['qr_code']) ? asset($paymentvoucher['qr_code']) : asset('/images/expense.png') }}" class="rounded-circle img-raised"> 
+                        <input type="file" accept="Image/*"  name="qr_code" onchange="document.getElementById('qr_image').src = window.URL.createObjectURL(this.files[0])">            
                      </div>
                   </div>
                   <div class="col-lg-9 col-md-9 col-sm-9">

@@ -2502,6 +2502,41 @@ class ApiManagementController extends Controller
             $data['status'] = $input['status'] ?? 'Active';
             $data['create_datetime'] = Carbon::now();
 
+            $qrCodePath = null;
+            $dir = public_path('images/app_images/' . $conn . '/qrcode');
+            if ($request->hasFile('qr_code')) {
+                $file = $request->file('qr_code');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $qrName = time() . '_qr_' . uniqid() . '.' . $file->extension();
+                $file->move($dir, $qrName);
+                $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+            } elseif (isset($input['qr_code_data']) && strlen($input['qr_code_data']) > 100) {
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $input['qr_code_data']);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $input['qr_code_data'], $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($input['qr_code']) && is_string($input['qr_code']) && strlen($input['qr_code']) > 100) {
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $input['qr_code']);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $input['qr_code'], $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($input['qr_code']) && is_string($input['qr_code']) && strlen($input['qr_code']) <= 100) {
+                $qrCodePath = $input['qr_code'];
+            }
+            $data['qr_code'] = $qrCodePath;
+
             $id = DB::connection($conn)->table('material_supplier')->insertGetId($data);
             
             // Mirroring MaterialSupplierController@addmaterialsupplier logic
@@ -2530,6 +2565,58 @@ class ApiManagementController extends Controller
             
             $input = json_decode($request->getContent(), true) ?? $request->all();
             $data = array_intersect_key($input, array_flip(['name', 'address', 'gstin', 'bank_ac', 'bank_ifsc', 'bank_name', 'bank_ac_holder', 'cost_category_id', 'status']));
+
+            $supplier = DB::connection($conn)->table('material_supplier')->where('id', $id)->first();
+            if (!$supplier) {
+                return response()->json(['status' => 'Error', 'message' => 'Material Supplier not found'], 404);
+            }
+
+            $qrCodePath = null;
+            $dir = public_path('images/app_images/' . $conn . '/qrcode');
+            if ($request->hasFile('qr_code')) {
+                if (!empty($supplier->qr_code) && File::exists(public_path($supplier->qr_code))) {
+                    File::delete(public_path($supplier->qr_code));
+                }
+                $file = $request->file('qr_code');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $qrName = time() . '_qr_' . uniqid() . '.' . $file->extension();
+                $file->move($dir, $qrName);
+                $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+            } elseif (isset($input['qr_code_data']) && strlen($input['qr_code_data']) > 100) {
+                if (!empty($supplier->qr_code) && File::exists(public_path($supplier->qr_code))) {
+                    File::delete(public_path($supplier->qr_code));
+                }
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $input['qr_code_data']);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $input['qr_code_data'], $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($input['qr_code']) && is_string($input['qr_code']) && strlen($input['qr_code']) > 100) {
+                if (!empty($supplier->qr_code) && File::exists(public_path($supplier->qr_code))) {
+                    File::delete(public_path($supplier->qr_code));
+                }
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $input['qr_code']);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $input['qr_code'], $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($input['qr_code']) && is_string($input['qr_code']) && strlen($input['qr_code']) <= 100) {
+                $qrCodePath = $input['qr_code'];
+            }
+
+            if ($qrCodePath !== null) {
+                $data['qr_code'] = $qrCodePath;
+            }
 
             if (empty($data)) {
                 return response()->json(['status' => 'Error', 'message' => 'No data provided'], 400);
@@ -4836,15 +4923,12 @@ class ApiManagementController extends Controller
         }
     }
 
-    /**
-     * Store New Bill Party
-     */
     public function storeBillParty(Request $request)
     {
         try {
             $conn = config('database.default');
             $user = $request->user();
-
+ 
             // Get input with fallback to raw content decoding
             $input = $request->all();
             if (empty($input) || !isset($input['name'])) {
@@ -4856,7 +4940,7 @@ class ApiManagementController extends Controller
                     }
                 }
             }
-
+ 
             $data = [
                 'name' => isset($input['name']) ? $input['name'] : null,
                 'address' => isset($input['address']) ? $input['address'] : null,
@@ -4868,14 +4952,50 @@ class ApiManagementController extends Controller
                 'cost_category_id' => isset($input['cost_category_id']) ? $input['cost_category_id'] : null,
                 'status' => isset($input['status']) ? $input['status'] : 'Pending'
             ];
-
+ 
             if (!$data['name']) {
                 return response()->json(['status' => 'Error', 'message' => 'Name is required'], 400);
             }
 
+            // QR Code upload or base64 handling
+            $qrCodePath = null;
+            $dir = public_path('images/app_images/' . $conn . '/qrcode');
+            if ($request->hasFile('qr_code')) {
+                $file = $request->file('qr_code');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $qrName = time() . '_qr_' . uniqid() . '.' . $file->extension();
+                $file->move($dir, $qrName);
+                $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+            } elseif (isset($input['qr_code_data']) && strlen($input['qr_code_data']) > 100) {
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $input['qr_code_data']);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $input['qr_code_data'], $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($input['qr_code']) && is_string($input['qr_code']) && strlen($input['qr_code']) > 100) {
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $input['qr_code']);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $input['qr_code'], $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($input['qr_code']) && is_string($input['qr_code']) && strlen($input['qr_code']) <= 100) {
+                $qrCodePath = $input['qr_code'];
+            }
+            $data['qr_code'] = $qrCodePath;
+ 
             $id = DB::connection($conn)->table('bills_party')->insertGetId($data);
             addActivity($id, 'bills_party', "New Bill Party Created via API: " . $data['name'], 4, $user->id, $conn);
-
+ 
             return response()->json([
                 'status' => 'Ok',
                 'message' => 'Bill Party Created Successfully',
@@ -4888,7 +5008,7 @@ class ApiManagementController extends Controller
             return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
         }
     }
-
+ 
     /**
      * Update Bill Party
      */
@@ -4898,11 +5018,16 @@ class ApiManagementController extends Controller
             $conn = config('database.default');
             $user = $request->user();
             $id = $id ?? $request->input('id');
-
+ 
             if (!$id) {
                 return response()->json(['status' => 'Error', 'message' => 'ID is required'], 400);
             }
 
+            $party = DB::connection($conn)->table('bills_party')->where('id', $id)->first();
+            if (!$party) {
+                return response()->json(['status' => 'Error', 'message' => 'Bill Party not found'], 404);
+            }
+ 
             // Get input with fallback to raw content decoding
             $input = $request->all();
             if (empty($input) || !isset($input['name'])) {
@@ -4914,7 +5039,7 @@ class ApiManagementController extends Controller
                     }
                 }
             }
-
+ 
             $data = [
                 'name' => isset($input['name']) ? $input['name'] : null,
                 'address' => isset($input['address']) ? $input['address'] : null,
@@ -4925,19 +5050,67 @@ class ApiManagementController extends Controller
                 'ac_holder_name' => isset($input['ac_holder_name']) ? $input['ac_holder_name'] : null,
                 'cost_category_id' => isset($input['cost_category_id']) ? $input['cost_category_id'] : null
             ];
-
+ 
             // Remove null values to avoid overwriting with nulls if not provided
             $data = array_filter($data, function ($value) {
                 return $value !== null;
             });
 
+            // QR Code upload or base64 handling for updates
+            $qrCodePath = null;
+            $dir = public_path('images/app_images/' . $conn . '/qrcode');
+            if ($request->hasFile('qr_code')) {
+                if (!empty($party->qr_code) && File::exists(public_path($party->qr_code))) {
+                    File::delete(public_path($party->qr_code));
+                }
+                $file = $request->file('qr_code');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $qrName = time() . '_qr_' . uniqid() . '.' . $file->extension();
+                $file->move($dir, $qrName);
+                $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+            } elseif (isset($input['qr_code_data']) && strlen($input['qr_code_data']) > 100) {
+                if (!empty($party->qr_code) && File::exists(public_path($party->qr_code))) {
+                    File::delete(public_path($party->qr_code));
+                }
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $input['qr_code_data']);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $input['qr_code_data'], $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($input['qr_code']) && is_string($input['qr_code']) && strlen($input['qr_code']) > 100) {
+                if (!empty($party->qr_code) && File::exists(public_path($party->qr_code))) {
+                    File::delete(public_path($party->qr_code));
+                }
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $input['qr_code']);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $input['qr_code'], $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($input['qr_code']) && is_string($input['qr_code']) && strlen($input['qr_code']) <= 100) {
+                $qrCodePath = $input['qr_code'];
+            }
+
+            if ($qrCodePath !== null) {
+                $data['qr_code'] = $qrCodePath;
+            }
+ 
             if (empty($data)) {
                 return response()->json(['status' => 'Error', 'message' => 'No data provided to update'], 400);
             }
-
+ 
             DB::connection($conn)->table('bills_party')->where('id', $id)->update($data);
             addActivity($id, 'bills_party', "Bill Party Updated via API", 4, $user->id, $conn);
-
+ 
             return response()->json([
                 'status' => 'Ok',
                 'message' => 'Bill Party Updated Successfully'

@@ -217,6 +217,15 @@ class PaymentVoucherController extends Controller
                 } else {
                     $imagePath = "images/expense.png";
                 }
+
+                if (isset($request->qr_code[$i])) {
+                    $qrName = time() . rand(10000, 1000000) . '_qr.' . $request->qr_code[$i]->extension();
+                    $request->qr_code[$i]->move(public_path('images/app_images/' . $user_db_conn_name . '/paymentvoucher'), $qrName);
+                    $qrCodePath = "images/app_images/" . $user_db_conn_name . "/paymentvoucher/" . $qrName;
+                } else {
+                    $qrCodePath = null;
+                }
+
                 $party = explode("||", $data['party_id'][$i]);
                 $rawd = [
                     'company_id' => $data['company_id'][$i],
@@ -230,6 +239,7 @@ class PaymentVoucherController extends Controller
                     'remark' => $data['remark'][$i],
                     'created_by' => $user_id,
                     'image' => $imagePath,
+                    'qr_code' => $qrCodePath,
                     'status' => $status,
                 ];
 
@@ -377,6 +387,18 @@ class PaymentVoucherController extends Controller
         } else {
             $imagePath = $paymentvoucher->image;
         }
+
+        if (isset($request->qr_code)) {
+            if (!empty($paymentvoucher->qr_code) && File::exists(public_path($paymentvoucher->qr_code))) {
+                File::delete(public_path($paymentvoucher->qr_code));
+            }
+            $qrName = time() . rand(10000, 1000000) . '_qr.' . $request->qr_code->extension();
+            $request->qr_code->move(public_path('images/app_images/' . $user_db_conn_name . '/paymentvoucher'), $qrName);
+            $qrCodePath = "images/app_images/" . $user_db_conn_name . "/paymentvoucher/" . $qrName;
+        } else {
+            $qrCodePath = $paymentvoucher->qr_code;
+        }
+
         $party = explode("||", $data['party_id']);
 
         $rawd = [
@@ -392,6 +414,7 @@ class PaymentVoucherController extends Controller
             'remark' => $data['remark'],
             'created_by' => $user_id,
             'image' => $imagePath,
+            'qr_code' => $qrCodePath,
             'status' => $status,
         ];
 

@@ -260,7 +260,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/bill-parties/export', [ApiManagementController::class, 'exportBillPartiesCsv']);
         Route::post('/bill-parties', [ApiManagementController::class, 'storeBillParty']);
         Route::get('/bill-parties/{id}', [ApiManagementController::class, 'getBillPartyDetails']);
-        Route::patch('/bill-parties/{id}', [ApiManagementController::class, 'updateBillParty']);
+        Route::match(['post', 'patch'], '/bill-parties/{id}', [ApiManagementController::class, 'updateBillParty']);
         Route::delete('/bill-parties/{id}', [ApiManagementController::class, 'deleteBillParty']);
         Route::post('/bill-parties/{id}/status', [ApiManagementController::class, 'updateBillPartyStatus']);
     

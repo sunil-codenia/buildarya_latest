@@ -71,6 +71,20 @@ class BillPartyController extends Controller
         $ac_holder_name = $request->input('ac_holder_name');
         $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        $comp_id = $request->session()->get('comp_id');
+
+        $qrCodePath = null;
+        if ($request->hasFile('qr_code')) {
+            $file = $request->file('qr_code');
+            $dirPath = public_path("images/app_images/{$comp_id}/qrcode");
+            if (!File::exists($dirPath)) {
+                File::makeDirectory($dirPath, 0755, true);
+            }
+            $fileName = time() . '_qr_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($dirPath, $fileName);
+            $qrCodePath = "images/app_images/{$comp_id}/qrcode/{$fileName}";
+        }
+
         $data = [
             'name' => $name, 
             'address' => $address, 
@@ -80,10 +94,10 @@ class BillPartyController extends Controller
             'bankname' => $bankname, 
             'ac_holder_name' => $ac_holder_name, 
             'cost_category_id' => $cost_category_id,
+            'qr_code' => $qrCodePath,
             'create_datetime' => date('Y-m-d H:i:s')
         ];
 
-        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
         try {
             DB::connection($user_db_conn_name)->table('bills_party')->insert($data);
             return redirect('/billparty')
@@ -165,6 +179,7 @@ class BillPartyController extends Controller
         $id = $request->input('id');
         $name = $request->input('name');
         $panno = $request->input('panno');
+        $address = $request->input('address');
 
         $bank_ac = $request->input('bank_ac');
         $ifsc = $request->input('ifsc');
@@ -172,9 +187,37 @@ class BillPartyController extends Controller
         $ac_holder_name = $request->input('ac_holder_name');
         $cost_category_id = $request->input('cost_category_id');
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
-        DB::connection($user_db_conn_name)->table('bills_party')->where('id', $id)->update(['name' => $name, 'panno' => $panno, 'bank_ac' => $bank_ac, 'ifsc' => $ifsc, 'bankname' => $bankname, 'ac_holder_name' => $ac_holder_name, 'cost_category_id' => $cost_category_id]);
+        $comp_id = $request->session()->get('comp_id');
+
+        $updateData = [
+            'name' => $name, 
+            'panno' => $panno, 
+            'address' => $address,
+            'bank_ac' => $bank_ac, 
+            'ifsc' => $ifsc, 
+            'bankname' => $bankname, 
+            'ac_holder_name' => $ac_holder_name, 
+            'cost_category_id' => $cost_category_id
+        ];
+
+        if ($request->hasFile('qr_code')) {
+            $party = DB::connection($user_db_conn_name)->table('bills_party')->where('id', $id)->first();
+            if ($party && !empty($party->qr_code) && File::exists(public_path($party->qr_code))) {
+                File::delete(public_path($party->qr_code));
+            }
+            $file = $request->file('qr_code');
+            $dirPath = public_path("images/app_images/{$comp_id}/qrcode");
+            if (!File::exists($dirPath)) {
+                File::makeDirectory($dirPath, 0755, true);
+            }
+            $fileName = time() . '_qr_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->move($dirPath, $fileName);
+            $updateData['qr_code'] = "images/app_images/{$comp_id}/qrcode/{$fileName}";
+        }
+
+        DB::connection($user_db_conn_name)->table('bills_party')->where('id', $id)->update($updateData);
         addActivity($id,'bills_party',"Bill Party Data Updated.",4);
-        return redirect('/billparty')->with('success', 'Bill Party Updated successfully!');;
+        return redirect('/billparty')->with('success', 'Bill Party Updated successfully!');
     }
     public function edit_billparty(Request $request)
     {

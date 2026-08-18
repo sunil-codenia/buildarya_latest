@@ -5,6 +5,7 @@ namespace App\Http\Controllers\api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 
 class ApiOtherPartyController extends Controller
 {
@@ -85,9 +86,6 @@ class ApiOtherPartyController extends Controller
         }
     }
 
-    /**
-     * Create a new other party
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -99,6 +97,41 @@ class ApiOtherPartyController extends Controller
             $user = $request->user();
             $conn = config('database.default');
 
+            // QR Code upload or base64 handling
+            $qrCodePath = null;
+            $dir = public_path('images/app_images/' . $conn . '/qrcode');
+            if ($request->hasFile('qr_code')) {
+                $file = $request->file('qr_code');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $qrName = time() . '_qr_' . uniqid() . '.' . $file->extension();
+                $file->move($dir, $qrName);
+                $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+            } elseif (isset($request->qr_code_data) && strlen($request->qr_code_data) > 100) {
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $request->qr_code_data);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $request->qr_code_data, $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($request->qr_code) && is_string($request->qr_code) && strlen($request->qr_code) > 100) {
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $request->qr_code);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $request->qr_code, $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($request->qr_code) && is_string($request->qr_code) && strlen($request->qr_code) <= 100) {
+                $qrCodePath = $request->qr_code;
+            }
+
             $data = [
                 'name' => $request->name,
                 'panno' => $request->panno ?? $request->pan_no ?? "",
@@ -108,7 +141,8 @@ class ApiOtherPartyController extends Controller
                 'bank_name' => $request->bank_name ?? "",
                 'bank_ac_holder' => $request->bank_ac_holder ?? "",
                 'cost_category_id' => $request->cost_category_id,
-                'status' => $request->status ?? 'Active'
+                'status' => $request->status ?? 'Active',
+                'qr_code' => $qrCodePath
             ];
 
             $id = DB::connection($conn)->table('other_parties')->insertGetId($data);
@@ -154,6 +188,50 @@ class ApiOtherPartyController extends Controller
                 return response()->json(['status' => 'Error', 'message' => 'Other Party not found'], 404);
             }
 
+            // QR Code upload or base64 handling for updates
+            $qrCodePath = null;
+            $dir = public_path('images/app_images/' . $conn . '/qrcode');
+            if ($request->hasFile('qr_code')) {
+                if (!empty($party->qr_code) && File::exists(public_path($party->qr_code))) {
+                    File::delete(public_path($party->qr_code));
+                }
+                $file = $request->file('qr_code');
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $qrName = time() . '_qr_' . uniqid() . '.' . $file->extension();
+                $file->move($dir, $qrName);
+                $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+            } elseif (isset($request->qr_code_data) && strlen($request->qr_code_data) > 100) {
+                if (!empty($party->qr_code) && File::exists(public_path($party->qr_code))) {
+                    File::delete(public_path($party->qr_code));
+                }
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $request->qr_code_data);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $request->qr_code_data, $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($request->qr_code) && is_string($request->qr_code) && strlen($request->qr_code) > 100) {
+                if (!empty($party->qr_code) && File::exists(public_path($party->qr_code))) {
+                    File::delete(public_path($party->qr_code));
+                }
+                if (!File::exists($dir)) { File::makeDirectory($dir, 0777, true, true); }
+                $b64Clean = preg_replace('/^data:image\/\w+;base64,/', '', $request->qr_code);
+                $decoded = base64_decode($b64Clean);
+                if ($decoded) {
+                    $ext = 'png';
+                    if (preg_match('/^data:image\/(\w+);/', $request->qr_code, $m)) { $ext = $m[1]; }
+                    $qrName = time() . '_qr_' . uniqid() . '.' . $ext;
+                    file_put_contents($dir . '/' . $qrName, $decoded);
+                    $qrCodePath = "images/app_images/" . $conn . "/qrcode/" . $qrName;
+                }
+            } elseif (isset($request->qr_code) && is_string($request->qr_code) && strlen($request->qr_code) <= 100) {
+                $qrCodePath = $request->qr_code;
+            }
+
             $data = [
                 'name' => $request->name,
                 'panno' => $request->panno ?? $request->pan_no ?? $party->panno,
@@ -165,6 +243,10 @@ class ApiOtherPartyController extends Controller
                 'cost_category_id' => $request->cost_category_id,
                 'status' => $request->status ?? $party->status
             ];
+
+            if ($qrCodePath !== null) {
+                $data['qr_code'] = $qrCodePath;
+            }
 
             DB::connection($conn)->table('other_parties')->where('id', $id)->update($data);
             addActivity($id, 'other_parties', "Other Party Data Updated via API", 8, $user->id, $conn);

@@ -183,12 +183,15 @@
             </tr>
             <tr>
                 <td>
-                    <h5>Image :</h5><div style="display:flex">
+                    <h5>Image / QR Code :</h5><div style="display:flex">
                     @if( $pv->image != null &&  $pv->image  != '' && $pv->image != 'images/expense.png')
                     <h4><img src="{{ $pv->image }}" height="100px" width="100px" /></h4>
                     @endif
                     @if( $pv->payment_image != null &&  $pv->payment_image  != '')
                     <h4><img src="{{ $pv->payment_image }}" height="100px" width="100px" /></h4>
+                    @endif
+                    @if( $pv->qr_code != null &&  $pv->qr_code  != '')
+                    <h4><img src="{{ $pv->qr_code }}" height="100px" width="100px" /></h4>
                     @endif
                     </div>
                 </td>
