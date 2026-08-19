@@ -1154,9 +1154,75 @@ function getMachineryNextService($id)
 
 
 
+function getFirebaseCredentialsConfig()
+{
+    // 1. Check individual .env variables (Cleanest, standard Laravel way without needing any JSON file)
+    if (env('FIREBASE_PRIVATE_KEY') && env('FIREBASE_CLIENT_EMAIL')) {
+        $rawKey = env('FIREBASE_PRIVATE_KEY');
+        $rawKey = trim($rawKey, '"\'');
+        $privateKey = str_replace('\n', "\n", $rawKey);
+
+        return [
+            'type' => env('FIREBASE_TYPE', 'service_account'),
+            'project_id' => env('FIREBASE_PROJECT_ID', 'buildarya-app'),
+            'private_key_id' => env('FIREBASE_PRIVATE_KEY_ID', '3115a544a8c21d2f8b0ee6e56797963ac9c3b845'),
+            'private_key' => $privateKey,
+            'client_email' => env('FIREBASE_CLIENT_EMAIL'),
+            'client_id' => env('FIREBASE_CLIENT_ID', '103541604923046526744'),
+            'auth_uri' => env('FIREBASE_AUTH_URI', 'https://accounts.google.com/o/oauth2/auth'),
+            'token_uri' => env('FIREBASE_TOKEN_URI', 'https://oauth2.googleapis.com/token'),
+            'auth_provider_x509_cert_url' => env('FIREBASE_AUTH_PROVIDER_X509_CERT_URL', 'https://www.googleapis.com/oauth2/v1/certs'),
+            'client_x509_cert_url' => env('FIREBASE_CLIENT_X509_CERT_URL', 'https://www.googleapis.com/robot/v1/metadata/x509/' . urlencode(env('FIREBASE_CLIENT_EMAIL')))
+        ];
+    }
+
+    // 2. Check Base64 encoded JSON in .env
+    $b64 = env('FIREBASE_CREDENTIALS_BASE64');
+    if (!empty($b64)) {
+        $decodedJson = json_decode(base64_decode($b64), true);
+        if ($decodedJson && !empty($decodedJson['private_key'])) {
+            return $decodedJson;
+        }
+    }
+
+    // 3. Check raw JSON string in .env
+    $jsonEnv = env('FIREBASE_CREDENTIALS_JSON');
+    if (!empty($jsonEnv)) {
+        $decodedJson = json_decode($jsonEnv, true);
+        if ($decodedJson && !empty($decodedJson['private_key'])) {
+            return $decodedJson;
+        }
+    }
+
+    // 4. Check custom file path in .env
+    if (env('FIREBASE_CREDENTIALS_PATH') && file_exists(env('FIREBASE_CREDENTIALS_PATH'))) {
+        return env('FIREBASE_CREDENTIALS_PATH');
+    }
+
+    // 5. Fallback: file scanner in base_path()
+    $candidates = glob(base_path("*.json"));
+    foreach ($candidates as $file) {
+        $b = basename($file);
+        if ($b === 'package.json' || $b === 'composer.json' || $b === 'tsconfig.json') continue;
+        $content = @file_get_contents($file);
+        if ($content && strpos($content, 'private_key') !== false && strpos($content, 'project_id') !== false) {
+            return $file;
+        }
+    }
+
+    $f1 = base_path("buildarya-app-firebase-adminsdk-fbsvc-3115a544a8.json");
+    if (file_exists($f1)) return $f1;
+    $f2 = base_path("build-arya-firebase-adminsdk-fbsvc-20fd91bb67.json");
+    if (file_exists($f2)) return $f2;
+    $f3 = base_path("constructionmunshi-firebase-adminsdk-9ibpz-ec7993929c.json");
+    if (file_exists($f3)) return $f3;
+
+    return null;
+}
+
 function sendAlertNotification($user_id, $msg, $title, $conn = null)
 {
-    $user_db_conn_name = $conn ?: session()->get('comp_db_conn_name');
+    $user_db_conn_name = $conn ?: session()->get('comp_db_conn_name') ?: config('database.default');
     if (!$user_db_conn_name) return;
 
     $user = DB::connection($user_db_conn_name)->table('users')->where('id', '=', $user_id)->first();
@@ -1181,26 +1247,34 @@ function sendAlertNotification($user_id, $msg, $title, $conn = null)
     }
 
     if (empty($tokens)) {
+        \Log::warning("No active FCM tokens found for user {$user_id} on database {$user_db_conn_name}");
         return;
     }
 
     try {
-        // Resolve credentials file and dynamically read project_id
-        $credentialsFilePath = base_path("build-arya-firebase-adminsdk-fbsvc-20fd91bb67.json");
-        if (!file_exists($credentialsFilePath)) {
-            $credentialsFilePath = base_path("constructionmunshi-firebase-adminsdk-9ibpz-ec7993929c.json");
+        $credentialsConfig = getFirebaseCredentialsConfig();
+        if (!$credentialsConfig) {
+            \Log::error("FCM push failed for user {$user_id}: Firebase credentials not found in .env or JSON key file.");
+            return;
         }
 
-        $projectId = 'build-arya'; // Default fallback
-        if (file_exists($credentialsFilePath)) {
-            $json = json_decode(file_get_contents($credentialsFilePath), true);
+        $projectId = 'buildarya-app'; // Default fallback matching google-services.json
+        if (is_array($credentialsConfig) && !empty($credentialsConfig['project_id'])) {
+            $projectId = $credentialsConfig['project_id'];
+        } elseif (is_string($credentialsConfig) && file_exists($credentialsConfig)) {
+            $json = json_decode(file_get_contents($credentialsConfig), true);
             if (!empty($json['project_id'])) {
                 $projectId = $json['project_id'];
             }
         }
 
         $apiUrl = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
-        $access_token = sendPushNotification($credentialsFilePath);
+        $access_token = sendPushNotification($credentialsConfig);
+
+        if (!$access_token) {
+            \Log::error("FCM push failed for user {$user_id}: Failed to generate OAuth2 access token.");
+            return;
+        }
 
         foreach ($tokens as $token) {
             if (empty($token)) continue;
@@ -1219,6 +1293,7 @@ function sendAlertNotification($user_id, $msg, $title, $conn = null)
                         'android' => [
                             'priority' => 'high',
                             'notification' => [
+                                'channel_id' => 'alert_channel_v2',
                                 'sound' => 'default',
                                 'default_sound' => true,
                                 'notification_priority' => 'PRIORITY_HIGH'
@@ -1251,22 +1326,28 @@ function sendAlertNotification($user_id, $msg, $title, $conn = null)
 
 
 
-function sendPushNotification($credentialsFilePath = null)
+function sendPushNotification($credentialsConfig = null)
 {
-    if (!$credentialsFilePath) {
-        $credentialsFilePath = base_path("build-arya-firebase-adminsdk-fbsvc-20fd91bb67.json");
-        if (!file_exists($credentialsFilePath)) {
-            $credentialsFilePath = base_path("constructionmunshi-firebase-adminsdk-9ibpz-ec7993929c.json");
-        }
+    if (!$credentialsConfig) {
+        $credentialsConfig = getFirebaseCredentialsConfig();
     }
 
-    $client = new \Google_Client();
-    $client->setAuthConfig($credentialsFilePath);
-    $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
-    $client->refreshTokenWithAssertion();
-    $token = $client->getAccessToken();
-    $access_token = $token['access_token'];
-    return $access_token;
+    if (!$credentialsConfig) {
+        \Log::error("sendPushNotification failed: Credentials missing.");
+        return null;
+    }
+
+    try {
+        $client = new \Google_Client();
+        $client->setAuthConfig($credentialsConfig);
+        $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
+        $client->refreshTokenWithAssertion();
+        $token = $client->getAccessToken();
+        return $token['access_token'] ?? null;
+    } catch (\Exception $e) {
+        \Log::error("sendPushNotification exception: " . $e->getMessage());
+        return null;
+    }
 }
 // firebase code ends
 
