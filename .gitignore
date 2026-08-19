@@ -7,4 +7,4 @@ storage/
 *.zip
 
 # ADD THIS 👇
-*.json
+# *.json
