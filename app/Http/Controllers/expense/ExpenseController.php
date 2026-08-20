@@ -1387,7 +1387,7 @@ class ExpenseController extends Controller
 
         $expense = DB::connection($user_db_conn_name)->table('expenses')->where('id', '=', $id)->get()[0];
         DB::connection($user_db_conn_name)->table('expenses')->where('id', '=', $id)->update(['status' => 'Approved']);
-        sendAlertNotification($expense->user_id,'Your expense of amount '.$expense->amount.' has been approved. Check Application For More Information.','Expense Approved');
+        saveWebNotification($expense->user_id, 'Expense Approved', 'Your expense of amount '.$expense->amount.' has been approved.', '/expenses', $user_db_conn_name);
         addActivity($id,'expenses',"Expense Approved",2);
         $site_trans = [
             'site_id' => $expense->site_id,
@@ -1456,7 +1456,7 @@ class ExpenseController extends Controller
     {
         $expense = DB::connection($user_db_conn_name)->table('expenses')->where('id', '=', $id)->get()[0];
         DB::connection($user_db_conn_name)->table('expenses')->where('id', '=', $id)->update(['status' => 'Rejected']);
-        sendAlertNotification($expense->user_id,'Your expense of amount '.$expense->amount.' has been rejected. Check Application For More Information.','Expense Rejected');
+        saveWebNotification($expense->user_id, 'Expense Rejected', 'Your expense of amount '.$expense->amount.' has been rejected.', '/expenses', $user_db_conn_name);
 
         DB::connection($user_db_conn_name)->table('sites_transaction')->where('expense_id', '=', $id)->delete();
         addActivity($id,'expenses',"Expense Rejected",2);

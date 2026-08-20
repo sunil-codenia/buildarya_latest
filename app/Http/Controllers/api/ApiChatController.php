@@ -626,10 +626,11 @@ class ApiChatController extends Controller
             $senderName = DB::connection($conn)->table('users')->where('id', $currentUser)->value('name');
             $assignedIds = array_filter(explode(',', $task->assigned_to));
             
-            // Notify assigned users
-            foreach ($assignedIds as $assignedId) {
-                if ((int)$assignedId != (int)$currentUser) {
-                    saveWebNotification((int)$assignedId, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
+            // Notify assigned users and creator
+            $allTargetUserIds = array_unique(array_merge($assignedIds, [$task->assigned_by]));
+            foreach ($allTargetUserIds as $targetId) {
+                if ((int)$targetId != (int)$currentUser) {
+                    saveWebNotification((int)$targetId, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
                 }
             }
             
@@ -637,7 +638,7 @@ class ApiChatController extends Controller
             if (!$isAdmin) {
                 $admins = getAllAdminUsers($conn);
                 foreach($admins as $admin) {
-                    if ($admin->id != $currentUser && !in_array($admin->id, $assignedIds)) {
+                    if ($admin->id != $currentUser && !in_array($admin->id, $allTargetUserIds)) {
                         saveWebNotification($admin->id, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
                     }
                 }

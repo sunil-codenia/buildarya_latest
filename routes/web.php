@@ -169,6 +169,7 @@ Route::group(['middleware' => ['auth']], function () {
     });
 
     Route::get('/sendNotification', [NotificationController::class, 'sendNotification']);
+    Route::post('/sendNotification', [NotificationController::class, 'postSendNotification']);
     Route::get('/generateBackup', [BackupController::class, 'generateBackup']);
 
 

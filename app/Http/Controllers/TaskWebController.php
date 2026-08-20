@@ -151,10 +151,11 @@ class TaskWebController extends Controller
         DB::connection($conn)->table('tasks')->insert($data);
 
         // Notify assigned users
+        $creatorUid = session()->get('uid') ?? 1;
+        $creatorName = DB::connection($conn)->table('users')->where('id', $creatorUid)->value('name') ?? 'Admin';
         $assignedIds = array_filter(explode(',', $assigned));
         foreach ($assignedIds as $assignedId) {
-            sendAlertNotification($assignedId, 'You have been assigned a new task: ' . $request->title, 'Task Assigned', $conn);
-            saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $request->title, '/tasks', $conn);
+            saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $request->title . ' by ' . $creatorName, '/tasks', $conn);
         }
 
         return redirect()->back()->with('success', 'Task created successfully!');
@@ -214,6 +215,16 @@ class TaskWebController extends Controller
         ];
 
         DB::connection($conn)->table('tasks')->where('id', $id)->update($data);
+
+        // Notify assigned users and creator about task update
+        $currentUid = session()->get('uid');
+        $assignedIds = array_filter(explode(',', $assigned));
+        $allTargetUserIds = array_unique(array_merge($assignedIds, [$task->assigned_by]));
+        foreach ($allTargetUserIds as $targetUserId) {
+            if ($targetUserId != $currentUid) {
+                saveWebNotification($targetUserId, 'Task Updated', 'Task "' . $request->title . '" has been updated.', '/tasks', $conn);
+            }
+        }
 
         return redirect()->back()->with('success', 'Task updated successfully!');
     }
@@ -583,10 +594,11 @@ class TaskWebController extends Controller
         $notifMsg = $request->filled('message') ? \Illuminate\Support\Str::limit($request->message, 30) : 'Sent an image';
         $senderName = DB::connection($conn)->table('users')->where('id', $uid)->value('name');
         
-        // Notify all assigned users
-        foreach ($assignedIds as $assignedId) {
-            if ((int)$assignedId != (int)$uid) {
-                saveWebNotification((int)$assignedId, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
+        // Notify all assigned users and creator
+        $allTargetUserIds = array_unique(array_merge($assignedIds, [$task->assigned_by]));
+        foreach ($allTargetUserIds as $targetId) {
+            if ((int)$targetId != (int)$uid) {
+                saveWebNotification((int)$targetId, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
             }
         }
         
@@ -594,7 +606,7 @@ class TaskWebController extends Controller
         if (!$isChatAdmin) {
             $admins = getAllAdminUsers($conn);
             foreach($admins as $admin) {
-                if ($admin->id != $uid && !in_array($admin->id, $assignedIds)) {
+                if ($admin->id != $uid && !in_array($admin->id, $allTargetUserIds)) {
                     saveWebNotification($admin->id, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
                 }
             }

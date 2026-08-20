@@ -811,6 +811,10 @@ class DocumentController extends Controller
         $doc_id = $request->get('id');
 
         DB::connection($user_db_conn_name)->table('doc_upload')->where('id', '=', $doc_id)->update(['status'=>'Approved']);
+        $doc = DB::connection($user_db_conn_name)->table('doc_upload')->where('id', '=', $doc_id)->first();
+        if ($doc && $doc->created_by) {
+            saveWebNotification($doc->created_by, 'Document Approved', 'Your document ' . $doc->name . ' has been approved.', '/file-structure', $user_db_conn_name);
+        }
         return redirect('/file-structure')
         ->with('success', 'Document Approved Successfully!');
     }

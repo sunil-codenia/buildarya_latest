@@ -520,6 +520,19 @@ class PaymentVoucherController extends Controller
     {
         $user_id = session()->get('uid');
         DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', '=', $id)->update(['status' => 'Approved', 'approved_by' => $user_id]);
+
+        $voucher = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', '=', $id)->first();
+        if ($voucher) {
+            $voucherNo = $voucher->voucher_no ?? "#$id";
+            $amount = $voucher->amount ?? '';
+            saveWebNotification(
+                $voucher->created_by,
+                'Payment Voucher Approved',
+                "Payment Voucher {$voucherNo} (Amount: {$amount}) has been approved.",
+                '/paymentVouchers',
+                $user_db_conn_name
+            );
+        }
     }
 
 
@@ -527,6 +540,18 @@ class PaymentVoucherController extends Controller
     {
         $user_id = session()->get('uid');
         DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', '=', $id)->update(['status' => 'Rejected', 'approved_by' => $user_id]);
+
+        $voucher = DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', '=', $id)->first();
+        if ($voucher) {
+            $voucherNo = $voucher->voucher_no ?? "#$id";
+            saveWebNotification(
+                $voucher->created_by,
+                'Payment Voucher Rejected',
+                "Payment Voucher {$voucherNo} has been rejected.",
+                '/paymentVouchers',
+                $user_db_conn_name
+            );
+        }
     }
 
     public function addpaymentvoucherpayment(Request $request)
@@ -550,6 +575,16 @@ class PaymentVoucherController extends Controller
         try {
             DB::connection($user_db_conn_name)->table('payment_vouchers')->where('id', '=', $id)->update(['status' => 'Paid', 'paid_by' => $user_id, 'payment_details' => $payment_details, 'payment_date' => $payment_date, 'payment_image' => $imagePath]);
             addActivity($id, 'payment_vouchers', "Payment Vouchers Paid", 8);
+
+            $voucherNo = $paymentvoucher->voucher_no ?? "#$id";
+            saveWebNotification(
+                $paymentvoucher->created_by,
+                'Payment Voucher Paid',
+                "Payment Voucher {$voucherNo} has been marked as Paid.",
+                '/paymentVouchers',
+                $user_db_conn_name
+            );
+
             if ($party_type == 'site') {
                 $tdata = [
                     'site_id' => $paymentvoucher->party_id,

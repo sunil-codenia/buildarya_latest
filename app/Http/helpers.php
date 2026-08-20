@@ -2808,16 +2808,28 @@ function saveWebNotification($user_id, $title, $msg, $url = null, $conn = null)
             ");
         }
 
-        DB::connection($user_db_conn_name)->table('web_notifications')->insert([
-            'user_id' => $user_id,
-            'title' => $title,
-            'message' => $msg,
-            'url' => $url,
-            'created_at' => \Carbon\Carbon::now()->toDateTimeString()
-        ]);
+        $userIds = [];
+        if ($user_id === 'all') {
+            $userIds = DB::connection($user_db_conn_name)->table('users')->pluck('id')->toArray();
+        } elseif (is_array($user_id)) {
+            $userIds = array_filter(array_map('intval', $user_id));
+        } elseif (!empty($user_id)) {
+            $userIds = [(int)$user_id];
+        }
 
-        // Automatically trigger FCM push notification for all web notifications
-        sendAlertNotification($user_id, $msg, $title, $user_db_conn_name);
+        foreach ($userIds as $uid) {
+            if (!$uid) continue;
+            DB::connection($user_db_conn_name)->table('web_notifications')->insert([
+                'user_id' => $uid,
+                'title' => $title,
+                'message' => $msg,
+                'url' => $url,
+                'created_at' => \Carbon\Carbon::now()->toDateTimeString()
+            ]);
+
+            // Automatically trigger FCM push notification for all web notifications
+            sendAlertNotification($uid, $msg, $title, $user_db_conn_name);
+        }
     } catch (\Exception $e) {
         \Log::error("Failed to save web notification: " . $e->getMessage());
     }

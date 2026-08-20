@@ -266,7 +266,7 @@ class NewBillController extends Controller
             return;
         }
         DB::connection($conn)->table('new_bill_entry')->where('id', '=', $id)->update(['status' => 'Approved']);
-        sendAlertNotification($bill->user_id,'Your bill of amount '.$bill->amount.' with bill no. '. $bill->bill_no .' has been approved. Check Application For More Information.','Bill Approved');
+        saveWebNotification($bill->user_id, 'Bill Approved', 'Your bill #'.$bill->bill_no.' of amount '.$bill->amount.' has been approved.', '/bills', $conn);
 
         addActivity($id, 'new_bill_entry', "Bill Status Approved", 4);
 
@@ -296,7 +296,7 @@ class NewBillController extends Controller
             return;
         }
         DB::connection($conn)->table('new_bill_entry')->where('id', '=', $id)->update(['status' => 'Rejected']);
-        sendAlertNotification($bill->user_id,'Your bill of amount '.$bill->amount.' with bill no. '. $bill->bill_no .' has been rejected. Check Application For More Information.','Bill Rejected');
+        saveWebNotification($bill->user_id, 'Bill Rejected', 'Your bill #'.$bill->bill_no.' of amount '.$bill->amount.' has been rejected.', '/bills', $conn);
         DB::connection($conn)->table('bill_party_statement')->where('bill_no', '=', $id)->delete();
         addActivity($id, 'new_bill_entry', "Bill Status Rejected", 4);
     }

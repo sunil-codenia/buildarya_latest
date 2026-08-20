@@ -1212,7 +1212,7 @@ class MaterialEntryController extends Controller
             DB::connection($user_db_conn_name)->table('material_stock_record')->insert($new_stock_data);
         }
 
-        sendAlertNotification($material_entry->user_id, 'Your entry of ' . $material_entry->material . ' of ' . $material_entry->qty . ' ' . $material_entry->unitname . ' has been approved. Check Application For More Information.', 'Material Approved');
+        saveWebNotification($material_entry->user_id, 'Material Entry Approved', 'Your entry of ' . $material_entry->material . ' of ' . $material_entry->qty . ' ' . $material_entry->unitname . ' has been approved.', '/material', $user_db_conn_name);
         addActivity($id, 'material_entry', "Material Entry Approved ", 3);
     }
 
@@ -1242,7 +1242,7 @@ class MaterialEntryController extends Controller
             } 
         }
        
-        sendAlertNotification($material_entry->user_id, 'Your entry of ' . $material_entry->material . ' of ' . $material_entry->qty . ' ' . $material_entry->unitname . ' has been approved. Check Application For More Information.', 'Material Approved');
+        saveWebNotification($material_entry->user_id, 'Material Entry Rejected', 'Your entry of ' . $material_entry->material . ' of ' . $material_entry->qty . ' ' . $material_entry->unitname . ' has been rejected.', '/material', $user_db_conn_name);
         addActivity($id, 'material_entry', "Material Entry Rejected ", 3);
     }
 

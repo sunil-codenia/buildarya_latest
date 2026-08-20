@@ -244,10 +244,10 @@ class ApiTaskController extends Controller
             addActivity($task_id, 'tasks', "New task created: " . $title, 14, $uid, $conn);
 
             // Notify assigned users
+            $creatorName = DB::connection($conn)->table('users')->where('id', $uid)->value('name') ?? 'User';
             $assignedIds = array_filter(explode(',', $assigned_to));
             foreach ($assignedIds as $assignedId) {
-                sendAlertNotification($assignedId, 'You have been assigned a new task: ' . $title, 'Task Assigned', $conn);
-                saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $title, '/tasks', $conn);
+                saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $title . ' by ' . $creatorName, '/tasks', $conn);
             }
 
             $record = DB::connection($conn)->table('tasks')->where('id', $task_id)->first();
@@ -501,12 +501,22 @@ class ApiTaskController extends Controller
 
             addActivity($task_id, 'tasks', "Task updated: " . ($updateData['title'] ?? $task->title), 14, $uid, $conn);
 
+            // Notify assigned users and creator on task update
+            $assigned_to_use = isset($updateData['assigned_to']) ? $updateData['assigned_to'] : $task->assigned_to;
+            $assignedIds = array_filter(explode(',', $assigned_to_use));
+            $allTargetUserIds = array_unique(array_merge($assignedIds, [$task->assigned_by]));
+
             if (isset($updateData['status'])) {
-                $assigned_to_use = isset($updateData['assigned_to']) ? $updateData['assigned_to'] : $task->assigned_to;
-                $assignedIds = array_filter(explode(',', $assigned_to_use));
-                foreach ($assignedIds as $assignedId) {
-                    sendAlertNotification($assignedId, 'Task "' . ($updateData['title'] ?? $task->title) . '" status updated to: ' . $updateData['status'], 'Task Status Updated', $conn);
-                    saveWebNotification($assignedId, 'Task Status Updated', 'Task "' . ($updateData['title'] ?? $task->title) . '" status updated to: ' . $updateData['status'], '/tasks', $conn);
+                foreach ($allTargetUserIds as $targetUserId) {
+                    if ($targetUserId != $uid) {
+                        saveWebNotification($targetUserId, 'Task Status Updated', 'Task "' . ($updateData['title'] ?? $task->title) . '" status updated to: ' . $updateData['status'], '/tasks', $conn);
+                    }
+                }
+            } else {
+                foreach ($allTargetUserIds as $targetUserId) {
+                    if ($targetUserId != $uid) {
+                        saveWebNotification($targetUserId, 'Task Updated', 'Task "' . ($updateData['title'] ?? $task->title) . '" has been updated.', '/tasks', $conn);
+                    }
                 }
             }
 
