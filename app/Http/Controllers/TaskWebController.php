@@ -153,7 +153,7 @@ class TaskWebController extends Controller
         // Notify assigned users
         $assignedIds = array_filter(explode(',', $assigned));
         foreach ($assignedIds as $assignedId) {
-            sendAlertNotification($assignedId, 'You have been assigned a new task: ' . $request->title, 'Task Assigned');
+            sendAlertNotification($assignedId, 'You have been assigned a new task: ' . $request->title, 'Task Assigned', $conn);
             saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $request->title, '/tasks', $conn);
         }
 
@@ -267,7 +267,7 @@ class TaskWebController extends Controller
         // Notify assigned users of status change
         $assignedIds = array_filter(explode(',', $task->assigned_to));
         foreach ($assignedIds as $assignedId) {
-            sendAlertNotification($assignedId, 'Task "' . $task->title . '" status updated to: ' . $request->status, 'Task Status Updated');
+            sendAlertNotification($assignedId, 'Task "' . $task->title . '" status updated to: ' . $request->status, 'Task Status Updated', $conn);
             saveWebNotification($assignedId, 'Task Status Updated', 'Task "' . $task->title . '" status updated to: ' . $request->status, '/tasks', $conn);
         }
 

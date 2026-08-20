@@ -1222,6 +1222,13 @@ function getFirebaseCredentialsConfig()
 
 function sendAlertNotification($user_id, $msg, $title, $conn = null)
 {
+    static $sentNotifications = [];
+    $dedupKey = "{$user_id}_{$title}_" . md5((string)$msg);
+    if (isset($sentNotifications[$dedupKey])) {
+        return;
+    }
+    $sentNotifications[$dedupKey] = true;
+
     $user_db_conn_name = $conn ?: session()->get('comp_db_conn_name') ?: config('database.default');
     if (!$user_db_conn_name) return;
 
@@ -1314,7 +1321,51 @@ function sendAlertNotification($user_id, $msg, $title, $conn = null)
                         ]
                     ]
                 ]);
-                \Log::info("FCM push sent to user {$user_id} token " . substr($token, 0, 15) . "... Response: " . $response->body());
+                $respBody = $response->body();
+                \Log::info("FCM push sent to user {$user_id} token " . substr($token, 0, 15) . "... Response: " . $respBody);
+
+                $isUnregistered = false;
+                if ($response->status() === 404) {
+                    $isUnregistered = true;
+                } else {
+                    $respData = json_decode($respBody, true);
+                    if (isset($respData['error']['message']) && ($respData['error']['message'] === 'NotRegistered' || $respData['error']['status'] === 'NOT_FOUND')) {
+                        $isUnregistered = true;
+                    } elseif (isset($respData['error']['details']) && is_array($respData['error']['details'])) {
+                        foreach ($respData['error']['details'] as $detail) {
+                            if (isset($detail['errorCode']) && $detail['errorCode'] === 'UNREGISTERED') {
+                                $isUnregistered = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if ($isUnregistered) {
+                    \Log::info("FCM token unregistered/invalid for user {$user_id}, cleaning up: " . substr($token, 0, 15) . "...");
+                    
+                    // Deactivate in user_devices table
+                    try {
+                        if (\Illuminate\Support\Facades\Schema::connection($user_db_conn_name)->hasTable('user_devices')) {
+                            DB::connection($user_db_conn_name)->table('user_devices')
+                                ->where('user_id', '=', $user_id)
+                                ->where('fcm_token', '=', $token)
+                                ->update(['is_active' => 0]);
+                        }
+                    } catch (\Exception $devEx) {
+                        \Log::error("Failed to deactivate unregistered token in user_devices: " . $devEx->getMessage());
+                    }
+
+                    // Clear users.fcm_id if it matches
+                    try {
+                        DB::connection($user_db_conn_name)->table('users')
+                            ->where('id', '=', $user_id)
+                            ->where('fcm_id', '=', $token)
+                            ->update(['fcm_id' => null]);
+                    } catch (\Exception $userEx) {
+                        \Log::error("Failed to clear unregistered token in users table: " . $userEx->getMessage());
+                    }
+                }
             } catch (\Exception $e) {
                 \Log::error("FCM push failed for user {$user_id} token " . substr($token, 0, 15) . "... Error: " . $e->getMessage());
             }
@@ -2765,11 +2816,8 @@ function saveWebNotification($user_id, $title, $msg, $url = null, $conn = null)
             'created_at' => \Carbon\Carbon::now()->toDateTimeString()
         ]);
 
-        // Automatically trigger FCM push notification for messages (e.g., chat/support)
-        // Task Assigned and Task Status Updated are excluded to prevent duplicate triggers
-        if (!in_array($title, ['Task Assigned', 'Task Status Updated'])) {
-            sendAlertNotification($user_id, $msg, $title, $user_db_conn_name);
-        }
+        // Automatically trigger FCM push notification for all web notifications
+        sendAlertNotification($user_id, $msg, $title, $user_db_conn_name);
     } catch (\Exception $e) {
         \Log::error("Failed to save web notification: " . $e->getMessage());
     }

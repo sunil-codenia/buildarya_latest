@@ -148,6 +148,10 @@ Route::prefix('v1')->group(function () {
     Route::post('/update_profile', [UserController::class, 'update_profile']);
     Route::post('/api/update_profile', [UserController::class, 'update_profile']);
 
+    // Support for both /api/v1/update_fcm_id and /api/v1/api/update_fcm_id
+    Route::post('/update_fcm_id', [UserController::class, 'update_fcm_id']);
+    Route::post('/api/update_fcm_id', [UserController::class, 'update_fcm_id']);
+
     // Protected routes (tenant middleware handles DB switching)
     Route::middleware(['api-tenant-bootstrap', 'auth:sanctum', 'tenant'])->group(function () {
         Route::post('/logout', [ApiAuthController::class, 'logout']);
