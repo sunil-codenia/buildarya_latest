@@ -156,6 +156,7 @@ class TaskWebController extends Controller
         $assignedIds = array_filter(explode(',', $assigned));
         foreach ($assignedIds as $assignedId) {
             saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $request->title . ' by ' . $creatorName, '/tasks', $conn);
+            sendTaskWhatsAppNotification($assignedId, $request->title, $creatorName, $request->due_date, $request->priority, $conn);
         }
 
         return redirect()->back()->with('success', 'Task created successfully!');
@@ -280,6 +281,14 @@ class TaskWebController extends Controller
         foreach ($assignedIds as $assignedId) {
             sendAlertNotification($assignedId, 'Task "' . $task->title . '" status updated to: ' . $request->status, 'Task Status Updated', $conn);
             saveWebNotification($assignedId, 'Task Status Updated', 'Task "' . $task->title . '" status updated to: ' . $request->status, '/tasks', $conn);
+        }
+
+        if ($request->status == 'Completed') {
+            $creatorName = DB::connection($conn)->table('users')->where('id', $task->assigned_by)->value('name') ?? 'Admin';
+            $completedAt = $updateData['completed_at'];
+            foreach ($assignedIds as $assignedId) {
+                sendTaskCompletedWhatsAppNotification($assignedId, $task->title, $creatorName, $completedAt, $conn);
+            }
         }
 
         return redirect()->back()->with('success', 'Task status updated to "' . $request->status . '" successfully!');

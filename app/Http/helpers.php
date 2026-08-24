@@ -2834,3 +2834,222 @@ function saveWebNotification($user_id, $title, $msg, $url = null, $conn = null)
         \Log::error("Failed to save web notification: " . $e->getMessage());
     }
 }
+
+function sendTaskWhatsAppNotification($assignedId, $taskTitle, $creatorName, $dueDate, $priority, $conn)
+{
+    try {
+        $user = DB::connection($conn)->table('users')->where('id', $assignedId)->first();
+        if (!$user || empty($user->contact_no)) {
+            return;
+        }
+
+        // Clean mobile number (keep only digits)
+        $mobile = preg_replace('/[^0-9]/', '', $user->contact_no);
+        
+        // Remove leading 0 if present (e.g. 0918173987453 or 08173987453)
+        if (substr($mobile, 0, 1) === '0') {
+            $mobile = substr($mobile, 1);
+        }
+
+        // Check if starts with 91, if not prepends 91
+        if (substr($mobile, 0, 2) !== '91') {
+            $mobile = '91' . $mobile;
+        }
+
+        $assigneeName = !empty($user->name) ? $user->name : 'User';
+        $taskTitle = !empty($taskTitle) ? $taskTitle : 'New Task';
+        $creatorName = !empty($creatorName) ? $creatorName : 'Admin';
+        $priority = !empty($priority) ? $priority : 'Medium';
+
+        $formattedDueDate = 'N/A';
+        if (!empty($dueDate)) {
+            try {
+                $formattedDueDate = \Carbon\Carbon::parse($dueDate)->format('d-m-Y');
+            } catch (\Exception $e) {
+                $formattedDueDate = $dueDate;
+            }
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $mobile,
+            'type' => 'template',
+            'template' => [
+                'name' => 'buildarya_new_task_assigned',
+                'language' => [
+                    'code' => 'en'
+                ],
+                'components' => [
+                    [
+                        'type' => 'body',
+                        'parameters' => [
+                            [
+                                'type' => 'text',
+                                'text' => $assigneeName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $taskTitle
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => 'BuildArya'
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $creatorName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $formattedDueDate
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $priority
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+          CURLOPT_URL => 'https://graph.facebook.com/v19.0/1324753710718871/messages',
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_ENCODING => '',
+          CURLOPT_MAXREDIRS => 10,
+          CURLOPT_TIMEOUT => 0,
+          CURLOPT_FOLLOWLOCATION => true,
+          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+          CURLOPT_CUSTOMREQUEST => 'POST',
+          CURLOPT_POSTFIELDS => json_encode($payload),
+          CURLOPT_HTTPHEADER => array(
+            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Content-Type: application/json'
+          ),
+        ));
+
+        $response = curl_exec($curl);
+        
+        if (curl_errno($curl)) {
+            $error_msg = curl_error($curl);
+            \Log::error("WhatsApp task notification failed to send to {$mobile}: " . $error_msg);
+        } else {
+            \Log::info("WhatsApp task notification response for {$mobile}: " . $response);
+        }
+
+        curl_close($curl);
+    } catch (\Exception $e) {
+        \Log::error("Failed to send WhatsApp task notification: " . $e->getMessage());
+    }
+}
+
+function sendTaskCompletedWhatsAppNotification($assignedId, $taskTitle, $creatorName, $completedAt, $conn)
+{
+    try {
+        $user = DB::connection($conn)->table('users')->where('id', $assignedId)->first();
+        if (!$user || empty($user->contact_no)) {
+            return;
+        }
+
+        // Clean mobile number (keep only digits)
+        $mobile = preg_replace('/[^0-9]/', '', $user->contact_no);
+        
+        // Remove leading 0 if present (e.g. 0918173987453 or 08173987453)
+        if (substr($mobile, 0, 1) === '0') {
+            $mobile = substr($mobile, 1);
+        }
+
+        // Check if starts with 91, if not prepends 91
+        if (substr($mobile, 0, 2) !== '91') {
+            $mobile = '91' . $mobile;
+        }
+
+        $assigneeName = !empty($user->name) ? $user->name : 'User';
+        $taskTitle = !empty($taskTitle) ? $taskTitle : 'Task';
+        $creatorName = !empty($creatorName) ? $creatorName : 'Admin';
+
+        $formattedCompletedDate = 'N/A';
+        if (!empty($completedAt)) {
+            try {
+                $formattedCompletedDate = \Carbon\Carbon::parse($completedAt)->format('d-m-Y');
+            } catch (\Exception $e) {
+                $formattedCompletedDate = $completedAt;
+            }
+        } else {
+            $formattedCompletedDate = \Carbon\Carbon::now()->format('d-m-Y');
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $mobile,
+            'type' => 'template',
+            'template' => [
+                'name' => 'buildarya_task_completed',
+                'language' => [
+                    'code' => 'en'
+                ],
+                'components' => [
+                    [
+                        'type' => 'body',
+                        'parameters' => [
+                            [
+                                'type' => 'text',
+                                'text' => $assigneeName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $taskTitle
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => 'BuildArya'
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $creatorName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $formattedCompletedDate
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+          CURLOPT_URL => 'https://graph.facebook.com/v19.0/1324753710718871/messages',
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_ENCODING => '',
+          CURLOPT_MAXREDIRS => 10,
+          CURLOPT_TIMEOUT => 0,
+          CURLOPT_FOLLOWLOCATION => true,
+          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+          CURLOPT_CUSTOMREQUEST => 'POST',
+          CURLOPT_POSTFIELDS => json_encode($payload),
+          CURLOPT_HTTPHEADER => array(
+            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Content-Type: application/json'
+          ),
+        ));
+
+        $response = curl_exec($curl);
+        
+        if (curl_errno($curl)) {
+            $error_msg = curl_error($curl);
+            \Log::error("WhatsApp task completed notification failed to send to {$mobile}: " . $error_msg);
+        } else {
+            \Log::info("WhatsApp task completed notification response for {$mobile}: " . $response);
+        }
+
+        curl_close($curl);
+    } catch (\Exception $e) {
+        \Log::error("Failed to send WhatsApp task completed notification: " . $e->getMessage());
+    }
+}

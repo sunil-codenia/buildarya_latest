@@ -248,6 +248,7 @@ class ApiTaskController extends Controller
             $assignedIds = array_filter(explode(',', $assigned_to));
             foreach ($assignedIds as $assignedId) {
                 saveWebNotification($assignedId, 'Task Assigned', 'You have been assigned a new task: ' . $title . ' by ' . $creatorName, '/tasks', $conn);
+                sendTaskWhatsAppNotification($assignedId, $title, $creatorName, $due_date, $priority, $conn);
             }
 
             $record = DB::connection($conn)->table('tasks')->where('id', $task_id)->first();
@@ -510,6 +511,14 @@ class ApiTaskController extends Controller
                 foreach ($allTargetUserIds as $targetUserId) {
                     if ($targetUserId != $uid) {
                         saveWebNotification($targetUserId, 'Task Status Updated', 'Task "' . ($updateData['title'] ?? $task->title) . '" status updated to: ' . $updateData['status'], '/tasks', $conn);
+                    }
+                }
+                if ($updateData['status'] === 'Completed') {
+                    $creatorName = DB::connection($conn)->table('users')->where('id', $task->assigned_by)->value('name') ?? 'Admin';
+                    $taskTitle = $updateData['title'] ?? $task->title;
+                    $completedAt = $updateData['completed_at'] ?? now();
+                    foreach ($assignedIds as $assignedId) {
+                        sendTaskCompletedWhatsAppNotification($assignedId, $taskTitle, $creatorName, $completedAt, $conn);
                     }
                 }
             } else {
