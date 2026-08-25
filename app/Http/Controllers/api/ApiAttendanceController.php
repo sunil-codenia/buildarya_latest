@@ -122,6 +122,8 @@ class ApiAttendanceController extends Controller
 
             addActivity($attendance_id, 'attendance', "User clocked in for " . $date, 13, $uid, $conn);
 
+            sendAttendanceMarkedWhatsAppNotification($uid, $date, $in_time, $site_id, $conn);
+
             $record = DB::connection($conn)->table('attendance')->where('id', $attendance_id)->first();
 
             return response()->json([
@@ -222,6 +224,8 @@ class ApiAttendanceController extends Controller
                 ->update($updateData);
 
             addActivity($attendance->id, 'attendance', "User clocked out for " . $date, 13, $uid, $conn);
+
+            sendAttendanceClockOutWhatsAppNotification($uid, $date, $out_time, $attendance->site_id, $conn);
 
             $record = DB::connection($conn)->table('attendance')->where('id', $attendance->id)->first();
 

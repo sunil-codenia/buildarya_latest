@@ -449,6 +449,7 @@ class TaskWebController extends Controller
             // Notify the specific user
             if ((int)$request->user_id != (int)$uid) {
                 saveWebNotification((int)$request->user_id, "New Support Message", $senderName . ": " . $notifMsg, '/tasks', $conn);
+                sendNewChatMessageWhatsAppNotification((int)$request->user_id, $senderName, $request->message, $conn);
             }
         } else {
             // Notify all admins and superadmins
@@ -457,6 +458,10 @@ class TaskWebController extends Controller
                 if ($admin->id != $uid) {
                     saveWebNotification($admin->id, "New Support Message from " . $senderName, $notifMsg, '/tasks', $conn);
                 }
+            }
+            $taskCreatorId = getTaskCreatorOrAdmin($uid, $conn);
+            if ($taskCreatorId) {
+                sendNewChatMessageWhatsAppNotification($taskCreatorId, $senderName, $request->message, $conn);
             }
         }
 
@@ -618,6 +623,17 @@ class TaskWebController extends Controller
                 if ($admin->id != $uid && !in_array($admin->id, $allTargetUserIds)) {
                     saveWebNotification($admin->id, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
                 }
+            }
+        }
+
+        // WhatsApp notifications
+        if ($isChatAdmin || $isCreator) {
+            if ($firstAssignedId && (int)$firstAssignedId != (int)$uid) {
+                sendNewChatMessageWhatsAppNotification((int)$firstAssignedId, $senderName, $request->message, $conn);
+            }
+        } else {
+            if (!empty($task->assigned_by) && (int)$task->assigned_by != (int)$uid) {
+                sendNewChatMessageWhatsAppNotification((int)$task->assigned_by, $senderName, $request->message, $conn);
             }
         }
 

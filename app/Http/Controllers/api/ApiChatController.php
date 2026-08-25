@@ -285,6 +285,7 @@ class ApiChatController extends Controller
                 // Admin sending to specific user
                 if ((int)$threadUserId != (int)$currentUser) {
                     saveWebNotification((int)$threadUserId, "New Support Message", $senderName . ": " . $notifMsg, '/tasks', $conn);
+                    sendNewChatMessageWhatsAppNotification((int)$threadUserId, $senderName, $request->message, $conn);
                 }
             } else {
                 // User sending to admin(s)
@@ -293,6 +294,10 @@ class ApiChatController extends Controller
                     if ($admin->id != $currentUser) {
                         saveWebNotification($admin->id, "New Support Message from " . $senderName, $notifMsg, '/tasks', $conn);
                     }
+                }
+                $taskCreatorId = getTaskCreatorOrAdmin($currentUser, $conn);
+                if ($taskCreatorId) {
+                    sendNewChatMessageWhatsAppNotification($taskCreatorId, $senderName, $request->message, $conn);
                 }
             }
             // --------------------------------
@@ -641,6 +646,17 @@ class ApiChatController extends Controller
                     if ($admin->id != $currentUser && !in_array($admin->id, $allTargetUserIds)) {
                         saveWebNotification($admin->id, "Task Chat: " . $task->title, $senderName . ": " . $notifMsg, '/tasks', $conn);
                     }
+                }
+            }
+
+            // WhatsApp notifications
+            if ($isAdmin || $isCreator) {
+                if ($threadUserId && (int)$threadUserId != (int)$currentUser) {
+                    sendNewChatMessageWhatsAppNotification((int)$threadUserId, $senderName, $request->message, $conn);
+                }
+            } else {
+                if (!empty($task->assigned_by) && (int)$task->assigned_by != (int)$currentUser) {
+                    sendNewChatMessageWhatsAppNotification((int)$task->assigned_by, $senderName, $request->message, $conn);
                 }
             }
             // --------------------------------

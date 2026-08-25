@@ -3053,3 +3053,368 @@ function sendTaskCompletedWhatsAppNotification($assignedId, $taskTitle, $creator
         \Log::error("Failed to send WhatsApp task completed notification: " . $e->getMessage());
     }
 }
+
+function sendAttendanceMarkedWhatsAppNotification($userId, $date, $inTime, $siteId, $conn)
+{
+    try {
+        $user = DB::connection($conn)->table('users')->where('id', $userId)->first();
+        if (!$user || empty($user->contact_no)) {
+            return;
+        }
+
+        // Clean mobile number (keep only digits)
+        $mobile = preg_replace('/[^0-9]/', '', $user->contact_no);
+        
+        // Remove leading 0 if present (e.g. 0918173987453 or 08173987453)
+        if (substr($mobile, 0, 1) === '0') {
+            $mobile = substr($mobile, 1);
+        }
+
+        // Check if starts with 91, if not prepends 91
+        if (substr($mobile, 0, 2) !== '91') {
+            $mobile = '91' . $mobile;
+        }
+
+        $employeeName = !empty($user->name) ? $user->name : 'Employee';
+        
+        // Date formatting: dd-mm-yyyy
+        $formattedDate = 'N/A';
+        if (!empty($date)) {
+            try {
+                $formattedDate = \Carbon\Carbon::parse($date)->format('d-m-Y');
+            } catch (\Exception $e) {
+                $formattedDate = $date;
+            }
+        } else {
+            $formattedDate = \Carbon\Carbon::now()->format('d-m-Y');
+        }
+
+        // Time formatting: hh:mm A (e.g. 09:30 AM)
+        $formattedTime = 'N/A';
+        if (!empty($inTime)) {
+            try {
+                $formattedTime = \Carbon\Carbon::parse($inTime)->format('h:i A');
+            } catch (\Exception $e) {
+                $formattedTime = $inTime;
+            }
+        } else {
+            $formattedTime = \Carbon\Carbon::now()->format('h:i A');
+        }
+
+        // Site Name / Location resolving
+        $siteName = 'BuildArya Office';
+        if (!empty($siteId)) {
+            $site = DB::connection($conn)->table('sites')->where('id', $siteId)->first();
+            if ($site && !empty($site->name)) {
+                $siteName = $site->name;
+            }
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $mobile,
+            'type' => 'template',
+            'template' => [
+                'name' => 'buildarya_attendance_marked',
+                'language' => [
+                    'code' => 'en'
+                ],
+                'components' => [
+                    [
+                        'type' => 'body',
+                        'parameters' => [
+                            [
+                                'type' => 'text',
+                                'text' => $employeeName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $formattedDate
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $formattedTime
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $siteName
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+          CURLOPT_URL => 'https://graph.facebook.com/v19.0/1324753710718871/messages',
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_ENCODING => '',
+          CURLOPT_MAXREDIRS => 10,
+          CURLOPT_TIMEOUT => 0,
+          CURLOPT_FOLLOWLOCATION => true,
+          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+          CURLOPT_CUSTOMREQUEST => 'POST',
+          CURLOPT_POSTFIELDS => json_encode($payload),
+          CURLOPT_HTTPHEADER => array(
+            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Content-Type: application/json'
+          ),
+        ));
+
+        $response = curl_exec($curl);
+        
+        if (curl_errno($curl)) {
+            $error_msg = curl_error($curl);
+            \Log::error("WhatsApp checkin notification failed to send to {$mobile}: " . $error_msg);
+        } else {
+            \Log::info("WhatsApp checkin notification response for {$mobile}: " . $response);
+        }
+
+        curl_close($curl);
+    } catch (\Exception $e) {
+        \Log::error("Failed to send WhatsApp checkin notification: " . $e->getMessage());
+    }
+}
+
+function getTaskCreatorOrAdmin($userId, $conn)
+{
+    // Find the latest task where assigned_to contains this user
+    $task = DB::connection($conn)->table('tasks')
+        ->whereRaw("FIND_IN_SET(?, assigned_to)", [$userId])
+        ->orderBy('id', 'desc')
+        ->first();
+    if ($task && !empty($task->assigned_by)) {
+        return $task->assigned_by;
+    }
+    
+    // Fallback: Return the first admin in the users table
+    $admin = DB::connection($conn)->table('users')->where('role_id', 1)->first();
+    if ($admin) {
+        return $admin->id;
+    }
+    
+    return null;
+}
+
+function sendNewChatMessageWhatsAppNotification($receiverId, $senderName, $messageText, $conn)
+{
+    try {
+        $receiver = DB::connection($conn)->table('users')->where('id', $receiverId)->first();
+        if (!$receiver || empty($receiver->contact_no)) {
+            return;
+        }
+
+        // Clean mobile number (keep only digits)
+        $mobile = preg_replace('/[^0-9]/', '', $receiver->contact_no);
+        
+        // Remove leading 0 if present
+        if (substr($mobile, 0, 1) === '0') {
+            $mobile = substr($mobile, 1);
+        }
+
+        // Check if starts with 91, if not prepends 91
+        if (substr($mobile, 0, 2) !== '91') {
+            $mobile = '91' . $mobile;
+        }
+
+        $receiverName = !empty($receiver->name) ? $receiver->name : 'User';
+        
+        // Format message preview
+        $cleanMessage = !empty($messageText) ? trim($messageText) : 'Sent an attachment';
+        if (mb_strlen($cleanMessage) > 100) {
+            $cleanMessage = mb_substr($cleanMessage, 0, 97) . '...';
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $mobile,
+            'type' => 'template',
+            'template' => [
+                'name' => 'buildarya_new_message',
+                'language' => [
+                    'code' => 'en'
+                ],
+                'components' => [
+                    [
+                        'type' => 'body',
+                        'parameters' => [
+                            [
+                                'type' => 'text',
+                                'text' => $receiverName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $senderName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => 'BuildArya'
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $cleanMessage
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+          CURLOPT_URL => 'https://graph.facebook.com/v19.0/1324753710718871/messages',
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_ENCODING => '',
+          CURLOPT_MAXREDIRS => 10,
+          CURLOPT_TIMEOUT => 0,
+          CURLOPT_FOLLOWLOCATION => true,
+          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+          CURLOPT_CUSTOMREQUEST => 'POST',
+          CURLOPT_POSTFIELDS => json_encode($payload),
+          CURLOPT_HTTPHEADER => array(
+            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Content-Type: application/json'
+          ),
+        ));
+
+        $response = curl_exec($curl);
+        
+        if (curl_errno($curl)) {
+            $error_msg = curl_error($curl);
+            \Log::error("WhatsApp chat notification failed to send to {$mobile}: " . $error_msg);
+        } else {
+            \Log::info("WhatsApp chat notification response for {$mobile}: " . $response);
+        }
+
+        curl_close($curl);
+    } catch (\Exception $e) {
+        \Log::error("Failed to send WhatsApp chat notification: " . $e->getMessage());
+    }
+}
+
+function sendAttendanceClockOutWhatsAppNotification($userId, $date, $outTime, $siteId, $conn)
+{
+    try {
+        $user = DB::connection($conn)->table('users')->where('id', $userId)->first();
+        if (!$user || empty($user->contact_no)) {
+            return;
+        }
+
+        // Clean mobile number (keep only digits)
+        $mobile = preg_replace('/[^0-9]/', '', $user->contact_no);
+        
+        // Remove leading 0 if present
+        if (substr($mobile, 0, 1) === '0') {
+            $mobile = substr($mobile, 1);
+        }
+
+        // Check if starts with 91, if not prepends 91
+        if (substr($mobile, 0, 2) !== '91') {
+            $mobile = '91' . $mobile;
+        }
+
+        $employeeName = !empty($user->name) ? $user->name : 'Employee';
+        
+        // Site Name / Location resolving
+        $siteName = 'BuildArya Site';
+        if (!empty($siteId)) {
+            $site = DB::connection($conn)->table('sites')->where('id', $siteId)->first();
+            if ($site && !empty($site->name)) {
+                $siteName = $site->name;
+            }
+        }
+
+        // Time formatting: hh:mm A (e.g. 06:30 PM)
+        $formattedTime = 'N/A';
+        if (!empty($outTime)) {
+            try {
+                $formattedTime = \Carbon\Carbon::parse($outTime)->format('h:i A');
+            } catch (\Exception $e) {
+                $formattedTime = $outTime;
+            }
+        } else {
+            $formattedTime = \Carbon\Carbon::now()->format('h:i A');
+        }
+
+        // Date formatting: dd-mm-yyyy
+        $formattedDate = 'N/A';
+        if (!empty($date)) {
+            try {
+                $formattedDate = \Carbon\Carbon::parse($date)->format('d-m-Y');
+            } catch (\Exception $e) {
+                $formattedDate = $date;
+            }
+        } else {
+            $formattedDate = \Carbon\Carbon::now()->format('d-m-Y');
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'to' => $mobile,
+            'type' => 'template',
+            'template' => [
+                'name' => 'evening_check_out_recorded',
+                'language' => [
+                    'code' => 'en'
+                ],
+                'components' => [
+                    [
+                        'type' => 'body',
+                        'parameters' => [
+                            [
+                                'type' => 'text',
+                                'text' => $employeeName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $siteName
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $formattedTime
+                            ],
+                            [
+                                'type' => 'text',
+                                'text' => $formattedDate
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        ];
+
+        $curl = curl_init();
+
+        curl_setopt_array($curl, array(
+          CURLOPT_URL => 'https://graph.facebook.com/v19.0/1324753710718871/messages',
+          CURLOPT_RETURNTRANSFER => true,
+          CURLOPT_ENCODING => '',
+          CURLOPT_MAXREDIRS => 10,
+          CURLOPT_TIMEOUT => 0,
+          CURLOPT_FOLLOWLOCATION => true,
+          CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+          CURLOPT_CUSTOMREQUEST => 'POST',
+          CURLOPT_POSTFIELDS => json_encode($payload),
+          CURLOPT_HTTPHEADER => array(
+            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Content-Type: application/json'
+          ),
+        ));
+
+        $response = curl_exec($curl);
+        
+        if (curl_errno($curl)) {
+            $error_msg = curl_error($curl);
+            \Log::error("WhatsApp checkout notification failed to send to {$mobile}: " . $error_msg);
+        } else {
+            \Log::info("WhatsApp checkout notification response for {$mobile}: " . $response);
+        }
+
+        curl_close($curl);
+    } catch (\Exception $e) {
+        \Log::error("Failed to send WhatsApp checkout notification: " . $e->getMessage());
+    }
+}

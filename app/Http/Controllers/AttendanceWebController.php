@@ -524,6 +524,8 @@ class AttendanceWebController extends Controller
             'updated_at' => Carbon::now()->toDateTimeString()
         ]);
 
+        sendAttendanceMarkedWhatsAppNotification($uid, Carbon::today()->toDateString(), Carbon::now()->toDateTimeString(), $siteId, $conn);
+
         return redirect()->back()->with('success', 'Clocked in successfully!');
     }
 
@@ -581,6 +583,8 @@ class AttendanceWebController extends Controller
                 'remarks' => $attendance->remarks . ' | Web Check-Out',
                 'updated_at' => Carbon::now()->toDateTimeString()
             ]);
+
+        sendAttendanceClockOutWhatsAppNotification($uid, Carbon::today()->toDateString(), Carbon::now()->toDateTimeString(), $attendance->site_id, $conn);
 
         return redirect()->back()->with('success', 'Clocked out successfully!');
     }
