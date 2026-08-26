@@ -2926,7 +2926,7 @@ function sendTaskWhatsAppNotification($assignedId, $taskTitle, $creatorName, $du
           CURLOPT_CUSTOMREQUEST => 'POST',
           CURLOPT_POSTFIELDS => json_encode($payload),
           CURLOPT_HTTPHEADER => array(
-            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Authorization: Bearer ' . env('WHATSAPP_API_TOKEN'),
             'Content-Type: application/json'
           ),
         ));
@@ -3034,7 +3034,7 @@ function sendTaskCompletedWhatsAppNotification($assignedId, $taskTitle, $creator
           CURLOPT_CUSTOMREQUEST => 'POST',
           CURLOPT_POSTFIELDS => json_encode($payload),
           CURLOPT_HTTPHEADER => array(
-            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Authorization: Bearer ' . env('WHATSAPP_API_TOKEN'),
             'Content-Type: application/json'
           ),
         ));
@@ -3158,7 +3158,7 @@ function sendAttendanceMarkedWhatsAppNotification($userId, $date, $inTime, $site
           CURLOPT_CUSTOMREQUEST => 'POST',
           CURLOPT_POSTFIELDS => json_encode($payload),
           CURLOPT_HTTPHEADER => array(
-            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Authorization: Bearer ' . env('WHATSAPP_API_TOKEN'),
             'Content-Type: application/json'
           ),
         ));
@@ -3275,7 +3275,7 @@ function sendNewChatMessageWhatsAppNotification($receiverId, $senderName, $messa
           CURLOPT_CUSTOMREQUEST => 'POST',
           CURLOPT_POSTFIELDS => json_encode($payload),
           CURLOPT_HTTPHEADER => array(
-            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Authorization: Bearer ' . env('WHATSAPP_API_TOKEN'),
             'Content-Type: application/json'
           ),
         ));
@@ -3399,7 +3399,7 @@ function sendAttendanceClockOutWhatsAppNotification($userId, $date, $outTime, $s
           CURLOPT_CUSTOMREQUEST => 'POST',
           CURLOPT_POSTFIELDS => json_encode($payload),
           CURLOPT_HTTPHEADER => array(
-            'Authorization: Bearer EAAWd1PISnb4BSYJZCpfkwjomshZAZBnEgQQp6H7aMfZAZBY0Mwqu0grrQUCZBvmUmW5JjbZAq2pwUB0BdhyULzCzcbzIGUmDYKi4S7iAHoYbur7Wqg8XlF4AKZCLH2GHKe7E9nK9W2irtL3cC8MiETtbEnYlpCKSDy06l2EevsrXkCzfRc4hkvoQJ436hduB1gZDZD',
+            'Authorization: Bearer ' . env('WHATSAPP_API_TOKEN'),
             'Content-Type: application/json'
           ),
         ));
