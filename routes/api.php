@@ -340,7 +340,10 @@ Route::prefix('v1')->group(function () {
         Route::get('/assets/summary', [ApiAssetMachineryController::class, 'assetSummary']);
         Route::get('/assets/transfer-history', [ApiAssetMachineryController::class, 'assetTransferHistory']);
         Route::get('/assets', [ApiAssetMachineryController::class, 'listAssets']);
+        Route::get('/assets/{id}', [ApiAssetMachineryController::class, 'getAsset'])->where('id', '[0-9]+');
         Route::post('/assets', [ApiAssetMachineryController::class, 'storeAsset']);
+        Route::post('/assets/{id}', [ApiAssetMachineryController::class, 'updateAsset'])->where('id', '[0-9]+');
+        Route::delete('/assets/{id}', [ApiAssetMachineryController::class, 'deleteAsset'])->where('id', '[0-9]+');
         Route::post('/assets/{id}/transfer', [ApiAssetMachineryController::class, 'transferAsset']);
         Route::post('/assets/{id}/sell', [ApiAssetMachineryController::class, 'sellAsset']);
         Route::match(['get', 'post'], '/assets/report', [ApiAssetMachineryController::class, 'assetReport']);

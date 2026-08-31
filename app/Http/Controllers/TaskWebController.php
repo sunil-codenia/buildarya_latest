@@ -26,7 +26,7 @@ class TaskWebController extends Controller
 
         // Admins see all tasks; regular users only see their own / involved tasks
         $isSuperAdmin = isSuperAdmin();
-        $isChatAdmin = $isSuperAdmin;
+        $isChatAdmin = isChatAdminUser($conn, $uid);
         $isAdmin = $isSuperAdmin;
 
         // Query Tasks
@@ -335,7 +335,7 @@ class TaskWebController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        $isChatAdmin = isSuperAdmin();
+        $isChatAdmin = isChatAdminUser($conn, $uid);
 
         // A non-admin user may only read their own thread.
         // An admin may read ANY thread (identified by the non-admin user's ID).
@@ -389,7 +389,7 @@ class TaskWebController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
 
-        $isChatAdmin = isSuperAdmin();
+        $isChatAdmin = isChatAdminUser($conn, $uid);
 
         // The thread key (user_id) must either be the current user's own ID
         // OR the admin is sending to any user.
@@ -485,7 +485,7 @@ class TaskWebController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Task not found.'], 404);
         }
 
-        $isChatAdmin = isSuperAdmin();
+        $isChatAdmin = isChatAdminUser($conn, $uid);
         $assignedIds = array_filter(explode(',', $task->assigned_to));
         $isAssigned = in_array($uid, $assignedIds);
         $isCreator = ($task->assigned_by == $uid);
@@ -547,7 +547,7 @@ class TaskWebController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Task not found.'], 404);
         }
 
-        $isChatAdmin = isSuperAdmin();
+        $isChatAdmin = isChatAdminUser($conn, $uid);
         $assignedIds = array_filter(explode(',', $task->assigned_to));
         $isAssigned = in_array($uid, $assignedIds);
         $isCreator = ($task->assigned_by == $uid);

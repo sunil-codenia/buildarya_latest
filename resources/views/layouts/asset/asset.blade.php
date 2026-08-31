@@ -14,6 +14,8 @@
         $today        = substr($duration['today'], 0, 10);
         $min_date     = substr($duration['min'],   0, 10);
         $max_date     = substr($duration['max'],   0, 10);
+        $heads        = getallAssetHeads();
+        $sites        = getallActivesites();
     @endphp
 
     <div class="row clearfix">
@@ -22,23 +24,55 @@
             <div class="col-md-12 col-sm-12 col-xs-12">
                 <div class="card project_list">
 
-                    <form action="{{ url('/updateassethead') }}" method="post" class="form">
+                    <form action="{{ url('/updateasset') }}" method="post" class="form">
                         @csrf
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h4 class="title">Edit Asset List</h4>
+                                <h4 class="title">Edit Asset Details</h4>
                             </div>
                             <div class="modal-body">
                                 <div class="row clearfix">
-                                    <div class="col-lg-2 col-md-2 col-sm-4 form-control-label">
-                                        <label for="Name">Name</label>
-                                    </div>
-                                    <div class="col-lg-8 col-md-8 col-sm-8">
+                                    <input type="hidden" name="id" value="{{ $editdata['id'] }}">
+
+                                    <div class="col-lg-3 col-md-3 col-sm-6">
                                         <div class="form-group">
-                                            <input type="hidden" name="id" value="{{ $editdata['id'] }}">
+                                            <label for="Name">Asset Name</label>
                                             <input type="text" id="Name" required class="form-control"
                                                 value="{{ $editdata['name'] }}" name="name"
-                                                placeholder="Enter the Asset Head Name">
+                                                placeholder="Enter Asset Name">
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3 col-md-3 col-sm-6">
+                                        <label for="head_id">Head Name</label>
+                                        <div class="form-group">
+                                            <select name="head_id" id="head_id" class="form-control show-tick" data-live-search="true" required>
+                                                <option value="" disabled>--Select Head--</option>
+                                                @foreach ($heads as $head)
+                                                    <option value="{{ $head->id }}" {{ $editdata['head_id'] == $head->id ? 'selected' : '' }}>{{ $head->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3 col-md-3 col-sm-6">
+                                        <label for="site_id">Site Name</label>
+                                        <div class="form-group">
+                                            <select name="site_id" id="site_id" class="form-control show-tick" data-live-search="true" required>
+                                                <option value="" disabled>--Select Site--</option>
+                                                @foreach ($sites as $site)
+                                                    <option value="{{ $site->id }}" {{ $editdata['site_id'] == $site->id ? 'selected' : '' }}>{{ $site->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-3 col-md-3 col-sm-6">
+                                        <div class="form-group">
+                                            <label for="cost_price">Cost Price</label>
+                                            <input type="number" id="cost_price" required class="form-control"
+                                                name="cost_price" value="{{ $editdata['cost_price'] }}" min="0" step="0.001"
+                                                pattern="^\d+(?:\.\d{1,4})?$" placeholder="Enter Cost Price">
                                         </div>
                                     </div>
                                 </div>
@@ -137,6 +171,7 @@
                                                 <a href="{{ url('/assetTransferHistory/?asset_id=') . $ddid }}"><img
                                                     src="{{ asset('/images/transfer_history.png') }}"
                                                     style="width:20px" /></a>&nbsp;
+                                                <button title="Edit" type="button" onclick="editdata('{{ $ddid }}')" style="all:unset"><i class="zmdi zmdi-edit" style="font-size: 20px;"></i></button>&nbsp;
                                                     @endif
 
                                                 @if( $dd['status'] != "Sold")
@@ -317,7 +352,7 @@
         function editdata(id) {
             Swal.fire({
                 title: 'Are you sure?',
-                text: "You Want To Edit This Head ?",
+                text: "You Want To Edit This Asset ?",
                 icon: 'warning',
                 showCancelButton: true,
                 toast: true,
@@ -334,7 +369,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
-                    var url = "{{ url('/edit_asset_head_data/?id=') }}" + id;
+                    var url = "{{ url('/edit_asset/?id=') }}" + id;
                     window.location.href = url;
                 }
             });

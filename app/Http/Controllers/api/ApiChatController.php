@@ -59,18 +59,7 @@ class ApiChatController extends Controller
                 ], 404);
             }
 
-            $isAdmin = false;
-            if ($userRecord->role_id == 1) {
-                $isAdmin = true;
-            } else {
-                $perm = DB::connection($conn)->table('user_permission')
-                    ->where('user_id', $currentUser)
-                    ->where('module_id', 14) // Module 14 is Tasks/Chats
-                    ->first();
-                if ($perm && $perm->can_add == 1) {
-                    $isAdmin = true;
-                }
-            }
+            $isAdmin = isChatAdminUser($conn, $currentUser);
 
             // 2. Resolve the target thread user_id
             // If user_id is provided in request, use it. If not, default to current user if they are not admin.
@@ -168,18 +157,7 @@ class ApiChatController extends Controller
                 ], 404);
             }
 
-            $isAdmin = false;
-            if ($userRecord->role_id == 1) {
-                $isAdmin = true;
-            } else {
-                $perm = DB::connection($conn)->table('user_permission')
-                    ->where('user_id', $currentUser)
-                    ->where('module_id', 14)
-                    ->first();
-                if ($perm && $perm->can_add == 1) {
-                    $isAdmin = true;
-                }
-            }
+            $isAdmin = isChatAdminUser($conn, $currentUser);
 
             // 2. Validate input message and image
             $request->validate([
@@ -354,18 +332,7 @@ class ApiChatController extends Controller
                 ], 404);
             }
 
-            $isAdmin = false;
-            if ($userRecord->role_id == 1) {
-                $isAdmin = true;
-            } else {
-                $perm = DB::connection($conn)->table('user_permission')
-                    ->where('user_id', $currentUser)
-                    ->where('module_id', 14) // Module 14 is Tasks/Chats
-                    ->first();
-                if ($perm && $perm->can_add == 1) {
-                    $isAdmin = true;
-                }
-            }
+            $isAdmin = isChatAdminUser($conn, $currentUser);
 
             // Fetch the task
             $task = DB::connection($conn)->table('tasks')->where('id', $taskId)->first();
@@ -512,18 +479,7 @@ class ApiChatController extends Controller
                 ], 404);
             }
 
-            $isAdmin = false;
-            if ($userRecord->role_id == 1) {
-                $isAdmin = true;
-            } else {
-                $perm = DB::connection($conn)->table('user_permission')
-                    ->where('user_id', $currentUser)
-                    ->where('module_id', 14)
-                    ->first();
-                if ($perm && $perm->can_add == 1) {
-                    $isAdmin = true;
-                }
-            }
+            $isAdmin = isChatAdminUser($conn, $currentUser);
 
             // Fetch the task
             $task = DB::connection($conn)->table('tasks')->where('id', $taskId)->first();

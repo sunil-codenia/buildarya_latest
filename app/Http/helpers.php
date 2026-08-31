@@ -367,6 +367,76 @@ function isSuperAdmin()
     return $val === 'yes' || $val == '1' || session()->get('role') == 1;
 }
 
+function isChatAdminUser($conn = null, $uid = null)
+{
+    // Try to resolve connection and user ID if not provided
+    if (!$conn) {
+        $conn = session()->get('comp_db_conn_name');
+    }
+    if (!$uid) {
+        $uid = session()->get('uid');
+    }
+
+    // Try API context if still not resolved
+    if ((!$conn || !$uid) && request()->bearerToken()) {
+        $tokenStr = request()->bearerToken();
+        $tokenId = null;
+        if (strpos($tokenStr, '|') !== false) {
+            [$tokenId, $tokenStr] = explode('|', $tokenStr, 2);
+        }
+        $token = DB::connection('mysql')->table('personal_access_tokens')->where('id', $tokenId)->first();
+        if ($token) {
+            $conn = $conn ?? $token->name;
+            $uid = $uid ?? $token->tokenable_id;
+        }
+    }
+
+    if (!$conn) {
+        $conn = config('database.default');
+    }
+
+    if (!$uid) {
+        // Fallback check using isSuperAdmin() helper
+        return isSuperAdmin();
+    }
+
+    try {
+        $userRecord = DB::connection($conn)->table('users')->where('id', $uid)->first();
+        if ($userRecord) {
+            if ($userRecord->role_id == 1 || (isset($userRecord->is_superadmin) && ($userRecord->is_superadmin === 'yes' || $userRecord->is_superadmin == '1'))) {
+                return true;
+            }
+            $role = DB::connection($conn)->table('roles')->where('id', $userRecord->role_id)->first();
+            if ($role && (
+                (isset($role->is_superadmin) && ($role->is_superadmin === 'yes' || $role->is_superadmin == '1')) || 
+                strtolower($role->name) == 'admin' || 
+                strtolower($role->name) == 'superadmin'
+            )) {
+                return true;
+            }
+            
+            // Check if user has permission to add task (module_id = 14, can_add = 1)
+            $perm = DB::connection($conn)->table('user_permission')
+                ->where('user_id', $uid)
+                ->where('module_id', 14)
+                ->first();
+            if ($perm && $perm->can_add == 1) {
+                return true;
+            }
+        }
+    } catch (\Exception $e) {
+        // Fallback to basic session role check if database query fails
+    }
+
+    // Fallback to basic session/superadmin checks
+    $val = session()->get('is_superadmin');
+    if ($val === 'yes' || $val == '1' || session()->get('role') == 1) {
+        return true;
+    }
+
+    return false;
+}
+
 function getAllAdminUsers($conn)
 {
     try {

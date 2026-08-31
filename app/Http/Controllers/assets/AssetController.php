@@ -180,6 +180,92 @@ class AssetController extends Controller
         }
     }
 
+    public function edit_asset(Request $request)
+    {
+        $id = $request->get('id');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        $asset = DB::connection($user_db_conn_name)->table('assets')->where('id', $id)->first();
+        if (!$asset) {
+            return redirect()->back()->with('error', 'Asset not found.');
+        }
+        
+        $head_id = $asset->head_id;
+        
+        $role_id = $request->session()->get('role');
+        $site_id = $request->session()->get('site_id');
+        $role_details = getRoleDetailsById($role_id);
+        $visiblity_at_site = $role_details->visiblity_at_site;
+
+        $query = DB::connection($user_db_conn_name)->table('assets');
+        if ($visiblity_at_site == 'current') {
+            apply_site_filter($query, $site_id, 'assets.site_id');
+            $filters = [['assets.head_id', '=', $head_id]];
+        } else {
+            $filters = [['assets.head_id', '=', $head_id]];
+        }
+        
+        $assetsList = $query->leftjoin('sites', 'sites.id', '=', 'assets.site_id')
+            ->leftjoin('asset_head', 'asset_head.id', '=', 'assets.head_id')
+            ->select('assets.*', 'sites.name as site', 'asset_head.name as head')
+            ->where($filters)
+            ->get();
+            
+        $assetArray = (array)$asset;
+            
+        $data = [
+            'data' => $assetsList,
+            'edit_data' => [$assetArray]
+        ];
+        
+        return view('layouts.asset.asset')->with('data', json_encode($data));
+    }
+
+    public function updateasset(Request $request)
+    {
+        $id = $request->input('id');
+        $name = $request->input('name');
+        $head_id = $request->input('head_id');
+        $site_id = $request->input('site_id');
+        $cost_price = $request->input('cost_price');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        try {
+            $asset = DB::connection($user_db_conn_name)->table('assets')->where('id', $id)->first();
+            if (!$asset) {
+                return redirect()->back()->with('error', 'Asset not found.');
+            }
+            
+            DB::connection($user_db_conn_name)->table('assets')->where('id', $id)->update([
+                'name' => $name,
+                'head_id' => $head_id,
+                'site_id' => $site_id,
+                'cost_price' => $cost_price,
+            ]);
+            
+            addActivity($id, 'assets', "Asset Updated", 5);
+            
+            return redirect('/asset?asset_id=' . $head_id)->with('success', 'Asset Updated Successfully!');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error while updating Asset!');
+        }
+    }
+
+    public function delete_asset(Request $request)
+    {
+        $id = $request->get('id');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+        
+        $asset = DB::connection($user_db_conn_name)->table('assets')->where('id', $id)->first();
+        if ($asset) {
+            DB::connection($user_db_conn_name)->table('assets')->where('id', $id)->delete();
+            addActivity(0, 'assets', "Asset Deleted - " . $asset->name, 5);
+            return redirect('/asset?asset_id=' . $asset->head_id)->with('success', 'Asset Deleted Successfully!');
+        }
+        
+        return redirect()->back()->with('error', 'Asset Not Found!');
+    }
+
     public function edit_asset_head(Request $request)
     {
         $id = $request->get('id');

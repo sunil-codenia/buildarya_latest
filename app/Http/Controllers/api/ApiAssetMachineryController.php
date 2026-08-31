@@ -136,6 +136,78 @@ class ApiAssetMachineryController extends Controller
         }
     }
 
+    public function getAsset($id)
+    {
+        try {
+            $asset = DB::table('assets')
+                ->leftJoin('sites', 'sites.id', '=', 'assets.site_id')
+                ->leftJoin('asset_head', 'asset_head.id', '=', 'assets.head_id')
+                ->select('assets.*', 'sites.name as site_name', 'asset_head.name as head_name')
+                ->where('assets.id', $id)
+                ->first();
+
+            if (!$asset) return response()->json(['status' => 'Error', 'message' => 'Asset not found'], 404);
+            return response()->json(['status' => 'Ok', 'data' => $asset]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function updateAsset(Request $request, $id)
+    {
+        // Handle JSON body if not automatically parsed
+        if (!$request->has('name') && !empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) {
+                $request->request->add($json);
+            }
+        }
+
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            $data = $request->only(['name', 'head_id', 'site_id', 'cost_price', 'status', 'sale_price']);
+            
+            // Filter out null values so we only update fields that were actually provided
+            $data = array_filter($data, function($val) {
+                return !is_null($val);
+            });
+
+            if (empty($data)) {
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'No data provided',
+                    'debug' => [
+                        'content' => $request->getContent(),
+                        'json_error' => json_last_error_msg(),
+                        'all_inputs' => $request->all()
+                    ]
+                ], 400);
+            }
+
+            DB::table('assets')->where('id', $id)->update($data);
+            addActivity($id, 'assets', "Asset Updated via API", 5, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Asset updated successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteAsset(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            $conn = config('database.default');
+            
+            DB::table('assets')->where('id', $id)->delete();
+            addActivity($id, 'assets', "Asset Deleted via API", 5, $user->id, $conn);
+            return response()->json(['status' => 'Ok', 'message' => 'Asset deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function transferAsset(Request $request, $id)
     {
         // Handle JSON body if not automatically parsed
@@ -1115,21 +1187,36 @@ class ApiAssetMachineryController extends Controller
 
     public function updateMachinery(Request $request, $id)
     {
+        // Handle JSON body if not automatically parsed
+        if (!$request->has('name') && !empty($request->getContent())) {
+            $json = json_decode($request->getContent(), true);
+            if ($json) {
+                $request->request->add($json);
+            }
+        }
+
         try {
             $user = $request->user();
             $conn = config('database.default');
             
             $data = $request->only(['name', 'head_id', 'site_id', 'cost_price', 'status', 'sale_price']);
             
-            // Fallback for raw JSON if body not parsed
-            if (empty($data) && !empty($request->getContent())) {
-                $json = json_decode($request->getContent(), true);
-                if ($json) {
-                    $data = array_intersect_key($json, array_flip(['name', 'head_id', 'site_id', 'cost_price', 'status', 'sale_price']));
-                }
-            }
+            // Filter out null values so we only update fields that were actually provided
+            $data = array_filter($data, function($val) {
+                return !is_null($val);
+            });
 
-            if (empty($data)) return response()->json(['status' => 'Error', 'message' => 'No data provided'], 400);
+            if (empty($data)) {
+                return response()->json([
+                    'status' => 'Error', 
+                    'message' => 'No data provided',
+                    'debug' => [
+                        'content' => $request->getContent(),
+                        'json_error' => json_last_error_msg(),
+                        'all_inputs' => $request->all()
+                    ]
+                ], 400);
+            }
 
             DB::table('machinery_details')->where('id', $id)->update($data);
             addActivity($id, 'machinery_details', "Machinery Updated via API", 6, $user->id, $conn);
