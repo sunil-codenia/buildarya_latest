@@ -496,6 +496,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/attendance/clock-out', [ApiAttendanceController::class, 'clockOut']);
         Route::get('/attendance/history', [ApiAttendanceController::class, 'history']);
         Route::get('/attendance/summary', [ApiAttendanceController::class, 'summary']);
+        Route::match(['get', 'post'], '/attendance/search-labour', [ApiAttendanceController::class, 'searchLabour']);
         Route::post('/attendance/log', [ApiAttendanceController::class, 'logManual']);
         Route::get('/attendance/{id}', [ApiAttendanceController::class, 'show']);
         Route::post('/attendance/update/{id}', [ApiAttendanceController::class, 'update']);

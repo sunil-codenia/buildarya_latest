@@ -370,6 +370,72 @@ class AttendanceWebController extends Controller
         return response()->json(['status' => 'success', 'message' => 'Labour clocked out successfully!']);
     }
 
+    public function updateContractorLabour(Request $request)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'id' => 'required',
+            'name' => 'required|string|max:191',
+            'mobile_number' => 'nullable|string|max:20',
+            'address' => 'nullable|string',
+            'checkin_time' => 'nullable',
+            'checkout_time' => 'nullable'
+        ]);
+
+        $labour = DB::connection($conn)->table('contractor_labour_attendance')->where('id', $request->id)->first();
+        if (!$labour) {
+            return response()->json(['status' => 'error', 'message' => 'Labour record not found.'], 404);
+        }
+
+        $updateData = [
+            'name' => $request->name,
+            'mobile_number' => $request->mobile_number,
+            'address' => $request->address,
+            'updated_at' => Carbon::now()->toDateTimeString()
+        ];
+
+        if ($request->checkin_time) {
+            $baseDate = $labour->checkin_datetime ? Carbon::parse($labour->checkin_datetime)->toDateString() : Carbon::today()->toDateString();
+            $updateData['checkin_datetime'] = Carbon::parse($baseDate . ' ' . $request->checkin_time)->toDateTimeString();
+        }
+
+        if ($request->checkout_time) {
+            $baseDate = $labour->checkout_datetime ? Carbon::parse($labour->checkout_datetime)->toDateString() : ($labour->checkin_datetime ? Carbon::parse($labour->checkin_datetime)->toDateString() : Carbon::today()->toDateString());
+            $updateData['checkout_datetime'] = Carbon::parse($baseDate . ' ' . $request->checkout_time)->toDateTimeString();
+        }
+
+        DB::connection($conn)->table('contractor_labour_attendance')
+            ->where('id', $request->id)
+            ->update($updateData);
+
+        return response()->json(['status' => 'success', 'message' => 'Labour record updated successfully!']);
+    }
+
+    public function deleteContractorLabour(Request $request)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+
+        $id = $request->input('id');
+        if (!$id) {
+            return response()->json(['status' => 'error', 'message' => 'Labour ID is required.'], 400);
+        }
+
+        $labour = DB::connection($conn)->table('contractor_labour_attendance')->where('id', $id)->first();
+        if ($labour) {
+            DB::connection($conn)->table('contractor_labour_attendance')->where('id', $id)->delete();
+            return response()->json(['status' => 'success', 'message' => 'Labour record deleted successfully!']);
+        }
+
+        return response()->json(['status' => 'error', 'message' => 'Labour record not found.'], 404);
+    }
+
     public function updateManual(Request $request, $id)
     {
         // Enforce can_edit module permission
@@ -439,6 +505,53 @@ class AttendanceWebController extends Controller
 
         DB::connection($conn)->table('attendance')->where('id', $id)->update($data);
 
+        // Handle deletion of contractor labours requested during edit
+        if ($request->has('deleted_labour_ids') && !empty($request->deleted_labour_ids)) {
+            $delIds = is_array($request->deleted_labour_ids) ? $request->deleted_labour_ids : explode(',', $request->deleted_labour_ids);
+            $delIds = array_filter($delIds, 'is_numeric');
+            if (!empty($delIds)) {
+                DB::connection($conn)->table('contractor_labour_attendance')->whereIn('id', $delIds)->delete();
+            }
+        }
+
+        // Handle updates of contractor labours requested during edit
+        if ($request->has('labour_id') && is_array($request->labour_id)) {
+            $labourIds = $request->labour_id;
+            $labourNames = $request->labour_name ?? [];
+            $labourMobiles = $request->labour_mobile ?? [];
+            $labourAddresses = $request->labour_address ?? [];
+            $labourCheckins = $request->labour_checkin_time ?? [];
+            $labourCheckouts = $request->labour_checkout_time ?? [];
+
+            foreach ($labourIds as $idx => $lId) {
+                if (!$lId) continue;
+                $lName = $labourNames[$idx] ?? null;
+                if (!$lName) continue;
+
+                $existingL = DB::connection($conn)->table('contractor_labour_attendance')->where('id', $lId)->first();
+                if (!$existingL) continue;
+
+                $lUpdate = [
+                    'name' => $lName,
+                    'mobile_number' => $labourMobiles[$idx] ?? null,
+                    'address' => $labourAddresses[$idx] ?? null,
+                    'updated_at' => Carbon::now()->toDateTimeString()
+                ];
+
+                $inT = $labourCheckins[$idx] ?? null;
+                if ($inT) {
+                    $lUpdate['checkin_datetime'] = Carbon::parse($dateString . ' ' . $inT)->toDateTimeString();
+                }
+
+                $outT = $labourCheckouts[$idx] ?? null;
+                if ($outT) {
+                    $lUpdate['checkout_datetime'] = Carbon::parse($dateString . ' ' . $outT)->toDateTimeString();
+                }
+
+                DB::connection($conn)->table('contractor_labour_attendance')->where('id', $lId)->update($lUpdate);
+            }
+        }
+
         return redirect()->back()->with('success', 'Attendance record updated successfully!');
     }
 
@@ -454,6 +567,7 @@ class AttendanceWebController extends Controller
             return redirect('/login');
         }
 
+        DB::connection($conn)->table('contractor_labour_attendance')->where('attendance_id', $id)->delete();
         DB::connection($conn)->table('attendance')->where('id', $id)->delete();
         return redirect()->back()->with('success', 'Attendance record deleted successfully!');
     }
@@ -592,5 +706,146 @@ class AttendanceWebController extends Controller
         sendAttendanceClockOutWhatsAppNotification($uid, Carbon::today()->toDateString(), Carbon::now()->toDateTimeString(), $attendance->site_id, $conn);
 
         return redirect()->back()->with('success', 'Clocked out successfully!');
+    }
+
+    public function exportReport(Request $request)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return redirect('/login')->with('error', 'Please log in again.');
+        }
+
+        $site_id = $request->get('site_id');
+        $user_id = $request->get('user_id');
+        $from_date = $request->get('from_date', Carbon::today()->startOfMonth()->toDateString());
+        $to_date = $request->get('to_date', Carbon::today()->toDateString());
+
+        $assignedSites = session()->get('assigned_site_ids', []);
+        $isSuperAdmin = isSuperAdmin();
+        $hasAllSites = $isSuperAdmin || empty($assignedSites) || in_array('all', $assignedSites);
+
+        $query = DB::connection($conn)->table('attendance')
+            ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
+            ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
+            ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id')
+            ->where(function($q) use ($from_date, $to_date) {
+                $q->whereBetween('attendance.date', [$from_date, $to_date])
+                  ->orWhereBetween(DB::raw('DATE(attendance.date)'), [$from_date, $to_date]);
+            });
+
+        if (!$hasAllSites) {
+            $query->where(function($q) use ($assignedSites) {
+                $q->whereIn('attendance.site_id', $assignedSites)
+                  ->orWhere(function($sub) use ($assignedSites) {
+                      $sub->where(function($sub2) {
+                          $sub2->whereNull('attendance.site_id')
+                               ->orWhere('attendance.site_id', '=', 0);
+                      });
+                      $sub->where(function($sub3) use ($assignedSites) {
+                          foreach ($assignedSites as $sid) {
+                              $sub3->orWhereRaw("FIND_IN_SET(?, users.site_id)", [$sid]);
+                          }
+                      });
+                  });
+            });
+        }
+
+        if (!empty($site_id) && $site_id !== 'all') {
+            $query->where('attendance.site_id', $site_id);
+        }
+
+        if (!empty($user_id) && $user_id !== 'all') {
+            $query->where('attendance.user_id', $user_id);
+        }
+
+        $attendanceLogs = $query->select(
+                'attendance.*', 
+                DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
+                DB::raw('COALESCE(users.username, "Labour Contractor") as user_username'),
+                'sites.name as site_name',
+                'users.site_id as user_site_id'
+            )
+            ->orderBy('attendance.date', 'desc')
+            ->orderBy('attendance.in_time', 'desc')
+            ->get();
+
+        $sites = DB::connection($conn)->table('sites')->get();
+        $siteNamesMap = $sites->pluck('name', 'id')->toArray();
+
+        foreach ($attendanceLogs as $log) {
+            if (!empty($log->bills_party_id)) {
+                $log->labour_count = DB::connection($conn)->table('contractor_labour_attendance')
+                    ->where('attendance_id', $log->id)
+                    ->count();
+            } else {
+                $log->labour_count = 0;
+            }
+
+            if (empty($log->site_name) && !empty($log->user_site_id)) {
+                $userSites = explode(',', $log->user_site_id);
+                $firstUserSiteId = $userSites[0] ?? null;
+                if ($firstUserSiteId && isset($siteNamesMap[$firstUserSiteId])) {
+                    $log->site_name = $siteNamesMap[$firstUserSiteId];
+                }
+            }
+            if (empty($log->site_name)) {
+                $log->site_name = 'Head Office';
+            }
+        }
+
+        $filename = "Attendance_Report_{$from_date}_to_{$to_date}.csv";
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        return response()->stream(function () use ($attendanceLogs, $from_date, $to_date) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            fputcsv($file, ['BUILDARYA - ATTENDANCE REPORT']);
+            fputcsv($file, ['Report Period:', $from_date . ' to ' . $to_date]);
+            fputcsv($file, ['Generated At:', Carbon::now()->toDateTimeString()]);
+            fputcsv($file, []);
+
+            fputcsv($file, [
+                'S.No.',
+                'Date',
+                'Employee / Contractor Name',
+                'Username / Role',
+                'Site Name',
+                'Status',
+                'Check-In Time',
+                'Check-Out Time',
+                'Check-In GPS Location',
+                'Check-Out GPS Location',
+                'Labour Count',
+                'Remarks'
+            ]);
+
+            $count = 1;
+            foreach ($attendanceLogs as $log) {
+                $inTimeFormatted = $log->in_time ? date('h:i A', strtotime($log->in_time)) : '--';
+                $outTimeFormatted = $log->out_time ? date('h:i A', strtotime($log->out_time)) : '--';
+
+                fputcsv($file, [
+                    $count++,
+                    $log->date,
+                    $log->user_name,
+                    $log->user_username,
+                    $log->site_name,
+                    $log->status,
+                    $inTimeFormatted,
+                    $outTimeFormatted,
+                    $log->in_location ?? 'N/A',
+                    $log->out_location ?? 'N/A',
+                    $log->labour_count > 0 ? $log->labour_count : '0',
+                    $log->remarks ?? ''
+                ]);
+            }
+
+            fclose($file);
+        }, 200, $headers);
     }
 }

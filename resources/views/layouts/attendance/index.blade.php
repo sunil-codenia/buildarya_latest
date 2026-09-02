@@ -104,10 +104,13 @@
                         </form>
                         <!-- Enforce module permission limit for adding manual logs -->
                         @if(checkmodulepermission(13, 'can_add') == 1)
-                            <button class="btn btn-primary btn-round waves-effect" data-toggle="modal" data-target="#manualAttendanceModal" style="background: linear-gradient(135deg, #eda61a 0%, #f5af19 100%); border: none; box-shadow: 0 4px 15px rgba(237,166,26,0.3); font-weight: 600;">
+                            <button class="btn btn-primary btn-round waves-effect mr-2" data-toggle="modal" data-target="#manualAttendanceModal" style="background: linear-gradient(135deg, #eda61a 0%, #f5af19 100%); border: none; box-shadow: 0 4px 15px rgba(237,166,26,0.3); font-weight: 600;">
                                 <i class="zmdi zmdi-plus-circle mr-1"></i> Manual Entry
                             </button>
                         @endif
+                        <button class="btn btn-info btn-round waves-effect" data-toggle="modal" data-target="#downloadReportModal" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border: none; box-shadow: 0 4px 15px rgba(17,153,142,0.3); font-weight: 600;">
+                            <i class="zmdi zmdi-download mr-1"></i> Download Report
+                        </button>
                     </div>
                 </div>
                 <div class="body p-4">
@@ -399,6 +402,13 @@
                                     <small class="text-muted d-block mb-1">Current Photo:</small>
                                     <img id="edit_image_preview" src="" style="max-height: 100px; border-radius: 8px; border: 1px solid #ddd;">
                                 </div>
+                            </div>
+                            <div class="form-group mb-3" id="edit_contractor_labours_container" style="display: none;">
+                                <label class="font-weight-bold" style="color: #555;"><i class="zmdi zmdi-accounts mr-1"></i> Logged Labours List</label>
+                                <div id="edit_labours_list_wrapper">
+                                    <!-- Dynamic labours loaded via AJAX when edit modal opens -->
+                                </div>
+                                <input type="hidden" name="deleted_labour_ids" id="edit_deleted_labour_ids" value="">
                             </div>
                             <div class="form-group mb-3">
                                 <label class="font-weight-bold" style="color: #555;">Select Site</label>
@@ -934,10 +944,69 @@
             } else {
                 $('#edit_image_preview_container').hide();
             }
+
+            // Load logged labours into edit modal
+            $('#edit_contractor_labours_container').show();
+            $('#edit_deleted_labour_ids').val('');
+            $('#edit_labours_list_wrapper').html('<div class="text-center p-3 text-muted"><i class="zmdi zmdi-spinner zmdi-hc-spin font-18"></i> Loading labours...</div>');
+            $.ajax({
+                url: '{{ url("/attendance/contractor-labours") }}/' + id,
+                type: 'GET',
+                success: function(res) {
+                    if (res.status === 'success') {
+                        const wrapper = $('#edit_labours_list_wrapper');
+                        wrapper.empty();
+                        if (!res.data || res.data.length === 0) {
+                            wrapper.html('<small class="text-muted d-block p-2">No individual labours recorded for this entry.</small>');
+                            return;
+                        }
+                        res.data.forEach(function(l, i) {
+                            const checkinT = (l.checkin_datetime && l.checkin_datetime.length >= 16) ? l.checkin_datetime.substring(11, 16) : '';
+                            const checkoutT = (l.checkout_datetime && l.checkout_datetime.length >= 16) ? l.checkout_datetime.substring(11, 16) : '';
+                            
+                            const card = `
+                                <div class="card p-3 mb-2 edit-labour-card" id="edit_labour_card_${l.id}" style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 10px;">
+                                    <input type="hidden" name="labour_id[]" value="${l.id}">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="font-weight-bold mb-0 text-primary" style="font-size: 13px;"><i class="zmdi zmdi-account mr-1"></i> Labour #${i + 1}</h6>
+                                        <button type="button" class="btn btn-xs btn-danger btn-round" onclick="removeEditLabourRow(${l.id})"><i class="zmdi zmdi-delete mr-1"></i> Remove</button>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="small font-weight-bold mb-1">Labour Name *</label>
+                                            <input type="text" name="labour_name[]" class="form-control form-control-sm" value="${escapeHtmlAttr(l.name)}" required>
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="small font-weight-bold mb-1">Mobile Number</label>
+                                            <input type="text" name="labour_mobile[]" class="form-control form-control-sm" value="${escapeHtmlAttr(l.mobile_number || '')}">
+                                        </div>
+                                    </div>
+                                    <div class="form-group mb-2">
+                                        <label class="small font-weight-bold mb-1">Address</label>
+                                        <input type="text" name="labour_address[]" class="form-control form-control-sm" value="${escapeHtmlAttr(l.address || '')}">
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <label class="small font-weight-bold mb-1">Check-In Time</label>
+                                            <input type="time" name="labour_checkin_time[]" class="form-control form-control-sm" value="${checkinT}">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="small font-weight-bold mb-1">Check-Out Time</label>
+                                            <input type="time" name="labour_checkout_time[]" class="form-control form-control-sm" value="${checkoutT}">
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            wrapper.append(card);
+                        });
+                    }
+                }
+            });
         } else {
             $('#edit_user_id').val(userId || '');
             $('#edit_contractor_select_wrapper').hide();
             $('#edit_contractor_image_wrapper').hide();
+            $('#edit_contractor_labours_container').hide();
             $('#edit_bills_party_id').val('').removeAttr('required');
             $('#edit_image_preview_container').hide();
         }
@@ -957,6 +1026,17 @@
         $('#edit_clock_out').val(clockOut);
         
         $('#editAttendanceModal').modal('show');
+    }
+
+    function removeEditLabourRow(labourId) {
+        if (!confirm('Are you sure you want to remove this labour from this entry?')) {
+            return;
+        }
+        $(`#edit_labour_card_${labourId}`).remove();
+        let currentDel = $('#edit_deleted_labour_ids').val();
+        let delArr = currentDel ? currentDel.split(',') : [];
+        delArr.push(labourId);
+        $('#edit_deleted_labour_ids').val(delArr.join(','));
     }
 
     /* Dynamic Labour Generator & AJAX functions */
@@ -1027,6 +1107,16 @@
         });
     }
 
+    function escapeHtmlAttr(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
     function openContractorLaboursModal(attendanceId, contractorName) {
         $('#modalContractorName').text(contractorName);
         const tbody = $('#contractorLaboursList');
@@ -1052,13 +1142,13 @@
                         let checkoutAction = '';
                         if (!l.checkout_datetime) {
                             checkoutAction = `
-                                <div class="d-flex align-items-center">
+                                <div class="d-flex align-items-center mr-1">
                                     <input type="time" id="checkout_time_${l.id}" class="form-control form-control-sm mr-1" style="width: 105px;">
                                     <button class="btn btn-xs btn-danger btn-round" onclick="saveLabourClockOut(${l.id})">Out</button>
                                 </div>
                             `;
                         } else {
-                            checkoutAction = `<span class="badge badge-secondary">Completed</span>`;
+                            checkoutAction = `<span class="badge badge-secondary mr-1">Completed</span>`;
                         }
 
                         const row = `
@@ -1067,7 +1157,7 @@
                                 <td>${photoImg}</td>
                                 <td><strong>${l.name}</strong></td>
                                 <td>${l.mobile_number || '--'}</td>
-                                <td>${l.address || '--'}</td>
+                                <td><div style="white-space: pre-wrap;">${l.address || '--'}</div></td>
                                 <td><span class="text-success font-weight-bold">${l.checkin_formatted}</span></td>
                                 <td><span class="text-danger font-weight-bold" id="checkout_text_${l.id}">${l.checkout_formatted}</span></td>
                                 <td>${checkoutAction}</td>
@@ -1101,7 +1191,7 @@
             success: function(res) {
                 if (res.status === 'success') {
                     $(`#checkout_text_${labourId}`).text(timeVal);
-                    $(`#checkout_time_${labourId}`).closest('td').html('<span class="badge badge-secondary">Clocked Out</span>');
+                    $(`#checkout_time_${labourId}`).closest('td').html('<span class="badge badge-secondary mr-1">Completed</span>');
                 } else {
                     alert(res.message || 'Error clocking out labour');
                 }
@@ -1109,4 +1199,61 @@
         });
     }
 </script>
+
+<!-- Attendance Report Download Modal -->
+<div class="modal fade" id="downloadReportModal" tabindex="-1" role="dialog" aria-labelledby="downloadReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content" style="border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, #162447 0%, #1f4068 100%); border-top-left-radius: 15px; border-top-right-radius: 15px; padding: 20px;">
+                <h5 class="modal-title font-weight-bold" id="downloadReportModalLabel">
+                    <i class="zmdi zmdi-file-text mr-2"></i> Download Attendance Report
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form action="{{ url('/attendance/export') }}" method="GET" target="_blank">
+                <div class="modal-body p-4">
+                    <div class="form-group mb-3">
+                        <label class="font-weight-bold" style="color: #333;">Select Site</label>
+                        <select name="site_id" class="form-control" style="border-radius: 8px; border: 1px solid #ced4da;">
+                            <option value="all">All Sites</option>
+                            @foreach($sites as $st)
+                                <option value="{{ $st->id }}">{{ $st->name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="font-weight-bold" style="color: #333;">Select Employee / Contractor</label>
+                        <select name="user_id" class="form-control" style="border-radius: 8px; border: 1px solid #ced4da;">
+                            <option value="all">All Users & Contractors</option>
+                            @foreach($users as $usr)
+                                <option value="{{ $usr->id }}">{{ $usr->name }} ({{ $usr->username }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label class="font-weight-bold" style="color: #333;">From Date</label>
+                                <input type="date" name="from_date" class="form-control" value="{{ \Carbon\Carbon::parse($date)->startOfMonth()->toDateString() }}" style="border-radius: 8px; border: 1px solid #ced4da;" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label class="font-weight-bold" style="color: #333;">To Date</label>
+                                <input type="date" name="to_date" class="form-control" value="{{ $date }}" style="border-radius: 8px; border: 1px solid #ced4da;" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer p-3" style="border-top: 1px solid #f1f2f6;">
+                    <button type="button" class="btn btn-secondary btn-round px-4" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success btn-round px-4" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border: none; font-weight: 600;">
+                        <i class="zmdi zmdi-download mr-1"></i> Download CSV
+                    </button>
+                </div>
+            </form>
 @endsection

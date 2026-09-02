@@ -534,6 +534,134 @@ class ApiAttendanceController extends Controller
                 addActivity($id, 'attendance', "Manual attendance logged for " . ($targetUserId ? "user $targetUserId" : "contractor $billsPartyId") . " on $date", 13, $uid, $conn);
             }
 
+            // Save/Update individual contractor labours if billsPartyId is present
+            if ($billsPartyId) {
+                $laboursList = [];
+
+                // 1. Form-data array inputs matching website submission (labour_name[], labour_mobile[], etc.)
+                if ($request->has('labour_name') && is_array($request->labour_name)) {
+                    $names = $request->input('labour_name');
+                    $mobiles = $request->input('labour_mobile') ?? $request->input('labour_mobile_number') ?? [];
+                    $addresses = $request->input('labour_address') ?? [];
+                    $checkins = $request->input('labour_checkin') ?? $request->input('labour_checkin_time') ?? [];
+                    $checkouts = $request->input('labour_checkout') ?? $request->input('labour_checkout_time') ?? [];
+
+                    foreach ($names as $idx => $lName) {
+                        if (empty(trim($lName))) continue;
+                        $laboursList[] = [
+                            'name' => trim($lName),
+                            'mobile_number' => trim($mobiles[$idx] ?? ''),
+                            'address' => trim($addresses[$idx] ?? ''),
+                            'checkin_time' => $checkins[$idx] ?? null,
+                            'checkout_time' => $checkouts[$idx] ?? null,
+                            'photo_index' => $idx
+                        ];
+                    }
+                }
+
+                // 2. Fallback: JSON array parameter 'labours'
+                if (empty($laboursList) && $request->has('labours')) {
+                    $rawLabours = $request->input('labours');
+                    if (is_string($rawLabours)) {
+                        $rawLabours = json_decode($rawLabours, true);
+                    }
+                    if (is_array($rawLabours)) {
+                        $laboursList = $rawLabours;
+                    }
+                }
+
+                if (!empty($laboursList)) {
+                    $labourFiles = $request->file('labour_photo') ?? $request->file('labour_photos') ?? [];
+
+                    foreach ($laboursList as $index => $lData) {
+                        if (!is_array($lData)) continue;
+                        $lName = trim($lData['name'] ?? $lData['labour_name'] ?? '');
+                        if (empty($lName)) continue;
+
+                        $lMobile = trim($lData['mobile_number'] ?? $lData['mobile'] ?? $lData['labour_mobile'] ?? '');
+                        $lAddress = trim($lData['address'] ?? $lData['labour_address'] ?? '');
+
+                        $lInTimeStr = $lData['checkin_time'] ?? $lData['checkin'] ?? $lData['checkin_datetime'] ?? null;
+                        $lOutTimeStr = $lData['checkout_time'] ?? $lData['checkout'] ?? $lData['checkout_datetime'] ?? null;
+
+                        $lCheckin = $lInTimeStr 
+                            ? (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lInTimeStr) ? Carbon::parse($date . ' ' . $lInTimeStr)->toDateTimeString() : Carbon::parse($lInTimeStr)->toDateTimeString()) 
+                            : ($inTimeFormatted ?? Carbon::now()->toDateTimeString());
+
+                        $lCheckout = $lOutTimeStr 
+                            ? (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lOutTimeStr) ? Carbon::parse($date . ' ' . $lOutTimeStr)->toDateTimeString() : Carbon::parse($lOutTimeStr)->toDateTimeString()) 
+                            : $outTimeFormatted;
+
+                        // File upload check
+                        $lPhotoPath = null;
+                        $photoFileKey = isset($lData['photo_index']) ? $lData['photo_index'] : $index;
+
+                        if (isset($labourFiles[$photoFileKey]) && $labourFiles[$photoFileKey]->isValid()) {
+                            $pFile = $labourFiles[$photoFileKey];
+                            $pDir = public_path("images/app_images/{$comp_id}/labour_photos");
+                            if (!File::exists($pDir)) {
+                                File::makeDirectory($pDir, 0755, true);
+                            }
+                            $pName = time() . '_labour_' . $photoFileKey . '_' . uniqid() . '.' . $pFile->getClientOriginalExtension();
+                            $pFile->move($pDir, $pName);
+                            $lPhotoPath = "images/app_images/{$comp_id}/labour_photos/{$pName}";
+                        } elseif ($request->hasFile("labours.{$index}.photo")) {
+                            $pFile = $request->file("labours.{$index}.photo");
+                            if ($pFile->isValid()) {
+                                $pDir = public_path("images/app_images/{$comp_id}/labour_photos");
+                                if (!File::exists($pDir)) {
+                                    File::makeDirectory($pDir, 0755, true);
+                                }
+                                $pName = time() . '_labour_' . $index . '_' . uniqid() . '.' . $pFile->getClientOriginalExtension();
+                                $pFile->move($pDir, $pName);
+                                $lPhotoPath = "images/app_images/{$comp_id}/labour_photos/{$pName}";
+                            }
+                        }
+
+                        // Master labours record insert/update
+                        $labourId = null;
+                        if (!empty($lMobile)) {
+                            $existingLabour = DB::connection($conn)->table('labours')->where('mobile_number', $lMobile)->first();
+                            if ($existingLabour) {
+                                $labourId = $existingLabour->id;
+                                $updateData = ['name' => $lName];
+                                if (!empty($lAddress)) $updateData['address'] = $lAddress;
+                                if (!empty($lPhotoPath)) $updateData['photo'] = $lPhotoPath;
+                                DB::connection($conn)->table('labours')->where('id', $labourId)->update($updateData);
+                            }
+                        }
+
+                        if (!$labourId) {
+                            $labourId = DB::connection($conn)->table('labours')->insertGetId([
+                                'name' => $lName,
+                                'mobile_number' => $lMobile ?: null,
+                                'address' => $lAddress ?: null,
+                                'photo' => $lPhotoPath,
+                                'created_at' => Carbon::now()->toDateTimeString(),
+                                'updated_at' => Carbon::now()->toDateTimeString()
+                            ]);
+                        }
+
+                        DB::connection($conn)->table('contractor_labour_attendance')->insert([
+                            'attendance_id' => $id,
+                            'contractor_id' => $billsPartyId,
+                            'labour_id' => $labourId,
+                            'site_id' => $site_id,
+                            'date' => $date,
+                            'name' => $lName,
+                            'mobile_number' => $lMobile ?: null,
+                            'address' => $lAddress ?: null,
+                            'photo' => $lPhotoPath,
+                            'checkin_datetime' => $lCheckin,
+                            'checkout_datetime' => $lCheckout,
+                            'status' => $status == 'Leave' ? 'Absent' : $status,
+                            'created_at' => Carbon::now()->toDateTimeString(),
+                            'updated_at' => Carbon::now()->toDateTimeString()
+                        ]);
+                    }
+                }
+            }
+
             $record = DB::connection($conn)->table('attendance')
                 ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
                 ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
@@ -544,6 +672,16 @@ class ApiAttendanceController extends Controller
                 )
                 ->where('attendance.id', $id)
                 ->first();
+
+            if ($record && $record->bills_party_id) {
+                $contractorLabours = DB::connection($conn)->table('contractor_labour_attendance')
+                    ->where('attendance_id', $id)
+                    ->get();
+                foreach ($contractorLabours as $cl) {
+                    $cl->photo_url = $cl->photo ? asset($cl->photo) : null;
+                }
+                $record->labours = $contractorLabours;
+            }
 
             return response()->json([
                 'status' => 'Ok',
@@ -733,6 +871,105 @@ class ApiAttendanceController extends Controller
                 addActivity($id, 'attendance', "Attendance updated via API.", 13, $uid, $conn);
             }
 
+            // Handle deleted labour ids if passed during update
+            if ($request->has('deleted_labour_ids') && !empty($request->deleted_labour_ids)) {
+                $delIds = is_array($request->deleted_labour_ids) ? $request->deleted_labour_ids : explode(',', $request->deleted_labour_ids);
+                $delIds = array_filter($delIds, 'is_numeric');
+                if (!empty($delIds)) {
+                    DB::connection($conn)->table('contractor_labour_attendance')->whereIn('id', $delIds)->delete();
+                }
+            }
+
+            // Handle contractor labours update or insertion if labours or labour_name passed
+            $targetPartyId = $updateData['bills_party_id'] ?? $record->bills_party_id;
+            if ($targetPartyId) {
+                $laboursList = [];
+                if ($request->has('labours')) {
+                    $rawLabours = $request->input('labours');
+                    if (is_string($rawLabours)) $rawLabours = json_decode($rawLabours, true);
+                    if (is_array($rawLabours)) $laboursList = $rawLabours;
+                }
+                if (empty($laboursList) && $request->has('labour_name') && is_array($request->labour_name)) {
+                    $lIds = $request->input('labour_id') ?? [];
+                    $names = $request->input('labour_name');
+                    $mobiles = $request->input('labour_mobile') ?? $request->input('labour_mobile_number') ?? [];
+                    $addresses = $request->input('labour_address') ?? [];
+                    $checkins = $request->input('labour_checkin') ?? $request->input('labour_checkin_time') ?? [];
+                    $checkouts = $request->input('labour_checkout') ?? $request->input('labour_checkout_time') ?? [];
+
+                    foreach ($names as $idx => $lName) {
+                        if (empty(trim($lName))) continue;
+                        $laboursList[] = [
+                            'id' => $lIds[$idx] ?? null,
+                            'name' => trim($lName),
+                            'mobile_number' => trim($mobiles[$idx] ?? ''),
+                            'address' => trim($addresses[$idx] ?? ''),
+                            'checkin_time' => $checkins[$idx] ?? null,
+                            'checkout_time' => $checkouts[$idx] ?? null,
+                            'photo_index' => $idx
+                        ];
+                    }
+                }
+
+                if (!empty($laboursList)) {
+                    $targetDate = $updateData['date'] ?? $record->date;
+                    $targetSite = $updateData['site_id'] ?? $record->site_id;
+                    $targetStatus = $updateData['status'] ?? $record->status;
+
+                    foreach ($laboursList as $index => $lData) {
+                        if (!is_array($lData)) continue;
+                        $lName = trim($lData['name'] ?? $lData['labour_name'] ?? '');
+                        if (empty($lName)) continue;
+
+                        $lId = $lData['id'] ?? null;
+                        $lMobile = trim($lData['mobile_number'] ?? $lData['mobile'] ?? '');
+                        $lAddress = trim($lData['address'] ?? '');
+
+                        $lInTimeStr = $lData['checkin_time'] ?? $lData['checkin'] ?? null;
+                        $lOutTimeStr = $lData['checkout_time'] ?? $lData['checkout'] ?? null;
+
+                        $lCheckin = $lInTimeStr 
+                            ? (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lInTimeStr) ? Carbon::parse($targetDate . ' ' . $lInTimeStr)->toDateTimeString() : Carbon::parse($lInTimeStr)->toDateTimeString()) 
+                            : null;
+                        $lCheckout = $lOutTimeStr 
+                            ? (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lOutTimeStr) ? Carbon::parse($targetDate . ' ' . $lOutTimeStr)->toDateTimeString() : Carbon::parse($lOutTimeStr)->toDateTimeString()) 
+                            : null;
+
+                        if ($lId) {
+                            $existingCL = DB::connection($conn)->table('contractor_labour_attendance')->where('id', $lId)->first();
+                            if ($existingCL) {
+                                $clUpdate = [
+                                    'name' => $lName,
+                                    'mobile_number' => $lMobile ?: null,
+                                    'address' => $lAddress ?: null,
+                                    'updated_at' => now()
+                                ];
+                                if ($lCheckin) $clUpdate['checkin_datetime'] = $lCheckin;
+                                if ($lCheckout) $clUpdate['checkout_datetime'] = $lCheckout;
+                                DB::connection($conn)->table('contractor_labour_attendance')->where('id', $lId)->update($clUpdate);
+                                continue;
+                            }
+                        }
+
+                        // Create new labour entry
+                        DB::connection($conn)->table('contractor_labour_attendance')->insert([
+                            'attendance_id' => $id,
+                            'contractor_id' => $targetPartyId,
+                            'site_id' => $targetSite,
+                            'date' => $targetDate,
+                            'name' => $lName,
+                            'mobile_number' => $lMobile ?: null,
+                            'address' => $lAddress ?: null,
+                            'checkin_datetime' => $lCheckin ?? Carbon::now()->toDateTimeString(),
+                            'checkout_datetime' => $lCheckout,
+                            'status' => $targetStatus == 'Leave' ? 'Absent' : $targetStatus,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+                    }
+                }
+            }
+
             $updatedRecord = DB::connection($conn)->table('attendance')
                 ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
                 ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
@@ -743,6 +980,16 @@ class ApiAttendanceController extends Controller
                 )
                 ->where('attendance.id', $id)
                 ->first();
+
+            if ($updatedRecord && $updatedRecord->bills_party_id) {
+                $contractorLabours = DB::connection($conn)->table('contractor_labour_attendance')
+                    ->where('attendance_id', $id)
+                    ->get();
+                foreach ($contractorLabours as $cl) {
+                    $cl->photo_url = $cl->photo ? asset($cl->photo) : null;
+                }
+                $updatedRecord->labours = $contractorLabours;
+            }
 
             return response()->json(['status' => 'Ok', 'status_code' => '200', 'data' => $updatedRecord, 'message' => 'Attendance updated successfully.']);
         } catch (\Exception $e) {
@@ -780,12 +1027,68 @@ class ApiAttendanceController extends Controller
                 return response()->json(['status' => 'Failed', 'status_code' => '403', 'message' => 'Unauthorized to delete this record.']);
             }
 
+            DB::connection($conn)->table('contractor_labour_attendance')->where('attendance_id', $id)->delete();
             DB::connection($conn)->table('attendance')->where('id', $id)->delete();
             addActivity(0, 'attendance', "Attendance record deleted via API.", 13, $uid, $conn);
 
             return response()->json(['status' => 'Ok', 'status_code' => '200', 'message' => 'Attendance deleted successfully.']);
         } catch (\Exception $e) {
             return response()->json(['status' => 'Failed', 'status_code' => '500', 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Search labour details by mobile number
+     */
+    public function searchLabour(Request $request)
+    {
+        try {
+            $tenant = $this->resolveTenant($request);
+            $conn = $tenant['conn'];
+
+            $mobile = trim($request->input('mobile_number') ?? $request->input('mobile') ?? '');
+            if (empty($mobile)) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'status_code' => '400',
+                    'message' => 'Mobile number is required.'
+                ]);
+            }
+
+            $labour = DB::connection($conn)->table('labours')
+                ->where('mobile_number', $mobile)
+                ->first();
+
+            if ($labour) {
+                return response()->json([
+                    'status' => 'Ok',
+                    'status_code' => '200',
+                    'message' => 'Labour found successfully.',
+                    'data' => [
+                        'id' => $labour->id,
+                        'name' => $labour->name,
+                        'mobile_number' => $labour->mobile_number,
+                        'address' => $labour->address,
+                        'photo' => $labour->photo,
+                        'photo_url' => $labour->photo ? asset($labour->photo) : null,
+                        'created_at' => $labour->created_at,
+                        'updated_at' => $labour->updated_at
+                    ]
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'Failed',
+                'status_code' => '404',
+                'message' => 'Labour record not found for this mobile number.',
+                'data' => null
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'Failed',
+                'status_code' => '500',
+                'message' => $e->getMessage()
+            ]);
         }
     }
 }
