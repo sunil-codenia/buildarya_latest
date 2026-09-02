@@ -189,7 +189,12 @@
 
             {{-- Module 10: Contact Management --}}
             @if (canViewModule(10))
-            <li class="{{ Request::is('contacts') ? 'active open' : '' }}"><a href="{{url('/contacts')}}"><i class="zmdi zmdi-account-box-phone"></i><span>Contact Management</span></a></li> 
+            <li class="{{ Request::is('contacts*') || Request::is('contact_categories*') ? 'active open' : '' }}"><a href="javascript:void(0);" class="menu-toggle"><i class="zmdi zmdi-account-box-phone"></i><span>Contact Management</span> </a>
+                <ul style="list-style-type: none; display: {{ Request::is('contacts*') || Request::is('contact_categories*') ? 'block' : 'none' }};">
+                    <li class="{{ Request::is('contacts') ? 'active' : '' }}"><a href="{{url('/contacts')}}"> <i class="zmdi zmdi-account-box-phone"></i> Contacts</a></li>
+                    <li class="{{ Request::is('contact_categories*') ? 'active' : '' }}"><a href="{{url('/contact_categories')}}"> <i class="zmdi zmdi-format-list-bulleted"></i> Contact Categories</a></li>
+                </ul>
+            </li>
             @endif
 
             {{-- Module 13: Attendance Management --}}

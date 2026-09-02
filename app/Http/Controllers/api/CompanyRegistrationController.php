@@ -734,8 +734,26 @@ class CompanyRegistrationController extends Controller
                     INDEX (`user_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ");
+
+            DB::connection($connName)->statement("
+                CREATE TABLE IF NOT EXISTS `contact_categories` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(255) NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            $defaultContactCategories = ['Expense Party', 'Material Supplier', 'Bills Party', 'Employees', 'Government Officials', 'Consultants', 'Legal Advisors', 'Officers', 'Other Party'];
+            foreach ($defaultContactCategories as $cat) {
+                DB::connection($connName)->table('contact_categories')->insert([
+                    'name' => $cat,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
             
-            \Log::info("Attendance, tasks, task_chats, web_notifications, user_devices, labours, contractor_labour_attendance, and quick_action tables successfully created for connection: {$connName}");
+            \Log::info("Attendance, tasks, task_chats, web_notifications, user_devices, labours, contractor_labour_attendance, quick_action, and contact_categories tables successfully created for connection: {$connName}");
         } catch (\Exception $e) {
             \Log::error("Failed to dynamically create modules tables: " . $e->getMessage());
             throw new \Exception("Failed to dynamically create modules tables: " . $e->getMessage());

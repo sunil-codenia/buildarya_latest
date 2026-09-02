@@ -1505,10 +1505,54 @@ function getNoOfContactInCompanyProfile($id)
     $count = DB::connection($user_db_conn_name)->table('contact')->where('profile_id', $id)->count();
     return $count;
 }
-function getContactCategories()
+function getContactCategories($conn = null)
 {
-    $data = ['Expense Party', 'Material Supplier', 'Bills Party', 'Employees', 'Government Officials', 'Consultants', 'Legal Advisors', 'Officers', 'Other Party'];
-    return $data;
+    $defaultCategories = ['Expense Party', 'Material Supplier', 'Bills Party', 'Employees', 'Government Officials', 'Consultants', 'Legal Advisors', 'Officers', 'Other Party'];
+    
+    if ($conn == null) {
+        $conn = session()->get('comp_db_conn_name');
+    }
+
+    if (empty($conn)) {
+        return $defaultCategories;
+    }
+
+    try {
+        if (!\Illuminate\Support\Facades\Schema::connection($conn)->hasTable('contact_categories')) {
+            DB::connection($conn)->statement("
+                CREATE TABLE IF NOT EXISTS `contact_categories` (
+                    `id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `name` VARCHAR(255) NOT NULL,
+                    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+
+            foreach ($defaultCategories as $cat) {
+                DB::connection($conn)->table('contact_categories')->insert([
+                    'name' => $cat,
+                    'created_at' => \Carbon\Carbon::now()->toDateTimeString(),
+                    'updated_at' => \Carbon\Carbon::now()->toDateTimeString()
+                ]);
+            }
+        }
+
+        $categories = DB::connection($conn)->table('contact_categories')->pluck('name')->toArray();
+        if (empty($categories)) {
+            foreach ($defaultCategories as $cat) {
+                DB::connection($conn)->table('contact_categories')->insert([
+                    'name' => $cat,
+                    'created_at' => \Carbon\Carbon::now()->toDateTimeString(),
+                    'updated_at' => \Carbon\Carbon::now()->toDateTimeString()
+                ]);
+            }
+            $categories = $defaultCategories;
+        }
+
+        return $categories;
+    } catch (\Exception $e) {
+        return $defaultCategories;
+    }
 }
 function addActivity($ref_id, $ref_table, $action, $module_id, $uid = null, $conn = null)
 {

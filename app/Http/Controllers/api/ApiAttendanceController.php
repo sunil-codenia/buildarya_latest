@@ -277,10 +277,13 @@ class ApiAttendanceController extends Controller
             $query = DB::connection($conn)->table('attendance')
                 ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
                 ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id')
+                ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
                 ->select(
                     'attendance.*', 
-                    'users.name as user_name', 
-                    'users.username as user_username',
+                    DB::raw('COALESCE(users.name, bills_party.name) as user_name'), 
+                    DB::raw('COALESCE(users.username, "Labour Contractor") as user_username'),
+                    'users.name as real_user_name',
+                    'bills_party.name as contractor_name',
                     'sites.name as site_name'
                 );
 
@@ -301,6 +304,29 @@ class ApiAttendanceController extends Controller
             }
 
             $records = $query->orderBy('attendance.date', 'desc')->get();
+
+            foreach ($records as $rec) {
+                $rec->image_url = $rec->image ? asset($rec->image) : null;
+                $rec->out_image_url = $rec->out_image ? asset($rec->out_image) : null;
+
+                if ($rec->bills_party_id) {
+                    $contractorLabours = DB::connection($conn)->table('contractor_labour_attendance')
+                        ->where(function($q) use ($rec) {
+                            $q->where('attendance_id', $rec->id)
+                              ->orWhere(function($q2) use ($rec) {
+                                  $q2->where('contractor_id', $rec->bills_party_id)
+                                     ->where('date', $rec->date);
+                              });
+                        })
+                        ->get();
+                    foreach ($contractorLabours as $cl) {
+                        $cl->photo_url = $cl->photo ? asset($cl->photo) : null;
+                    }
+                    $rec->labours = $contractorLabours;
+                } else {
+                    $rec->labours = [];
+                }
+            }
 
             return response()->json([
                 'status' => 'Ok',
@@ -710,11 +736,15 @@ class ApiAttendanceController extends Controller
 
             $record = DB::connection($conn)->table('attendance')
                 ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
+                ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id')
                 ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
                 ->select(
                     'attendance.*', 
                     DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
-                    DB::raw('COALESCE(users.username, "Labour Contractor") as user_username')
+                    DB::raw('COALESCE(users.username, "Labour Contractor") as user_username'),
+                    'users.name as real_user_name',
+                    'bills_party.name as contractor_name',
+                    'sites.name as site_name'
                 )
                 ->where('attendance.id', $id)
                 ->first();
@@ -735,6 +765,27 @@ class ApiAttendanceController extends Controller
             
             if (!$canManage && $record->user_id != $uid) {
                 return response()->json(['status' => 'Failed', 'status_code' => '403', 'message' => 'Unauthorized access.']);
+            }
+
+            $record->image_url = $record->image ? asset($record->image) : null;
+            $record->out_image_url = $record->out_image ? asset($record->out_image) : null;
+
+            if ($record->bills_party_id) {
+                $contractorLabours = DB::connection($conn)->table('contractor_labour_attendance')
+                    ->where(function($q) use ($id, $record) {
+                        $q->where('attendance_id', $id)
+                          ->orWhere(function($q2) use ($record) {
+                              $q2->where('contractor_id', $record->bills_party_id)
+                                 ->where('date', $record->date);
+                          });
+                    })
+                    ->get();
+                foreach ($contractorLabours as $cl) {
+                    $cl->photo_url = $cl->photo ? asset($cl->photo) : null;
+                }
+                $record->labours = $contractorLabours;
+            } else {
+                $record->labours = [];
             }
 
             return response()->json(['status' => 'Ok', 'status_code' => '200', 'data' => $record]);
@@ -935,6 +986,21 @@ class ApiAttendanceController extends Controller
                             ? (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $lOutTimeStr) ? Carbon::parse($targetDate . ' ' . $lOutTimeStr)->toDateTimeString() : Carbon::parse($lOutTimeStr)->toDateTimeString()) 
                             : null;
 
+                        $lPhotoPath = null;
+                        $idx = $lData['photo_index'] ?? $index;
+                        if ($request->hasFile('labour_photo') && isset($request->file('labour_photo')[$idx])) {
+                            $lFile = $request->file('labour_photo')[$idx];
+                            if ($lFile && $lFile->isValid()) {
+                                $dirPath = public_path("images/app_images/{$comp_id}/labours");
+                                if (!File::exists($dirPath)) {
+                                    File::makeDirectory($dirPath, 0755, true);
+                                }
+                                $fileName = time() . '_labour_' . uniqid() . '.' . $lFile->getClientOriginalExtension();
+                                $lFile->move($dirPath, $fileName);
+                                $lPhotoPath = "images/app_images/{$comp_id}/labours/{$fileName}";
+                            }
+                        }
+
                         if ($lId) {
                             $existingCL = DB::connection($conn)->table('contractor_labour_attendance')->where('id', $lId)->first();
                             if ($existingCL) {
@@ -946,6 +1012,7 @@ class ApiAttendanceController extends Controller
                                 ];
                                 if ($lCheckin) $clUpdate['checkin_datetime'] = $lCheckin;
                                 if ($lCheckout) $clUpdate['checkout_datetime'] = $lCheckout;
+                                if ($lPhotoPath) $clUpdate['photo'] = $lPhotoPath;
                                 DB::connection($conn)->table('contractor_labour_attendance')->where('id', $lId)->update($clUpdate);
                                 continue;
                             }
@@ -960,6 +1027,7 @@ class ApiAttendanceController extends Controller
                             'name' => $lName,
                             'mobile_number' => $lMobile ?: null,
                             'address' => $lAddress ?: null,
+                            'photo' => $lPhotoPath,
                             'checkin_datetime' => $lCheckin ?? Carbon::now()->toDateTimeString(),
                             'checkout_datetime' => $lCheckout,
                             'status' => $targetStatus == 'Leave' ? 'Absent' : $targetStatus,
@@ -972,23 +1040,40 @@ class ApiAttendanceController extends Controller
 
             $updatedRecord = DB::connection($conn)->table('attendance')
                 ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
+                ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id')
                 ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
                 ->select(
                     'attendance.*', 
                     DB::raw('COALESCE(users.name, bills_party.name) as user_name'),
-                    DB::raw('COALESCE(users.username, "Labour Contractor") as user_username')
+                    DB::raw('COALESCE(users.username, "Labour Contractor") as user_username'),
+                    'users.name as real_user_name',
+                    'bills_party.name as contractor_name',
+                    'sites.name as site_name'
                 )
                 ->where('attendance.id', $id)
                 ->first();
 
-            if ($updatedRecord && $updatedRecord->bills_party_id) {
-                $contractorLabours = DB::connection($conn)->table('contractor_labour_attendance')
-                    ->where('attendance_id', $id)
-                    ->get();
-                foreach ($contractorLabours as $cl) {
-                    $cl->photo_url = $cl->photo ? asset($cl->photo) : null;
+            if ($updatedRecord) {
+                $updatedRecord->image_url = $updatedRecord->image ? asset($updatedRecord->image) : null;
+                $updatedRecord->out_image_url = $updatedRecord->out_image ? asset($updatedRecord->out_image) : null;
+
+                if ($updatedRecord->bills_party_id) {
+                    $contractorLabours = DB::connection($conn)->table('contractor_labour_attendance')
+                        ->where(function($q) use ($id, $updatedRecord) {
+                            $q->where('attendance_id', $id)
+                              ->orWhere(function($q2) use ($updatedRecord) {
+                                  $q2->where('contractor_id', $updatedRecord->bills_party_id)
+                                     ->where('date', $updatedRecord->date);
+                              });
+                        })
+                        ->get();
+                    foreach ($contractorLabours as $cl) {
+                        $cl->photo_url = $cl->photo ? asset($cl->photo) : null;
+                    }
+                    $updatedRecord->labours = $contractorLabours;
+                } else {
+                    $updatedRecord->labours = [];
                 }
-                $updatedRecord->labours = $contractorLabours;
             }
 
             return response()->json(['status' => 'Ok', 'status_code' => '200', 'data' => $updatedRecord, 'message' => 'Attendance updated successfully.']);

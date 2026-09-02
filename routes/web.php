@@ -32,6 +32,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ChartController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\ContactCategoryController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\ExcelImportController;
 use App\Http\Controllers\material\StockController;
@@ -535,6 +536,15 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/edit_contact', [ContactController::class, 'edit_contact']);
         Route::get('/contact_form', [ContactController::class, 'contact_form']);
         Route::post('/add_contact', [ContactController::class, 'addcontact']);
+
+        // Contact Category management routes
+        Route::get('/contact_categories', [ContactCategoryController::class, 'index']);
+        Route::post('/get_contact_category_ajax', [ContactCategoryController::class, 'get_contact_category_ajax']);
+        Route::post('/add_contact_category', [ContactCategoryController::class, 'store']);
+        Route::get('/edit_contact_category', [ContactCategoryController::class, 'edit']);
+        Route::post('/update_contact_category', [ContactCategoryController::class, 'update']);
+        Route::get('/delete_contact_category', [ContactCategoryController::class, 'delete']);
+        Route::post('/contact_category/bulk_action', [ContactCategoryController::class, 'bulk_action']);
     });
 
     // document module

@@ -326,7 +326,6 @@ class UserController extends Controller
         try {
             $user_id = DB::connection($user_db_conn_name)->table('users')->insertGetId($data);
             $rolename = getRoleDetailsById($role_id)->name;
-            DB::connection($user_db_conn_name)->table('contact')->insert(['profile_id' => "1", 'name' => $name, 'phone'=>$contact_no,'position' => $rolename]);
             $sub = DB::table('subscription_plans')->where('id', $request->subscription_plan_id)->first();
             $allowedModules = $sub ? json_decode($sub->modules, true) : [];
             $modules = DB::table('modules')->whereIn('id', $allowedModules)->get();
