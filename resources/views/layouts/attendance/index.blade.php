@@ -58,7 +58,7 @@
             <div class="card overflowhidden l-amber" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important; color: white !important; border: none; border-radius: 15px; box-shadow: 0 4px 20px rgba(17,153,142,0.35);">
                 <div class="body text-center p-4">
                     <h3 class="m-b-0 number count-to" style="font-weight: 800; font-size: 2.2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">{{ $present }}</h3>
-                    <p class="m-b-0 font-15" style="letter-spacing: 1px; font-weight: 600; opacity: 0.9;">PRESENT TODAY</p>
+                    <p class="m-b-0 font-15" style="letter-spacing: 1px; font-weight: 600; opacity: 0.9;">{{ $date == \Carbon\Carbon::today()->toDateString() ? 'PRESENT TODAY' : 'PRESENT (' . date('d-M-Y', strtotime($date)) . ')' }}</p>
                     <div class="sparkline m-t-20" data-type="bar" data-width="97%" data-height="40px" data-bar-Width="3" data-bar-Spacing="10" data-bar-Color="#fff">5,6,8,2,4,8,6,7,9,5</div>
                 </div>
             </div>
@@ -67,7 +67,7 @@
             <div class="card overflowhidden l-blue" style="background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%) !important; color: white !important; border: none; border-radius: 15px; box-shadow: 0 4px 20px rgba(255,65,108,0.35);">
                 <div class="body text-center p-4">
                     <h3 class="m-b-0 number count-to" style="font-weight: 800; font-size: 2.2rem; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">{{ $absent }}</h3>
-                    <p class="m-b-0 font-15" style="letter-spacing: 1px; font-weight: 600; opacity: 0.9;">ABSENT TODAY</p>
+                    <p class="m-b-0 font-15" style="letter-spacing: 1px; font-weight: 600; opacity: 0.9;">{{ $date == \Carbon\Carbon::today()->toDateString() ? 'ABSENT TODAY' : 'ABSENT (' . date('d-M-Y', strtotime($date)) . ')' }}</p>
                     <div class="sparkline m-t-20" data-type="bar" data-width="97%" data-height="40px" data-bar-Width="3" data-bar-Spacing="10" data-bar-Color="#fff">2,4,3,1,5,2,4,3,1,2</div>
                 </div>
             </div>
@@ -97,7 +97,7 @@
         <div class="col-md-12 col-sm-12 col-xs-12">
             <div class="card project_list" style="border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: none;">
                 <div class="header d-flex justify-content-between align-items-center p-4" style="border-bottom: 1px solid #f1f2f6;">
-                    <h2 class="m-b-0"><strong style="color: #333;">Daily Attendance Logs</strong></h2>
+                    <h2 class="m-b-0"><strong style="color: #333;">Daily Attendance Logs ({{ date('d-M-Y', strtotime($date)) }})</strong></h2>
                     <div class="d-flex align-items-center">
                         <form method="GET" action="{{ url('/attendance') }}" class="d-flex mr-3">
                             <input type="date" name="date" class="form-control" value="{{ $date }}" onchange="this.form.submit()" style="border-radius: 20px; border: 1px solid #e1e8ed; padding: 8px 15px;">
@@ -151,7 +151,7 @@
                                         <td>
                                             @php
                                                 $badgeClass = 'badge-success';
-                                                if($log->status == 'Absent') $badgeClass = 'badge-danger';
+                                                if($log->status == 'Absent' || $log->status == 'Not Checked In') $badgeClass = 'badge-danger';
                                                 elseif($log->status == 'Half Day') $badgeClass = 'badge-warning';
                                                 elseif($log->status == 'Leave') $badgeClass = 'badge-info';
                                             @endphp
@@ -160,7 +160,7 @@
                                         <td>
                                             <div>
                                                 <span class="text-success font-weight-bold">{{ $log->in_time ? date('h:i A', strtotime($log->in_time)) : '--' }}</span>
-                                                @if($log->image)
+                                                @if(!empty($log->image))
                                                     <a href="javascript:void(0);" class="ml-1 text-primary font-12" onclick="previewLogPhoto('{{ asset($log->image) }}')" title="View Snapshot">
                                                         <i class="zmdi zmdi-camera-mic"></i> View Photo
                                                     </a>
@@ -170,7 +170,7 @@
                                         <td>
                                             <div>
                                                 <span class="text-danger font-weight-bold">{{ $log->out_time ? date('h:i A', strtotime($log->out_time)) : '--' }}</span>
-                                                @if($log->out_image)
+                                                @if(!empty($log->out_image))
                                                     <a href="javascript:void(0);" class="ml-1 text-primary font-12" onclick="previewLogPhoto('{{ asset($log->out_image) }}')" title="View Snapshot">
                                                         <i class="zmdi zmdi-camera-mic"></i> View Photo
                                                     </a>
@@ -211,9 +211,9 @@
                                             @endphp
 
                                             @if(!$hasInGps && !$hasOutGps)
-                                                {{-- Manual admin entry: no GPS shown --}}
-                                                <span style="display:inline-flex; align-items:center; background: rgba(255, 255, 255, 0.1); border:1px solid rgba(255, 255, 255, 0.2); border-radius:20px; padding:4px 10px; font-size:11px; color:#ccc !important; font-weight:600;" title="Manual Entry">
-                                                    <i class="zmdi zmdi-assignment mr-1" style="font-size:12px;"></i> {{ $log->site_name ?? 'Manual Entry' }} (Manual)
+                                                {{-- Manual admin entry or not checked in --}}
+                                                <span style="display:inline-flex; align-items:center; background: rgba(255, 255, 255, 0.1); border:1px solid rgba(255, 255, 255, 0.2); border-radius:20px; padding:4px 10px; font-size:11px; color:#888 !important; font-weight:600;" title="{{ $log->status == 'Not Checked In' ? 'Not Checked In' : 'Manual Entry' }}">
+                                                    <i class="zmdi zmdi-assignment mr-1" style="font-size:12px;"></i> {{ $log->status == 'Not Checked In' ? 'Not Checked In' : ($log->site_name ?? 'Manual Entry') }}
                                                 </span>
                                             @else
                                                 <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -257,12 +257,12 @@
                                         </td>
                                         @if(checkmodulepermission(13, 'can_delete') == 1 || checkmodulepermission(13, 'can_edit') == 1)
                                             <td class="d-flex">
-                                                @if(checkmodulepermission(13, 'can_edit') == 1)
+                                                @if(checkmodulepermission(13, 'can_edit') == 1 && !empty($log->id))
                                                     <button type="button" class="btn btn-neutral btn-sm btn-round text-primary mr-2" style="box-shadow: 0 2px 10px rgba(0,0,0,0.05);" onclick="openEditModal({{ $log->id }}, '{{ $log->user_id }}', '{{ $log->site_id }}', '{{ $log->date }}', '{{ $log->status }}', '{{ $log->in_time ? date('H:i', strtotime($log->in_time)) : '' }}', '{{ $log->out_time ? date('H:i', strtotime($log->out_time)) : '' }}', '{{ $log->bills_party_id }}', '{{ $log->image }}')">
                                                         <i class="zmdi zmdi-edit"></i>
                                                     </button>
                                                 @endif
-                                                @if(checkmodulepermission(13, 'can_delete') == 1)
+                                                @if(checkmodulepermission(13, 'can_delete') == 1 && !empty($log->id))
                                                     <form action="{{ url('/attendance/delete/'.$log->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this record?')">
                                                         @csrf
                                                         @method('DELETE')

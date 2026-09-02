@@ -1,61 +1,173 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400"></a></p>
+# Buildarya - Enterprise Building Construction MIS & ERP Platform
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/d/total.svg" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/v/stable.svg" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://poser.pugx.org/laravel/framework/license.svg" alt="License"></a>
-</p>
+Buildarya is a comprehensive, multi-tenant Building Construction Management Information System (MIS) and Enterprise Resource Planning (ERP) platform built with **Laravel 8**. It enables construction firms, contractors, and project managers to streamline project lifecycles, resource allocation, inventory tracking, financial vouchers, site bills, workforce attendance, task management, and document workflows across multiple sites.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## 🌟 Architecture & Highlights
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Dynamic Multi-Tenant Database Architecture**: Operates on a master database (`buildarya`) for company onboarding, subscription management, and central authentication, alongside isolated company tenant databases (`comp_db_conn_name`) for complete client data isolation.
+- **RESTful API Engine (v1)**: Fully equips web clients and mobile applications (Flutter/React Native) with protected endpoints backed by Laravel Sanctum authentication.
+- **Automated Messaging & Notifications**: Integrated with **Firebase Cloud Messaging (FCM)** for push alerts and **Meta WhatsApp Business API** for automated daily attendance check-in/check-out and task deadline reminders.
+- **Financial & Operations Suite**: Handles site-to-site cash transfers, payment voucher approval pipelines, material stock conversions/reconciliation, machinery maintenance/depreciation, and sales invoicing.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## 🛠️ Technology Stack
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- **Framework**: Laravel 8 (PHP 7.4 / PHP 8.1+)
+- **Database**: MySQL / MariaDB (Multi-tenant dynamic connection pool)
+- **API Authentication**: Laravel Sanctum (`auth:sanctum`)
+- **Document & PDF Generation**: `barryvdh/laravel-dompdf`, `maatwebsite/excel`
+- **Push Notifications**: Firebase Admin SDK (FCM API v1)
+- **Automated Reminders**: Meta WhatsApp Graph API
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 1500 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## 🚀 Core Features & Modules
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+### 1. Site & Financial Management
+- **Site Directory**: Create, track, and manage construction sites across regions.
+- **Payment Vouchers**: Multi-stage approval workflow (`Pending` -> `Verified` -> `Paid` / `Rejected`).
+- **Site Cash Transfers**: Direct cash allocations and balance auditing between sites.
+- **Site Bills**: Contractor bill submissions, item entry tracking, party balance calculation.
 
-### Premium Partners
+### 2. Materials & Stock Control
+- **Material Catalog & SKUs**: Master material records with multi-unit conversion rules.
+- **Supplier Directory**: Manage material vendors, purchase orders, and payment histories.
+- **Material Entries**: Track pending, verified, and returned site material receipts with image attachments.
+- **Stock Transfer & Reconciliation**: Inter-site material transfers, stock audits, consumption, and wastage logs.
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[OP.GG](https://op.gg)**
+### 3. Assets & Heavy Machinery
+- **Machinery Management**: Asset tracking, log sheets, service/maintenance history, and document storage.
+- **Asset Heads**: Group machinery by category, compute depreciation, and log asset sales/transfers.
 
-## Contributing
+### 4. Workforce & Attendance Tracking
+- **Mobile Clock-In / Clock-Out**: Geo-location tagged attendance logging.
+- **Attendance Summaries**: Daily, weekly, and monthly attendance reports with manual adjustment capability.
+- **Automated Reminders**: Scheduled WhatsApp messages for check-in (8:45 AM) and check-out (6:15 PM).
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 5. Tasks & Team Collaboration
+- **Task Management**: Create, assign, categorize, and track task progress with deadline enforcement.
+- **Task Chat Threads**: Discussion threads attached directly to specific tasks.
+- **Automated Task Reminders**: WhatsApp notifications sent daily at 12:00 PM for pending tasks.
 
-## Code of Conduct
+### 6. Document Vault
+- **Document Indexing**: Organized document repository categorized by heads and site metadata.
+- **Approval Workflow**: Verification, approval, and rejection of site document submissions.
+- **PDF Export**: Generate downloadable site, document, and financial reports.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 7. Multi-Tenant SaaS Administration
+- **Company Onboarding**: Self-service or admin company registration (`/api/register_company`).
+- **Dynamic Database Bootstrapping**: Automated schema creation via `apply_migration.php`.
+- **Subscription Plans**: SaaS plan management and automated billing invoices.
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## 📁 Directory Structure
 
-## License
+```
+buildarya_latest/
+├── app/
+│   ├── Console/Commands/       # WhatsApp reminder crons & scheduler jobs
+│   ├── Http/
+│   │   ├── Controllers/        # Web Controllers (Dashboard, SaaS, Documents)
+│   │   │   └── api/            # API Controllers (ApiAttendance, ApiTask, ApiManagement, etc.)
+│   │   ├── Middleware/         # Tenant bootstrap & authentication middleware
+│   │   └── helpers.php         # Custom system helper functions
+│   └── Models/                 # Eloquent ORM Models
+├── config/                     # Application, database, & FCM configuration
+├── database/                   # Schema migrations, factories, and seeds
+├── routes/
+│   ├── api.php                 # Comprehensive RESTful API routes (/api/v1)
+│   └── web.php                 # Web interface routes
+└── storage/                    # Uploaded media, documents, and log files
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## ⚙️ Environment Configuration
+
+Create a `.env` file in the root directory:
+
+```env
+APP_NAME=Buildarya
+APP_ENV=production
+APP_KEY=base64:...
+APP_DEBUG=false
+APP_URL=http://localhost
+
+# Primary Master Database
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=buildarya
+DB_USERNAME=root
+DB_PASSWORD=secret
+
+# Firebase Push Notifications
+FIREBASE_CREDENTIALS=storage/app/firebase-credentials.json
+
+# WhatsApp Business API Config
+WHATSAPP_TOKEN=your_meta_whatsapp_token
+WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+WHATSAPP_TEMPLATE_ATTENDANCE_CHECKIN=attendance_checkin_template
+WHATSAPP_TEMPLATE_TASK_REMINDER=task_reminder_template
+WHATSAPP_TEMPLATE_CHECKOUT=checkout_template
+```
+
+---
+
+## 💻 Setup & Installation
+
+1. **Install PHP Dependencies**:
+   ```bash
+   composer install
+   ```
+
+2. **Generate Application Key**:
+   ```bash
+   php artisan key:generate
+   ```
+
+3. **Run Database Migrations & Seeds**:
+   ```bash
+   php artisan migrate --seed
+   ```
+
+4. **Configure Storage Links**:
+   ```bash
+   php artisan storage:link
+   ```
+
+5. **Start Development Server**:
+   ```bash
+   php artisan serve
+   ```
+
+6. **Configure Console Scheduler (CRON)**:
+   Add to server crontab:
+   ```cron
+   * * * * * cd /path-to-buildarya && php artisan schedule:run >> /dev/null 2>&1
+   ```
+
+---
+
+## 🔑 Key API Route Groups (`/api/v1`)
+
+| Endpoint Prefix | Description | Auth Required |
+| :--- | :--- | :--- |
+| `POST /api/v1/login` | Authenticate user & retrieve Sanctum bearer token | ❌ |
+| `GET /api/v1/dashboard` | Key performance stats & metrics summary | ✅ (Tenant) |
+| `POST /api/v1/attendance/clock-in` | Record user clock-in attendance with GPS | ✅ (Tenant) |
+| `GET/POST /api/v1/tasks` | Task creation, listing, status updates | ✅ (Tenant) |
+| `GET/POST /api/v1/materials/entries` | Material entry submissions & approval pipeline | ✅ (Tenant) |
+| `GET/POST /api/v1/payment-vouchers` | Create, list, approve & pay financial vouchers | ✅ (Tenant) |
+| `GET/POST /api/v1/documents` | Upload and verify site-related documents | ✅ (Tenant) |
+
+---
+
+## 🔒 License & Support
+
+Proprietary software maintained by RSG / Buildarya Team. All rights reserved.
+

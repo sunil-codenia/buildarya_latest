@@ -16,11 +16,13 @@ class AttendanceWebController extends Controller
             return redirect('/login')->with('error', 'Please log in again.');
         }
 
-        // Selected Date filter
-        $date = $request->get('date', Carbon::today()->toDateString());
+        // Selected Date filter (defaults to today's date)
+        $dateInput = $request->get('date');
+        $date = !empty($dateInput) ? Carbon::parse($dateInput)->toDateString() : Carbon::today()->toDateString();
 
         $assignedSites = session()->get('assigned_site_ids', []);
-        $hasAllSites = empty($assignedSites) || in_array('all', $assignedSites);
+        $isSuperAdmin = isSuperAdmin();
+        $hasAllSites = $isSuperAdmin || empty($assignedSites) || in_array('all', $assignedSites);
 
         // Fetch all sites and users
         $sitesQuery = DB::connection($conn)->table('sites');
@@ -52,7 +54,10 @@ class AttendanceWebController extends Controller
             ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
             ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
             ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id')
-            ->where('attendance.date', $date);
+            ->where(function($q) use ($date) {
+                $q->where('attendance.date', $date)
+                  ->orWhereRaw("DATE(attendance.date) = ?", [$date]);
+            });
 
         if (!$hasAllSites) {
             $attendanceLogsQuery->where(function($q) use ($assignedSites) {
