@@ -16,7 +16,16 @@ class ApiSiteBillsController extends Controller
     {
         try {
             $conn = config('database.default');
+            
+            $setting = DB::connection($conn)->table('settings')->where('name', '=', 'bill_sequence')->first();
+            $sequence = $setting ? $setting->value : 'BILL/';
+            $lastbill = DB::connection($conn)->table('new_bill_entry')->orderBy('id', 'desc')->first();
+            $lastbillId = ($lastbill && isset($lastbill->id)) ? (int)$lastbill->id : 0;
+            $nextBillNo = $sequence . ($lastbillId + 1);
+
             $data = [
+                'next_bill_no' => $nextBillNo,
+                'bill_sequence' => $sequence,
                 'bill_parties' => DB::table('bills_party')->where('status', 'Active')->get(),
                 'work_categories' => DB::table('bills_work')->get(),
                 'sites' => DB::table('sites')->where('status', 'Active')->get(),
@@ -523,5 +532,41 @@ class ApiSiteBillsController extends Controller
         ];
         DB::table('bill_party_statement')->where('bill_no', $id)->delete();
         DB::table('bill_party_statement')->insert($party_statement);
+    }
+
+    /**
+     * Get next sequential Bill Number
+     */
+    public function getNextBillNo(Request $request)
+    {
+        try {
+            $conn = config('database.default');
+            if ($request->has('conn') && !empty($request->conn)) {
+                $conn = $request->conn;
+            }
+
+            $setting = DB::connection($conn)->table('settings')->where('name', '=', 'bill_sequence')->first();
+            $sequence = $setting ? $setting->value : 'BILL/';
+
+            $lastbill = DB::connection($conn)->table('new_bill_entry')->orderBy('id', 'desc')->first();
+            $lastbillId = ($lastbill && isset($lastbill->id)) ? (int)$lastbill->id : 0;
+            $nextId = $lastbillId + 1;
+
+            $billNo = $sequence . $nextId;
+
+            return response()->json([
+                'status' => 'Ok',
+                'status_code' => '200',
+                'bill_no' => $billNo,
+                'data' => [
+                    'bill_no' => $billNo,
+                    'sequence' => $sequence,
+                    'next_id' => $nextId
+                ],
+                'message' => 'Next bill number fetched successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'Error', 'message' => $e->getMessage()], 500);
+        }
     }
 }

@@ -304,4 +304,24 @@ class SiteBillsController extends Controller
       $fdata['statement'] = $data;
         return json_encode($fdata);
     }
+
+    public function get_next_bill_no(Request $request)
+    {
+        $conn = $request->conn ?? config('database.default');
+        $setting = DB::connection($conn)->table('settings')->where('name', '=', 'bill_sequence')->first();
+        $sequence = $setting ? $setting->value : 'BILL/';
+        $lastbill = DB::connection($conn)->table('new_bill_entry')->orderBy('id', 'desc')->first();
+        $lastbillId = ($lastbill && isset($lastbill->id)) ? (int)$lastbill->id : 0;
+        $nextId = $lastbillId + 1;
+        $billNo = $sequence . $nextId;
+
+        return response()->json([
+            'status' => 'Ok',
+            'status_code' => '200',
+            'bill_no' => $billNo,
+            'sequence' => $sequence,
+            'next_id' => $nextId,
+            'message' => 'Next bill number fetched successfully'
+        ]);
+    }
 }

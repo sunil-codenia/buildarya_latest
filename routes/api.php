@@ -114,6 +114,7 @@ Route::post('get_bill_item_entries', [SiteBillsController::class, 'get_bill_item
 Route::post('addnewbill', [SiteBillsController::class, 'addnewbill']);
 Route::post('getBillPartyBalance', [SiteBillsController::class, 'getBillPartyBalance']);
 Route::post('get_site_bill_work_name', [SiteBillsController::class, 'get_site_bill_work_name']);
+Route::match(['get', 'post'], 'get_next_bill_no', [SiteBillsController::class, 'get_next_bill_no']);
 
 
 
@@ -318,6 +319,8 @@ Route::prefix('v1')->group(function () {
 
         // Site Bills
         Route::get('/bills/summary', [ApiSiteBillsController::class, 'summary']);
+        Route::match(['get', 'post'], '/bills/next-bill-no', [ApiSiteBillsController::class, 'getNextBillNo']);
+        Route::match(['get', 'post'], '/bills/next_bill_no', [ApiSiteBillsController::class, 'getNextBillNo']);
         Route::get('/bills/works-by-site', [ApiSiteBillsController::class, 'getSiteWorks']);
         Route::get('/bills', [ApiSiteBillsController::class, 'index']);
         Route::match(['get', 'post'], '/bills/report', [ApiSiteBillsController::class, 'report']);
