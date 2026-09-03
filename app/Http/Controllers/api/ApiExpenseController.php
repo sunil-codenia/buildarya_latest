@@ -71,9 +71,13 @@ class ApiExpenseController extends Controller
                     'users.name as user_name', 
                     'expense_head.name as head_name',
                     DB::raw('CASE WHEN expenses.party_type = "bill" THEN bills_party.name ELSE expense_party.name END AS party_name')
-                )
-                ->whereBetween('expenses.create_datetime', [$min_date, $max_date])
-                ->orderBy('expenses.date', 'desc')
+                );
+
+            if (empty($search)) {
+                $query->whereBetween('expenses.create_datetime', [$min_date, $max_date]);
+            }
+
+            $query->orderBy('expenses.date', 'desc')
                 ->orderBy('expenses.id', 'desc');
 
             if ($visiblity_at_site == 'current' && $site_id && $site_id != 'all') {
@@ -87,16 +91,31 @@ class ApiExpenseController extends Controller
             }
 
             if ($status) {
-                $query->where('expenses.status', $status);
+                if (strpos($status, ',') !== false) {
+                    $query->whereIn('expenses.status', explode(',', $status));
+                } else {
+                    $query->where('expenses.status', $status);
+                }
             }
 
             if ($search) {
                 $query->where(function($q) use ($search) {
                     $q->where('expenses.particular', 'like', "%$search%")
                       ->orWhere('expenses.amount', 'like', "%$search%")
+                      ->orWhere('expenses.date', 'like', "%$search%")
+                      ->orWhere('expenses.create_datetime', 'like', "%$search%")
                       ->orWhere('expense_head.name', 'like', "%$search%")
                       ->orWhere('expense_party.name', 'like', "%$search%")
                       ->orWhere('bills_party.name', 'like', "%$search%");
+
+                    try {
+                        if (strtotime($search) !== false) {
+                            $parsedDate = date('Y-m-d', strtotime($search));
+                            if ($parsedDate && $parsedDate !== '1970-01-01') {
+                                $q->orWhere('expenses.date', 'like', "%$parsedDate%");
+                            }
+                        }
+                    } catch (\Exception $e) {}
                 });
             }
 
@@ -123,7 +142,7 @@ class ApiExpenseController extends Controller
             // Standard filters based on project role logic
             $role_id = $user->role_id;
             $role_details = DB::table('roles')->where('id', $role_id)->first();
-            $visiblity_at_site = $role_details->visiblity_at_site;
+            $visiblity_at_site = $role_details ? $role_details->visiblity_at_site : 'all';
             
             $query = DB::table('expenses')
                 ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
@@ -176,9 +195,20 @@ class ApiExpenseController extends Controller
                 $query->where(function($q) use ($search) {
                     $q->where('expenses.particular', 'like', "%$search%")
                       ->orWhere('expenses.amount', 'like', "%$search%")
+                      ->orWhere('expenses.date', 'like', "%$search%")
+                      ->orWhere('expenses.create_datetime', 'like', "%$search%")
                       ->orWhere('expense_head.name', 'like', "%$search%")
                       ->orWhere('expense_party.name', 'like', "%$search%")
                       ->orWhere('bills_party.name', 'like', "%$search%");
+
+                    try {
+                        if (strtotime($search) !== false) {
+                            $parsedDate = date('Y-m-d', strtotime($search));
+                            if ($parsedDate && $parsedDate !== '1970-01-01') {
+                                $q->orWhere('expenses.date', 'like', "%$parsedDate%");
+                            }
+                        }
+                    } catch (\Exception $e) {}
                 });
             }
 

@@ -68,7 +68,10 @@ class ExpenseController extends Controller
             ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
                 DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
             ->where($filters)
-            ->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
+        $search = $request->input('search.value');
+        if (empty($search)) {
+            $query->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
+        }
 
         if ($visiblity_at_site == 'current' && $site_id == 'all') {
             apply_site_filter($query, $site_id, 'expenses.site_id');
@@ -76,7 +79,6 @@ class ExpenseController extends Controller
 
         $totalRecords = $query->count();
 
-        $search = $request->input('search.value');
         if (!empty($search)) {
             $query->where(function($q) use ($search) {
                 $q->where('expense_head.name', 'LIKE', "%{$search}%")
@@ -89,6 +91,15 @@ class ExpenseController extends Controller
                   ->orWhere('expenses.location', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.remark', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.date', 'LIKE', "%{$search}%");
+
+                try {
+                    if (strtotime($search) !== false) {
+                        $parsedDate = date('Y-m-d', strtotime($search));
+                        if ($parsedDate && $parsedDate !== '1970-01-01') {
+                            $q->orWhere('expenses.date', 'LIKE', "%{$parsedDate}%");
+                        }
+                    }
+                } catch (\Exception $e) {}
             });
         }
 
@@ -498,11 +509,13 @@ class ExpenseController extends Controller
             ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
                 DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
             ->where($filters)
-            ->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
+        $search = $request->input('search.value');
+        if (empty($search)) {
+            $query->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
+        }
 
         $totalRecords = $query->count();
 
-        $search = $request->input('search.value');
         if (!empty($search)) {
             $query->where(function($q) use ($search) {
                 $q->where('expense_head.name', 'LIKE', "%{$search}%")
@@ -515,6 +528,15 @@ class ExpenseController extends Controller
                   ->orWhere('expenses.location', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.remark', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.date', 'LIKE', "%{$search}%");
+
+                try {
+                    if (strtotime($search) !== false) {
+                        $parsedDate = date('Y-m-d', strtotime($search));
+                        if ($parsedDate && $parsedDate !== '1970-01-01') {
+                            $q->orWhere('expenses.date', 'LIKE', "%{$parsedDate}%");
+                        }
+                    }
+                } catch (\Exception $e) {}
             });
         }
 
@@ -694,11 +716,13 @@ class ExpenseController extends Controller
             ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
                 DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
             ->where($filters)
-            ->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
+        $search = $request->input('search.value');
+        if (empty($search)) {
+            $query->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
+        }
 
         $totalRecords = $query->count();
 
-        $search = $request->input('search.value');
         if (!empty($search)) {
             $query->where(function($q) use ($search) {
                 $q->where('expense_head.name', 'LIKE', "%{$search}%")
@@ -712,6 +736,15 @@ class ExpenseController extends Controller
                   ->orWhere('expenses.remark', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.return_comment', 'LIKE', "%{$search}%")
                   ->orWhere('expenses.date', 'LIKE', "%{$search}%");
+
+                try {
+                    if (strtotime($search) !== false) {
+                        $parsedDate = date('Y-m-d', strtotime($search));
+                        if ($parsedDate && $parsedDate !== '1970-01-01') {
+                            $q->orWhere('expenses.date', 'LIKE', "%{$parsedDate}%");
+                        }
+                    }
+                } catch (\Exception $e) {}
             });
         }
 

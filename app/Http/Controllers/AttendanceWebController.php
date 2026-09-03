@@ -848,4 +848,61 @@ class AttendanceWebController extends Controller
             fclose($file);
         }, 200, $headers);
     }
+
+    public function exportAttendancePdf(Request $request)
+    {
+        $conn = session()->get('comp_db_conn_name');
+        if (!$conn) {
+            return redirect('/login')->with('error', 'Please log in again.');
+        }
+
+        $assignedSites = session()->get('assigned_site_ids', []);
+        $isSuperAdmin = function_exists('isSuperAdmin') ? isSuperAdmin() : false;
+        $hasAllSites = $isSuperAdmin || empty($assignedSites) || in_array('all', $assignedSites);
+
+        $attendanceLogsQuery = DB::connection($conn)->table('attendance')
+            ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
+            ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
+            ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id');
+
+        if (!$hasAllSites) {
+            $attendanceLogsQuery->whereIn('attendance.site_id', array_filter((array)$assignedSites));
+        }
+
+        $attendanceLogs = $attendanceLogsQuery->select(
+                'attendance.*', 
+                DB::raw('COALESCE(users.name, bills_party.name, "Labour Contractor") as user_name'),
+                DB::raw('COALESCE(users.username, "Labour Party") as user_username'),
+                'sites.name as site_name'
+            )
+            ->orderBy('attendance.id', 'desc')
+            ->get();
+
+        $companyName = session()->get('name', 'Buildarya Construction');
+        $siteName = 'All Assigned Sites';
+
+        $activeSiteId = session()->get('site_id');
+        if (!empty($activeSiteId) && $activeSiteId != 'all') {
+            $siteObj = DB::connection($conn)->table('sites')->where('id', $activeSiteId)->first();
+            if ($siteObj && isset($siteObj->name)) {
+                $siteName = $siteObj->name;
+            }
+        } elseif (!empty($assignedSites)) {
+            $sites = DB::connection($conn)->table('sites')->whereIn('id', array_filter((array)$assignedSites))->pluck('name')->toArray();
+            if (!empty($sites)) {
+                $siteName = implode(', ', $sites);
+            }
+        }
+
+        $generatedAt = Carbon::now()->format('d M Y, h:i A');
+
+        $html = view('pdf.attendance_report', compact('attendanceLogs', 'companyName', 'siteName', 'generatedAt'))->render();
+
+        if (class_exists('Barryvdh\DomPDF\Facade\Pdf')) {
+            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
+            return $pdf->download('Attendance_Report_' . date('Y-m-d') . '.pdf');
+        }
+
+        return response($html)->header('Content-Type', 'text/html');
+    }
 }
