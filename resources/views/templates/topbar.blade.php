@@ -19,15 +19,15 @@
         </div>
 
         <ul class="nav navbar-nav navbar-right d-flex align-items-center">
-            <!-- Toggle View Button (Classic View / Normal View) -->
+            <!-- Toggle View Button (Chat View / Classic View) -->
             <li class="d-flex align-items-center" style="margin-right: 12px;">
-                @if(request()->is('classic-view'))
-                    <a href="{{ url('/dashboard') }}" title="Normal View (Dashboard)" style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #4f46e5, #3730a3); color: #ffffff !important; border-radius: 20px; padding: 6px 14px; text-decoration: none; font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px rgba(79,70,229,0.35); transition: all 0.2s ease;">
-                        <i class="zmdi zmdi-view-dashboard" style="font-size: 15px; margin-right: 6px; color: #ffffff !important;"></i> Normal View
+                @if(request()->is('chat-view') || request()->is('classic-view'))
+                    <a href="{{ url('/dashboard') }}" title="Classic View (Dashboard)" style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #4f46e5, #3730a3); color: #ffffff !important; border-radius: 20px; padding: 6px 14px; text-decoration: none; font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px rgba(79,70,229,0.35); transition: all 0.2s ease;">
+                        <i class="zmdi zmdi-view-dashboard" style="font-size: 15px; margin-right: 6px; color: #ffffff !important;"></i> Classic View
                     </a>
                 @else
-                    <a href="{{ url('/classic-view') }}" title="Classic View (ChatGPT AI)" style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #10a37f, #0d8a6a); color: #ffffff !important; border-radius: 20px; padding: 6px 14px; text-decoration: none; font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px rgba(16,163,127,0.35); transition: all 0.2s ease;">
-                        <i class="zmdi zmdi-comments" style="font-size: 15px; margin-right: 6px; color: #ffffff !important;"></i> Classic View
+                    <a href="{{ url('/chat-view') }}" title="Chat View (AI Assistant)" style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #10a37f, #0d8a6a); color: #ffffff !important; border-radius: 20px; padding: 6px 14px; text-decoration: none; font-size: 12px; font-weight: 700; box-shadow: 0 2px 8px rgba(16,163,127,0.35); transition: all 0.2s ease;">
+                        <i class="zmdi zmdi-comments" style="font-size: 15px; margin-right: 6px; color: #ffffff !important;"></i> Chat View
                     </a>
                 @endif
             </li>

@@ -75,9 +75,12 @@ Route::post('/change-language', [DashboardController::class, 'changeLanguage']);
 Route::group(['middleware' => ['auth']], function () {
 
     Route::get('/dashboard', [DashboardController::class, 'getCompanyDashboard']);
-    Route::get('/classic-view', function () {
+    Route::get('/chat-view', function () {
         return view('classic_view');
-    })->name('classic.view');
+    })->name('chat.view');
+    Route::get('/classic-view', function () {
+        return redirect('/chat-view');
+    });
     Route::get('/notifications/unread-count', [DashboardController::class, 'getUnreadNotificationsCount'])->name('notifications.unreadCount');
     Route::get('/notifications/mark-all-read', [DashboardController::class, 'markAllNotificationsRead'])->name('notifications.markAllRead');
     Route::get('/notifications/{id}/read', [DashboardController::class, 'markNotificationRead'])->name('notifications.read');

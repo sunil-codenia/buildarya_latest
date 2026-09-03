@@ -121,7 +121,7 @@ class LoginController extends Controller
                             "browser" => $request->header('User-Agent'),
                             "session_key" => $key
                         ]);
-                        return redirect('/dashboard');
+                        return redirect('/chat-view');
                         } else {
                             return view('/login')->with('errorcode', "You Are Not Allowed To Login Using Web Portal! Please Contact Your Administration!");
                         }

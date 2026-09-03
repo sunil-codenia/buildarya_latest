@@ -689,23 +689,8 @@
 
         <div class="chat-history-title">Recent Site Chats</div>
         
-        <div class="chat-history-list">
-            <a href="javascript:void(0);" class="chat-history-item active" onclick="sendQuickPrompt('Show labour attendance report for {{ $active_site_name }}')">
-                <i class="zmdi zmdi-comment-text"></i>
-                <span>{{ $active_site_name }} Attendance</span>
-            </a>
-            <a href="javascript:void(0);" class="chat-history-item" onclick="sendQuickPrompt('give me supplier record')">
-                <i class="zmdi zmdi-comment-text"></i>
-                <span>Material Suppliers Record</span>
-            </a>
-            <a href="javascript:void(0);" class="chat-history-item" onclick="sendQuickPrompt('Audit petty cash expenses for {{ $active_site_name }}')">
-                <i class="zmdi zmdi-comment-text"></i>
-                <span>{{ $active_site_name }} Expense Vouchers</span>
-            </a>
-            <a href="javascript:void(0);" class="chat-history-item" onclick="sendQuickPrompt('Check material stock balance for {{ $active_site_name }}')">
-                <i class="zmdi zmdi-comment-text"></i>
-                <span>Material Stock Logs</span>
-            </a>
+        <div class="chat-history-list" id="chat-history-list">
+            <!-- Dynamically rendered via JS -->
         </div>
 
         <div class="sidebar-user-footer">
@@ -832,7 +817,7 @@
                 </button>
             </div>
             <div class="disclaimer-text">
-                Buildarya AI Classic View &bull; Dynamic Text-to-Query System connected to <strong>{{ $active_site_name }}</strong> database tables.
+                Buildarya AI Chat View &bull; Dynamic Text-to-Query System connected to <strong>{{ $active_site_name }}</strong> database tables.
             </div>
         </div>
     </div>
@@ -851,6 +836,83 @@
     const REAL_TASKS = @json($realTaskData);
     const REAL_USERS = @json($realUserData);
 
+    const DEFAULT_RECENT_CHATS = [
+        { title: `${CURRENT_SITE_NAME} Attendance`, query: `Show labour attendance report for ${CURRENT_SITE_NAME}` },
+        { title: `Material Suppliers Record`, query: `give me supplier record` },
+        { title: `${CURRENT_SITE_NAME} Expense Vouchers`, query: `Audit petty cash expenses for ${CURRENT_SITE_NAME}` },
+        { title: `Material Stock Logs`, query: `Check material stock balance for ${CURRENT_SITE_NAME}` }
+    ];
+
+    let recentChats = [];
+    try {
+        const saved = localStorage.getItem('buildarya_recent_chats_' + CURRENT_USER_NAME);
+        if (saved) {
+            recentChats = JSON.parse(saved);
+        }
+    } catch (e) {}
+
+    if (!recentChats || !Array.isArray(recentChats) || recentChats.length === 0) {
+        recentChats = [...DEFAULT_RECENT_CHATS];
+    }
+
+    function renderRecentChatsSidebar(activeQuery = '') {
+        const container = document.getElementById('chat-history-list');
+        if (!container) return;
+
+        let html = '';
+        recentChats.forEach((chat) => {
+            const isActive = activeQuery && (chat.query.toLowerCase() === activeQuery.toLowerCase() || chat.title.toLowerCase() === activeQuery.toLowerCase());
+            const activeClass = isActive ? 'active' : '';
+            const safeQuery = chat.query.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            html += `
+                <a href="javascript:void(0);" class="chat-history-item ${activeClass}" onclick="sendQuickPrompt('${safeQuery}')">
+                    <i class="zmdi zmdi-comment-text"></i>
+                    <span title="${escapeHtml(chat.title)}">${escapeHtml(chat.title)}</span>
+                </a>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    function recordRecentChat(text) {
+        let title = text;
+        const lower = text.toLowerCase();
+        if (lower.includes('supplier') || lower.includes('vendor')) {
+            title = 'Material Suppliers Record';
+        } else if (lower.includes('pdf')) {
+            title = `${CURRENT_SITE_NAME} Attendance PDF`;
+        } else if (lower.includes('attendance') || lower.includes('labour')) {
+            title = `${CURRENT_SITE_NAME} Attendance`;
+        } else if (lower.includes('expense') || lower.includes('voucher') || lower.includes('audit')) {
+            title = `${CURRENT_SITE_NAME} Expense Vouchers`;
+        } else if (lower.includes('stock') || lower.includes('material')) {
+            title = 'Material Stock Logs';
+        } else if (lower.includes('task') || lower.includes('todo')) {
+            title = 'Assigned Tasks Record';
+        } else if (lower.includes('user') || lower.includes('staff') || lower.includes('team')) {
+            title = 'Team Users Record';
+        } else {
+            title = text.length > 25 ? text.substring(0, 25) + '...' : text;
+        }
+
+        recentChats = recentChats.filter(c => c.query.toLowerCase() !== text.toLowerCase() && c.title.toLowerCase() !== title.toLowerCase());
+        recentChats.unshift({ title: title, query: text });
+
+        if (recentChats.length > 10) {
+            recentChats = recentChats.slice(0, 10);
+        }
+
+        try {
+            localStorage.setItem('buildarya_recent_chats_' + CURRENT_USER_NAME, JSON.stringify(recentChats));
+        } catch (e) {}
+
+        renderRecentChatsSidebar(text);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        renderRecentChatsSidebar();
+    });
+
     function handleKeyPress(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -867,6 +929,7 @@
         if (container) {
             container.scrollTop = 0;
         }
+        renderRecentChatsSidebar();
     }
 
     function sendQuickPrompt(promptText) {
@@ -878,6 +941,8 @@
         const input = document.getElementById('chat-user-input');
         const text = input.value.trim();
         if (!text) return;
+
+        recordRecentChat(text);
 
         const threadRows = document.getElementById('chat-thread-rows');
         const container = document.getElementById('chat-messages-container');
