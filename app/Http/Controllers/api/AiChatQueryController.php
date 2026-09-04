@@ -132,7 +132,7 @@ class AiChatQueryController extends Controller
             . "1. ONLY return the raw SQL string without any explanation, title, markdown formatting, or ```sql blocks.\n"
             . "2. ONLY generate SELECT queries. NEVER generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE.\n"
             . "3. If user input is a greeting (e.g. 'hi', 'hello', 'hey'), reply with 'NONE'.\n"
-            . "4. Always add 'LIMIT 25' unless counting records.\n\n"
+            . "4. Order records by 1 DESC unless counting records or specific limit requested.\n\n"
             . "DATABASE SCHEMA:\n"
             . "- attendance (id, user_id, bills_party_id, site_id, date, in_time, out_time, status, remarks)\n"
             . "- expenses (id, particular, amount, user_id, site_id, head_id, party_id, party_type, status, date, location, remark)\n"
@@ -421,7 +421,7 @@ class AiChatQueryController extends Controller
         }
 
         $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
-        return "{$selectQuery}{$whereSql} ORDER BY 1 DESC LIMIT 25";
+        return "{$selectQuery}{$whereSql} ORDER BY 1 DESC";
     }
 
     /**
