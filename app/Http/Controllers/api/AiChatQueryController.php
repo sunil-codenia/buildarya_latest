@@ -296,7 +296,50 @@ class AiChatQueryController extends Controller
         $whereClauses = [];
 
         // 1. Identify Database Target Entity and construct Base SELECT Query
-        if (strpos($lower, 'sales party') !== false || strpos($lower, 'sales parties') !== false) {
+        if (strpos($lower, 'sales report') !== false || strpos($lower, 'slaes report') !== false || strpos($lower, 'sales reprt') !== false || strpos($lower, 'report of sales') !== false || strpos($lower, 'invoice report') !== false) {
+            $selectQuery = "SELECT sales_invoice.id, sales_invoice.invoice_no, sales_party.name as party_name, sales_invoice.taxable_value, sales_invoice.amount, sales_invoice.status, sales_invoice.date FROM sales_invoice LEFT JOIN sales_party ON sales_party.id=sales_invoice.party_id";
+        } else if (strpos($lower, 'pending report') !== false || strpos($lower, 'pending reprt') !== false || strpos($lower, 'report of pending') !== false) {
+            $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
+            $whereClauses[] = "(expenses.status LIKE '%Pending%' OR expenses.status LIKE '%pending%')";
+            $sf = $getSiteFilter('expenses.site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'voucher report') !== false || strpos($lower, 'vouchers report') !== false || strpos($lower, 'voucher reprt') !== false || strpos($lower, 'report of voucher') !== false || strpos($lower, 'report of vouchers') !== false) {
+            $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'expense report') !== false || strpos($lower, 'expense reprt') !== false || strpos($lower, 'expence report') !== false || strpos($lower, 'report of expense') !== false || strpos($lower, 'report of expenses') !== false) {
+            $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
+            $sf = $getSiteFilter('expenses.site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'material report') !== false || strpos($lower, 'material reprt') !== false || strpos($lower, 'matrial report') !== false || strpos($lower, 'stock report') !== false) {
+            $selectQuery = "SELECT material_entry.id, materials.name as material_name, material_entry.qty, material_entry.vehical, material_entry.date, material_entry.status FROM material_entry LEFT JOIN materials ON materials.id=material_entry.material_id";
+            $sf = $getSiteFilter('material_entry.site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'attendance report') !== false || strpos($lower, 'attendace report') !== false || strpos($lower, 'report of attendance') !== false) {
+            $selectQuery = "SELECT attendance.id, COALESCE(users.name, 'Labour') as person_name, attendance.date, attendance.in_time, attendance.out_time, attendance.status, attendance.remarks FROM attendance LEFT JOIN users ON users.id=attendance.user_id";
+            $sf = $getSiteFilter('attendance.site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'voucher') !== false || strpos($lower, 'payment') !== false)) {
+            $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
+            $whereClauses[] = "(status LIKE '%Pending%' OR status LIKE '%pending%')";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if ((strpos($lower, 'verified') !== false || strpos($lower, 'approved') !== false) && (strpos($lower, 'voucher') !== false || strpos($lower, 'payment') !== false)) {
+            $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
+            $whereClauses[] = "(status LIKE '%Verified%' OR status LIKE '%verified%' OR status LIKE '%Approved%' OR status LIKE '%approved%')";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'paid') !== false && (strpos($lower, 'voucher') !== false || strpos($lower, 'payment') !== false)) {
+            $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
+            $whereClauses[] = "(status LIKE '%Paid%' OR status LIKE '%paid%')";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'rejected') !== false && (strpos($lower, 'voucher') !== false || strpos($lower, 'payment') !== false)) {
+            $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
+            $whereClauses[] = "(status LIKE '%Rejected%' OR status LIKE '%rejected%')";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'sales party') !== false || strpos($lower, 'sales parties') !== false) {
             $selectQuery = "SELECT id, name, address, phone, gst, status FROM sales_party";
         } else if (strpos($lower, 'sales project') !== false || strpos($lower, 'sales projects') !== false) {
             $selectQuery = "SELECT id, name, details, status, create_datetime FROM sales_project";
@@ -360,12 +403,12 @@ class AiChatQueryController extends Controller
             $selectQuery = "SELECT attendance.id, COALESCE(users.name, 'Labour') as person_name, attendance.date, attendance.in_time, attendance.out_time, attendance.status, attendance.remarks FROM attendance LEFT JOIN users ON users.id=attendance.user_id";
             $sf = $getSiteFilter('attendance.site_id');
             if ($sf) $whereClauses[] = $sf;
-        } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'voucher') !== false)) {
+        } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false)) {
             $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
             $whereClauses[] = "(expenses.status LIKE '%Pending%' OR expenses.status LIKE '%pending%')";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
-        } else if (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'petty') !== false || strpos($lower, 'voucher') !== false || strpos($lower, 'cost') !== false || strpos($lower, 'audit') !== false) {
+        } else if (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'petty') !== false || strpos($lower, 'cost') !== false || strpos($lower, 'audit') !== false) {
             $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
