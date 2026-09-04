@@ -10,6 +10,9 @@
     $is_superadmin = session()->get('is_superadmin') === 'yes' || session()->get('role') == 1;
 
     $active_site_name = null;
+    $active_site_display = null;
+    $site_count = 1;
+    $site_names_array = [];
     $realAttendanceData = [];
     $realExpenseData = [];
     $realMaterialData = [];
@@ -28,6 +31,8 @@
                     ->first();
                 if ($siteObj && isset($siteObj->name)) {
                     $active_site_name = $siteObj->name;
+                    $active_site_display = $siteObj->name;
+                    $site_names_array = [$siteObj->name];
                 }
             }
 
@@ -37,17 +42,23 @@
                     ->whereIn('id', array_filter((array)$assigned_ids))
                     ->get();
                 if ($sites->count() > 0) {
-                    $active_site_name = implode(', ', $sites->pluck('name')->toArray());
+                    $site_names_array = $sites->pluck('name')->toArray();
+                    $site_count = count($site_names_array);
+                    $active_site_name = implode(', ', $site_names_array);
+                    $active_site_display = $site_count > 1 ? "All Sites ({$site_count} Active)" : $site_names_array[0];
                 }
             }
 
             if (empty($active_site_name)) {
-                $siteObj = \Illuminate\Support\Facades\DB::connection($conn)
+                $sites = \Illuminate\Support\Facades\DB::connection($conn)
                     ->table('sites')
                     ->where('status', 'Active')
-                    ->first();
-                if ($siteObj && isset($siteObj->name)) {
-                    $active_site_name = $siteObj->name;
+                    ->get();
+                if ($sites->count() > 0) {
+                    $site_names_array = $sites->pluck('name')->toArray();
+                    $site_count = count($site_names_array);
+                    $active_site_name = implode(', ', $site_names_array);
+                    $active_site_display = $site_count > 1 ? "All Sites ({$site_count} Active)" : $site_names_array[0];
                 }
             }
 
@@ -198,9 +209,14 @@
     if (empty($active_site_name)) {
         $active_site_name = "Head Office";
     }
+    if (empty($active_site_display)) {
+        $active_site_display = $active_site_name;
+    }
 @endphp
 
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
     /* Hide Main Navigation Sidebar on Classic View */
     #leftsidebar, 
     aside.sidebar,
@@ -218,62 +234,68 @@
         max-width: 100% !important;
     }
 
-    /* ChatGPT Classic Dark Theme Overrides for Content Area */
+    /* Full-screen Dark Mesh Atmosphere */
     .content.home {
         padding: 0 !important;
         margin: 0 !important;
-        background-color: #343541 !important;
+        background-color: #0b0f17 !important;
         min-height: calc(100vh - 60px);
     }
 
     .chat-container-wrapper {
         display: flex;
         height: calc(100vh - 65px);
-        background-color: #343541;
-        color: #ececf1;
-        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        background: radial-gradient(circle at 50% 15%, rgba(16, 185, 129, 0.08) 0%, rgba(6, 182, 212, 0.03) 35%, #0b0f17 75%);
+        color: #f1f5f9;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
         overflow: hidden;
     }
 
     /* Left Sidebar */
     .chat-sidebar {
-        width: 260px;
-        background-color: #202123;
+        width: 270px;
+        background-color: #111827;
         display: flex;
         flex-direction: column;
-        padding: 10px;
-        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 14px;
+        border-right: 1px solid rgba(255, 255, 255, 0.07);
         flex-shrink: 0;
         transition: all 0.3s ease;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
     }
 
     .new-chat-btn {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 10px;
-        padding: 12px 14px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
+        padding: 12px 16px;
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        border-radius: 12px;
         color: #ffffff;
-        background: transparent;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.1));
         font-size: 13px;
-        font-weight: 600;
+        font-weight: 700;
         cursor: pointer;
-        transition: background 0.2s ease;
-        margin-bottom: 15px;
+        transition: all 0.25 ease;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
     }
 
     .new-chat-btn:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(6, 182, 212, 0.2));
+        border-color: #10b981;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.25);
     }
 
     .chat-history-title {
         font-size: 11px;
-        font-weight: 700;
-        color: #8e8ea0;
+        font-weight: 800;
+        color: #64748b;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        padding: 8px 12px 4px 12px;
+        letter-spacing: 0.8px;
+        padding: 8px 12px 8px 8px;
     }
 
     .chat-history-list {
@@ -281,38 +303,66 @@
         overflow-y: auto;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 6px;
+        padding-right: 4px;
+    }
+
+    .chat-history-list::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .chat-history-list::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
     }
 
     .chat-history-item {
         display: flex;
         align-items: center;
         gap: 10px;
-        padding: 10px 12px;
-        border-radius: 8px;
-        color: #ececf1;
+        padding: 10px 14px;
+        border-radius: 10px;
+        color: #94a3b8;
         font-size: 13px;
+        font-weight: 500;
         cursor: pointer;
         text-decoration: none;
-        transition: background 0.2s ease;
+        transition: all 0.2s ease;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.02);
     }
 
-    .chat-history-item:hover, .chat-history-item.active {
-        background-color: #343541;
-        color: #ffffff;
+    .chat-history-item:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: #f8fafc;
+        border-color: rgba(255, 255, 255, 0.08);
+        transform: translateX(2px);
+    }
+
+    .chat-history-item.active {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(15, 23, 42, 0.8));
+        color: #10b981;
+        font-weight: 700;
+        border-color: rgba(16, 185, 129, 0.3);
     }
 
     .chat-history-item i {
         font-size: 15px;
-        color: #8e8ea0;
+        color: #64748b;
+        transition: color 0.2s ease;
+    }
+
+    .chat-history-item:hover i, .chat-history-item.active i {
+        color: #10b981;
     }
 
     .sidebar-user-footer {
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        padding-top: 14px;
+        margin-top: 10px;
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -321,22 +371,22 @@
     .user-pill {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
         color: #ffffff;
-        font-size: 13px;
-        font-weight: 600;
     }
 
     .user-avatar {
-        width: 32px;
-        height: 32px;
-        border-radius: 6px;
-        background: linear-gradient(135deg, #10a37f, #0d8a6a);
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #10b981, #06b6d4);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-weight: 700;
+        font-weight: 800;
+        font-size: 14px;
         color: white;
+        box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
     }
 
     /* Main Chat Window */
@@ -345,7 +395,7 @@
         display: flex;
         flex-direction: column;
         position: relative;
-        background-color: #343541;
+        background-color: transparent;
     }
 
     /* Top Bar inside Chat */
@@ -353,237 +403,282 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 12px 20px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        background-color: #343541;
+        padding: 14px 28px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba(17, 24, 39, 0.7);
+        backdrop-filter: blur(16px);
         z-index: 10;
     }
 
     .model-selector {
         display: flex;
         align-items: center;
-        gap: 8px;
-        background-color: #202123;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        padding: 6px 14px;
-        border-radius: 8px;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 7px 16px;
+        border-radius: 20px;
         color: #ffffff;
         font-size: 13px;
         font-weight: 700;
     }
 
-    .model-selector i {
-        color: #10a37f;
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: #10b981;
+        box-shadow: 0 0 10px #10b981;
+        animation: pulseGlow 1.8s infinite;
+    }
+
+    @keyframes pulseGlow {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
     .back-dashboard-btn {
-        background-color: rgba(255, 255, 255, 0.08);
-        color: #ffffff;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+        color: #ffffff !important;
         border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 8px;
-        padding: 6px 14px;
+        border-radius: 10px;
+        padding: 7px 16px;
         font-size: 12px;
-        font-weight: 600;
+        font-weight: 700;
         text-decoration: none;
-        transition: all 0.2s ease;
+        transition: all 0.25s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
     }
 
     .back-dashboard-btn:hover {
-        background-color: rgba(255, 255, 255, 0.15);
-        color: #ffffff;
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
     /* Messages Area */
     .chat-messages-area {
         flex: 1;
         overflow-y: auto;
-        padding: 20px 0;
+        padding: 30px 0;
         display: flex;
         flex-direction: column;
         scroll-behavior: smooth;
     }
 
+    .chat-messages-area::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .chat-messages-area::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+    }
+
     /* Welcome Screen Card Header */
     .welcome-screen {
-        max-width: 760px;
-        margin: 0 auto 30px auto;
+        max-width: 860px;
+        margin: 10px auto 30px auto;
         text-align: center;
-        padding: 0 20px;
+        padding: 0 24px;
+    }
+
+    .welcome-icon-wrapper {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 24px auto;
     }
 
     .welcome-icon {
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #10a37f, #0d8a6a);
+        width: 72px;
+        height: 72px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #10b981, #06b6d4, #6366f1);
         display: flex;
         align-items: center;
         justify-content: center;
-        margin: 0 auto 20px auto;
-        box-shadow: 0 0 20px rgba(16, 163, 127, 0.4);
+        box-shadow: 0 0 35px rgba(16, 185, 129, 0.45);
+        animation: orbFloat 4s ease-in-out infinite;
+    }
+
+    @keyframes orbFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
     }
 
     .welcome-icon i {
-        font-size: 28px;
+        font-size: 34px;
         color: #ffffff;
     }
 
     .welcome-title {
-        font-size: 24px;
-        font-weight: 700;
-        color: #ffffff;
-        margin-bottom: 8px;
+        font-size: 28px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #ffffff 60%, #94a3b8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 12px;
+        letter-spacing: -0.5px;
     }
 
     .user-scope-banner {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        background: rgba(16, 163, 127, 0.15);
-        border: 1px solid rgba(16, 163, 127, 0.35);
-        border-radius: 20px;
-        padding: 6px 16px;
-        font-size: 12px;
-        color: #2dd4bf;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        backdrop-filter: blur(12px);
+        border-radius: 30px;
+        padding: 7px 20px;
+        font-size: 13px;
+        color: #34d399;
         font-weight: 600;
-        margin-bottom: 25px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
 
     .quick-prompts-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
-        max-width: 760px;
+        gap: 16px;
+        max-width: 860px;
         margin: 0 auto;
     }
 
     .prompt-card {
-        background-color: #202123;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 12px;
-        padding: 14px 16px;
+        background: rgba(30, 41, 59, 0.45);
+        backdrop-filter: blur(14px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 18px 20px;
         text-align: left;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.25s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .prompt-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+        opacity: 0;
+        transition: opacity 0.25s ease;
     }
 
     .prompt-card:hover {
-        background-color: #40414f;
-        border-color: rgba(16, 163, 127, 0.6);
-        transform: translateY(-2px);
+        background: rgba(30, 41, 59, 0.75);
+        border-color: rgba(16, 185, 129, 0.4);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(16, 185, 129, 0.15);
     }
 
-    .prompt-card-title {
-        font-size: 13px;
-        font-weight: 700;
-        color: #ffffff;
-        margin-bottom: 4px;
+    .prompt-card:hover::before {
+        opacity: 1;
+    }
+
+    .prompt-icon-badge {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        justify-content: center;
+        font-size: 18px;
+        margin-bottom: 12px;
+    }
+
+    .badge-suppliers { background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2)); color: #a855f7; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .badge-pdf { background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(249, 115, 22, 0.2)); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
+    .badge-live { background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2)); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-expense { background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(234, 179, 8, 0.2)); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-stock { background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(59, 130, 246, 0.2)); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .badge-tasks { background: linear-gradient(135deg, rgba(236, 72, 153, 0.2), rgba(217, 70, 239, 0.2)); color: #ec4899; border: 1px solid rgba(236, 72, 153, 0.3); }
+
+    .prompt-card-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #f8fafc;
+        margin-bottom: 4px;
     }
 
     .prompt-card-desc {
-        font-size: 11px;
-        color: #8e8ea0;
-    }
-
-    /* Sticky Action Chip Buttons Above Input */
-    .quick-action-chips {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        overflow-x: auto;
-        padding-bottom: 8px;
-        margin-bottom: 8px;
-        scrollbar-width: thin;
-    }
-
-    .quick-action-chips::-webkit-scrollbar {
-        height: 4px;
-    }
-
-    .quick-action-chips::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 4px;
-    }
-
-    .chip-btn {
-        background-color: #202123;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        color: #d1d5db;
-        border-radius: 16px;
-        padding: 6px 14px;
         font-size: 12px;
-        font-weight: 600;
-        cursor: pointer;
-        white-space: nowrap;
-        transition: all 0.2s ease;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-
-    .chip-btn:hover {
-        background-color: #40414f;
-        color: #ffffff;
-        border-color: #10a37f;
+        color: #94a3b8;
+        line-height: 1.4;
     }
 
     /* Message Row */
     .message-row {
         width: 100%;
         padding: 24px 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        animation: fadeInRow 0.3s ease;
+    }
+
+    @keyframes fadeInRow {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     .message-row.user {
-        background-color: #343541;
+        background-color: transparent;
     }
 
     .message-row.assistant {
-        background-color: #444654;
+        background: rgba(15, 23, 42, 0.45);
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     }
 
     .message-content-inner {
-        max-width: 760px;
+        max-width: 860px;
         margin: 0 auto;
-        padding: 0 20px;
+        padding: 0 24px;
         display: flex;
         gap: 20px;
     }
 
     .message-avatar {
-        width: 34px;
-        height: 34px;
-        border-radius: 6px;
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        font-weight: 700;
-        font-size: 14px;
+        font-weight: 800;
+        font-size: 15px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
     }
 
     .message-avatar.user-av {
-        background-color: #5436da;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
         color: #ffffff;
     }
 
     .message-avatar.ai-av {
-        background-color: #10a37f;
+        background: linear-gradient(135deg, #10b981, #06b6d4);
         color: #ffffff;
     }
 
     .message-text {
         flex: 1;
         font-size: 14px;
-        line-height: 1.6;
-        color: #d1d5db;
+        line-height: 1.65;
+        color: #e2e8f0;
     }
 
     .message-text p {
-        margin-bottom: 12px;
+        margin-bottom: 14px;
     }
 
     .message-text p:last-child {
@@ -592,39 +687,66 @@
 
     .message-text table {
         width: 100%;
-        border-collapse: collapse;
-        margin: 12px 0;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin: 16px 0;
         font-size: 13px;
-    }
-
-    .message-text th, .message-text td {
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        padding: 8px 12px;
-        text-align: left;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
     }
 
     .message-text th {
-        background-color: rgba(0, 0, 0, 0.25);
+        background: linear-gradient(90deg, #1e293b, #0f172a);
+        color: #f8fafc;
+        font-weight: 700;
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .message-text td {
+        background-color: rgba(30, 41, 59, 0.3);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 10px 16px;
+        color: #cbd5e1;
+    }
+
+    .message-text tr:last-child td {
+        border-bottom: none;
+    }
+
+    .message-text tr:hover td {
+        background-color: rgba(30, 41, 59, 0.6);
         color: #ffffff;
     }
 
     /* Bottom Input Bar */
     .chat-input-container {
-        max-width: 760px;
+        max-width: 860px;
         width: 100%;
         margin: 0 auto;
-        padding: 10px 20px 24px 20px;
+        padding: 10px 24px 28px 24px;
     }
 
     .input-box-wrapper {
         position: relative;
-        background-color: #40414f;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 14px;
-        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        background: rgba(30, 41, 59, 0.6);
+        backdrop-filter: blur(18px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 18px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 15px rgba(16, 185, 129, 0.08);
         display: flex;
         align-items: center;
-        padding: 10px 14px;
+        padding: 12px 18px;
+        transition: all 0.25s ease;
+    }
+
+    .input-box-wrapper:focus-within {
+        border-color: rgba(16, 185, 129, 0.5);
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5), 0 0 25px rgba(16, 185, 129, 0.2);
+        background: rgba(30, 41, 59, 0.85);
     }
 
     .chat-textarea {
@@ -640,33 +762,36 @@
     }
 
     .chat-textarea::placeholder {
-        color: #8e8ea0;
+        color: #64748b;
     }
 
     .send-btn {
-        background-color: #10a37f;
+        background: linear-gradient(135deg, #10b981, #06b6d4);
         color: #ffffff;
         border: none;
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
         display: flex;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        margin-left: 10px;
-        transition: background 0.2s ease;
+        margin-left: 12px;
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
     }
 
     .send-btn:hover {
-        background-color: #0d8a6a;
+        transform: scale(1.05);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
     }
 
     .disclaimer-text {
         font-size: 11px;
-        color: #8e8ea0;
+        color: #64748b;
         text-align: center;
-        margin-top: 10px;
+        margin-top: 12px;
+        font-weight: 500;
     }
 
     /* Responsive */
@@ -698,9 +823,9 @@
                 <div class="user-avatar">
                     {{ strtoupper(substr($user_name, 0, 2)) }}
                 </div>
-                <div>
+                <div style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                     <div style="font-size: 13px; font-weight: 700; color: #fff;">{{ $user_name }}</div>
-                    <div style="font-size: 10px; color: #10a37f; font-weight: 700;">{{ $active_site_name }}</div>
+                    <div style="font-size: 10px; color: #10b981; font-weight: 700; overflow: hidden; text-overflow: ellipsis;" title="{{ $active_site_name }}">{{ $active_site_display }}</div>
                 </div>
             </div>
             <a href="{{ url('/dashboard') }}" title="Back to Normal View" style="color: #8e8ea0; font-size: 18px;">
@@ -714,69 +839,77 @@
         <!-- Top Navigation -->
         <div class="chat-topbar">
             <div class="model-selector">
-                <i class="zmdi zmdi-flash"></i>
-                <span>Buildarya AI 4.0 (Live Database Connected)</span>
-                <i class="zmdi zmdi-chevron-down" style="margin-left: 6px; color: #8e8ea0;"></i>
+                <div class="pulse-dot"></div>
+                <span>Buildarya AI 4.0 Pro Engine</span>
+                <span style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.3); margin-left: 4px;">Live SQL DB</span>
             </div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <span class="badge" style="background: rgba(16, 163, 127, 0.2); color: #10a37f; border: 1px solid rgba(16, 163, 127, 0.4); padding: 5px 10px; font-size: 11px;">
-                    Active Site: {{ $active_site_name }}
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 14px; font-size: 12px; border-radius: 20px; font-weight: 700; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ $active_site_name }}">
+                    <i class="zmdi zmdi-pin" style="margin-right: 4px;"></i> {{ $active_site_display }}
                 </span>
                 <a href="{{ url('/dashboard') }}" class="back-dashboard-btn">
-                    <i class="zmdi zmdi-view-dashboard" style="margin-right: 5px;"></i> Normal View
+                    <i class="zmdi zmdi-view-dashboard"></i> Normal View
                 </a>
             </div>
         </div>
 
         <!-- Chat Scroll Messages Area -->
         <div class="chat-messages-area" id="chat-messages-container">
-            <!-- Welcome Screen Header Grid (Permanently preserved at top when scrolling up) -->
+            <!-- Welcome Screen Header Grid -->
             <div class="welcome-screen" id="welcome-screen">
-                <div class="welcome-icon">
-                    <i class="zmdi zmdi-comments"></i>
+                <div class="welcome-icon-wrapper">
+                    <div class="welcome-icon">
+                        <i class="zmdi zmdi-cloud-outline"></i>
+                    </div>
                 </div>
                 <h1 class="welcome-title">How can Buildarya AI assist your sites today?</h1>
                 
-                <div class="user-scope-banner">
-                    <i class="zmdi zmdi-account-circle"></i>
-                    Logged in as <strong>{{ $user_name }}</strong> ({{ $user_username }}) &bull; Active Site: <strong>{{ $active_site_name }}</strong>
+                <div class="user-scope-banner" title="{{ $active_site_name }}">
+                    <i class="zmdi zmdi-account-circle" style="font-size: 16px;"></i>
+                    Logged in as <strong>{{ $user_name }}</strong> ({{ $user_username }}) &bull; Active Scope: <strong>{{ $active_site_display }}</strong>
                 </div>
 
                 <div class="quick-prompts-grid">
                     <div class="prompt-card" onclick="sendQuickPrompt('give me supplier record')">
-                        <div class="prompt-card-title">
-                            <span>🏬 Material Suppliers</span>
+                        <div class="prompt-icon-badge badge-suppliers">
+                            <i class="zmdi zmdi-store"></i>
                         </div>
+                        <div class="prompt-card-title">Material Suppliers</div>
                         <div class="prompt-card-desc">Fetch material supplier list from DB</div>
                     </div>
                     <div class="prompt-card" onclick="sendQuickPrompt('i want proper attendance in pdf')">
-                        <div class="prompt-card-title">
-                            <span>📄 Attendance PDF</span>
+                        <div class="prompt-icon-badge badge-pdf">
+                            <i class="zmdi zmdi-file-text"></i>
                         </div>
+                        <div class="prompt-card-title">Attendance PDF</div>
                         <div class="prompt-card-desc">Generate downloadable attendance PDF</div>
                     </div>
-                    <div class="prompt-card" onclick="sendQuickPrompt('Show labour attendance report for {{ $active_site_name }}')">
-                        <div class="prompt-card-title">
-                            <span>👷 Live Attendance</span>
+                    <div class="prompt-card" onclick="sendQuickPrompt('Show labour attendance report for {{ $active_site_display }}')">
+                        <div class="prompt-icon-badge badge-live">
+                            <i class="zmdi zmdi-accounts-alt"></i>
                         </div>
+                        <div class="prompt-card-title">Live Attendance</div>
                         <div class="prompt-card-desc">Fetch actual attendance logs from DB</div>
                     </div>
-                    <div class="prompt-card" onclick="sendQuickPrompt('Audit petty cash expenses for {{ $active_site_name }}')">
-                        <div class="prompt-card-title">
-                            <span>💰 Expense Vouchers</span>
+                    <div class="prompt-card" onclick="sendQuickPrompt('Audit petty cash expenses for {{ $active_site_display }}')">
+                        <div class="prompt-icon-badge badge-expense">
+                            <i class="zmdi zmdi-money"></i>
                         </div>
+                        <div class="prompt-card-title">Expense Vouchers</div>
                         <div class="prompt-card-desc">Fetch site expense vouchers from DB</div>
                     </div>
-                    <div class="prompt-card" onclick="sendQuickPrompt('Check material stock balance for {{ $active_site_name }}')">
-                        <div class="prompt-card-title">
-                            <span>📦 Material Stock</span>
+                    <div class="prompt-card" onclick="sendQuickPrompt('Check material stock balance for {{ $active_site_display }}')">
+                        <div class="prompt-icon-badge badge-stock">
+                            <i class="zmdi zmdi-layers"></i>
                         </div>
+                        <div class="prompt-card-title">Material Stock</div>
                         <div class="prompt-card-desc">Fetch material stock entries from DB</div>
                     </div>
                     <div class="prompt-card" onclick="sendQuickPrompt('give me task list')">
-                        <div class="prompt-card-title">
-                            <span>📋 Assigned Tasks</span>
+                        <div class="prompt-icon-badge badge-tasks">
+                            <i class="zmdi zmdi-assignment-check"></i>
                         </div>
+                        <div class="prompt-card-title">Assigned Tasks</div>
                         <div class="prompt-card-desc">Fetch site task assignments from DB</div>
                     </div>
                 </div>
@@ -796,7 +929,7 @@
                 </button>
             </div>
             <div class="disclaimer-text">
-                Buildarya AI Chat View &bull; Dynamic Text-to-Query System connected to <strong>{{ $active_site_name }}</strong> database tables.
+                Buildarya AI Chat View &bull; Dynamic Text-to-Query System connected to <strong title="{{ $active_site_name }}">{{ $active_site_display }}</strong> database tables.
             </div>
         </div>
     </div>
@@ -805,7 +938,7 @@
 <script>
     const CURRENT_USER_NAME = @json($user_name);
     const CURRENT_USER_ROLE = @json($user_username);
-    const CURRENT_SITE_NAME = @json($active_site_name);
+    const CURRENT_SITE_NAME = @json($active_site_display);
     const IS_SUPERADMIN = @json($is_superadmin);
 
     const REAL_ATTENDANCE = @json($realAttendanceData);
