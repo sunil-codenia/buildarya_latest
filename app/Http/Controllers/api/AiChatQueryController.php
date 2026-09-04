@@ -296,7 +296,35 @@ class AiChatQueryController extends Controller
         $whereClauses = [];
 
         // 1. Identify Database Target Entity and construct Base SELECT Query
-        if (strpos($lower, 'role') !== false || strpos($lower, 'permission') !== false) {
+        if (strpos($lower, 'sales party') !== false || strpos($lower, 'sales parties') !== false) {
+            $selectQuery = "SELECT id, name, address, phone, gst, status FROM sales_party";
+        } else if (strpos($lower, 'sales project') !== false || strpos($lower, 'sales projects') !== false) {
+            $selectQuery = "SELECT id, name, details, status, create_datetime FROM sales_project";
+        } else if (strpos($lower, 'sales company') !== false || strpos($lower, 'sales companies') !== false) {
+            $selectQuery = "SELECT id, name, address, phone, gst, status FROM sales_company";
+        } else if (strpos($lower, 'sale') !== false || strpos($lower, 'invoice') !== false || strpos($lower, 'billing') !== false) {
+            $selectQuery = "SELECT sales_invoice.id, sales_invoice.invoice_no, sales_party.name as party_name, sales_invoice.taxable_value, sales_invoice.amount, sales_invoice.status, sales_invoice.date FROM sales_invoice LEFT JOIN sales_party ON sales_party.id=sales_invoice.party_id";
+        } else if (strpos($lower, 'expense party') !== false || strpos($lower, 'expence party') !== false || strpos($lower, 'expense_party') !== false) {
+            $selectQuery = "SELECT id, name, address, pan_no, status, create_datetime FROM expense_party";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'bill party') !== false || strpos($lower, 'bills party') !== false || strpos($lower, 'bill_party') !== false) {
+            $selectQuery = "SELECT id, name, bankname, bank_ac, ifsc, panno, status FROM bills_party";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'payment voucher') !== false || strpos($lower, 'payment_voucher') !== false) {
+            $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'other party') !== false || strpos($lower, 'other parties') !== false) {
+            $selectQuery = "SELECT id, name, mobile_no, status FROM other_parties";
+        } else if (strpos($lower, 'document') !== false || strpos($lower, 'doc') !== false) {
+            $selectQuery = "SELECT id, name, particular, date, remark, status FROM doc_upload";
+        } else if (strpos($lower, 'contact') !== false) {
+            $selectQuery = "SELECT id, name, phone, email, position FROM contact";
+        } else if (strpos($lower, 'activity') !== false || strpos($lower, 'log') !== false) {
+            $selectQuery = "SELECT activity.id, users.name as user_name, activity.ref_table, activity.action, activity.date, activity.time FROM activity LEFT JOIN users ON users.id=activity.uid";
+        } else if (strpos($lower, 'role') !== false || strpos($lower, 'permission') !== false) {
             $selectQuery = "SELECT id, name, is_superadmin, created_at FROM roles";
         } else if (strpos($lower, 'site') !== false || strpos($lower, 'location') !== false || strpos($lower, 'branch') !== false || strpos($lower, 'project') !== false) {
             $selectQuery = "SELECT id, name, address, status, sites_type FROM sites";
@@ -328,9 +356,14 @@ class AiChatQueryController extends Controller
             }
         } else if (strpos($lower, 'supplier') !== false || strpos($lower, 'suplier') !== false || strpos($lower, 'vendor') !== false || strpos($lower, 'dealer') !== false || strpos($lower, 'supply') !== false) {
             $selectQuery = "SELECT id, name, address, gstin, bank_name, bank_ac, status FROM material_supplier";
-        } else if (strpos($lower, 'attendance') !== false || strpos($lower, 'attendace') !== false || strpos($lower, 'attendac') !== false || strpos($lower, 'atteance') !== false || strpos($lower, 'attandance') !== false || strpos($lower, 'attandace') !== false || strpos($lower, 'atendance') !== false || strpos($lower, 'attendence') !== false || strpos($lower, 'attndance') !== false || strpos($lower, 'labour') !== false || strpos($lower, 'headcount') !== false || strpos($lower, 'present') !== false || strpos($lower, 'checkin') !== false) {
+        } else if (strpos($lower, 'attendance') !== false || strpos($lower, 'attendace') !== false || strpos($lower, 'attendac') !== false || strpos($lower, 'atteance') !== false || strpos($lower, 'attandance') !== false || strpos($lower, 'attandace') !== false || strpos($lower, 'atendance') !== false || strpos($lower, 'attendence') !== false || strpos($lower, 'attndance') !== false || strpos($lower, 'headcount') !== false || strpos($lower, 'present') !== false || strpos($lower, 'checkin') !== false) {
             $selectQuery = "SELECT attendance.id, COALESCE(users.name, 'Labour') as person_name, attendance.date, attendance.in_time, attendance.out_time, attendance.status, attendance.remarks FROM attendance LEFT JOIN users ON users.id=attendance.user_id";
             $sf = $getSiteFilter('attendance.site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'voucher') !== false)) {
+            $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
+            $whereClauses[] = "(expenses.status LIKE '%Pending%' OR expenses.status LIKE '%pending%')";
+            $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'petty') !== false || strpos($lower, 'voucher') !== false || strpos($lower, 'cost') !== false || strpos($lower, 'audit') !== false) {
             $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
@@ -346,6 +379,8 @@ class AiChatQueryController extends Controller
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'asset') !== false || strpos($lower, 'machinery') !== false || strpos($lower, 'machine') !== false || strpos($lower, 'tool') !== false) {
             $selectQuery = "SELECT id, name, cost_price, status, create_datetime FROM assets";
+        } else if (strpos($lower, 'labour') !== false || strpos($lower, 'worker') !== false) {
+            $selectQuery = "SELECT id, name, mobile_no, status FROM labours";
         }
 
         if (!$selectQuery) {
