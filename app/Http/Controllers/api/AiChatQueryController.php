@@ -273,12 +273,15 @@ class AiChatQueryController extends Controller
 
         // Dynamic Site Scope Resolver
         $getSiteFilter = function($columnName) use ($is_superadmin, $assigned_ids, $req_site_id) {
+            // 1. Superadmin has access to ALL sites data across tenant database
+            if ($is_superadmin) {
+                return null;
+            }
+            // 2. Filter by site_id if passed for standard non-admin users
             if (!empty($req_site_id) && $req_site_id !== 'all') {
                 return "{$columnName} = " . intval($req_site_id);
             }
-            if ($is_superadmin) {
-                return null; // Superadmin has access to all sites across tenant database
-            }
+            // 3. Filter by assigned site IDs for multi-site users
             if (!empty($assigned_ids)) {
                 if (count($assigned_ids) === 1) {
                     return "{$columnName} = " . intval($assigned_ids[0]);
@@ -307,7 +310,7 @@ class AiChatQueryController extends Controller
             }
         } else if (strpos($lower, 'supplier') !== false || strpos($lower, 'suplier') !== false || strpos($lower, 'vendor') !== false || strpos($lower, 'dealer') !== false || strpos($lower, 'supply') !== false) {
             $selectQuery = "SELECT id, name, address, gstin, bank_name, bank_ac, status FROM material_supplier";
-        } else if (strpos($lower, 'attendance') !== false || strpos($lower, 'atteance') !== false || strpos($lower, 'attandance') !== false || strpos($lower, 'atendance') !== false || strpos($lower, 'attendence') !== false || strpos($lower, 'labour') !== false || strpos($lower, 'headcount') !== false || strpos($lower, 'present') !== false || strpos($lower, 'checkin') !== false) {
+        } else if (strpos($lower, 'attendance') !== false || strpos($lower, 'attendace') !== false || strpos($lower, 'attendac') !== false || strpos($lower, 'atteance') !== false || strpos($lower, 'attandance') !== false || strpos($lower, 'attandace') !== false || strpos($lower, 'atendance') !== false || strpos($lower, 'attendence') !== false || strpos($lower, 'attndance') !== false || strpos($lower, 'labour') !== false || strpos($lower, 'headcount') !== false || strpos($lower, 'present') !== false || strpos($lower, 'checkin') !== false) {
             $selectQuery = "SELECT attendance.id, COALESCE(users.name, 'Labour') as person_name, attendance.date, attendance.in_time, attendance.out_time, attendance.status, attendance.remarks FROM attendance LEFT JOIN users ON users.id=attendance.user_id";
             $sf = $getSiteFilter('attendance.site_id');
             if ($sf) $whereClauses[] = $sf;
