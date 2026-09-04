@@ -323,7 +323,7 @@ class AiChatQueryController extends Controller
             $sf = $getSiteFilter('material_entry.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'task') !== false || strpos($lower, 'taks') !== false || strpos($lower, 'todo') !== false || strpos($lower, 'assignment') !== false || strpos($lower, 'work') !== false) {
-            $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, tasks.priority, tasks.status, tasks.created_at as due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id";
+            $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, COALESCE(users.name, 'Admin') as assigned_to, tasks.priority, tasks.status, tasks.created_at as due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id LEFT JOIN users ON users.id=tasks.created_by";
             $sf = $getSiteFilter('tasks.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'asset') !== false || strpos($lower, 'machinery') !== false || strpos($lower, 'machine') !== false || strpos($lower, 'tool') !== false) {
@@ -386,7 +386,18 @@ class AiChatQueryController extends Controller
         }
 
         // 3. Parse Filter Value Conditions from User Prompt
-        if (preg_match('/(?:is|equals|equal|named|called|with|whose\s+\w+\s+is)\s+[\'"]?([a-zA-Z0-9._%+-@\s]+)[\'"]?/i', $queryText, $filterMatch)) {
+        // Check for explicit user pattern like "assign to <name>", "task for <name>", "for user <name>"
+        if (preg_match('/(?:assign(?:ed)?\s+to|for\s+user|to\s+user|for)\s+([a-zA-Z0-9._%+-@]+)/i', $queryText, $uMatch)) {
+            $userVal = addslashes(trim($uMatch[1]));
+            $reservedWords = ['head office', 'all site', 'today', 'todays', 'yesterday', 'this month', 'month', 'week', 'year', 'task', 'tasks'];
+            if (!empty($userVal) && !in_array(strtolower($userVal), $reservedWords)) {
+                if (strpos($selectQuery, 'tasks') !== false) {
+                    $whereClauses[] = "(users.name LIKE '%{$userVal}%' OR users.username LIKE '%{$userVal}%')";
+                } else if (strpos($selectQuery, 'users') !== false) {
+                    $whereClauses[] = "(name LIKE '%{$userVal}%' OR username LIKE '%{$userVal}%')";
+                }
+            }
+        } else if (preg_match('/(?:is|equals|equal|named|called|with|whose\s+\w+\s+is)\s+[\'"]?([a-zA-Z0-9._%+-@\s]+)[\'"]?/i', $queryText, $filterMatch)) {
             $val = addslashes(trim($filterMatch[1]));
             $reservedWords = ['head office', 'all site', 'today', 'todays', 'yesterday', 'this month', 'month', 'week', 'year', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
             if (!empty($val) && !in_array(strtolower($val), $reservedWords)) {
@@ -395,7 +406,7 @@ class AiChatQueryController extends Controller
                 } else if (strpos($selectQuery, 'material_supplier') !== false) {
                     $whereClauses[] = "name LIKE '%{$val}%'";
                 } else if (strpos($selectQuery, 'tasks') !== false) {
-                    $whereClauses[] = "title LIKE '%{$val}%'";
+                    $whereClauses[] = "(tasks.title LIKE '%{$val}%' OR users.name LIKE '%{$val}%' OR users.username LIKE '%{$val}%')";
                 } else if (strpos($selectQuery, 'expenses') !== false) {
                     $whereClauses[] = "particular LIKE '%{$val}%'";
                 }
@@ -499,46 +510,23 @@ class AiChatQueryController extends Controller
                 }
             }
 
-            // General Metrics Fallback
-            $sqlGenerated = "SELECT COUNT(*) FROM attendance; SELECT COUNT(*) FROM expenses; SELECT COUNT(*) FROM material_entry; SELECT COUNT(*) FROM tasks;";
-
-            $attCount = 0; $expCount = 0; $matCount = 0; $taskCount = 0; $userCount = 0; $supCount = 0;
-            try {
-                $attCount = DB::connection($conn)->table('attendance')->count();
-                $expCount = DB::connection($conn)->table('expenses')->count();
-                $matCount = DB::connection($conn)->table('material_entry')->count();
-                $taskCount = DB::connection($conn)->table('tasks')->count();
-                $userCount = DB::connection($conn)->table('users')->count();
-                $supCount = DB::connection($conn)->table('material_supplier')->count();
-            } catch (\Exception $e) {}
-
-            $records = [
-                'suppliers' => $supCount,
-                'attendance' => $attCount,
-                'expenses' => $expCount,
-                'materials' => $matCount,
-                'tasks' => $taskCount,
-                'users' => $userCount
-            ];
-
-            $summaryText = "Buildarya AI Engine processed input: '{$queryText}'. Analyzed tenant database metrics for site '{$site_name}'.";
-            $html = $this->buildGeneralHtml($records, $summaryText, $sqlGenerated, $queryText, $site_name, $user_name, $user_username, $isOtherSiteRequest, $tenant['is_superadmin']);
-
+            // If query could not be translated into a valid DB query (off-topic / unnecessary user request)
+            $html = $this->buildTrainingNoticeHtml($queryText, $user_name, $site_name);
             return response()->json([
                 'status' => 'Ok',
                 'status_code' => 200,
-                'message' => 'Query processed successfully by Buildarya AI',
+                'message' => 'Query is currently under AI model training',
                 'data' => [
                     'query' => $queryText,
-                    'intent' => 'general',
+                    'intent' => 'training_notice',
                     'ai_provider' => 'Buildarya Text-to-SQL AI Engine',
-                    'sql_generated' => $sqlGenerated,
+                    'sql_generated' => '',
                     'active_site' => $site_name,
-                    'records_count' => is_array($records) ? count($records) : 0,
-                    'records' => $records,
-                    'summary' => $summaryText,
+                    'records_count' => 0,
+                    'records' => [],
+                    'summary' => "We are currently training our AI model for this type of query.",
                     'html' => $html,
-                    'is_pdf_requested' => $isPdfRequest,
+                    'is_pdf_requested' => false,
                     'pdf_url' => url('/attendance/export?type=pdf')
                 ]
             ]);
@@ -574,6 +562,34 @@ class AiChatQueryController extends Controller
                         <li>📋 <em>"Show pending tasks"</em></li>
                         <li>🏬 <em>"Show material suppliers list"</em></li>
                         <li>👥 <em>"Show registered users and team staff"</em></li>
+                    </ul>
+                </div>
+            </div>
+        ';
+    }
+
+    /**
+     * Build training notice HTML for off-topic or unnecessary user queries
+     */
+    private function buildTrainingNoticeHtml($queryText, $user_name, $site_name)
+    {
+        return '
+            <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 18px 22px; margin-bottom: 14px; color: #ffffff;">
+                <div style="font-weight: 700; font-size: 15px; color: #fbbf24; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 20px;">🤖</span> Buildarya AI Training Notice
+                </div>
+                <div style="font-size: 13.5px; line-height: 1.6; color: #fef3c7;">
+                    We are currently training our AI model for this type of query: <em>"' . e($queryText) . '"</em>
+                </div>
+                <div style="margin-top: 12px; font-size: 13px; color: #d1d5db; line-height: 1.6;">
+                    Please ask queries related to your <strong>' . e($site_name) . '</strong> database such as:
+                    <ul style="margin-top: 6px; margin-bottom: 0; padding-left: 18px; color: #e5e7eb; line-height: 1.8;">
+                        <li>👷 <em>"Show attendance records for today"</em></li>
+                        <li>📋 <em>"Show task list assigned to Sunil"</em></li>
+                        <li>💰 <em>"Show expense vouchers"</em></li>
+                        <li>📦 <em>"Check material stock entries"</em></li>
+                        <li>🏬 <em>"Show material suppliers list"</em></li>
+                        <li>👥 <em>"Show site users list"</em></li>
                     </ul>
                 </div>
             </div>
