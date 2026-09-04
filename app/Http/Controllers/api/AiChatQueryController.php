@@ -302,11 +302,29 @@ class AiChatQueryController extends Controller
             $selectQuery = "SELECT id, name, address, status, sites_type FROM sites";
             $sf = $getSiteFilter('id');
             if ($sf) $whereClauses[] = $sf;
-        } else if (strpos($lower, 'user') !== false || strpos($lower, 'usr') !== false || strpos($lower, 'staff') !== false || strpos($lower, 'team') !== false || strpos($lower, 'employee') !== false || strpos($lower, 'member') !== false) {
-            $selectQuery = "SELECT id, name, username, contact_no, status FROM users";
+        } else if (strpos($lower, 'user') !== false || strpos($lower, 'usr') !== false || strpos($lower, 'staff') !== false || strpos($lower, 'team') !== false || strpos($lower, 'employee') !== false || strpos($lower, 'member') !== false || strpos($lower, 'developer') !== false || strpos($lower, 'engineer') !== false || strpos($lower, 'manager') !== false || strpos($lower, 'admin') !== false || strpos($lower, 'who is') !== false || strpos($lower, 'who') !== false || strpos($lower, 'find') !== false) {
+            $selectQuery = "SELECT users.id, users.name, COALESCE(roles.name, 'Staff') as role_name, users.username, users.contact_no, users.status FROM users LEFT JOIN roles ON roles.id=users.role_id";
             if (preg_match('/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i', $queryText, $m)) {
                 $v = addslashes(trim($m[1]));
-                $whereClauses[] = "(username LIKE '%{$v}%' OR name LIKE '%{$v}%')";
+                $whereClauses[] = "(users.username LIKE '%{$v}%' OR users.name LIKE '%{$v}%')";
+            } else {
+                preg_match_all('/\b([a-zA-Z0-9._-]+)\b/', $lower, $words);
+                $ignoreWords = ['show', 'me', 'the', 'all', 'who', 'is', 'a', 'an', 'are', 'find', 'get', 'list', 'details', 'info', 'record', 'records', 'user', 'users', 'staff', 'team', 'member', 'members'];
+                $keywordsFound = [];
+                if (!empty($words[1])) {
+                    foreach ($words[1] as $w) {
+                        if (strlen($w) > 2 && !in_array($w, $ignoreWords)) {
+                            $keywordsFound[] = addslashes($w);
+                        }
+                    }
+                }
+                if (!empty($keywordsFound)) {
+                    $subOrs = [];
+                    foreach ($keywordsFound as $kw) {
+                        $subOrs[] = "users.name LIKE '%{$kw}%' OR users.username LIKE '%{$kw}%' OR roles.name LIKE '%{$kw}%'";
+                    }
+                    $whereClauses[] = "(" . implode(' OR ', $subOrs) . ")";
+                }
             }
         } else if (strpos($lower, 'supplier') !== false || strpos($lower, 'suplier') !== false || strpos($lower, 'vendor') !== false || strpos($lower, 'dealer') !== false || strpos($lower, 'supply') !== false) {
             $selectQuery = "SELECT id, name, address, gstin, bank_name, bank_ac, status FROM material_supplier";
@@ -323,7 +341,7 @@ class AiChatQueryController extends Controller
             $sf = $getSiteFilter('material_entry.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'task') !== false || strpos($lower, 'taks') !== false || strpos($lower, 'todo') !== false || strpos($lower, 'assignment') !== false || strpos($lower, 'work') !== false) {
-            $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, COALESCE(users.name, 'Admin') as assigned_to, tasks.priority, tasks.status, tasks.created_at as due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id LEFT JOIN users ON users.id=tasks.created_by";
+            $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, tasks.priority, tasks.status, tasks.created_at as due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id";
             $sf = $getSiteFilter('tasks.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'asset') !== false || strpos($lower, 'machinery') !== false || strpos($lower, 'machine') !== false || strpos($lower, 'tool') !== false) {
@@ -386,27 +404,16 @@ class AiChatQueryController extends Controller
         }
 
         // 3. Parse Filter Value Conditions from User Prompt
-        // Check for explicit user pattern like "assign to <name>", "task for <name>", "for user <name>"
-        if (preg_match('/(?:assign(?:ed)?\s+to|for\s+user|to\s+user|for)\s+([a-zA-Z0-9._%+-@]+)/i', $queryText, $uMatch)) {
-            $userVal = addslashes(trim($uMatch[1]));
-            $reservedWords = ['head office', 'all site', 'today', 'todays', 'yesterday', 'this month', 'month', 'week', 'year', 'task', 'tasks'];
-            if (!empty($userVal) && !in_array(strtolower($userVal), $reservedWords)) {
-                if (strpos($selectQuery, 'tasks') !== false) {
-                    $whereClauses[] = "(users.name LIKE '%{$userVal}%' OR users.username LIKE '%{$userVal}%')";
-                } else if (strpos($selectQuery, 'users') !== false) {
-                    $whereClauses[] = "(name LIKE '%{$userVal}%' OR username LIKE '%{$userVal}%')";
-                }
-            }
-        } else if (preg_match('/(?:is|equals|equal|named|called|with|whose\s+\w+\s+is)\s+[\'"]?([a-zA-Z0-9._%+-@\s]+)[\'"]?/i', $queryText, $filterMatch)) {
+        if (preg_match('/(?:equals|equal|named|called|with|whose\s+\w+\s+is)\s+[\'"]?([a-zA-Z0-9._%+-@\s]+)[\'"]?/i', $queryText, $filterMatch)) {
             $val = addslashes(trim($filterMatch[1]));
             $reservedWords = ['head office', 'all site', 'today', 'todays', 'yesterday', 'this month', 'month', 'week', 'year', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
             if (!empty($val) && !in_array(strtolower($val), $reservedWords)) {
                 if (strpos($selectQuery, 'users') !== false) {
-                    $whereClauses[] = "(name LIKE '%{$val}%' OR username LIKE '%{$val}%' OR contact_no LIKE '%{$val}%')";
+                    $whereClauses[] = "(users.name LIKE '%{$val}%' OR users.username LIKE '%{$val}%' OR roles.name LIKE '%{$val}%')";
                 } else if (strpos($selectQuery, 'material_supplier') !== false) {
                     $whereClauses[] = "name LIKE '%{$val}%'";
                 } else if (strpos($selectQuery, 'tasks') !== false) {
-                    $whereClauses[] = "(tasks.title LIKE '%{$val}%' OR users.name LIKE '%{$val}%' OR users.username LIKE '%{$val}%')";
+                    $whereClauses[] = "title LIKE '%{$val}%'";
                 } else if (strpos($selectQuery, 'expenses') !== false) {
                     $whereClauses[] = "particular LIKE '%{$val}%'";
                 }
