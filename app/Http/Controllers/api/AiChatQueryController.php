@@ -132,11 +132,12 @@ class AiChatQueryController extends Controller
             . "1. ONLY return the raw SQL string without any explanation, title, markdown formatting, or ```sql blocks.\n"
             . "2. ONLY generate SELECT queries. NEVER generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE.\n"
             . "3. If user input is a greeting (e.g. 'hi', 'hello', 'hey'), reply with 'NONE'.\n"
-            . "4. Order records by 1 DESC unless counting records or specific limit requested.\n\n"
+            . "4. Order records by 1 DESC unless counting records or specific limit requested.\n"
+            . "5. For task queries, tasks.assigned_to stores user IDs (or comma-separated IDs). To query tasks assigned to a specific user by name (e.g. 'sunil'), filter using EXISTS (SELECT 1 FROM users WHERE (users.name LIKE '%sunil%' OR users.username LIKE '%sunil%') AND (FIND_IN_SET(users.id, tasks.assigned_to) OR tasks.assigned_to = CAST(users.id AS CHAR) OR tasks.assigned_by = users.id)). Include assigned user names in SELECT via (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM users WHERE FIND_IN_SET(users.id, tasks.assigned_to) OR users.id = tasks.assigned_to) as assigned_to.\n\n"
             . "DATABASE SCHEMA:\n"
             . "- attendance (id, user_id, bills_party_id, site_id, date, in_time, out_time, status, remarks)\n"
             . "- expenses (id, particular, amount, user_id, site_id, head_id, party_id, party_type, status, date, location, remark)\n"
-            . "- tasks (id, title, description, site_id, priority, status, due_date)\n"
+            . "- tasks (id, title, description, site_id, assigned_to, assigned_by, priority, status, due_date)\n"
             . "- material_entry (id, material_id, site_id, qty, vehical, date, status, remark)\n"
             . "- material_supplier (id, name, address, gstin, bank_name, bank_ac, status)\n"
             . "- users (id, name, username, contact_no, site_id, status)\n"
@@ -417,9 +418,19 @@ class AiChatQueryController extends Controller
             $sf = $getSiteFilter('material_entry.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'task') !== false || strpos($lower, 'taks') !== false || strpos($lower, 'todo') !== false || strpos($lower, 'assignment') !== false || strpos($lower, 'work') !== false) {
-            $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, tasks.priority, tasks.status, tasks.created_at as due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id";
+            $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM users WHERE FIND_IN_SET(users.id, tasks.assigned_to) OR users.id = tasks.assigned_to) as assigned_to, tasks.priority, tasks.status, tasks.due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id";
             $sf = $getSiteFilter('tasks.site_id');
             if ($sf) $whereClauses[] = $sf;
+
+            if (strpos($lower, 'pending') !== false) {
+                $whereClauses[] = "(tasks.status LIKE '%Pending%' OR tasks.status LIKE '%pending%')";
+            } else if (strpos($lower, 'progress') !== false || strpos($lower, 'in progress') !== false) {
+                $whereClauses[] = "(tasks.status LIKE '%Progress%' OR tasks.status LIKE '%progress%')";
+            } else if (strpos($lower, 'completed') !== false) {
+                $whereClauses[] = "(tasks.status LIKE '%Completed%' OR tasks.status LIKE '%completed%')";
+            } else if (strpos($lower, 'hold') !== false || strpos($lower, 'on hold') !== false) {
+                $whereClauses[] = "(tasks.status LIKE '%Hold%' OR tasks.status LIKE '%hold%')";
+            }
         } else if (strpos($lower, 'asset') !== false || strpos($lower, 'machinery') !== false || strpos($lower, 'machine') !== false || strpos($lower, 'tool') !== false) {
             $selectQuery = "SELECT id, name, cost_price, status, create_datetime FROM assets";
         } else if (strpos($lower, 'labour') !== false || strpos($lower, 'worker') !== false) {
@@ -495,6 +506,27 @@ class AiChatQueryController extends Controller
                 } else if (strpos($selectQuery, 'expenses') !== false) {
                     $whereClauses[] = "particular LIKE '%{$val}%'";
                 }
+            }
+        }
+
+        // 4. Parse User Entity Match for Task queries (e.g. "sunil pending tasks", "tasks for sunil", "admin tasks")
+        if (strpos($selectQuery, 'tasks') !== false) {
+            preg_match_all('/\b([a-zA-Z0-9._-]+)\b/', $lower, $taskWords);
+            $systemWords = ['show', 'give', 'me', 'list', 'the', 'all', 'a', 'an', 'for', 'of', 'to', 'in', 'task', 'tasks', 'taks', 'todo', 'assignment', 'work', 'pending', 'progress', 'completed', 'hold', 'site', 'sites', 'report', 'reports', 'today', 'yesterday', 'month', 'week', 'year', 'due', 'status', 'priority', 'high', 'medium', 'low', 'critical', 'record', 'records', 'details', 'detail'];
+            $candidateUserNames = [];
+            if (!empty($taskWords[1])) {
+                foreach ($taskWords[1] as $tw) {
+                    if (strlen($tw) >= 3 && !in_array($tw, $systemWords)) {
+                        $candidateUserNames[] = addslashes($tw);
+                    }
+                }
+            }
+            if (!empty($candidateUserNames)) {
+                $userSubClauses = [];
+                foreach ($candidateUserNames as $cName) {
+                    $userSubClauses[] = "EXISTS (SELECT 1 FROM users WHERE (users.name LIKE '%{$cName}%' OR users.username LIKE '%{$cName}%') AND (FIND_IN_SET(users.id, tasks.assigned_to) OR tasks.assigned_to = CAST(users.id AS CHAR) OR tasks.assigned_by = users.id))";
+                }
+                $whereClauses[] = "(" . implode(' OR ', $userSubClauses) . ")";
             }
         }
 
@@ -770,7 +802,7 @@ class AiChatQueryController extends Controller
         }
 
         $trHtml = '';
-        foreach (array_slice($rows, 0, 30) as $row) {
+        foreach ($rows as $row) {
             $rowArr = (array)$row;
             $trHtml .= '<tr>';
             foreach ($columns as $col) {
