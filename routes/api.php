@@ -32,6 +32,7 @@ use App\Http\Controllers\api\ApiChatController;
 use App\Http\Controllers\api\LeadController;
 use App\Http\Controllers\api\ApiSupportTicketController;
 use App\Http\Controllers\api\ApiQuickActionController;
+use App\Http\Controllers\api\AiChatQueryController;
 
 /*
 |--------------------------------------------------------------------------
@@ -528,6 +529,8 @@ Route::prefix('v1')->group(function () {
         // Chat API Suite
         Route::get('/chats', [ApiChatController::class, 'index']);
         Route::post('/chats', [ApiChatController::class, 'store']);
+        Route::post('/ai-chat/query', [AiChatQueryController::class, 'processQuery']);
+        Route::match(['get', 'post'], '/ai-chat-query', [AiChatQueryController::class, 'processQuery']);
 
         // Payment Vouchers API Suite
         Route::get("/payment-vouchers/pending", [ApiPaymentVoucherController::class, "listPending"]);

@@ -78,6 +78,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/chat-view', function () {
         return view('classic_view');
     })->name('chat.view');
+    Route::post('/api/chat-query', [\App\Http\Controllers\api\AiChatQueryController::class, 'processQuery'])->name('ai.chat.query');
     Route::get('/classic-view', function () {
         return redirect('/chat-view');
     });

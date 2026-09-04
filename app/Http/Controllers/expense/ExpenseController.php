@@ -67,7 +67,7 @@ class ExpenseController extends Controller
             ->leftjoin('users', 'users.id', '=', 'expenses.user_id')
             ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
                 DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
-            ->where($filters)
+            ->where($filters);
         $search = $request->input('search.value');
         if (empty($search)) {
             $query->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
@@ -508,7 +508,7 @@ class ExpenseController extends Controller
             ->leftjoin('users', 'users.id', '=', 'expenses.user_id')
             ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
                 DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
-            ->where($filters)
+            ->where($filters);
         $search = $request->input('search.value');
         if (empty($search)) {
             $query->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);
@@ -715,7 +715,7 @@ class ExpenseController extends Controller
             ->leftjoin('users', 'users.id', '=', 'expenses.user_id')
             ->select('expenses.*', 'sites.name as site', 'users.name as user', 'expense_head.name as head', 
                 DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name'))
-            ->where($filters)
+            ->where($filters);
         $search = $request->input('search.value');
         if (empty($search)) {
             $query->whereBetween('expenses.date', [date('Y-m-d', strtotime($min_date)), date('Y-m-d', strtotime($max_date))]);

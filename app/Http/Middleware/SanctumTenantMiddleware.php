@@ -18,6 +18,10 @@ class SanctumTenantMiddleware
      */
     public function handle(Request $request, Closure $next)
     {
+        if (session()->has('comp_db_conn_name') && session()->has('uid')) {
+            return $next($request);
+        }
+
         $user = $request->user('sanctum');
 
         if (!$user) {

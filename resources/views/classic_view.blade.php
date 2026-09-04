@@ -169,7 +169,7 @@
             // 7. Query REAL Team Users from tenant DB
             $userLogs = \Illuminate\Support\Facades\DB::connection($conn)
                 ->table('users')
-                ->select('id', 'name', 'username', 'email', 'status')
+                ->select('id', 'name', 'username', 'contact_no', 'status')
                 ->orderBy('id', 'asc')
                 ->limit(10)
                 ->get();
@@ -179,7 +179,7 @@
                     'id' => $u->id,
                     'name' => $u->name,
                     'username' => $u->username,
-                    'email' => $u->email,
+                    'contact_no' => $u->contact_no ?? 'N/A',
                     'status' => $u->status ?? 'Active'
                 ];
             }
@@ -788,30 +788,9 @@
 
         <!-- Sticky Chat Input Container -->
         <div class="chat-input-container">
-            <!-- Quick Action Chips (Always Accessible Above Input Box) -->
-            <div class="quick-action-chips">
-                <button class="chip-btn" onclick="sendQuickPrompt('give me supplier record')">
-                    <span>🏬 Material Suppliers</span>
-                </button>
-                <button class="chip-btn" onclick="sendQuickPrompt('i want proper attendance in pdf')">
-                    <span>📄 Attendance PDF</span>
-                </button>
-                <button class="chip-btn" onclick="sendQuickPrompt('Show labour attendance report for {{ $active_site_name }}')">
-                    <span>👷 Live Attendance</span>
-                </button>
-                <button class="chip-btn" onclick="sendQuickPrompt('Audit petty cash expenses for {{ $active_site_name }}')">
-                    <span>💰 Expense Vouchers</span>
-                </button>
-                <button class="chip-btn" onclick="sendQuickPrompt('Check material stock balance for {{ $active_site_name }}')">
-                    <span>📦 Material Stock</span>
-                </button>
-                <button class="chip-btn" onclick="sendQuickPrompt('give me task list')">
-                    <span>📋 Assigned Tasks</span>
-                </button>
-            </div>
 
             <div class="input-box-wrapper">
-                <textarea id="chat-user-input" class="chat-textarea" rows="1" placeholder="Type query e.g. 'give me supplier record', 'attendance in pdf', 'task list'..." onkeydown="handleKeyPress(event)"></textarea>
+                <textarea id="chat-user-input" class="chat-textarea" rows="1" placeholder="Type query e.g. 'show attendance for today', 'task list', 'show expense vouchers'..." onkeydown="handleKeyPress(event)"></textarea>
                 <button class="send-btn" onclick="sendMessage()">
                     <i class="zmdi zmdi-navigation"></i>
                 </button>
@@ -977,16 +956,68 @@
 
         container.scrollTop = container.scrollHeight;
 
-        // Fetch Live Database Response based on text query
-        setTimeout(() => {
+        // Fetch Live Database Response based on text query via Buildarya AI API
+        fetch('/api/chat-query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            },
+            body: JSON.stringify({
+                query: text,
+                conn: '{{ $conn }}',
+                uid: '{{ session()->get("uid") }}',
+                site_id: '{{ $site_id }}'
+            })
+        })
+        .then(res => res.json())
+        .then(res => {
+            if (res && res.data && res.data.html) {
+                aiRow.querySelector('.message-text').innerHTML = res.data.html;
+            } else if (res && res.message) {
+                aiRow.querySelector('.message-text').innerHTML = `<p style="color:#ef4444;">${escapeHtml(res.message)}</p>`;
+            } else {
+                let responseHtml = generateLiveDatabaseResponse(text);
+                aiRow.querySelector('.message-text').innerHTML = responseHtml;
+            }
+            container.scrollTop = container.scrollHeight;
+        })
+        .catch(err => {
+            console.warn("AI API fallback:", err);
             let responseHtml = generateLiveDatabaseResponse(text);
             aiRow.querySelector('.message-text').innerHTML = responseHtml;
             container.scrollTop = container.scrollHeight;
-        }, 400);
+        });
     }
 
     function generateLiveDatabaseResponse(query) {
-        const lower = query.toLowerCase();
+        const lower = query.toLowerCase().trim();
+
+        // 0. GREETINGS & INTRODUCTIONS
+        const greetingsList = ['hi', 'hello', 'hey', 'hiya', 'hlo', 'greetings', 'good morning', 'good afternoon', 'good evening', 'who are you', 'what can you do', 'help'];
+        if (greetingsList.includes(lower)) {
+            return `
+                <div style="background: linear-gradient(135deg, rgba(16, 163, 127, 0.15), rgba(13, 138, 106, 0.25)); border: 1px solid rgba(16, 163, 127, 0.4); border-radius: 12px; padding: 18px 22px; margin-bottom: 12px; color: #ffffff;">
+                    <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 22px;">👋</span> Hello ${escapeHtml(CURRENT_USER_NAME)}!
+                    </div>
+                    <div style="font-size: 13.5px; line-height: 1.6; color: #e5e7eb;">
+                        I am your <strong>Buildarya AI Assistant</strong>, connected directly to your company database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>.
+                    </div>
+                    <div style="margin-top: 14px; font-size: 13px; color: #d1d5db;">
+                        <strong>Ask me any natural language request to fetch live data from your database:</strong>
+                        <ul style="margin-top: 8px; margin-bottom: 4px; padding-left: 20px; line-height: 1.8;">
+                            <li>👷 <em>"Show attendance records for today"</em> (or <em>"download attendance pdf"</em>)</li>
+                            <li>💰 <em>"Get latest petty cash expenses"</em></li>
+                            <li>📦 <em>"Check material stock entries"</em></li>
+                            <li>📋 <em>"Show pending tasks"</em></li>
+                            <li>🏬 <em>"Show material suppliers list"</em></li>
+                            <li>👥 <em>"Show registered users and team staff"</em></li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
 
         const isRequestingOtherSite = lower.includes('other site') || lower.includes('all site');
         const isPdfRequest = lower.includes('pdf') || lower.includes('download') || lower.includes('export');
@@ -1117,7 +1148,7 @@
                         <td>#USR-${escapeHtml(item.id)}</td>
                         <td><strong>${escapeHtml(item.name)}</strong></td>
                         <td>${escapeHtml(item.username)}</td>
-                        <td>${escapeHtml(item.email)}</td>
+                        <td>${escapeHtml(item.contact_no || 'N/A')}</td>
                         <td><span style="color:#10a37f; font-weight:700;">${escapeHtml(item.status)}</span></td>
                     </tr>
                 `).join('');
@@ -1131,7 +1162,7 @@
                                 <th>User ID</th>
                                 <th>Full Name</th>
                                 <th>Role Title / Username</th>
-                                <th>Email Address</th>
+                                <th>Contact Number</th>
                                 <th>Status</th>
                             </tr>
                         </thead>

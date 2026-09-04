@@ -17,8 +17,11 @@ class CustomAuth
      */
     public function handle(Request $request, Closure $next)
     {
-        // For API requests, use Sanctum guard to authenticate
+        // For API requests, check web session first, then Sanctum guard
         if ($request->is('api/*')) {
+            if (session()->has('key') || session()->has('uid')) {
+                return $next($request);
+            }
             $apiUser = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
             if ($apiUser) {
                 \Illuminate\Support\Facades\Auth::setUser($apiUser);
