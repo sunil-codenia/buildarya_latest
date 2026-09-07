@@ -164,6 +164,15 @@ class CompanyController extends Controller
 
     public function salesreport(Request $request)
     {
+        $request->validate([
+            'type' => ['required', 'in:1,2,3,4,5'],
+            'party_id' => ['required_if:type,1'],
+            'project_id' => ['required_if:type,2'],
+            'financial_year' => ['required_if:type,3,4,5'],
+            'company_id' => ['required_if:type,4'],
+            'head_id' => ['required_if:type,5'],
+        ]);
+
         $user_db_conn_name = $request->session()->get('comp_db_conn_name');
 
         $report_code = $request->get('type');
@@ -204,6 +213,7 @@ class CompanyController extends Controller
             return $this->exportExcel($user_db_conn_name, $report_code,  null, null, $financial_year, $company_id, null);
         } else if ($report_code == 5) {
             $invoices = DB::connection($user_db_conn_name)->table('sales_invoice as si')
+            ->where('si.financial_year', $financial_year)
             ->whereIn('si.id', function ($query)use ($head_id) {
                 $query->select('smi.invoice_id')
                       ->from('sales_manage_invoice as smi')
@@ -214,9 +224,11 @@ class CompanyController extends Controller
                 return redirect('/sales_report')
                 ->with('error', 'This Head Don\'t Have Any Invoice In This Financial Year To Generate Report!');
             }
-            
+
             return $this->exportExcel($user_db_conn_name, $report_code,  null, null, $financial_year, null, $head_id);
         }
+
+        return redirect('/sales_report')->with('error', 'Please select a valid report type.');
     }
     public function exportExcel($user_db_conn_name, $report_code,  $projectname = null, $partyname = null, $financial_year = null, $companyname = null, $headname = null)
     {

@@ -519,6 +519,35 @@ class ApiSalesController extends Controller
         $financial_year = $request->get("financial_year");
 
         try {
+            $requiredFields = [
+                '1' => ['party_id'],
+                '2' => ['project_id'],
+                '3' => ['financial_year'],
+                '4' => ['financial_year', 'company_id'],
+                '5' => ['financial_year', 'head_id'],
+            ];
+
+            if (!isset($requiredFields[(string) $type])) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'message' => 'A valid report type is required (1-5).',
+                ], 422);
+            }
+
+            $missingFields = array_values(array_filter(
+                $requiredFields[(string) $type],
+                function ($field) use ($request) {
+                    return $request->get($field) === null || $request->get($field) === '';
+                }
+            ));
+
+            if (!empty($missingFields)) {
+                return response()->json([
+                    'status' => 'Failed',
+                    'message' => 'Missing report filter: ' . implode(', ', $missingFields),
+                ], 422);
+            }
+
             $query = DB::table("sales_invoice as si")
                 ->leftJoin("sales_company as sc", "sc.id", "=", "si.company_id")
                 ->leftJoin("sales_project as sp", "sp.id", "=", "si.project_id")

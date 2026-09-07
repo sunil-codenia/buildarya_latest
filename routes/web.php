@@ -470,7 +470,6 @@ Route::group(['middleware' => ['auth']], function () {
         Route::get('/update_sales_invoice_status', [InvoiceController::class, 'update_sales_invoice_status']);
         Route::get('/all_sales_invoice', [InvoiceController::class, 'all_sales_invoice']);
         Route::get('/sales_pdf', [InvoiceController::class, 'sales_pdf']);
-        Route::get('/sales_report', [InvoiceController::class, 'sales_report']);
 
         Route::get('/sales_manage_invoice', [InvoiceManageController::class, 'sales_manage_invoice']);
         Route::get('/delete_sales_manage_invoice', [InvoiceManageController::class, 'delete_sales_manage_invoice']);

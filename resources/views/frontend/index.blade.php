@@ -323,8 +323,8 @@
                     <div class="flex items-center gap-3 pt-4 border-t border-slate-100">
                         <div class="w-10 h-10 rounded-full bg-teal-700 text-white font-black flex items-center justify-center font-display text-xs">RS</div>
                         <div>
-                            <div class="text-xs font-bold text-slate-900">Rajesh Shinde</div>
-                            <div class="text-[10px] text-slate-500 font-medium">Shinde Constructions, Pune</div>
+                            <div class="text-xs font-bold text-slate-900">Chandra Prakash Sharma</div>
+                            <div class="text-[10px] text-slate-500 font-medium">R.S Construction, NCR</div>
                         </div>
                     </div>
                 </div>
@@ -339,8 +339,8 @@
                     <div class="flex items-center gap-3 pt-4 border-t border-slate-100">
                         <div class="w-10 h-10 rounded-full bg-amber-600 text-white font-black flex items-center justify-center font-display text-xs">VK</div>
                         <div>
-                            <div class="text-xs font-bold text-slate-900">Vikram Kumar</div>
-                            <div class="text-[10px] text-slate-500 font-medium">VK Infra & Developers, Delhi NCR</div>
+                            <div class="text-xs font-bold text-slate-900">Santosh Sharma</div>
+                            <div class="text-[10px] text-slate-500 font-medium">SVN Builders</div>
                         </div>
                     </div>
                 </div>
@@ -355,8 +355,8 @@
                     <div class="flex items-center gap-3 pt-4 border-t border-slate-100">
                         <div class="w-10 h-10 rounded-full bg-teal-700 text-white font-black flex items-center justify-center font-display text-xs">AN</div>
                         <div>
-                            <div class="text-xs font-bold text-slate-900">Anand Naidu</div>
-                            <div class="text-[10px] text-slate-500 font-medium">Naidu Civil Projects, Hyderabad</div>
+                            <div class="text-xs font-bold text-slate-900">Sudheer</div>
+                            <div class="text-[10px] text-slate-500 font-medium">Laxmi Contractors</div>
                         </div>
                     </div>
                 </div>

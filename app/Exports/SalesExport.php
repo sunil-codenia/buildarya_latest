@@ -199,7 +199,9 @@ class SalesExport implements FromView
                 }
 
                 // Filter only numeric values from the column
-                $numericValues = array_filter($column, 'is_numeric');
+                $numericValues = is_array($column)
+                    ? array_filter($column, 'is_numeric')
+                    : (is_numeric($column) ? [$column] : []);
 
                 // Check if the numeric values are all zeros
                 $allZeros = count(array_unique($numericValues)) === 1 && array_sum($numericValues) === 0;
@@ -272,7 +274,9 @@ class SalesExport implements FromView
                 }
 
                 // Filter only numeric values from the column
-                $numericValues = array_filter($column, 'is_numeric');
+                $numericValues = is_array($column)
+                    ? array_filter($column, 'is_numeric')
+                    : (is_numeric($column) ? [$column] : []);
 
                 // Check if the numeric values are all zeros
                 $allZeros = count(array_unique($numericValues)) === 1 && array_sum($numericValues) === 0;
@@ -344,7 +348,9 @@ class SalesExport implements FromView
                 }
 
                 // Filter only numeric values from the column
-                $numericValues = array_filter($column, 'is_numeric');
+                $numericValues = is_array($column)
+                    ? array_filter($column, 'is_numeric')
+                    : (is_numeric($column) ? [$column] : []);
 
                 // Check if the numeric values are all zeros
                 $allZeros = count(array_unique($numericValues)) === 1 && array_sum($numericValues) === 0;
