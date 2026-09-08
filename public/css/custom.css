@@ -2,6 +2,25 @@
     display: none !important;
 }
 
+/* Keep SweetAlert text readable over the white popup background. */
+body .swal2-popup {
+    color: #333333 !important;
+    background: #ffffff !important;
+}
+
+body .swal2-title,
+body .swal2-html-container {
+    color: #333333 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+body .swal2-actions .swal2-confirm,
+body .swal2-actions .swal2-cancel,
+body .swal2-actions .swal2-deny {
+    color: #ffffff !important;
+}
+
 .model-width-450px {
     width: 450px !important;
 }
