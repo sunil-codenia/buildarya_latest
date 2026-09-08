@@ -8,11 +8,27 @@ body .swal2-popup {
     background: #ffffff !important;
 }
 
-body .swal2-title,
-body .swal2-html-container {
+body .swal2-popup .swal2-title,
+body .swal2-popup .swal2-html-container {
+    display: block !important;
     color: #333333 !important;
     opacity: 1 !important;
     visibility: visible !important;
+}
+
+body .swal2-popup .swal2-title {
+    min-height: 1.4em;
+    margin: 0.8em 0 0.3em !important;
+    font-size: 1.875em !important;
+    line-height: 1.2 !important;
+    font-weight: 600 !important;
+}
+
+body .swal2-popup .swal2-html-container {
+    min-height: 1.2em;
+    margin: 0.5em 1.6em 0.3em !important;
+    font-size: 1.125em !important;
+    line-height: 1.5 !important;
 }
 
 body .swal2-actions .swal2-confirm,
