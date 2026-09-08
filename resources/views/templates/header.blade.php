@@ -31,7 +31,7 @@
 <link rel="stylesheet" href="/plugins/nouislider/nouislider.min.css" />
 <link rel="stylesheet" href="/plugins/DataTables/datatables.min.css" />
 
-<link rel="stylesheet" href="/css/custom.css"/>
+<link rel="stylesheet" href="{{ asset('/css/custom.css') }}?v={{ filemtime(public_path('css/custom.css')) }}"/>
 
 <style>
     /* Global fix for btn-primary text color overriding from color_skins.css */
@@ -146,4 +146,3 @@ body.classList.remove("menu_dark");
 @endif 
 
  
-
