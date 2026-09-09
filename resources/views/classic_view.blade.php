@@ -1123,6 +1123,100 @@
         });
     }
 
+    function getAiSuccessMessage(form, fallbackMessage) {
+        const action = (form && form.action) ? form.action : '';
+        const lowerAction = action.toLowerCase();
+
+        if (lowerAction.includes('addnewuser') || lowerAction.includes('/users') && form.querySelector('[name="username"]')) {
+            return '✅ User saved successfully. You remain in the AI assistant view.';
+        }
+        if (lowerAction.includes('addsites') || form.querySelector('[name="site_id"]') && form.querySelector('[name="name"]') && !form.querySelector('[name="username"]')) {
+            return '✅ Site saved successfully. You remain in the AI assistant view.';
+        }
+        if (lowerAction.includes('addnewExpenses') || lowerAction.includes('new_expense') || form.querySelector('[name="particular[]"]')) {
+            return '✅ Expense saved successfully. You remain in the AI assistant view.';
+        }
+        if (lowerAction.includes('addnewmaterial') || form.querySelector('[name="material_id[]"]')) {
+            return '✅ Material entry saved successfully. You remain in the AI assistant view.';
+        }
+        if (lowerAction.includes('/tasks') || form.querySelector('[name="title"]') && form.querySelector('[name="assigned_to[]"]')) {
+            return '✅ Task created successfully. You remain in the AI assistant view.';
+        }
+
+        return fallbackMessage || '✅ Saved successfully. You remain in the AI assistant view.';
+    }
+
+    function submitAiForm(form) {
+        const formData = new FormData(form);
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalLabel = submitBtn ? submitBtn.textContent : 'Save';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving...';
+        }
+
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin',
+            redirect: 'manual'
+        })
+        .then(async response => {
+            if (response.type === 'opaqueredirect' || response.status === 301 || response.status === 302 || response.status === 303 || response.status === 307 || response.status === 308) {
+                return { message: 'Saved successfully. You remain in the AI assistant view.' };
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                return response.json();
+            }
+
+            const text = await response.text();
+            if (!text || text.trim() === '') {
+                return { message: 'Saved successfully. You remain in the AI assistant view.' };
+            }
+            if (text.toLowerCase().includes('<html') || text.toLowerCase().includes('<!doctype html')) {
+                return { message: 'Saved successfully. You remain in the AI assistant view.' };
+            }
+            return { message: text.trim() };
+        })
+        .then(data => {
+            const fallback = data && data.message ? data.message : 'Saved successfully. You remain in the AI assistant view.';
+            const message = getAiSuccessMessage(form, fallback);
+            const aiCard = form.closest('.message-text');
+            if (aiCard) {
+                aiCard.innerHTML = `
+                    <div style="background: rgba(16,163,127,0.12); border: 1px solid rgba(16,163,127,0.35); border-radius: 12px; padding: 16px; color: #ecfdf5;">
+                        <div style="font-weight: 700; margin-bottom: 8px;">✅ Success</div>
+                        <div style="font-size: 13px; color: #d1fae5;">${escapeHtml(message)}</div>
+                    </div>
+                `;
+            }
+        })
+        .catch(err => {
+            const aiCard = form.closest('.message-text');
+            if (aiCard) {
+                aiCard.innerHTML = `
+                    <div style="background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.35); border-radius: 12px; padding: 16px; color: #fee2e2;">
+                        <div style="font-weight: 700; margin-bottom: 8px;">⚠️ Save failed</div>
+                        <div style="font-size: 13px; color: #fecaca;">${escapeHtml(err.message || 'Unable to save form. Please try again.')}</div>
+                    </div>
+                `;
+            }
+        })
+        .finally(() => {
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalLabel;
+            }
+        });
+    }
+
     function generateLiveDatabaseResponse(query) {
         const lower = query.toLowerCase().trim();
 

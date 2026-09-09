@@ -308,6 +308,12 @@ class AiChatQueryController extends Controller
             $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
             $sf = $getSiteFilter('site_id');
             if ($sf) $whereClauses[] = $sf;
+        } else if ((strpos($lower, 'expense report') !== false || strpos($lower, 'expense reprt') !== false || strpos($lower, 'expence report') !== false || strpos($lower, 'report of expense') !== false || strpos($lower, 'report of expenses') !== false)
+            && (strpos($lower, 'site') !== false || strpos($lower, 'sites') !== false || strpos($lower, 'according to') !== false || strpos($lower, 'by site') !== false || strpos($lower, 'sitewise') !== false || strpos($lower, 'site-wise') !== false)) {
+            $selectQuery = "SELECT sites.name as site_name, SUM(expenses.amount) as total_amount, COUNT(expenses.id) as expense_count FROM expenses LEFT JOIN sites ON sites.id = expenses.site_id";
+            $sf = $getSiteFilter('expenses.site_id');
+            if ($sf) $whereClauses[] = $sf;
+            $whereClauses[] = "expenses.amount IS NOT NULL";
         } else if (strpos($lower, 'expense report') !== false || strpos($lower, 'expense reprt') !== false || strpos($lower, 'expence report') !== false || strpos($lower, 'report of expense') !== false || strpos($lower, 'report of expenses') !== false) {
             $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
             $sf = $getSiteFilter('expenses.site_id');
@@ -325,8 +331,18 @@ class AiChatQueryController extends Controller
             $whereClauses[] = "(status LIKE '%Pending%' OR status LIKE '%pending%')";
             $sf = $getSiteFilter('site_id');
             if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'bill') !== false || strpos($lower, 'bills') !== false || strpos($lower, 'party') !== false)) {
+            $selectQuery = "SELECT id, name, bankname, bank_ac, ifsc, panno, status FROM bills_party";
+            $whereClauses[] = "(status LIKE '%Pending%' OR status LIKE '%pending%')";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
         } else if ((strpos($lower, 'verified') !== false || strpos($lower, 'approved') !== false) && (strpos($lower, 'voucher') !== false || strpos($lower, 'payment') !== false)) {
             $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
+            $whereClauses[] = "(status LIKE '%Verified%' OR status LIKE '%verified%' OR status LIKE '%Approved%' OR status LIKE '%approved%')";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if ((strpos($lower, 'verified') !== false || strpos($lower, 'approved') !== false) && (strpos($lower, 'bill') !== false || strpos($lower, 'bills') !== false || strpos($lower, 'party') !== false)) {
+            $selectQuery = "SELECT id, name, bankname, bank_ac, ifsc, panno, status FROM bills_party";
             $whereClauses[] = "(status LIKE '%Verified%' OR status LIKE '%verified%' OR status LIKE '%Approved%' OR status LIKE '%approved%')";
             $sf = $getSiteFilter('site_id');
             if ($sf) $whereClauses[] = $sf;
@@ -335,8 +351,18 @@ class AiChatQueryController extends Controller
             $whereClauses[] = "(status LIKE '%Paid%' OR status LIKE '%paid%')";
             $sf = $getSiteFilter('site_id');
             if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'paid') !== false && (strpos($lower, 'bill') !== false || strpos($lower, 'bills') !== false || strpos($lower, 'party') !== false)) {
+            $selectQuery = "SELECT id, name, bankname, bank_ac, ifsc, panno, status FROM bills_party";
+            $whereClauses[] = "(status LIKE '%Paid%' OR status LIKE '%paid%')";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'rejected') !== false && (strpos($lower, 'voucher') !== false || strpos($lower, 'payment') !== false)) {
             $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
+            $whereClauses[] = "(status LIKE '%Rejected%' OR status LIKE '%rejected%')";
+            $sf = $getSiteFilter('site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'rejected') !== false && (strpos($lower, 'bill') !== false || strpos($lower, 'bills') !== false || strpos($lower, 'party') !== false)) {
+            $selectQuery = "SELECT id, name, bankname, bank_ac, ifsc, panno, status FROM bills_party";
             $whereClauses[] = "(status LIKE '%Rejected%' OR status LIKE '%rejected%')";
             $sf = $getSiteFilter('site_id');
             if ($sf) $whereClauses[] = $sf;
@@ -530,7 +556,15 @@ class AiChatQueryController extends Controller
             }
         }
 
+        $groupByClause = '';
+        if (strpos($selectQuery, 'SUM(expenses.amount)') !== false) {
+            $groupByClause = ' GROUP BY expenses.site_id, sites.name';
+        }
+
         $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
+        if ($groupByClause !== '') {
+            return "{$selectQuery}{$whereSql}{$groupByClause} ORDER BY total_amount DESC";
+        }
         return "{$selectQuery}{$whereSql} ORDER BY 1 DESC";
     }
 
@@ -575,6 +609,30 @@ class AiChatQueryController extends Controller
                         'records_count' => 0,
                         'records' => [],
                         'summary' => "Buildarya AI Assistant greeted user {$user_name}.",
+                        'html' => $html,
+                        'is_pdf_requested' => false,
+                        'pdf_url' => url('/attendance/export?type=pdf')
+                    ]
+                ]);
+            }
+
+            $createFormIntent = $this->detectCreateFormIntent($queryText);
+            if ($createFormIntent) {
+                $html = $this->renderCreateFormHtml($createFormIntent, $tenant);
+                return response()->json([
+                    'status' => 'Ok',
+                    'status_code' => 200,
+                    'message' => 'Create form opened for ' . ucfirst($createFormIntent) . '.',
+                    'data' => [
+                        'query' => $queryText,
+                        'intent' => 'create_form',
+                        'entity' => $createFormIntent,
+                        'ai_provider' => 'Buildarya AI Assistant',
+                        'sql_generated' => '',
+                        'active_site' => $site_name,
+                        'records_count' => 0,
+                        'records' => [],
+                        'summary' => 'AI detected a create action and opened the add form.',
                         'html' => $html,
                         'is_pdf_requested' => false,
                         'pdf_url' => url('/attendance/export?type=pdf')
@@ -704,6 +762,298 @@ class AiChatQueryController extends Controller
                         <li>👥 <em>"Show registered users and team staff"</em></li>
                     </ul>
                 </div>
+            </div>
+        ';
+    }
+
+    private function detectCreateFormIntent($queryText)
+    {
+        $lower = strtolower(trim($queryText));
+
+        $patterns = [
+            'user' => [
+                'add user', 'add users', 'new user', 'create user', 'create users', 'i want to add user',
+                'user form', 'show user form', 'open user form', 'new member', 'add staff', 'add employee'
+            ],
+            'site' => [
+                'add site', 'new site', 'create site', 'site form', 'show site form', 'open site form'
+            ],
+            'expense' => [
+                'add expense', 'new expense', 'create expense', 'expense form', 'show expense form', 'open expense form'
+            ],
+            'material' => [
+                'add material', 'new material', 'create material', 'material form', 'show material form', 'open material form'
+            ],
+            'task' => [
+                'add task', 'new task', 'create task', 'task form', 'show task form', 'open task form'
+            ],
+        ];
+
+        foreach ($patterns as $entity => $phrases) {
+            foreach ($phrases as $phrase) {
+                if (strpos($lower, $phrase) !== false) {
+                    return $entity;
+                }
+            }
+        }
+
+        if (preg_match('/\b(add|create|new|open|show)\b.*\b(user|site|expense|material|task)\b/i', $queryText)) {
+            if (preg_match('/\b(user|users|member|staff|employee)\b/i', $queryText)) return 'user';
+            if (preg_match('/\b(site|sites)\b/i', $queryText)) return 'site';
+            if (preg_match('/\b(expense|expenses|voucher|petty)\b/i', $queryText)) return 'expense';
+            if (preg_match('/\b(material|stock|supplier)\b/i', $queryText)) return 'material';
+            if (preg_match('/\b(task|todo|assignment)\b/i', $queryText)) return 'task';
+        }
+
+        return null;
+    }
+
+    private function renderCreateFormHtml($entity, $tenant)
+    {
+        $conn = $tenant['conn'] ?? config('database.default');
+        $siteOptions = '';
+        $roleOptions = '';
+        $sites = DB::connection($conn)->table('sites')->select('id', 'name')->orderBy('name')->get();
+        $roles = DB::connection($conn)->table('roles')->select('id', 'name')->orderBy('name')->get();
+
+        foreach ($sites as $site) {
+            $siteOptions .= '<option value="' . e($site->id) . '">' . e($site->name) . '</option>';
+        }
+
+        foreach ($roles as $role) {
+            $roleOptions .= '<option value="' . e($role->id) . '">' . e($role->name) . '</option>';
+        }
+
+        if ($entity === 'user') {
+            return '
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
+                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New User</div>
+                        </div>
+                        <a href="' . url('/users') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
+                    </div>
+                    <form action="' . url('/addnewuser') . '" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
+                        ' . csrf_field() . '
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Full Name"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Phone Number</label><input type="number" name="contact_no" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="10 Digit Mobile"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Username</label><input type="text" name="username" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Login Username"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Password</label><input type="password" name="password" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Login Password"></div>
+                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id[]" required multiple style="width:100%; min-height:100px; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Role</label><select name="role_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected disabled>--Select Role--</option>' . $roleOptions . '</select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Pan No.</label><input type="text" name="pan_no" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="PAN Card No"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Login Platform</label><select name="mobile_only" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="no">Web & Mobile Both</option><option value="yes">Only Mobile App</option></select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">View Duration (Days)</label><input type="number" min="0" name="view_duration" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Optional"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Creation Duration (Days)</label><input type="number" min="0" name="add_duration" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Optional"></div>
+                        </div>
+                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+                            <button type="button" style="background:#374151; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Close</button>
+                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save User</button>
+                        </div>
+                    </form>
+                </div>
+            ';
+        }
+
+        if ($entity === 'site') {
+            $projects = DB::connection($conn)->table('projects')->select('id', 'name')->orderBy('name')->get();
+            $projectOptions = '<option value="" selected disabled>--Select Project--</option>';
+            foreach ($projects as $project) {
+                $projectOptions .= '<option value="' . e($project->id) . '">' . e($project->name) . '</option>';
+            }
+            $projectOptions .= '<option value="0">No Project</option>';
+
+            return '
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
+                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New Site</div>
+                        </div>
+                        <a href="' . url('/sites') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
+                    </div>
+                    <form action="' . url('/addsites') . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
+                        ' . csrf_field() . '
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Site Name"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Address</label><input type="text" name="address" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Site Address"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Opening Balance</label><input type="text" name="open_balance" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Sites Type</label><select name="sitestype" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected disabled>--Select Sites Type--</option><option value="Official Site">Official Site</option><option value="Working Site">Working Site</option></select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Project</label><select name="project_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $projectOptions . '</select></div>
+                        </div>
+                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save Site</button>
+                        </div>
+                    </form>
+                </div>
+            ';
+        }
+
+        if ($entity === 'expense') {
+            $siteSelect = '<select name="site_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select>';
+            $partyPlaceholder = '<option value="" selected disabled>--Expense Parties--</option>';
+            $headSelect = '<select name="head_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected disabled>--Select Head--</option>';
+
+            $headRows = DB::connection($conn)->table('expense_head')->select('id', 'name')->orderBy('name')->get();
+            foreach ($headRows as $head) {
+                $headSelect .= '<option value="' . e($head->id) . '">' . e($head->name) . '</option>';
+            }
+            $headSelect .= '</select>';
+
+            $partyRows = DB::connection($conn)->table('expense_party')->select('id', 'name', 'status', 'cost_category_id')->orderBy('name')->get();
+            $billRows = DB::connection($conn)->table('bills_party')->select('id', 'name', 'status', 'cost_category_id')->orderBy('name')->get();
+
+            $partySelect = '<select name="party_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">';
+            $partySelect .= '<option disabled>--Expense Parties--</option>';
+            foreach ($partyRows as $party) {
+                $disabled = ($party->status == 'Pending') ? 'disabled' : '';
+                $partySelect .= '<option value="' . e($party->id) . '||expense" ' . $disabled . ' data-cost-category="' . e($party->cost_category_id) . '">' . e($party->name) . ($party->status == 'Pending' ? ' (Pending Activation)' : '') . '</option>';
+            }
+            $partySelect .= '<option disabled>--Bill Parties--</option>';
+            foreach ($billRows as $party) {
+                $disabled = ($party->status == 'Pending') ? 'disabled' : '';
+                $partySelect .= '<option value="' . e($party->id) . '||bill" ' . $disabled . ' data-cost-category="' . e($party->cost_category_id) . '">' . e($party->name) . ($party->status == 'Pending' ? ' (Pending Activation)' : '') . '</option>';
+            }
+            $partySelect .= '</select>';
+
+            return '
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
+                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New Expense</div>
+                        </div>
+                        <a href="' . url('/new_expense') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
+                    </div>
+                    <form action="' . url('/addnewExpenses') . '" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
+                        ' . csrf_field() . '
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label>' . $siteSelect . '</div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Expense Party</label>' . $partySelect . '</div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Cost Category</label>' . $headSelect . '</div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Particular</label><input type="text" name="particular[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter The Particular Item"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Amount</label><input type="number" min="0" step="0.01" name="amount[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Remark</label><input type="text" name="remark[]" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter The Remark (If Any)"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Date</label><input type="date" name="date[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Image</label><input type="file" name="image[]" accept="Image/*" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
+                        </div>
+                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+                            <button type="button" style="background:#374151; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Add Row</button>
+                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save Expense</button>
+                        </div>
+                    </form>
+                </div>
+            ';
+        }
+
+        if ($entity === 'material') {
+            $materialRows = DB::connection($conn)->table('materials')->select('id', 'name')->orderBy('name')->get();
+            $unitRows = DB::connection($conn)->table('units')->select('id', 'name')->orderBy('name')->get();
+            $supplierRows = DB::connection($conn)->table('material_supplier')->select('id', 'name', 'status')->orderBy('name')->get();
+
+            $materialOptions = '<option value="" selected disabled>--Select Material--</option>';
+            foreach ($materialRows as $material) {
+                $materialOptions .= '<option value="' . e($material->id) . '">' . e($material->name) . '</option>';
+            }
+
+            $unitOptions = '<option value="" selected disabled>--Select Unit--</option>';
+            foreach ($unitRows as $unit) {
+                $unitOptions .= '<option value="' . e($unit->id) . '">' . e($unit->name) . '</option>';
+            }
+
+            $supplierOptions = '<option value="" selected disabled>--Select Supplier--</option>';
+            foreach ($supplierRows as $supplier) {
+                $disabled = ($supplier->status == 'Pending') ? 'disabled' : '';
+                $supplierOptions .= '<option value="' . e($supplier->id) . '" ' . $disabled . '>' . e($supplier->name) . ($supplier->status == 'Pending' ? ' (Pending Activation)' : '') . '</option>';
+            }
+
+            return '
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
+                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New Material Entry</div>
+                        </div>
+                        <a href="' . url('/new_material') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
+                    </div>
+                    <form action="' . url('/addnewmaterial') . '" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
+                        ' . csrf_field() . '
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Supplier</label><select name="supplier[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $supplierOptions . '</select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Material</label><select name="material_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $materialOptions . '</select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Unit</label><select name="unit[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $unitOptions . '</select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Quantity</label><input type="number" name="qty[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Converted Qty (Cubic M)</label><input type="number" name="converted_qty[]" step="0.01" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Vehicle</label><input type="text" name="vehical[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Vehicle No"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Remark</label><input type="text" name="remark[]" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Remark (if any)"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Date</label><input type="date" name="date[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Image</label><input type="file" name="image[]" accept="Image/*" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
+                        </div>
+                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save Material Entry</button>
+                        </div>
+                    </form>
+                </div>
+            ';
+        }
+
+        if ($entity === 'task') {
+            $userRows = DB::connection($conn)->table('users')->select('id', 'name')->orderBy('name')->get();
+            $siteRows = DB::connection($conn)->table('sites')->select('id', 'name')->orderBy('name')->get();
+            $categoryRows = DB::connection($conn)->table('task_category')->select('id', 'name')->orderBy('name')->get();
+
+            $assignedOptions = '';
+            foreach ($userRows as $user) {
+                $assignedOptions .= '<option value="' . e($user->id) . '">' . e($user->name) . '</option>';
+            }
+
+            $siteTaskOptions = '<option value="" disabled selected>-- Choose Site --</option>';
+            foreach ($siteRows as $site) {
+                $siteTaskOptions .= '<option value="' . e($site->id) . '">' . e($site->name) . '</option>';
+            }
+
+            $categoryOptions = '<option value="" selected>-- Choose Category (Optional) --</option>';
+            foreach ($categoryRows as $category) {
+                $categoryOptions .= '<option value="' . e($category->id) . '">' . e($category->name) . '</option>';
+            }
+
+            return '
+                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
+                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Create New Task</div>
+                        </div>
+                        <a href="' . url('/tasks') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
+                    </div>
+                    <form action="' . url('/tasks') . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
+                        ' . csrf_field() . '
+                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Task Category</label><select name="category_id" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $categoryOptions . '</select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Assigned Site</label><select name="site_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteTaskOptions . '</select></div>
+                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Task Title</label><input type="text" name="title" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="What needs to be done?"></div>
+                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Description</label><textarea name="description" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Add details..."></textarea></div>
+                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Assign To</label><select name="assigned_to[]" multiple required style="width:100%; min-height:110px; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $assignedOptions . '</select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Priority</label><select name="priority" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option></select></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Due Date</label><input type="date" name="due_date" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
+                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Completed Date</label><input type="date" name="completed_at" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
+                        </div>
+                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Create Task</button>
+                        </div>
+                    </form>
+                </div>
+            ';
+        }
+
+        return '
+            <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
+                <div style="font-size:18px; font-weight:700; margin-bottom:8px;">Add ' . e(ucfirst($entity)) . '</div>
+                <p style="margin:0; color:#d1d5db;">The prompt is recognized as a create action, but the exact form is not yet mapped for this module.</p>
+                <div style="margin-top:12px;"><a href="' . url('/users') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-weight:700;">Open main list page</a></div>
             </div>
         ';
     }
