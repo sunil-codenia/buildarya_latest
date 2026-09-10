@@ -1577,6 +1577,128 @@ function addActivity($ref_id, $ref_table, $action, $module_id, $uid = null, $con
     ];
     DB::connection($conn)->table('activity')->insert($data);
 }
+
+function logUserAuditAction($actionType, $question = null, $response = null, $responsePayload = null, $entity = null, $formData = null, $request = null, $conn = null, $responseTimeMs = null)
+{
+    try {
+        $request = $request ?? request();
+        $tenantConnection = $conn ?? session()->get('comp_db_conn_name') ?? config('database.default');
+
+        /*
+         * Company data is queried through a tenant connection, whereas the
+         * user_search_audit migration is run on the central database.  Writing
+         * only to the tenant connection therefore caused every audit insert to
+         * fail when that tenant did not have its own audit table (the exception
+         * was intentionally swallowed below).  Prefer a tenant-local table when
+         * it exists, otherwise use the central audit table.
+         */
+        $auditConnection = null;
+        $connections = array_unique(array_filter([
+            $tenantConnection,
+            'mysql',
+            config('database.default'),
+        ]));
+
+        foreach ($connections as $connection) {
+            try {
+                if (\Illuminate\Support\Facades\Schema::connection($connection)->hasTable('user_search_audit')) {
+                    $auditConnection = $connection;
+                    break;
+                }
+            } catch (\Throwable $e) {
+                // Try the next available connection.
+            }
+        }
+
+        if (!$auditConnection) {
+            throw new \RuntimeException('The user_search_audit table is not available on an audit database connection.');
+        }
+
+        $userId = session()->get('uid');
+        $userName = session()->get('name');
+        $username = session()->get('username');
+
+        if ($request && $request->has('uid') && empty($userId)) {
+            $userId = $request->input('uid');
+        }
+        if ($request && $request->has('user_id') && empty($userId)) {
+            $userId = $request->input('user_id');
+        }
+
+        // API calls do not have a web session. Resolve the tenant user so the
+        // audit row still identifies who performed the AI search.
+        if ($userId && (empty($userName) || empty($username))) {
+            try {
+                $user = DB::connection($tenantConnection)->table('users')->where('id', $userId)->first();
+                if ($user) {
+                    $userName = $userName ?: ($user->name ?? null);
+                    $username = $username ?: ($user->username ?? null);
+                }
+            } catch (\Throwable $e) {
+                // The audit entry remains valid with the user ID alone.
+            }
+        }
+
+        $payload = $responsePayload;
+        if (is_array($payload) || is_object($payload)) {
+            $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } else {
+            $payloadJson = null;
+        }
+
+        $formJson = null;
+        if (!empty($formData)) {
+            $formJson = json_encode($formData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        $data = [
+            'user_id' => $userId,
+            'user_name' => $userName,
+            'username' => $username,
+            'company_connection' => $tenantConnection,
+            'action_type' => $actionType,
+            'entity' => $entity,
+            'request_url' => $request ? $request->url() : null,
+            'ip_address' => $request ? $request->ip() : null,
+            'question' => $question,
+            'response' => $response,
+            'response_payload' => $payloadJson,
+            'form_data' => $formJson,
+            'response_time_ms' => $responseTimeMs !== null ? (int) round($responseTimeMs) : null,
+            'searched_at' => now('Asia/Kolkata')->toDateTimeString(),
+            'created_at' => now('Asia/Kolkata'),
+            'updated_at' => now('Asia/Kolkata'),
+        ];
+
+        DB::connection($auditConnection)->table('user_search_audit')->insert($data);
+    } catch (\Throwable $e) {
+        // Do not interrupt the main request flow if audit logging fails.
+        \Log::warning('Unable to save user search audit entry.', [
+            'action_type' => $actionType,
+            'error' => $e->getMessage(),
+        ]);
+    }
+}
+
+function logUserFormAudit($request, $entity, $formData, $responseText = null, $responsePayload = null, $conn = null)
+{
+    $question = $request->input('query')
+        ?? $request->input('prompt')
+        ?? $request->input('message')
+        ?? ($request->all() ? json_encode($request->all(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null);
+
+    logUserAuditAction(
+        'form_submit',
+        $question,
+        $responseText,
+        $responsePayload,
+        $entity,
+        $formData,
+        $request,
+        $conn
+    );
+}
+
 function formatSizeUnits($bytes)
 {
     if ($bytes >= 1073741824) {

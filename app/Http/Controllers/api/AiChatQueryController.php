@@ -150,6 +150,64 @@ class AiChatQueryController extends Controller
     }
 
     /**
+     * Detect a suitable date column from the SELECT query by inspecting involved tables' schema.
+     * Returns qualified column name like `table.column` or null when none found.
+     */
+    private function detectDateColumnFromSelect($selectQuery, $conn)
+    {
+        try {
+            $tables = [];
+            if (preg_match_all('/\bFROM\s+([a-zA-Z0-9_]+)\b/i', $selectQuery, $m)) {
+                $tables = array_merge($tables, $m[1]);
+            }
+            if (preg_match_all('/\bJOIN\s+([a-zA-Z0-9_]+)\b/i', $selectQuery, $m2)) {
+                $tables = array_merge($tables, $m2[1]);
+            }
+            $tables = array_values(array_unique($tables));
+
+            $namePriority = ['date', 'created_at', 'created_on', 'created', 'start_date', 'end_date', 'entry_date'];
+            $typePriority = ['date', 'datetime', 'timestamp', 'year'];
+
+            foreach ($tables as $table) {
+                $cols = DB::connection($conn)->select("SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? ORDER BY ORDINAL_POSITION", [$table]);
+                if (empty($cols)) continue;
+
+                // 1) Prefer columns with canonical date-like names
+                foreach ($namePriority as $preferred) {
+                    foreach ($cols as $c) {
+                        $colName = $c->COLUMN_NAME ?? $c->column_name;
+                        if (strtolower($colName) === strtolower($preferred)) {
+                            return "{$table}.{$colName}";
+                        }
+                    }
+                }
+
+                // 2) Prefer any column whose name contains 'date' or 'time' or 'at'
+                foreach ($cols as $c) {
+                    $colName = $c->COLUMN_NAME ?? $c->column_name;
+                    if (preg_match('/date|time|at/i', $colName)) {
+                        return "{$table}.{$colName}";
+                    }
+                }
+
+                // 3) Prefer by data type
+                foreach ($typePriority as $tType) {
+                    foreach ($cols as $c) {
+                        $colName = $c->COLUMN_NAME ?? $c->column_name;
+                        $dataType = strtolower($c->DATA_TYPE ?? $c->data_type ?? '');
+                        if ($dataType === $tType) {
+                            return "{$table}.{$colName}";
+                        }
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // ignore and return null
+        }
+        return null;
+    }
+
+    /**
      * LLM Engine Call to dynamically generate SQL query from free-form text input via external APIs
      */
     private function callLlmForSql($queryText, $tenant)
@@ -355,6 +413,14 @@ class AiChatQueryController extends Controller
             $selectQuery = "SELECT material_entry.id, materials.name as material_name, material_entry.qty, material_entry.vehical, material_entry.date, material_entry.status FROM material_entry LEFT JOIN materials ON materials.id=material_entry.material_id";
             $sf = $getSiteFilter('material_entry.site_id');
             if ($sf) $whereClauses[] = $sf;
+            // Apply status filters when user explicitly asks for pending/approved/returned materials
+            if (strpos($lower, 'pending') !== false) {
+                $whereClauses[] = "(material_entry.status LIKE '%Pending%' OR material_entry.status LIKE '%pending%')";
+            } else if (strpos($lower, 'approved') !== false || strpos($lower, 'verified') !== false) {
+                $whereClauses[] = "(material_entry.status LIKE '%Approved%' OR material_entry.status LIKE '%approved%')";
+            } else if (strpos($lower, 'returned') !== false) {
+                $whereClauses[] = "(material_entry.status LIKE '%Returned%' OR material_entry.status LIKE '%returned%')";
+            }
         } else if (strpos($lower, 'attendance report') !== false || strpos($lower, 'attendace report') !== false || strpos($lower, 'report of attendance') !== false) {
             $selectQuery = "SELECT attendance.id, COALESCE(users.name, 'Labour') as person_name, attendance.date, attendance.in_time, attendance.out_time, attendance.status, attendance.remarks FROM attendance LEFT JOIN users ON users.id=attendance.user_id";
             $sf = $getSiteFilter('attendance.site_id');
@@ -476,6 +542,14 @@ class AiChatQueryController extends Controller
             $selectQuery = "SELECT material_entry.id, materials.name as material_name, material_entry.qty, material_entry.vehical, material_entry.date, material_entry.status FROM material_entry LEFT JOIN materials ON materials.id=material_entry.material_id";
             $sf = $getSiteFilter('material_entry.site_id');
             if ($sf) $whereClauses[] = $sf;
+            // Apply status filters when user explicitly asks for pending/approved/returned materials
+            if (strpos($lower, 'pending') !== false) {
+                $whereClauses[] = "(material_entry.status LIKE '%Pending%' OR material_entry.status LIKE '%pending%')";
+            } else if (strpos($lower, 'approved') !== false || strpos($lower, 'verified') !== false) {
+                $whereClauses[] = "(material_entry.status LIKE '%Approved%' OR material_entry.status LIKE '%approved%')";
+            } else if (strpos($lower, 'returned') !== false) {
+                $whereClauses[] = "(material_entry.status LIKE '%Returned%' OR material_entry.status LIKE '%returned%')";
+            }
         } else if (strpos($lower, 'task') !== false || strpos($lower, 'taks') !== false || strpos($lower, 'todo') !== false || strpos($lower, 'assignment') !== false || strpos($lower, 'work') !== false) {
             $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM users WHERE FIND_IN_SET(users.id, tasks.assigned_to) OR users.id = tasks.assigned_to) as assigned_to, tasks.priority, tasks.status, tasks.due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id";
             $sf = $getSiteFilter('tasks.site_id');
@@ -501,18 +575,8 @@ class AiChatQueryController extends Controller
         }
 
         // 2. Parse Date Conditions from User Prompt (Today, Yesterday, This Month, Specific Date or Date Range)
-        $dateColumn = null;
-        if (strpos($selectQuery, 'attendance') !== false) {
-            $dateColumn = 'attendance.date';
-        } else if (strpos($selectQuery, 'expenses') !== false) {
-            $dateColumn = 'expenses.date';
-        } else if (strpos($selectQuery, 'material_entry') !== false) {
-            $dateColumn = 'material_entry.date';
-        } else if (strpos($selectQuery, 'tasks') !== false) {
-            $dateColumn = 'tasks.created_at';
-        } else if (strpos($selectQuery, 'assets') !== false) {
-            $dateColumn = 'assets.create_datetime';
-        }
+        $conn = $tenant['conn'] ?? config('database.default');
+        $dateColumn = $this->detectDateColumnFromSelect($selectQuery, $conn);
 
         $parseDateStringToYmd = function ($value) {
             $text = trim((string) $value);
@@ -606,6 +670,18 @@ class AiChatQueryController extends Controller
             }
         }
 
+        // Parse LIMIT / top N patterns (e.g., "show me 5 users", "top 10", "limit 5")
+        $limitClause = '';
+        if (preg_match('/\b(?:show|get|list|give)\s+me\s+(\d{1,4})\b/i', $queryText, $mLimit)
+            || preg_match('/\btop\s+(\d{1,4})\b/i', $queryText, $mLimit)
+            || preg_match('/\blimit\s+(\d{1,4})\b/i', $queryText, $mLimit)
+            || preg_match('/\b(\d{1,4})\s+(?:users|records|rows|results)\b/i', $queryText, $mLimit)) {
+            $n = intval($mLimit[1] ?? 0);
+            if ($n > 0 && $n <= 1000) {
+                $limitClause = " LIMIT {$n}";
+            }
+        }
+
         // 3. Parse Filter Value Conditions from User Prompt
         if (preg_match('/(?:equals|equal|named|called|with|whose\s+\w+\s+is)\s+[\'"]?([a-zA-Z0-9._%+-@\s]+)[\'"]?/i', $queryText, $filterMatch)) {
             $val = addslashes(trim($filterMatch[1]));
@@ -651,9 +727,9 @@ class AiChatQueryController extends Controller
 
         $whereSql = !empty($whereClauses) ? ' WHERE ' . implode(' AND ', $whereClauses) : '';
         if ($groupByClause !== '') {
-            return "{$selectQuery}{$whereSql}{$groupByClause} ORDER BY total_amount DESC";
+            return "{$selectQuery}{$whereSql}{$groupByClause} ORDER BY total_amount DESC" . ($limitClause ?? '');
         }
-        return "{$selectQuery}{$whereSql} ORDER BY 1 DESC";
+        return "{$selectQuery}{$whereSql} ORDER BY 1 DESC" . ($limitClause ?? '');
     }
 
     /**
@@ -661,6 +737,8 @@ class AiChatQueryController extends Controller
      */
     public function processQuery(Request $request)
     {
+        $start = microtime(true);
+
         try {
             $queryText = trim($request->input('query') ?? $request->input('prompt') ?? $request->input('message') ?? '');
             if (empty($queryText)) {
@@ -684,7 +762,7 @@ class AiChatQueryController extends Controller
 
             if ($isGreeting) {
                 $html = $this->buildGreetingHtml($user_name, $site_name);
-                return response()->json([
+                $response = response()->json([
                     'status' => 'Ok',
                     'status_code' => 200,
                     'message' => 'Buildarya AI Assistant Greeting',
@@ -702,12 +780,15 @@ class AiChatQueryController extends Controller
                         'pdf_url' => url('/attendance/export?type=pdf')
                     ]
                 ]);
+
+                logUserAuditAction('search', $queryText, 'Buildarya AI Assistant Greeting', ['intent' => 'greeting'], 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                return $response;
             }
 
             $createFormIntent = $this->detectCreateFormIntent($queryText);
             if ($createFormIntent) {
                 $html = $this->renderCreateFormHtml($createFormIntent, $tenant);
-                return response()->json([
+                $response = response()->json([
                     'status' => 'Ok',
                     'status_code' => 200,
                     'message' => 'Create form opened for ' . ucfirst($createFormIntent) . '.',
@@ -726,96 +807,70 @@ class AiChatQueryController extends Controller
                         'pdf_url' => url('/attendance/export?type=pdf')
                     ]
                 ]);
+
+                logUserAuditAction('form_open', $queryText, 'Create form opened for ' . ucfirst($createFormIntent), ['intent' => 'create_form', 'entity' => $createFormIntent], $createFormIntent, null, $request, $conn, (microtime(true) - $start) * 1000);
+                return $response;
             }
 
             $isPdfRequest = (strpos($lower, 'pdf') !== false || strpos($lower, 'download') !== false || strpos($lower, 'export') !== false);
             $isOtherSiteRequest = (strpos($lower, 'other site') !== false || strpos($lower, 'all site') !== false);
 
             $sqlToExec = null;
-            $provider = 'Buildarya Text-to-SQL AI Engine';
+            $provider = 'Buildarya AI SQL Engine';
 
-            // 1. Attempt LLM Text-to-SQL generation if external API key (OpenAI/Gemini/Groq) is configured
+            // AI-only flow: no manual keyword fallback is allowed.
             $llmResult = $this->callLlmForSql($queryText, $tenant);
             if ($llmResult && !empty($llmResult['sql'])) {
                 $sqlToExec = $llmResult['sql'];
                 $provider = $llmResult['provider'];
-            } else {
-                // 2. Dynamically convert user text to SQL using local Text-to-SQL engine
-                $sqlToExec = $this->generateDynamicSqlFromText($queryText, $tenant);
             }
 
-            // Execute AI-generated SQL query directly against the tenant database
-            if ($sqlToExec) {
-                try {
-                    $fetchedRows = DB::connection($conn)->select($sqlToExec);
-                    $html = $this->buildDynamicSqlHtml($fetchedRows, $sqlToExec, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest);
-                    
-                    return response()->json([
-                        'status' => 'Ok',
-                        'status_code' => 200,
-                        'message' => "Query dynamically converted to SQL and executed via {$provider}",
-                        'data' => [
-                            'query' => $queryText,
-                            'intent' => 'ai_text_to_sql',
-                            'ai_provider' => $provider,
-                            'sql_generated' => $sqlToExec,
-                            'active_site' => $site_name,
-                            'records_count' => count($fetchedRows),
-                            'records' => $fetchedRows,
-                            'summary' => "AI Engine dynamically converted text into SQL: [{$sqlToExec}]. Executed on database and returned " . count($fetchedRows) . " records.",
-                            'html' => $html,
-                            'is_pdf_requested' => $isPdfRequest,
-                            'pdf_url' => url('/attendance/export?type=pdf')
-                        ]
-                    ]);
-                } catch (\Exception $e) {
-                    // Fallback to metric summary on execution exception
-                }
+            if (!$sqlToExec) {
+                $response = response()->json([
+                    'status' => 'Failed',
+                    'status_code' => 422,
+                    'message' => 'AI could not generate a SQL query for this request. Please configure a valid AI provider or ask a query that matches the live schema.'
+                ], 422);
+
+                logUserAuditAction('search', $queryText, 'SQL generation failed', ['error' => 'AI could not generate a SQL query'], 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                return $response;
             }
 
-            // General Metrics Fallback
-            $sqlGenerated = "SELECT COUNT(*) FROM attendance; SELECT COUNT(*) FROM expenses; SELECT COUNT(*) FROM material_entry; SELECT COUNT(*) FROM tasks;";
-
-            $attCount = 0; $expCount = 0; $matCount = 0; $taskCount = 0; $userCount = 0; $supCount = 0;
             try {
-                $attCount = DB::connection($conn)->table('attendance')->count();
-                $expCount = DB::connection($conn)->table('expenses')->count();
-                $matCount = DB::connection($conn)->table('material_entry')->count();
-                $taskCount = DB::connection($conn)->table('tasks')->count();
-                $userCount = DB::connection($conn)->table('users')->count();
-                $supCount = DB::connection($conn)->table('material_supplier')->count();
-            } catch (\Exception $e) {}
+                $fetchedRows = DB::connection($conn)->select($sqlToExec);
+                $html = $this->buildDynamicSqlHtml($fetchedRows, $sqlToExec, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest);
 
-            $records = [
-                'suppliers' => $supCount,
-                'attendance' => $attCount,
-                'expenses' => $expCount,
-                'materials' => $matCount,
-                'tasks' => $taskCount,
-                'users' => $userCount
-            ];
+                $response = response()->json([
+                    'status' => 'Ok',
+                    'status_code' => 200,
+                    'message' => "Query dynamically converted to SQL and executed via {$provider}",
+                    'data' => [
+                        'query' => $queryText,
+                        'intent' => 'ai_text_to_sql',
+                        'ai_provider' => $provider,
+                        'sql_generated' => $sqlToExec,
+                        'active_site' => $site_name,
+                        'records_count' => count($fetchedRows),
+                        'records' => $fetchedRows,
+                        'summary' => "AI Engine dynamically converted text into SQL: [{$sqlToExec}]. Executed on database and returned " . count($fetchedRows) . " records.",
+                        'html' => $html,
+                        'is_pdf_requested' => $isPdfRequest,
+                        'pdf_url' => url('/attendance/export?type=pdf')
+                    ]
+                ]);
 
-            $summaryText = "Buildarya AI Engine processed input: '{$queryText}'. Analyzed tenant database metrics for site '{$site_name}'.";
-            $html = $this->buildGeneralHtml($records, $summaryText, $sqlGenerated, $queryText, $site_name, $user_name, $user_username, $isOtherSiteRequest, $tenant['is_superadmin']);
+                logUserAuditAction('search', $queryText, 'Query executed successfully', ['provider' => $provider, 'sql' => $sqlToExec, 'records_count' => count($fetchedRows)], 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                return $response;
+            } catch (\Exception $e) {
+                $response = response()->json([
+                    'status' => 'Failed',
+                    'status_code' => 500,
+                    'message' => 'AI-generated SQL failed to execute: ' . $e->getMessage()
+                ], 500);
 
-            return response()->json([
-                'status' => 'Ok',
-                'status_code' => 200,
-                'message' => 'Query processed successfully by Buildarya AI',
-                'data' => [
-                    'query' => $queryText,
-                    'intent' => 'general',
-                    'ai_provider' => 'Buildarya Text-to-SQL AI Engine',
-                    'sql_generated' => $sqlGenerated,
-                    'active_site' => $site_name,
-                    'records_count' => is_array($records) ? count($records) : 0,
-                    'records' => $records,
-                    'summary' => $summaryText,
-                    'html' => $html,
-                    'is_pdf_requested' => $isPdfRequest,
-                    'pdf_url' => url('/attendance/export?type=pdf')
-                ]
-            ]);
+                logUserAuditAction('search', $queryText, 'SQL execution failed', ['error' => $e->getMessage(), 'sql' => $sqlToExec], 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                return $response;
+            }
 
         } catch (\Exception $e) {
             return response()->json([

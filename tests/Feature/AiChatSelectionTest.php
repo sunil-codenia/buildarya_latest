@@ -7,6 +7,25 @@ use App\Http\Controllers\api\AiChatQueryController;
 
 class AiChatSelectionTest extends TestCase
 {
+    public function test_process_query_requires_ai_generated_sql_without_manual_fallback(): void
+    {
+        putenv('OPENAI_API_KEY=');
+        putenv('GEMINI_API_KEY=');
+        putenv('GROQ_API_KEY=');
+        putenv('DEEPSEEK_API_KEY=');
+
+        $controller = new AiChatQueryController();
+        $request = new \Illuminate\Http\Request();
+        $request->merge(['query' => 'show attendance today']);
+
+        $response = $controller->processQuery($request);
+        $payload = $response->getData(true);
+
+        $this->assertSame(422, $response->status());
+        $this->assertSame('Failed', $payload['status']);
+        $this->assertStringContainsString('AI could not generate', $payload['message']);
+    }
+
     public function test_database_schema_context_lists_live_tables_and_columns(): void
     {
         $controller = new AiChatQueryController();
