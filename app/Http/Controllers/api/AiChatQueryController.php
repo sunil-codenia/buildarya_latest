@@ -762,7 +762,7 @@ class AiChatQueryController extends Controller
 
             if ($isGreeting) {
                 $html = $this->buildGreetingHtml($user_name, $site_name);
-                $response = response()->json([
+                $responsePayload = [
                     'status' => 'Ok',
                     'status_code' => 200,
                     'message' => 'Buildarya AI Assistant Greeting',
@@ -779,16 +779,17 @@ class AiChatQueryController extends Controller
                         'is_pdf_requested' => false,
                         'pdf_url' => url('/attendance/export?type=pdf')
                     ]
-                ]);
+                ];
+                $response = response()->json($responsePayload);
 
-                logUserAuditAction('search', $queryText, 'Buildarya AI Assistant Greeting', ['intent' => 'greeting'], 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                logUserAuditAction('search', $queryText, 'Buildarya AI Assistant Greeting', $responsePayload, 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
                 return $response;
             }
 
             $createFormIntent = $this->detectCreateFormIntent($queryText);
             if ($createFormIntent) {
                 $html = $this->renderCreateFormHtml($createFormIntent, $tenant);
-                $response = response()->json([
+                $responsePayload = [
                     'status' => 'Ok',
                     'status_code' => 200,
                     'message' => 'Create form opened for ' . ucfirst($createFormIntent) . '.',
@@ -806,9 +807,10 @@ class AiChatQueryController extends Controller
                         'is_pdf_requested' => false,
                         'pdf_url' => url('/attendance/export?type=pdf')
                     ]
-                ]);
+                ];
+                $response = response()->json($responsePayload);
 
-                logUserAuditAction('form_open', $queryText, 'Create form opened for ' . ucfirst($createFormIntent), ['intent' => 'create_form', 'entity' => $createFormIntent], $createFormIntent, null, $request, $conn, (microtime(true) - $start) * 1000);
+                logUserAuditAction('form_open', $queryText, 'Create form opened for ' . ucfirst($createFormIntent), $responsePayload, $createFormIntent, null, $request, $conn, (microtime(true) - $start) * 1000);
                 return $response;
             }
 
@@ -826,13 +828,14 @@ class AiChatQueryController extends Controller
             }
 
             if (!$sqlToExec) {
-                $response = response()->json([
+                $responsePayload = [
                     'status' => 'Failed',
                     'status_code' => 422,
                     'message' => 'AI could not generate a SQL query for this request. Please configure a valid AI provider or ask a query that matches the live schema.'
-                ], 422);
+                ];
+                $response = response()->json($responsePayload, 422);
 
-                logUserAuditAction('search', $queryText, 'SQL generation failed', ['error' => 'AI could not generate a SQL query'], 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                logUserAuditAction('search', $queryText, 'SQL generation failed', $responsePayload, 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
                 return $response;
             }
 
@@ -840,7 +843,7 @@ class AiChatQueryController extends Controller
                 $fetchedRows = DB::connection($conn)->select($sqlToExec);
                 $html = $this->buildDynamicSqlHtml($fetchedRows, $sqlToExec, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest);
 
-                $response = response()->json([
+                $responsePayload = [
                     'status' => 'Ok',
                     'status_code' => 200,
                     'message' => "Query dynamically converted to SQL and executed via {$provider}",
@@ -857,18 +860,22 @@ class AiChatQueryController extends Controller
                         'is_pdf_requested' => $isPdfRequest,
                         'pdf_url' => url('/attendance/export?type=pdf')
                     ]
-                ]);
+                ];
+                $response = response()->json($responsePayload);
 
-                logUserAuditAction('search', $queryText, 'Query executed successfully', ['provider' => $provider, 'sql' => $sqlToExec, 'records_count' => count($fetchedRows)], 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                // Keep the complete API response in the audit record, including
+                // the unmodified rows returned by the tenant database.
+                logUserAuditAction('search', $queryText, 'Query executed successfully', $responsePayload, 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
                 return $response;
             } catch (\Exception $e) {
-                $response = response()->json([
+                $responsePayload = [
                     'status' => 'Failed',
                     'status_code' => 500,
                     'message' => 'AI-generated SQL failed to execute: ' . $e->getMessage()
-                ], 500);
+                ];
+                $response = response()->json($responsePayload, 500);
 
-                logUserAuditAction('search', $queryText, 'SQL execution failed', ['error' => $e->getMessage(), 'sql' => $sqlToExec], 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                logUserAuditAction('search', $queryText, 'SQL execution failed', $responsePayload, 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
                 return $response;
             }
 
