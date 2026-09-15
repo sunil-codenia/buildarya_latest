@@ -204,6 +204,12 @@ class AiChatQueryController extends Controller
         } catch (\Exception $e) {
             // ignore and return null
         }
+
+        // Fallback: detect directly from query text if information_schema query was unavailable
+        if (preg_match('/([a-zA-Z0-9_]+\.date)\b/i', $selectQuery, $mDateCol)) {
+            return $mDateCol[1];
+        }
+
         return null;
     }
 
@@ -212,10 +218,16 @@ class AiChatQueryController extends Controller
      */
     private function callLlmForSql($queryText, $tenant)
     {
-        $openaiKey = env('OPENAI_API_KEY');
-        $geminiKey = env('GEMINI_API_KEY');
-        $groqKey = env('GROQ_API_KEY');
-        $deepseekKey = env('DEEPSEEK_API_KEY');
+        $openaiKey = getenv('OPENAI_API_KEY') !== false ? getenv('OPENAI_API_KEY') : env('OPENAI_API_KEY');
+        $geminiKey = getenv('GEMINI_API_KEY') !== false ? getenv('GEMINI_API_KEY') : env('GEMINI_API_KEY');
+        $groqKey = getenv('GROQ_API_KEY') !== false ? getenv('GROQ_API_KEY') : env('GROQ_API_KEY');
+        $deepseekKey = getenv('DEEPSEEK_API_KEY') !== false ? getenv('DEEPSEEK_API_KEY') : env('DEEPSEEK_API_KEY');
+
+        $openaiKey = !empty($openaiKey) ? $openaiKey : null;
+        $geminiKey = !empty($geminiKey) ? $geminiKey : null;
+        $groqKey = !empty($groqKey) ? $groqKey : null;
+        $deepseekKey = !empty($deepseekKey) ? $deepseekKey : null;
+
         $conn = $tenant['conn'] ?? config('database.default');
         $schemaContext = $this->buildDatabaseSchemaContext($conn);
 
@@ -233,7 +245,18 @@ class AiChatQueryController extends Controller
             . "5. Use the exact table and column names from the live schema below. Never invent missing columns or tables.\n"
             . "6. If the query is about people or users, use the users table and join roles if needed.\n"
             . "7. If query mentions a site, use site_id filters based on the tenant site context.\n"
-            . "8. For task queries, tasks.assigned_to stores user IDs (or comma-separated IDs). To query tasks assigned to a specific user by name (e.g. 'sunil'), filter using EXISTS (SELECT 1 FROM users WHERE (users.name LIKE '%sunil%' OR users.username LIKE '%sunil%') AND (FIND_IN_SET(users.id, tasks.assigned_to) OR tasks.assigned_to = CAST(users.id AS CHAR) OR tasks.assigned_by = users.id)). Include assigned user names in SELECT via (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM users WHERE FIND_IN_SET(users.id, tasks.assigned_to) OR users.id = tasks.assigned_to) as assigned_to.\n\n"
+            . "8. For task queries, tasks.assigned_to stores user IDs (or comma-separated IDs). To query tasks assigned to a specific user by name (e.g. 'sunil'), filter using EXISTS (SELECT 1 FROM users WHERE (users.name LIKE '%sunil%' OR users.username LIKE '%sunil%') AND (FIND_IN_SET(users.id, tasks.assigned_to) OR tasks.assigned_to = CAST(users.id AS CHAR) OR tasks.assigned_by = users.id)). Include assigned user names in SELECT via (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM users WHERE FIND_IN_SET(users.id, tasks.assigned_to) OR users.id = tasks.assigned_to) as assigned_to.\n"
+            . "9. CRITICAL RULE FOR EXPENSE QUERIES:\n"
+            . "When selecting or fetching records from the `expenses` table:\n"
+            . "- NEVER execute a raw 'SELECT * FROM expenses' that returns raw numeric IDs.\n"
+            . "- NEVER return raw IDs (party_id, head_id, site_id, user_id). Users require proper human-readable names in place of raw IDs:\n"
+            . "  * In place of site_id, return the Site Name via: LEFT JOIN sites ON sites.id = expenses.site_id -> sites.name AS site_name\n"
+            . "  * In place of user_id, return the User Name via: LEFT JOIN users ON users.id = expenses.user_id -> users.name AS user_name\n"
+            . "  * In place of party_id, return the Party Name via: LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') -> COALESCE(expense_party.name, bills_party.name) AS party_name\n"
+            . "  * In place of head_id, return the Cost Category Name via: LEFT JOIN expense_head ON expense_head.id = expenses.head_id -> expense_head.name AS cost_category_name\n"
+            . "- Standard SELECT for expense queries MUST be:\n"
+            . "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) AS party_name, expenses.party_type, expense_head.name AS cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name AS site_name, users.name AS user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id\n"
+            . "- Always prefix WHERE/ORDER BY columns with table name 'expenses.' (e.g. expenses.site_id = 45, expenses.status = 'Approved') to avoid ambiguous column errors.\n\n"
             . "LIVE DATABASE SCHEMA (CURRENT TENANT):\n"
             . $schemaContext . "\n\n"
             . "Active Site Context: site_id = " . ($tenant['site_id'] ?? 'all') . " (" . ($tenant['site_name'] ?? 'Head Office') . "). Filter by site_id if applicable.\n";
@@ -391,7 +414,7 @@ class AiChatQueryController extends Controller
         if (strpos($lower, 'sales report') !== false || strpos($lower, 'slaes report') !== false || strpos($lower, 'sales reprt') !== false || strpos($lower, 'report of sales') !== false || strpos($lower, 'invoice report') !== false) {
             $selectQuery = "SELECT sales_invoice.id, sales_invoice.invoice_no, sales_party.name as party_name, sales_invoice.taxable_value, sales_invoice.amount, sales_invoice.status, sales_invoice.date FROM sales_invoice LEFT JOIN sales_party ON sales_party.id=sales_invoice.party_id";
         } else if (strpos($lower, 'pending report') !== false || strpos($lower, 'pending reprt') !== false || strpos($lower, 'report of pending') !== false) {
-            $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
+            $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
             $whereClauses[] = "(expenses.status LIKE '%Pending%' OR expenses.status LIKE '%pending%')";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
@@ -406,7 +429,7 @@ class AiChatQueryController extends Controller
             if ($sf) $whereClauses[] = $sf;
             $whereClauses[] = "expenses.amount IS NOT NULL";
         } else if (strpos($lower, 'expense report') !== false || strpos($lower, 'expense reprt') !== false || strpos($lower, 'expence report') !== false || strpos($lower, 'report of expense') !== false || strpos($lower, 'report of expenses') !== false) {
-            $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
+            $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'material report') !== false || strpos($lower, 'material reprt') !== false || strpos($lower, 'matrial report') !== false || strpos($lower, 'stock report') !== false) {
@@ -530,12 +553,12 @@ class AiChatQueryController extends Controller
             $sf = $getSiteFilter('attendance.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false)) {
-            $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
+            $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
             $whereClauses[] = "(expenses.status LIKE '%Pending%' OR expenses.status LIKE '%pending%')";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'petty') !== false || strpos($lower, 'cost') !== false || strpos($lower, 'audit') !== false) {
-            $selectQuery = "SELECT expenses.id, expenses.particular, expenses.amount, COALESCE(users.name, 'Staff') as recorded_by, expenses.date, expenses.status, expenses.remark FROM expenses LEFT JOIN users ON users.id=expenses.user_id";
+            $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'stock') !== false || strpos($lower, 'material') !== false || strpos($lower, 'matrial') !== false || strpos($lower, 'steel') !== false || strpos($lower, 'cement') !== false || strpos($lower, 'entry') !== false) {
@@ -628,6 +651,16 @@ class AiChatQueryController extends Controller
                 if ($startDate && $endDate) {
                     $whereClauses[] = "DATE({$dateColumn}) BETWEEN '{$startDate}' AND '{$endDate}'";
                 }
+            } else if (preg_match('/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{4})\s+(?:to|and)\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{4})\b/i', $queryText, $rangeMatchMonthYear)) {
+                $m1 = $rangeMatchMonthYear[1];
+                $y1 = $rangeMatchMonthYear[2];
+                $m2 = $rangeMatchMonthYear[3];
+                $y2 = $rangeMatchMonthYear[4];
+                $startDate = date('Y-m-01', strtotime("1 {$m1} {$y1}"));
+                $endDate = date('Y-m-t', strtotime("1 {$m2} {$y2}"));
+                if ($startDate && $endDate) {
+                    $whereClauses[] = "DATE({$dateColumn}) BETWEEN '{$startDate}' AND '{$endDate}'";
+                }
             } else if (preg_match('/\b(?:from|between)\s+([A-Za-z0-9,\-\/ ]+?)\s+(?:to|and)\s+([A-Za-z0-9,\-\/ ]+?)(?:\s*(?:for|in|on|$))\b/i', $queryText, $rangeMatch)) {
                 $startDate = $parseDateStringToYmd($rangeMatch[1]);
                 $endDate = $parseDateStringToYmd($rangeMatch[2]);
@@ -694,7 +727,7 @@ class AiChatQueryController extends Controller
                 } else if (strpos($selectQuery, 'tasks') !== false) {
                     $whereClauses[] = "title LIKE '%{$val}%'";
                 } else if (strpos($selectQuery, 'expenses') !== false) {
-                    $whereClauses[] = "particular LIKE '%{$val}%'";
+                    $whereClauses[] = "expenses.particular LIKE '%{$val}%'";
                 }
             }
         }
@@ -827,6 +860,10 @@ class AiChatQueryController extends Controller
                 $provider = $llmResult['provider'];
             }
 
+            if ($sqlToExec) {
+                $sqlToExec = $this->normalizeExpenseQuery($sqlToExec);
+            }
+
             if (!$sqlToExec) {
                 $responsePayload = [
                     'status' => 'Failed',
@@ -841,6 +878,7 @@ class AiChatQueryController extends Controller
 
             try {
                 $fetchedRows = DB::connection($conn)->select($sqlToExec);
+                $fetchedRows = $this->enrichExpenseRecords($fetchedRows, $conn);
                 $html = $this->buildDynamicSqlHtml($fetchedRows, $sqlToExec, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest);
 
                 $responsePayload = [
@@ -1758,9 +1796,192 @@ class AiChatQueryController extends Controller
         return '';
     }
 
+
     /**
-     * Render dynamic HTML table for arbitrary AI Text-to-SQL Query results
+     * Normalize queries targeting the expenses table so proper joins and proper names are used,
+     * replacing raw IDs (party_id, head_id, site_id, user_id) and qualifying columns to prevent ambiguous column errors.
      */
+    private function normalizeExpenseQuery($sql)
+    {
+        if (!preg_match('/\bFROM\s+[`"]?expenses[`"]?\b/i', $sql)) {
+            return $sql;
+        }
+
+        // If it's a pure count/aggregation without row records, keep it
+        if (preg_match('/SELECT\s+COUNT\s*\(/i', $sql)) {
+            return $sql;
+        }
+
+        // Check if query selects raw wildcard or misses necessary joins
+        $isWildcard = preg_match('/^SELECT\s+(?:\*|[`"]?expenses[`"]?\.\*)\s+FROM\s+[`"]?expenses[`"]?\b/i', trim($sql));
+        $missingJoins = (stripos($sql, 'expense_head') === false || stripos($sql, 'sites') === false || stripos($sql, 'users') === false);
+
+        if ($isWildcard || $missingJoins) {
+            if (preg_match('/^SELECT\s+.*?\bFROM\s+[`"]?expenses[`"]?\s*(.*?)$/is', trim($sql), $matches)) {
+                $tail = trim($matches[1] ?? '');
+
+                // Remove existing incomplete JOIN clauses so we can attach full standard joins
+                $cleanTail = preg_replace('/\b(?:LEFT|RIGHT|INNER)?\s*JOIN\s+[`"]?(?:sites|users|expense_head|expense_party|bills_party)[`"]?\s+ON\s+.*?(?=\bWHERE\b|\bGROUP\b|\bORDER\b|\bLIMIT\b|$)/is', '', $tail);
+                $cleanTail = trim($cleanTail);
+
+                // Qualify columns in WHERE/ORDER/GROUP/LIMIT to prevent "column ambiguous" errors
+                $ambiguousCols = ['site_id', 'status', 'user_id', 'party_id', 'head_id', 'date', 'amount', 'particular', 'remark', 'location', 'image', 'create_datetime'];
+                foreach ($ambiguousCols as $col) {
+                    $cleanTail = preg_replace('/(?<![a-zA-Z0-9_.])' . preg_quote($col, '/') . '(?![a-zA-Z0-9_])/i', 'expenses.' . $col, $cleanTail);
+                }
+
+                $joinedSelect = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) AS party_name, expenses.party_type, expense_head.name AS cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name AS site_name, users.name AS user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
+
+                if (!empty($cleanTail)) {
+                    $sql = $joinedSelect . ' ' . $cleanTail;
+                } else {
+                    $sql = $joinedSelect . ' ORDER BY expenses.id DESC';
+                }
+            }
+        }
+
+        return $sql;
+    }
+
+    /**
+     * Post-process records fetched from expenses (or any query returning expense foreign keys)
+     * by replacing raw IDs (head_id, party_id, site_id, user_id) in-place with proper human-readable names.
+     */
+    private function enrichExpenseRecords($rows, $conn)
+    {
+        if (empty($rows)) {
+            return $rows;
+        }
+
+        $sample = (array)$rows[0];
+        $hasHeadId = array_key_exists('head_id', $sample);
+        $hasPartyId = array_key_exists('party_id', $sample);
+        $hasSiteId = array_key_exists('site_id', $sample);
+        $hasUserId = array_key_exists('user_id', $sample);
+
+        if (!$hasHeadId && !$hasPartyId && !$hasSiteId && !$hasUserId) {
+            return $rows;
+        }
+
+        $headIds = [];
+        $siteIds = [];
+        $userIds = [];
+        $expensePartyIds = [];
+        $billPartyIds = [];
+        $genericPartyIds = [];
+
+        foreach ($rows as $row) {
+            $arr = (array)$row;
+            if ($hasHeadId && !empty($arr['head_id'])) {
+                $headIds[] = $arr['head_id'];
+            }
+            if ($hasSiteId && !empty($arr['site_id'])) {
+                $siteIds[] = $arr['site_id'];
+            }
+            if ($hasUserId && !empty($arr['user_id'])) {
+                $userIds[] = $arr['user_id'];
+            }
+            if ($hasPartyId && !empty($arr['party_id'])) {
+                $partyType = strtolower(trim((string)($arr['party_type'] ?? '')));
+                if ($partyType === 'bill') {
+                    $billPartyIds[] = $arr['party_id'];
+                } else if ($partyType === 'expense') {
+                    $expensePartyIds[] = $arr['party_id'];
+                } else {
+                    $genericPartyIds[] = $arr['party_id'];
+                }
+            }
+        }
+
+        $headMap = [];
+        if (!empty($headIds)) {
+            try {
+                $headMap = DB::connection($conn)->table('expense_head')
+                    ->whereIn('id', array_unique($headIds))
+                    ->pluck('name', 'id')
+                    ->toArray();
+            } catch (\Exception $e) {}
+        }
+
+        $siteMap = [];
+        if (!empty($siteIds)) {
+            try {
+                $siteMap = DB::connection($conn)->table('sites')
+                    ->whereIn('id', array_unique($siteIds))
+                    ->pluck('name', 'id')
+                    ->toArray();
+            } catch (\Exception $e) {}
+        }
+
+        $userMap = [];
+        if (!empty($userIds)) {
+            try {
+                $userMap = DB::connection($conn)->table('users')
+                    ->whereIn('id', array_unique($userIds))
+                    ->pluck('name', 'id')
+                    ->toArray();
+            } catch (\Exception $e) {}
+        }
+
+        $expensePartyMap = [];
+        if (!empty($expensePartyIds) || !empty($genericPartyIds)) {
+            try {
+                $ids = array_unique(array_merge($expensePartyIds, $genericPartyIds));
+                $expensePartyMap = DB::connection($conn)->table('expense_party')
+                    ->whereIn('id', $ids)
+                    ->pluck('name', 'id')
+                    ->toArray();
+            } catch (\Exception $e) {}
+        }
+
+        $billPartyMap = [];
+        if (!empty($billPartyIds) || !empty($genericPartyIds)) {
+            try {
+                $ids = array_unique(array_merge($billPartyIds, $genericPartyIds));
+                $billPartyMap = DB::connection($conn)->table('bills_party')
+                    ->whereIn('id', $ids)
+                    ->pluck('name', 'id')
+                    ->toArray();
+            } catch (\Exception $e) {}
+        }
+
+        $enrichedRows = [];
+        foreach ($rows as $row) {
+            $arr = (array)$row;
+            $newRow = [];
+
+            foreach ($arr as $key => $val) {
+                if ($key === 'party_id') {
+                    $partyType = strtolower(trim((string)($arr['party_type'] ?? '')));
+                    $partyName = null;
+                    if ($partyType === 'bill' && isset($billPartyMap[$val])) {
+                        $partyName = $billPartyMap[$val];
+                    } else if ($partyType === 'expense' && isset($expensePartyMap[$val])) {
+                        $partyName = $expensePartyMap[$val];
+                    } else {
+                        $partyName = $expensePartyMap[$val] ?? ($billPartyMap[$val] ?? null);
+                    }
+                    $newRow['party_name'] = $partyName ?: (is_numeric($val) ? "Party #{$val}" : $val);
+                } else if ($key === 'head_id') {
+                    $catName = $headMap[$val] ?? null;
+                    $newRow['cost_category_name'] = $catName ?: (is_numeric($val) ? "Cost Category #{$val}" : $val);
+                } else if ($key === 'site_id') {
+                    $siteName = $siteMap[$val] ?? null;
+                    $newRow['site_name'] = $siteName ?: (is_numeric($val) ? "Site #{$val}" : $val);
+                } else if ($key === 'user_id') {
+                    $userName = $userMap[$val] ?? null;
+                    $newRow['user_name'] = $userName ?: (is_numeric($val) ? "User #{$val}" : $val);
+                } else {
+                    $newRow[$key] = $val;
+                }
+            }
+
+            $enrichedRows[] = (object)$newRow;
+        }
+
+        return $enrichedRows;
+    }
+
     private function buildDynamicSqlHtml($rows, $sql, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest)
     {
         $sqlBadge = $this->renderSqlBadge($sql, $provider);
@@ -1795,7 +2016,17 @@ class AiChatQueryController extends Controller
 
         $thHtml = '';
         foreach ($columns as $col) {
-            $formattedHeader = ucwords(str_replace('_', ' ', $col));
+            if ($col === 'head_id' || $col === 'cost_category_name') {
+                $formattedHeader = 'Cost Category Name';
+            } else if ($col === 'party_id' || $col === 'party_name') {
+                $formattedHeader = 'Party Name';
+            } else if ($col === 'site_id' || $col === 'site_name') {
+                $formattedHeader = 'Site Name';
+            } else if ($col === 'user_id' || $col === 'user_name') {
+                $formattedHeader = 'User Name';
+            } else {
+                $formattedHeader = ucwords(str_replace('_', ' ', $col));
+            }
             $thHtml .= '<th>' . e($formattedHeader) . '</th>';
         }
 
@@ -1805,10 +2036,16 @@ class AiChatQueryController extends Controller
             $trHtml .= '<tr>';
             foreach ($columns as $col) {
                 $val = $rowArr[$col] ?? 'N/A';
-                if (is_array($val) || is_object($val)) {
-                    $val = json_encode($val);
+                if ($col === 'image' && !empty($val) && $val !== 'N/A' && (is_string($val) && (strpos($val, 'images/') !== false || strpos($val, '.png') !== false || strpos($val, '.jpg') !== false || strpos($val, '.jpeg') !== false))) {
+                    $imgUrl = asset($val);
+                    $cellHtml = '<a href="' . e($imgUrl) . '" target="_blank" style="color:#10a37f; text-decoration:none; font-weight:600;"><i class="zmdi zmdi-image"></i> View Image</a>';
+                } else {
+                    if (is_array($val) || is_object($val)) {
+                        $val = json_encode($val);
+                    }
+                    $cellHtml = e((string)$val);
                 }
-                $trHtml .= '<td>' . e((string)$val) . '</td>';
+                $trHtml .= '<td>' . $cellHtml . '</td>';
             }
             $trHtml .= '</tr>';
         }

@@ -95,9 +95,24 @@
             // 3. Query REAL Expenses Records from tenant DB
             $expLogs = \Illuminate\Support\Facades\DB::connection($conn)
                 ->table('expenses')
+                ->leftJoin('expense_party', function($join) {
+                    $join->on('expense_party.id', '=', 'expenses.party_id')
+                         ->where('expenses.party_type', '=', 'expense');
+                })
+                ->leftJoin('bills_party', function($join) {
+                    $join->on('bills_party.id', '=', 'expenses.party_id')
+                         ->where('expenses.party_type', '=', 'bill');
+                })
+                ->leftJoin('expense_head', 'expense_head.id', '=', 'expenses.head_id')
                 ->leftJoin('sites', 'sites.id', '=', 'expenses.site_id')
                 ->leftJoin('users', 'users.id', '=', 'expenses.user_id')
-                ->select('expenses.*', 'sites.name as site_name', 'users.name as user_name')
+                ->select(
+                    'expenses.*',
+                    'sites.name as site_name',
+                    'users.name as user_name',
+                    'expense_head.name as cost_category_name',
+                    \Illuminate\Support\Facades\DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name')
+                )
                 ->orderBy('expenses.id', 'desc')
                 ->limit(10)
                 ->get();
@@ -105,6 +120,8 @@
             foreach ($expLogs as $exp) {
                 $realExpenseData[] = [
                     'id' => $exp->id,
+                    'party_name' => $exp->party_name ?? 'N/A',
+                    'cost_category_name' => $exp->cost_category_name ?? 'N/A',
                     'particular' => $exp->particular ?? 'Site Expense',
                     'amount' => number_format((float)($exp->amount ?? 0), 2),
                     'user' => $exp->user_name ?? $user_name,
@@ -1459,8 +1476,11 @@
                 let rowsHtml = REAL_EXPENSES.map(item => `
                     <tr>
                         <td>#EXP-${escapeHtml(item.id)}</td>
+                        <td><strong>${escapeHtml(item.party_name || 'N/A')}</strong></td>
+                        <td>${escapeHtml(item.cost_category_name || 'N/A')}</td>
                         <td><strong>${escapeHtml(item.particular)}</strong></td>
                         <td>₹${escapeHtml(item.amount)}</td>
+                        <td>${escapeHtml(item.site || CURRENT_SITE_NAME)}</td>
                         <td>${escapeHtml(item.user)}</td>
                         <td>${escapeHtml(item.date)}</td>
                         <td><span style="color:${item.status === 'Approved' ? '#10a37f' : '#f59e0b'}; font-weight:700;">${escapeHtml(item.status)}</span></td>
@@ -1474,9 +1494,12 @@
                         <thead>
                             <tr>
                                 <th>Voucher ID</th>
+                                <th>Party Name</th>
+                                <th>Cost Category Name</th>
                                 <th>Particular</th>
                                 <th>Amount</th>
-                                <th>Recorded By</th>
+                                <th>Site Name</th>
+                                <th>User Name</th>
                                 <th>Date</th>
                                 <th>Status</th>
                             </tr>
