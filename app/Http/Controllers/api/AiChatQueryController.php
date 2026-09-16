@@ -257,6 +257,14 @@ class AiChatQueryController extends Controller
             . "- Standard SELECT for expense queries MUST be:\n"
             . "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) AS party_name, expenses.party_type, expense_head.name AS cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name AS site_name, users.name AS user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id\n"
             . "- Always prefix WHERE/ORDER BY columns with table name 'expenses.' (e.g. expenses.site_id = 45, expenses.status = 'Approved') to avoid ambiguous column errors.\n\n"
+            . "10. VOICE ASSISTANT & SPOKEN QUERIES:\n"
+            . "The user input may be spoken or voice-transcribed via Speech-to-Text. Accurately resolve spoken terms and colloquial phrases:\n"
+            . "- 'kharcha', 'kharch', 'hisaab', 'petty cash' refer to expenses (expenses table).\n"
+            . "- 'haziri', 'hajiri', 'present', 'attendance' refer to attendance (attendance table).\n"
+            . "- 'maal', 'saman', 'stock', 'inventory' refer to materials (material_entry or materials table).\n"
+            . "- 'kaam', 'task', 'pending work' refer to tasks (tasks table).\n"
+            . "- 'aaj', 'aaj ka', 'today' refers to current date CURDATE().\n"
+            . "- Ignore verbal conversational filler phrases like 'please', 'can you show me', 'give me', 'bhai', 'tell me'.\n\n"
             . "LIVE DATABASE SCHEMA (CURRENT TENANT):\n"
             . $schemaContext . "\n\n"
             . "Active Site Context: site_id = " . ($tenant['site_id'] ?? 'all') . " (" . ($tenant['site_name'] ?? 'Head Office') . "). Filter by site_id if applicable.\n";
@@ -284,6 +292,9 @@ class AiChatQueryController extends Controller
             } else if ($geminiKey) {
                 $providerUsed = 'Google Gemini AI';
                 $model = env('GEMINI_MODEL', 'gemini-1.5-flash');
+                if (empty($model) || strpos($model, '3.6') !== false) {
+                    $model = 'gemini-1.5-flash';
+                }
                 
                 // 1. Try URL key parameter
                 $response = Http::timeout(8)->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$geminiKey}", [
@@ -548,20 +559,20 @@ class AiChatQueryController extends Controller
             }
         } else if (strpos($lower, 'supplier') !== false || strpos($lower, 'suplier') !== false || strpos($lower, 'vendor') !== false || strpos($lower, 'dealer') !== false || strpos($lower, 'supply') !== false) {
             $selectQuery = "SELECT id, name, address, gstin, bank_name, bank_ac, status FROM material_supplier";
-        } else if (strpos($lower, 'attendance') !== false || strpos($lower, 'attendace') !== false || strpos($lower, 'attendac') !== false || strpos($lower, 'atteance') !== false || strpos($lower, 'attandance') !== false || strpos($lower, 'attandace') !== false || strpos($lower, 'atendance') !== false || strpos($lower, 'attendence') !== false || strpos($lower, 'attndance') !== false || strpos($lower, 'headcount') !== false || strpos($lower, 'present') !== false || strpos($lower, 'checkin') !== false) {
+        } else if (strpos($lower, 'attendance') !== false || strpos($lower, 'attendace') !== false || strpos($lower, 'attendac') !== false || strpos($lower, 'atteance') !== false || strpos($lower, 'attandance') !== false || strpos($lower, 'attandace') !== false || strpos($lower, 'atendance') !== false || strpos($lower, 'attendence') !== false || strpos($lower, 'attndance') !== false || strpos($lower, 'headcount') !== false || strpos($lower, 'present') !== false || strpos($lower, 'checkin') !== false || strpos($lower, 'haziri') !== false || strpos($lower, 'hajiri') !== false) {
             $selectQuery = "SELECT attendance.id, COALESCE(users.name, 'Labour') as person_name, attendance.date, attendance.in_time, attendance.out_time, attendance.status, attendance.remarks FROM attendance LEFT JOIN users ON users.id=attendance.user_id";
             $sf = $getSiteFilter('attendance.site_id');
             if ($sf) $whereClauses[] = $sf;
-        } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false)) {
+        } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'kharcha') !== false || strpos($lower, 'kharch') !== false)) {
             $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
             $whereClauses[] = "(expenses.status LIKE '%Pending%' OR expenses.status LIKE '%pending%')";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
-        } else if (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'petty') !== false || strpos($lower, 'cost') !== false || strpos($lower, 'audit') !== false) {
+        } else if (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'petty') !== false || strpos($lower, 'cost') !== false || strpos($lower, 'audit') !== false || strpos($lower, 'kharcha') !== false || strpos($lower, 'kharch') !== false || strpos($lower, 'hisaab') !== false) {
             $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
-        } else if (strpos($lower, 'stock') !== false || strpos($lower, 'material') !== false || strpos($lower, 'matrial') !== false || strpos($lower, 'steel') !== false || strpos($lower, 'cement') !== false || strpos($lower, 'entry') !== false) {
+        } else if (strpos($lower, 'stock') !== false || strpos($lower, 'material') !== false || strpos($lower, 'matrial') !== false || strpos($lower, 'steel') !== false || strpos($lower, 'cement') !== false || strpos($lower, 'entry') !== false || strpos($lower, 'maal') !== false || strpos($lower, 'saman') !== false) {
             $selectQuery = "SELECT material_entry.id, materials.name as material_name, material_entry.qty, material_entry.vehical, material_entry.date, material_entry.status FROM material_entry LEFT JOIN materials ON materials.id=material_entry.material_id";
             $sf = $getSiteFilter('material_entry.site_id');
             if ($sf) $whereClauses[] = $sf;
@@ -573,7 +584,7 @@ class AiChatQueryController extends Controller
             } else if (strpos($lower, 'returned') !== false) {
                 $whereClauses[] = "(material_entry.status LIKE '%Returned%' OR material_entry.status LIKE '%returned%')";
             }
-        } else if (strpos($lower, 'task') !== false || strpos($lower, 'taks') !== false || strpos($lower, 'todo') !== false || strpos($lower, 'assignment') !== false || strpos($lower, 'work') !== false) {
+        } else if (strpos($lower, 'task') !== false || strpos($lower, 'taks') !== false || strpos($lower, 'todo') !== false || strpos($lower, 'assignment') !== false || strpos($lower, 'work') !== false || strpos($lower, 'kaam') !== false) {
             $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM users WHERE FIND_IN_SET(users.id, tasks.assigned_to) OR users.id = tasks.assigned_to) as assigned_to, tasks.priority, tasks.status, tasks.due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id";
             $sf = $getSiteFilter('tasks.site_id');
             if ($sf) $whereClauses[] = $sf;
@@ -667,9 +678,9 @@ class AiChatQueryController extends Controller
                 if ($startDate && $endDate) {
                     $whereClauses[] = "DATE({$dateColumn}) BETWEEN '{$startDate}' AND '{$endDate}'";
                 }
-            } else if (preg_match('/\b(today|todays|today\'s|todays\s+only)\b/i', $lower)) {
+            } else if (preg_match('/\b(today|todays|today\'s|todays\s+only|aaj|aaj\s+ka)\b/i', $lower)) {
                 $whereClauses[] = "DATE({$dateColumn}) = CURDATE()";
-            } else if (preg_match('/\b(yesterday|yesterdays|yesterday\'s)\b/i', $lower)) {
+            } else if (preg_match('/\b(yesterday|yesterdays|yesterday\'s|kal|kal\s+ka)\b/i', $lower)) {
                 $whereClauses[] = "DATE({$dateColumn}) = SUBDATE(CURDATE(), 1)";
             } else if (preg_match('/\b(this\s+month|current\s+month)\b/i', $lower)) {
                 $whereClauses[] = "MONTH({$dateColumn}) = MONTH(CURDATE()) AND YEAR({$dateColumn}) = YEAR(CURDATE())";
