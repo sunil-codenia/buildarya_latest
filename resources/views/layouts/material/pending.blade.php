@@ -128,6 +128,7 @@
 
 @section('scripts')
 <script type="text/javascript">
+    var selectedPendingMaterialIds = new Set();
     function approvematerial(id) {
         Swal.fire({
             title: 'Are you sure?',
@@ -205,7 +206,7 @@
     }
 
     function openReturnModal() {
-        if ($('.check_item:checked').length == 0) {
+        if (selectedPendingMaterialIds.size === 0) {
             Swal.fire({
                 title: 'Error!',
                 text: "Please select at least one material entry to return!",
@@ -222,10 +223,7 @@
     }
 
     function submitReturn() {
-        var ids = [];
-        $('.check_item:checked').each(function() {
-            ids.push($(this).val());
-        });
+        var ids = Array.from(selectedPendingMaterialIds);
         var comment = $('#return_comment').val();
         if (comment == "") {
             Swal.fire({
@@ -251,6 +249,7 @@
             },
             success: function(response) {
                 if (response.status == 'success') {
+                    selectedPendingMaterialIds.clear();
                     Swal.fire({
                         title: 'Success!',
                         text: response.message,
@@ -302,22 +301,41 @@
         });
     }
 
-    $("#select_all").click(function() {
-        $('.check_item').prop('checked', this.checked);
-        toggleBulkActions();
-    });
-
-    $(document).on('change', '.check_item', function() {
-        toggleBulkActions();
-        if ($('.check_item:checked').length == $('.check_item').length) {
+    function updateSelectAllMaterialState() {
+        var total = $('.check_item').length;
+        var checked = $('.check_item:checked').length;
+        if (total > 0 && checked === total) {
             $('#select_all').prop('checked', true);
         } else {
             $('#select_all').prop('checked', false);
         }
+    }
+
+    $("#select_all").click(function() {
+        var isChecked = this.checked;
+        $('.check_item').each(function() {
+            this.checked = isChecked;
+            if (isChecked) {
+                selectedPendingMaterialIds.add(this.value);
+            } else {
+                selectedPendingMaterialIds.delete(this.value);
+            }
+        });
+        toggleBulkActions();
+    });
+
+    $(document).on('change click', '.check_item', function() {
+        if (this.checked) {
+            selectedPendingMaterialIds.add(this.value);
+        } else {
+            selectedPendingMaterialIds.delete(this.value);
+        }
+        updateSelectAllMaterialState();
+        toggleBulkActions();
     });
 
     function toggleBulkActions() {
-        var checkedCount = $(".check_item:checked").length;
+        var checkedCount = selectedPendingMaterialIds.size;
         if (checkedCount > 0) {
             $("#bulkActions").show();
         } else {
@@ -325,7 +343,27 @@
         }
     }
 
+    function syncMaterialFormInputs() {
+        var form = $("#bulkActionForm");
+        form.find('.sync-hidden-check').remove();
+        selectedPendingMaterialIds.forEach(function(id) {
+            var inDom = form.find('input[name="check_list[]"][value="' + id + '"]:checked').length > 0;
+            if (!inDom) {
+                form.append('<input type="hidden" class="sync-hidden-check" name="check_list[]" value="' + id + '">');
+            }
+        });
+    }
+
     function bulkEdit() {
+        if (selectedPendingMaterialIds.size === 0) {
+            Swal.fire({
+                title: 'No Items Selected',
+                text: 'Please select at least one material entry to edit.',
+                icon: 'info',
+                confirmButtonColor: '#343a40'
+            });
+            return;
+        }
         Swal.fire({
             title: 'Are you sure?',
             text: "You want to edit the selected entries?",
@@ -336,6 +374,7 @@
             confirmButtonText: 'Yes, edit them!'
         }).then((result) => {
             if (result.isConfirmed) {
+                syncMaterialFormInputs();
                 var form = document.getElementById('bulkActionForm');
                 form.action = "{{ url('/bulk_edit_pending_material') }}";
                 form.submit();
@@ -344,6 +383,15 @@
     }
 
     function bulkAction(type) {
+        if (selectedPendingMaterialIds.size === 0) {
+            Swal.fire({
+                title: 'No Items Selected',
+                text: 'Please select at least one material entry.',
+                icon: 'info',
+                confirmButtonColor: '#343a40'
+            });
+            return;
+        }
         if (type === 'approve') {
             $('#approve_material_val').val('approve_material');
             $('#reject_material_val').val('');
@@ -362,6 +410,7 @@
             confirmButtonText: 'Yes, ' + type + ' them!'
         }).then((result) => {
             if (result.isConfirmed) {
+                syncMaterialFormInputs();
                 $("#bulkActionForm").submit();
             }
         });
@@ -461,6 +510,14 @@
             },
             pagingType: "full_numbers",
             drawCallback: function(settings) {
+                $('.check_item').each(function() {
+                    if (selectedPendingMaterialIds.has(this.value)) {
+                        this.checked = true;
+                    } else {
+                        this.checked = false;
+                    }
+                });
+                updateSelectAllMaterialState();
                 toggleBulkActions();
             }
         });

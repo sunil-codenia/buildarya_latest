@@ -358,11 +358,10 @@
 
 @section('scripts')
 <script type="text/javascript">
+    var selectedUserIds = new Set();
+
     function handleBulkAction(status) {
-        let ids = [];
-        $('.user-checkbox:checked').each(function() {
-            ids.push($(this).val());
-        });
+        let ids = Array.from(selectedUserIds);
 
         if (ids.length === 0) return;
 
@@ -383,6 +382,7 @@
                 }, function(res) {
                     if (res.status === 'Ok') {
                         Swal.fire('Updated!', res.message, 'success');
+                        selectedUserIds.clear();
                         $('#userTable').DataTable().ajax.reload();
                         $('#bulkActionsBar').hide();
                         $('#selectAllUsers').prop('checked', false);
@@ -393,10 +393,7 @@
     }
 
     function handleBulkDelete() {
-        let ids = [];
-        $('.user-checkbox:checked').each(function() {
-            ids.push($(this).val());
-        });
+        let ids = Array.from(selectedUserIds);
 
         if (ids.length === 0) return;
 
@@ -416,6 +413,7 @@
                 }, function(res) {
                     if (res.status === 'Ok') {
                         Swal.fire('Deleted!', res.message, 'success');
+                        selectedUserIds.clear();
                         $('#userTable').DataTable().ajax.reload();
                         $('#bulkActionsBar').hide();
                         $('#selectAllUsers').prop('checked', false);
@@ -492,19 +490,45 @@
     }
 
     $(document).ready(function() {
+        function updateSelectAllUsersState() {
+            let totalVisible = $('.user-checkbox').length;
+            let checkedVisible = $('.user-checkbox:checked').length;
+            if (totalVisible > 0 && totalVisible === checkedVisible) {
+                $('#selectAllUsers').prop('checked', true);
+            } else {
+                $('#selectAllUsers').prop('checked', false);
+            }
+        }
+
         // Select All handler
         $('#selectAllUsers').on('change', function() {
-            $('.user-checkbox').prop('checked', $(this).prop('checked'));
+            let isChecked = $(this).prop('checked');
+            $('.user-checkbox').each(function() {
+                let val = $(this).val();
+                $(this).prop('checked', isChecked);
+                if (isChecked) {
+                    selectedUserIds.add(val);
+                } else {
+                    selectedUserIds.delete(val);
+                }
+            });
             updateBulkBar();
         });
 
         // Row checkbox handler
         $(document).on('change', '.user-checkbox', function(e) {
+            let val = $(this).val();
+            if ($(this).is(':checked')) {
+                selectedUserIds.add(val);
+            } else {
+                selectedUserIds.delete(val);
+            }
+            updateSelectAllUsersState();
             updateBulkBar();
         });
 
         function updateBulkBar() {
-            let count = $('.user-checkbox:checked').length;
+            let count = selectedUserIds.size;
             if (count > 0) {
                 $('#selectedCount').text(count);
                 $('#bulkActionsBar').fadeIn();
@@ -608,8 +632,15 @@
             },
             pagingType: "full_numbers",
             drawCallback: function(settings) {
-                $('#bulkActionsBar').hide();
-                $('#selectAllUsers').prop('checked', false);
+                $('.user-checkbox').each(function() {
+                    if (selectedUserIds.has($(this).val())) {
+                        $(this).prop('checked', true);
+                    } else {
+                        $(this).prop('checked', false);
+                    }
+                });
+                updateSelectAllUsersState();
+                updateBulkBar();
             }
         });
 

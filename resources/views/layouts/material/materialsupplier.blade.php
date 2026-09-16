@@ -274,6 +274,7 @@ $dataarray = json_decode($data, true);
 @section('scripts')
 
 <script type="text/javascript">
+    var selectedSupplierIds = new Set();
     function deletedata(id) {
          Swal.fire({
             title: 'Are you sure?',
@@ -351,9 +352,20 @@ $dataarray = json_decode($data, true);
         });
       }
 
+        function syncSupplierFormInputs() {
+            var form = $("#bulkActionForm");
+            form.find('.sync-hidden-check').remove();
+            selectedSupplierIds.forEach(function(id) {
+                var inDom = form.find('input[name="check_list[]"][value="' + id + '"]:checked').length > 0;
+                if (!inDom) {
+                    form.append('<input type="hidden" class="sync-hidden-check" name="check_list[]" value="' + id + '">');
+                }
+            });
+        }
+
         function bulkEdit() {
-            var selectedRows = $('.check_item:checked');
-            if (selectedRows.length > 0) {
+            if (selectedSupplierIds.size > 0) {
+                syncSupplierFormInputs();
                 $('#bulkActionForm').attr('action', "{{ url('/bulk_edit_supplier') }}");
                 $('#bulkActionForm').submit();
             } else {
@@ -367,6 +379,15 @@ $dataarray = json_decode($data, true);
         }
 
         function submitBulkAction(action) {
+            if (selectedSupplierIds.size === 0) {
+                Swal.fire({
+                    title: 'No Items Selected',
+                    text: 'Please select at least one Material Supplier.',
+                    icon: 'info',
+                    confirmButtonColor: '#343a40'
+                });
+                return;
+            }
             Swal.fire({
                 title: 'Are you sure?',
                 text: "You are about to " + action + " all selected suppliers!",
@@ -386,11 +407,12 @@ $dataarray = json_decode($data, true);
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
+                    syncSupplierFormInputs();
                     $('#bulk_action_input').val(action);
                     $('#bulkActionForm').submit();
                 }
             });
-      }
+        }
 
       $(document).ready(function() {
             var newExportAction = function (e, dt, button, config) {
@@ -429,28 +451,43 @@ $dataarray = json_decode($data, true);
             };
 
             function updateToolbar() {
-                if ($('.check_item:checked').length > 0) {
+                if (selectedSupplierIds.size > 0) {
                     $('#bulk-action-toolbar').show();
                 } else {
-                    $('#bulk-action-toolbar').show();
-                    // Or keep it hidden until selection? The instruction was "when we click check box": 
-                    // Let's implement correct logic.
-                    // Actually, I'll hide it.
                     $('#bulk-action-toolbar').hide();
                 }
             }
 
-            $("#select_all").click(function() {
-                $('.check_item').prop('checked', this.checked);
-                updateToolbar();
-            });
-
-            $(document).on('change', '.check_item', function() {
-                if ($('.check_item:checked').length == $('.check_item').length && $('.check_item').length > 0) {
+            function updateSelectAllSupplierState() {
+                var total = $('.check_item').length;
+                var checked = $('.check_item:checked').length;
+                if (total > 0 && checked === total) {
                     $('#select_all').prop('checked', true);
                 } else {
                     $('#select_all').prop('checked', false);
                 }
+            }
+
+            $("#select_all").click(function() {
+                var isChecked = this.checked;
+                $('.check_item').each(function() {
+                    this.checked = isChecked;
+                    if (isChecked) {
+                        selectedSupplierIds.add(this.value);
+                    } else {
+                        selectedSupplierIds.delete(this.value);
+                    }
+                });
+                updateToolbar();
+            });
+
+            $(document).on('change click', '.check_item', function() {
+                if (this.checked) {
+                    selectedSupplierIds.add(this.value);
+                } else {
+                    selectedSupplierIds.delete(this.value);
+                }
+                updateSelectAllSupplierState();
                 updateToolbar();
             });
 
@@ -504,7 +541,14 @@ $dataarray = json_decode($data, true);
                 },
                 pagingType: "full_numbers",
                 drawCallback: function(settings) {
-                    $('#select_all').prop('checked', false);
+                    $('.check_item').each(function() {
+                        if (selectedSupplierIds.has(this.value)) {
+                            this.checked = true;
+                        } else {
+                            this.checked = false;
+                        }
+                    });
+                    updateSelectAllSupplierState();
                     updateToolbar();
                 }
             });

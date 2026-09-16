@@ -172,6 +172,7 @@
 @endsection
 @section('scripts')
     <script type="text/javascript">
+        var selectedMaterialIds = new Set();
         function deletedata(id) {
             Swal.fire({
                 title: 'Are you sure?',
@@ -224,9 +225,20 @@
             });
         }
 
+        function syncMaterialFormInputs() {
+            var form = $("#bulkActionForm");
+            form.find('.sync-hidden-check').remove();
+            selectedMaterialIds.forEach(function(id) {
+                var inDom = form.find('input[name="check_list[]"][value="' + id + '"]:checked').length > 0;
+                if (!inDom) {
+                    form.append('<input type="hidden" class="sync-hidden-check" name="check_list[]" value="' + id + '">');
+                }
+            });
+        }
+
         function bulkEdit() {
-            var selectedRows = $('.check_item:checked');
-            if (selectedRows.length > 0) {
+            if (selectedMaterialIds.size > 0) {
+                syncMaterialFormInputs();
                 $('#bulkActionForm').attr('action', "{{ url('/bulk_edit_material') }}");
                 $('#bulkActionForm').submit();
             } else {
@@ -240,6 +252,15 @@
         }
 
         function submitBulkAction(action) {
+            if (selectedMaterialIds.size === 0) {
+                Swal.fire({
+                    title: 'No Items Selected',
+                    text: 'Please select at least one Material.',
+                    icon: 'info',
+                    confirmButtonColor: '#343a40'
+                });
+                return;
+            }
             Swal.fire({
                 title: 'Are you sure?',
                 text: "You are about to " + action + " all selected materials!",
@@ -259,6 +280,7 @@
                 },
             }).then((result) => {
                 if (result.isConfirmed) {
+                    syncMaterialFormInputs();
                     $('#bulk_action_input').val(action);
                     $('#bulkActionForm').submit();
                 }
@@ -302,24 +324,43 @@
             };
 
             function updateToolbar() {
-                if ($('.check_item:checked').length > 0) {
+                if (selectedMaterialIds.size > 0) {
                     $('#bulk-action-toolbar').show();
                 } else {
                     $('#bulk-action-toolbar').hide();
                 }
             }
 
-            $("#select_all").click(function() {
-                $('.check_item').prop('checked', this.checked);
-                updateToolbar();
-            });
-
-            $(document).on('change', '.check_item', function() {
-                if ($('.check_item:checked').length == $('.check_item').length && $('.check_item').length > 0) {
+            function updateSelectAllMaterialState() {
+                var total = $('.check_item').length;
+                var checked = $('.check_item:checked').length;
+                if (total > 0 && checked === total) {
                     $('#select_all').prop('checked', true);
                 } else {
                     $('#select_all').prop('checked', false);
                 }
+            }
+
+            $("#select_all").click(function() {
+                var isChecked = this.checked;
+                $('.check_item').each(function() {
+                    this.checked = isChecked;
+                    if (isChecked) {
+                        selectedMaterialIds.add(this.value);
+                    } else {
+                        selectedMaterialIds.delete(this.value);
+                    }
+                });
+                updateToolbar();
+            });
+
+            $(document).on('change click', '.check_item', function() {
+                if (this.checked) {
+                    selectedMaterialIds.add(this.value);
+                } else {
+                    selectedMaterialIds.delete(this.value);
+                }
+                updateSelectAllMaterialState();
                 updateToolbar();
             });
 
@@ -373,7 +414,14 @@
                 },
                 pagingType: "full_numbers",
                 drawCallback: function(settings) {
-                    $('#select_all').prop('checked', false);
+                    $('.check_item').each(function() {
+                        if (selectedMaterialIds.has(this.value)) {
+                            this.checked = true;
+                        } else {
+                            this.checked = false;
+                        }
+                    });
+                    updateSelectAllMaterialState();
                     updateToolbar();
                 }
             });

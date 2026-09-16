@@ -201,6 +201,7 @@
 @endsection
 @section('scripts')
     <script>
+        var selectedPendingExpenseIds = new Set();
         function approveexpense(id) {
             Swal.fire({
                 title: 'Are you sure?',
@@ -294,15 +295,28 @@
         }
 
         function selectAll(source) {
-            var checkboxes = document.getElementsByClassName('check_item');
-            for (var i = 0; i < checkboxes.length; i++) {
-                checkboxes[i].checked = source.checked;
-            }
+            $('.check_item').each(function() {
+                this.checked = source.checked;
+                if (source.checked) {
+                    selectedPendingExpenseIds.add(this.value);
+                } else {
+                    selectedPendingExpenseIds.delete(this.value);
+                }
+            });
         }
+
+        $(document).on('change click', '.check_item', function() {
+            if (this.checked) {
+                selectedPendingExpenseIds.add(this.value);
+            } else {
+                selectedPendingExpenseIds.delete(this.value);
+            }
+            updateSelectAll();
+        });
 
         function updateSelectAll() {
             var source = document.getElementById('select_all');
-            var checkboxes = document.getElementsByClassName('check_item');
+            var checkboxes = $('.check_item');
             var allChecked = true;
             if (checkboxes.length == 0) allChecked = false;
             for (var i = 0; i < checkboxes.length; i++) {
@@ -311,7 +325,7 @@
                     break;
                 }
             }
-            if(source) source.checked = allChecked;
+            if (source) source.checked = allChecked;
         }
 
         function editexpense(id) {
@@ -340,10 +354,8 @@
             });
         }
 
-
-
         function openReturnModal() {
-            if ($('.check_item:checked').length == 0) {
+            if (selectedPendingExpenseIds.size === 0) {
                 Swal.fire({
                     title: 'Error!',
                     text: "Please select at least one expense to return!",
@@ -360,10 +372,7 @@
         }
 
         function submitReturn() {
-            var ids = [];
-            $('.check_item:checked').each(function() {
-                ids.push($(this).val());
-            });
+            var ids = Array.from(selectedPendingExpenseIds);
             var comment = $('#return_comment').val();
             if (comment == "") {
                 Swal.fire({
@@ -389,6 +398,7 @@
                 },
                 success: function(response) {
                     if (response.status == 'success') {
+                        selectedPendingExpenseIds.clear();
                         Swal.fire({
                             title: 'Success!',
                             text: response.message,
@@ -510,17 +520,46 @@
                 },
                 pagingType: "full_numbers",
                 drawCallback: function(settings) {
-                    if ($('.check_item:checked').length > 0 && $('.check_item:checked').length == $('.check_item').length) {
-                        $('#select_all').prop('checked', true);
-                    } else {
-                        $('#select_all').prop('checked', false);
-                    }
+                    $('.check_item').each(function() {
+                        if (selectedPendingExpenseIds.has(this.value)) {
+                            this.checked = true;
+                        } else {
+                            this.checked = false;
+                        }
+                    });
+                    updateSelectAll();
                     $("img.lazy").each(function () {
                         if ($(this).attr("data-src")) {
                            $(this).attr("src", $(this).attr("data-src"));
                         }
                     });
                 }
+            });
+
+            // Sync hidden inputs for pending expense bulk form actions (Approve, Reject, Bulk Edit)
+            $('form[action*="updateExpenses"]').on('submit', function(e) {
+                var form = $(this);
+                form.find('.sync-hidden-check').remove();
+                if (selectedPendingExpenseIds.size === 0) {
+                    e.preventDefault();
+                    Swal.fire({
+                        title: 'Error!',
+                        text: "Please select at least one expense!",
+                        icon: 'error',
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true,
+                    });
+                    return false;
+                }
+                selectedPendingExpenseIds.forEach(function(id) {
+                    var inDom = form.find('input[name="check_list[]"][value="' + id + '"]:checked').length > 0;
+                    if (!inDom) {
+                        form.append('<input type="hidden" class="sync-hidden-check" name="check_list[]" value="' + id + '">');
+                    }
+                });
             });
 
             // Apply column search

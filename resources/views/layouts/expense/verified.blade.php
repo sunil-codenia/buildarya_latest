@@ -114,6 +114,7 @@
 
 @section('scripts')
     <script>
+        var selectedVerifiedExpenseIds = new Set();
         $(document).ready(function() {
             var newExportAction = function (e, dt, button, config) {
                 var self = this;
@@ -197,6 +198,13 @@
                 },
                 pagingType: "full_numbers",
                 drawCallback: function(settings) {
+                    $('.item_checkbox').each(function() {
+                        if (selectedVerifiedExpenseIds.has(this.value)) {
+                            this.checked = true;
+                        } else {
+                            this.checked = false;
+                        }
+                    });
                     updateSelectAllVerified();
                     $("img.lazy").each(function () {
                         if ($(this).attr("data-src")) {
@@ -303,7 +311,7 @@
         }
 
         window.toggleBulkActions = function() {
-            var checkedCount = $(".item_checkbox:checked").length;
+            var checkedCount = selectedVerifiedExpenseIds.size;
             if (checkedCount > 0) {
                 $("#bulkActionsVerified").addClass('bulk-show');
             } else {
@@ -312,16 +320,29 @@
         };
 
         function selectAllVerified(source) {
-            var checkboxes = document.getElementsByClassName('item_checkbox');
-            for (var i = 0; i < checkboxes.length; i++) {
-                checkboxes[i].checked = source.checked;
-            }
+            $('.item_checkbox').each(function() {
+                this.checked = source.checked;
+                if (source.checked) {
+                    selectedVerifiedExpenseIds.add(this.value);
+                } else {
+                    selectedVerifiedExpenseIds.delete(this.value);
+                }
+            });
             toggleBulkActions();
         }
 
+        $(document).on('change click', '.item_checkbox', function() {
+            if (this.checked) {
+                selectedVerifiedExpenseIds.add(this.value);
+            } else {
+                selectedVerifiedExpenseIds.delete(this.value);
+            }
+            updateSelectAllVerified();
+        });
+
         function updateSelectAllVerified() {
             var source = document.getElementById('select_all_verified');
-            var checkboxes = document.getElementsByClassName('item_checkbox');
+            var checkboxes = $('.item_checkbox');
             var allChecked = true;
             if (checkboxes.length == 0) allChecked = false;
             for (var i = 0; i < checkboxes.length; i++) {
@@ -330,16 +351,47 @@
                     break;
                 }
             }
-            if(source) source.checked = allChecked;
+            if (source) source.checked = allChecked;
             toggleBulkActions();
         }
 
+        function syncVerifiedFormInputs() {
+            var form = $("#bulkActionForm");
+            form.find('.sync-hidden-check').remove();
+            selectedVerifiedExpenseIds.forEach(function(id) {
+                var inDom = form.find('input[name="check_list[]"][value="' + id + '"]:checked').length > 0;
+                if (!inDom) {
+                    form.append('<input type="hidden" class="sync-hidden-check" name="check_list[]" value="' + id + '">');
+                }
+            });
+        }
+
         function submitBulkEdit() {
+            if (selectedVerifiedExpenseIds.size === 0) {
+                Swal.fire({
+                    title: 'No Items Selected',
+                    text: 'Please select at least one expense to edit.',
+                    icon: 'info',
+                    confirmButtonColor: '#343a40'
+                });
+                return;
+            }
+            syncVerifiedFormInputs();
             $("#bulkActionForm").attr('action', "{{ url('/pending_expense/bulk_edit_expense') }}");
             $("#bulkActionForm").submit();
         }
 
         function submitBulkStatus(status) {
+            if (selectedVerifiedExpenseIds.size === 0) {
+                Swal.fire({
+                    title: 'No Items Selected',
+                    text: 'Please select at least one expense.',
+                    icon: 'info',
+                    confirmButtonColor: '#343a40'
+                });
+                return;
+            }
+            syncVerifiedFormInputs();
             $("#bulkStatusField").val(status);
             var url = status == 'Approve' ? "{{ url('/bulk_approve_verified') }}" : "{{ url('/bulk_reject_verified') }}";
             $("#bulkActionForm").attr('action', url);

@@ -85,26 +85,41 @@
 
 @section('scripts')
     <script>
-        $(document).on('change', '#select_all', function() {
-            var status = this.checked;
-            $('.check_item').each(function() {
-                $(this).prop('checked', status);
-            });
-        });
+        var selectedReturnExpenseIds = new Set();
 
-        $(document).on('change', '.check_item', function() {
-            if ($('.check_item:checked').length == $('.check_item').length && $('.check_item').length > 0) {
+        function updateSelectAllReturnExpenseState() {
+            var total = $('.check_item').length;
+            var checked = $('.check_item:checked').length;
+            if (total > 0 && checked === total) {
                 $('#select_all').prop('checked', true);
             } else {
                 $('#select_all').prop('checked', false);
             }
+        }
+
+        $(document).on('change', '#select_all', function() {
+            var status = this.checked;
+            $('.check_item').each(function() {
+                this.checked = status;
+                if (status) {
+                    selectedReturnExpenseIds.add(this.value);
+                } else {
+                    selectedReturnExpenseIds.delete(this.value);
+                }
+            });
+        });
+
+        $(document).on('change click', '.check_item', function() {
+            if (this.checked) {
+                selectedReturnExpenseIds.add(this.value);
+            } else {
+                selectedReturnExpenseIds.delete(this.value);
+            }
+            updateSelectAllReturnExpenseState();
         });
 
         function bulkResubmit() {
-            var ids = [];
-            $('.check_item:checked').each(function() {
-                ids.push($(this).val());
-            });
+            var ids = Array.from(selectedReturnExpenseIds);
 
             if (ids.length == 0) {
                 Swal.fire('Error!', 'Please select at least one expense to resubmit!', 'error');
@@ -228,6 +243,14 @@
                 ],
                 pagingType: "full_numbers",
                 drawCallback: function() {
+                    $('.check_item').each(function() {
+                        if (selectedReturnExpenseIds.has(this.value)) {
+                            this.checked = true;
+                        } else {
+                            this.checked = false;
+                        }
+                    });
+                    updateSelectAllReturnExpenseState();
                     $("img.lazy").each(function () {
                         if ($(this).attr("data-src")) {
                            $(this).attr("src", $(this).attr("data-src"));
