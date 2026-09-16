@@ -1082,192 +1082,6 @@
         color: #22d3ee;
     }
 
-    /* Microphone Permission Guide Modal */
-    .voice-modal-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.75);
-        backdrop-filter: blur(8px);
-        z-index: 999999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 20px;
-        animation: fadeInModal 0.25s ease;
-    }
-
-    @keyframes fadeInModal {
-        from { opacity: 0; }
-        to { opacity: 1; }
-    }
-
-    .voice-modal-content {
-        background: #0f172a;
-        border: 1px solid rgba(16, 185, 129, 0.4);
-        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(16, 185, 129, 0.15);
-        border-radius: 20px;
-        width: 100%;
-        max-width: 480px;
-        overflow: hidden;
-        animation: scaleUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    @keyframes scaleUpModal {
-        from { transform: scale(0.92); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
-    }
-
-    .voice-modal-header {
-        padding: 22px 24px 16px 24px;
-        display: flex;
-        align-items: flex-start;
-        gap: 16px;
-        position: relative;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .voice-modal-icon-wrap {
-        width: 44px;
-        height: 44px;
-        border-radius: 12px;
-        background: rgba(239, 68, 68, 0.15);
-        border: 1px solid rgba(239, 68, 68, 0.35);
-        color: #ef4444;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 22px;
-        flex-shrink: 0;
-    }
-
-    .voice-modal-title {
-        font-size: 17px;
-        font-weight: 700;
-        color: #f8fafc;
-        margin: 0 0 4px 0;
-    }
-
-    .voice-modal-subtitle {
-        font-size: 13px;
-        color: #94a3b8;
-        margin: 0;
-    }
-
-    .voice-modal-close {
-        position: absolute;
-        top: 18px;
-        right: 20px;
-        background: transparent;
-        border: none;
-        color: #94a3b8;
-        font-size: 24px;
-        cursor: pointer;
-        line-height: 1;
-        transition: color 0.2s ease;
-    }
-
-    .voice-modal-close:hover {
-        color: #ffffff;
-    }
-
-    .voice-modal-body {
-        padding: 20px 24px;
-    }
-
-    .voice-step-list {
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
-    }
-
-    .voice-step-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        background: rgba(30, 41, 59, 0.5);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 12px;
-        padding: 12px 14px;
-    }
-
-    .voice-step-num {
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        background: #10b981;
-        color: #ffffff;
-        font-size: 12px;
-        font-weight: 800;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-    }
-
-    .voice-step-text {
-        font-size: 13px;
-        color: #cbd5e1;
-        line-height: 1.5;
-    }
-
-    .voice-step-text code {
-        background: rgba(0, 0, 0, 0.4);
-        padding: 2px 6px;
-        border-radius: 4px;
-        color: #34d399;
-        font-size: 12px;
-    }
-
-    .voice-modal-footer {
-        padding: 16px 24px 22px 24px;
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 10px;
-        border-top: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .voice-btn-primary {
-        background: linear-gradient(135deg, #10b981, #059669);
-        color: #ffffff;
-        border: none;
-        border-radius: 10px;
-        padding: 9px 18px;
-        font-size: 13px;
-        font-weight: 700;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        transition: all 0.2s ease;
-        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
-    }
-
-    .voice-btn-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
-    }
-
-    .voice-btn-secondary {
-        background: rgba(255, 255, 255, 0.08);
-        color: #cbd5e1;
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        border-radius: 10px;
-        padding: 9px 16px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-
-    .voice-btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.15);
-        color: #ffffff;
-    }
-
     /* Custom Non-Intrusive Toast */
     .voice-custom-toast-container {
         position: fixed;
@@ -1320,51 +1134,6 @@
 </style>
 
 <div class="chat-container-wrapper">
-    <!-- Microphone Permission Guide Modal -->
-    <div id="mic-permission-modal" class="voice-modal-backdrop" style="display: none;">
-        <div class="voice-modal-content">
-            <div class="voice-modal-header">
-                <div class="voice-modal-icon-wrap">
-                    <i class="zmdi zmdi-mic-off"></i>
-                </div>
-                <div>
-                    <h3 class="voice-modal-title">Microphone Access Needed</h3>
-                    <p class="voice-modal-subtitle">Enable microphone to talk to BuildArya Voice Assistant</p>
-                </div>
-                <button type="button" class="voice-modal-close" onclick="closeMicPermissionModal()">&times;</button>
-            </div>
-            <div class="voice-modal-body">
-                <div class="voice-step-list">
-                    <div class="voice-step-item">
-                        <div class="voice-step-num">1</div>
-                        <div class="voice-step-text">
-                            Click the <strong>Settings / Tune icon <i class="zmdi zmdi-tune" style="color:#10b981;"></i></strong> in your browser address bar (on the left of <code>127.0.0.1:8000</code>).
-                        </div>
-                    </div>
-                    <div class="voice-step-item">
-                        <div class="voice-step-num">2</div>
-                        <div class="voice-step-text">
-                            Find <strong>Microphone</strong> and switch it from <span style="color:#ef4444; font-weight:700;">Block</span> to <span style="color:#10b981; font-weight:700;">Allow</span>.
-                        </div>
-                    </div>
-                    <div class="voice-step-item">
-                        <div class="voice-step-num">3</div>
-                        <div class="voice-step-text">
-                            Click <strong>"Try Again"</strong> below to start speaking!
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="voice-modal-footer">
-                <button type="button" class="voice-btn-primary" onclick="retryMicrophoneAccess()">
-                    <i class="zmdi zmdi-mic"></i> I've Allowed It — Try Again
-                </button>
-                <button type="button" class="voice-btn-secondary" onclick="closeMicPermissionModal()">
-                    Close
-                </button>
-            </div>
-        </div>
-    </div>
     <!-- ChatGPT Left Sidebar -->
     <div class="chat-sidebar">
         <button class="new-chat-btn" onclick="startNewChat()">
@@ -2201,6 +1970,9 @@
     let currentVoiceLang = localStorage.getItem('buildarya_voice_lang') || 'en-IN';
     let voiceAutoSendTimer = null;
     let currentSpeakingUtterance = null;
+    let activeMediaStream = null;
+    let activeMediaRecorder = null;
+    let recordedAudioChunks = [];
 
     function initVoiceAssistantUi() {
         const langSelect = document.getElementById('voice-lang-select');
@@ -2268,13 +2040,22 @@
         };
 
         recognition.onerror = function(event) {
-            console.warn('Voice recognition notice:', event.error);
+            console.warn('Speech recognition notice:', event.error);
             clearTimeout(voiceAutoSendTimer);
+
+            // If audio is actively recording via MediaRecorder, DO NOT abort or show modal!
+            if (activeMediaStream && activeMediaStream.active && activeMediaRecorder && activeMediaRecorder.state === 'recording') {
+                console.log('SpeechRecognition notice handled; MediaRecorder active recording continues.');
+                return;
+            }
+
             isVoiceListening = false;
             updateVoiceUiState('idle');
 
             if (event.error === 'not-allowed' || event.error === 'permission-denied') {
-                openMicPermissionModal();
+                if (!activeMediaStream || !activeMediaStream.active) {
+                    showVoiceToast('Microphone access blocked. Click address bar icon to allow.', 'error');
+                }
             } else if (event.error === 'no-speech') {
                 showVoiceToast('No speech detected. Please speak into your microphone.');
             } else if (event.error !== 'aborted') {
@@ -2283,26 +2064,15 @@
         };
 
         recognition.onend = function() {
+            // If MediaRecorder is actively recording, keep the UI in listening state
+            if (activeMediaStream && activeMediaStream.active && activeMediaRecorder && activeMediaRecorder.state === 'recording') {
+                return;
+            }
             isVoiceListening = false;
             updateVoiceUiState('idle');
         };
 
         return recognition;
-    }
-
-    function openMicPermissionModal() {
-        const m = document.getElementById('mic-permission-modal');
-        if (m) m.style.display = 'flex';
-    }
-
-    function closeMicPermissionModal() {
-        const m = document.getElementById('mic-permission-modal');
-        if (m) m.style.display = 'none';
-    }
-
-    async function retryMicrophoneAccess() {
-        closeMicPermissionModal();
-        await startVoiceAssistant();
     }
 
     function toggleVoiceAssistant() {
@@ -2315,73 +2085,188 @@
 
     async function startVoiceAssistant() {
         stopSpeaking();
-        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognitionClass) {
-            showVoiceToast('Voice recognition is not supported in this browser. Please use Chrome, Edge, or Safari.', 'error');
+
+        // 1. Acquire live microphone stream via getUserMedia
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showVoiceToast('Microphone access is not supported by your browser.', 'error');
             return;
         }
 
-        // Proactively request browser microphone permission to trigger the native Allow/Block prompt
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                // If granted, immediately stop tracks so SpeechRecognition has dedicated microphone access
-                stream.getTracks().forEach(track => track.stop());
-            } catch (err) {
-                console.warn('Microphone permission check returned error:', err);
-                openMicPermissionModal();
-                return;
+        try {
+            activeMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            console.warn('Microphone permission or hardware error:', err);
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                showVoiceToast('Microphone access blocked. Click address bar icon to allow.', 'error');
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                showVoiceToast('No microphone found on your computer. Please connect a microphone.', 'error');
+            } else {
+                showVoiceToast('Microphone error: ' + (err.message || err.name), 'error');
             }
+            return;
         }
 
+        isVoiceListening = true;
+        updateVoiceUiState('listening');
+
+        const previewEl = document.getElementById('voice-transcript-preview');
+        if (previewEl) previewEl.textContent = 'Listening to your voice... Speak now';
+
+        // 2. Start MediaRecorder on the active audio stream
+        recordedAudioChunks = [];
         try {
-            if (!speechRecognition) {
-                speechRecognition = initSpeechRecognition();
+            let options = {};
+            if (typeof MediaRecorder !== 'undefined') {
+                if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                    options = { mimeType: 'audio/webm;codecs=opus' };
+                } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+                    options = { mimeType: 'audio/webm' };
+                } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    options = { mimeType: 'audio/mp4' };
+                }
+                activeMediaRecorder = new MediaRecorder(activeMediaStream, options);
+                activeMediaRecorder.ondataavailable = function(e) {
+                    if (e.data && e.data.size > 0) {
+                        recordedAudioChunks.push(e.data);
+                    }
+                };
+                activeMediaRecorder.start(250);
             }
-            if (speechRecognition) {
-                speechRecognition.lang = currentVoiceLang;
-                speechRecognition.start();
-            }
-        } catch (e) {
-            console.warn('SpeechRecognition start error:', e);
+        } catch (mrErr) {
+            console.warn('MediaRecorder start notice:', mrErr);
+        }
+
+        // 3. Also try webkitSpeechRecognition in parallel for real-time live preview (if browser allows on this origin)
+        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognitionClass) {
             try {
-                if (speechRecognition) speechRecognition.stop();
-                setTimeout(() => {
-                    if (speechRecognition) speechRecognition.start();
-                }, 200);
-            } catch (err) {}
+                if (!speechRecognition) {
+                    speechRecognition = initSpeechRecognition();
+                }
+                if (speechRecognition) {
+                    speechRecognition.lang = currentVoiceLang;
+                    speechRecognition.start();
+                }
+            } catch (srErr) {
+                console.warn('SpeechRecognition start notice:', srErr);
+            }
         }
     }
 
-    function stopVoiceAssistant(shouldSend = false) {
+    async function stopVoiceAssistant(shouldSend = false) {
         clearTimeout(voiceAutoSendTimer);
-        if (speechRecognition && isVoiceListening) {
-            try {
-                speechRecognition.stop();
-            } catch (e) {}
+
+        if (speechRecognition) {
+            try { speechRecognition.stop(); } catch (e) {}
         }
+
+        const inputEl = document.getElementById('chat-user-input');
+        const previewEl = document.getElementById('voice-transcript-preview');
+        const hasLiveTranscript = inputEl && inputEl.value.trim().length > 0;
+
+        // If MediaRecorder was recording
+        if (activeMediaRecorder && activeMediaRecorder.state !== 'inactive') {
+            // Case A: SpeechRecognition already provided the full live text
+            if (hasLiveTranscript) {
+                activeMediaRecorder.stop();
+                releaseActiveMediaStream();
+                isVoiceListening = false;
+                updateVoiceUiState('idle');
+                if (shouldSend) {
+                    sendMessage();
+                }
+                return;
+            }
+
+            // Case B: No live text yet (e.g. on 127.0.0.1 or unsupported browser) -> transcribe recorded audio!
+            if (shouldSend) {
+                if (previewEl) previewEl.textContent = 'Transcribing voice...';
+                const badgeText = document.getElementById('voice-status-badge-text');
+                if (badgeText) badgeText.textContent = 'Transcribing...';
+
+                activeMediaRecorder.onstop = async function() {
+                    const mime = activeMediaRecorder.mimeType || 'audio/webm';
+                    const audioBlob = new Blob(recordedAudioChunks, { type: mime });
+                    recordedAudioChunks = [];
+                    releaseActiveMediaStream();
+
+                    if (audioBlob.size > 200) {
+                        try {
+                            const formData = new FormData();
+                            formData.append('audio', audioBlob, 'speech.webm');
+
+                            const resp = await fetch('/api/chat-voice-transcribe', {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                },
+                                body: formData
+                            });
+
+                            const data = await resp.json();
+                            if (data.success && data.text) {
+                                if (inputEl) inputEl.value = data.text;
+                                if (previewEl) previewEl.textContent = `"${data.text}"`;
+                                isVoiceListening = false;
+                                updateVoiceUiState('idle');
+                                sendMessage();
+                                return;
+                            } else {
+                                showVoiceToast(data.message || 'Voice could not be recognized. Please type your query.', 'error');
+                            }
+                        } catch (err) {
+                            console.error('Audio transcription request failed:', err);
+                            showVoiceToast('Voice transcription failed. Please type your query.', 'error');
+                        }
+                    } else {
+                        showVoiceToast('No voice was recorded. Please speak louder.', 'info');
+                    }
+
+                    isVoiceListening = false;
+                    updateVoiceUiState('idle');
+                };
+
+                activeMediaRecorder.stop();
+                return;
+            } else {
+                activeMediaRecorder.stop();
+                releaseActiveMediaStream();
+            }
+        } else {
+            releaseActiveMediaStream();
+        }
+
         isVoiceListening = false;
         updateVoiceUiState('idle');
 
-        if (shouldSend) {
-            const inputEl = document.getElementById('chat-user-input');
-            if (inputEl && inputEl.value.trim().length > 0) {
-                sendMessage();
-            }
+        if (shouldSend && hasLiveTranscript) {
+            sendMessage();
         }
     }
 
     function cancelVoiceAssistant() {
         clearTimeout(voiceAutoSendTimer);
-        if (speechRecognition && isVoiceListening) {
-            try {
-                speechRecognition.abort();
-            } catch (e) {}
+        if (speechRecognition) {
+            try { speechRecognition.abort(); } catch (e) {}
         }
+        if (activeMediaRecorder && activeMediaRecorder.state !== 'inactive') {
+            try { activeMediaRecorder.stop(); } catch (e) {}
+        }
+        releaseActiveMediaStream();
+        recordedAudioChunks = [];
         isVoiceListening = false;
         updateVoiceUiState('idle');
         const inputEl = document.getElementById('chat-user-input');
         if (inputEl) inputEl.value = '';
+    }
+
+    function releaseActiveMediaStream() {
+        if (activeMediaStream) {
+            try {
+                activeMediaStream.getTracks().forEach(t => t.stop());
+            } catch (e) {}
+            activeMediaStream = null;
+        }
     }
 
     function updateVoiceUiState(state) {

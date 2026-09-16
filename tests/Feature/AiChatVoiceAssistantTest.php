@@ -70,5 +70,40 @@ class AiChatVoiceAssistantTest extends TestCase
         $this->assertStringContainsString('site_name', $sql);
         $this->assertStringContainsString('user_name', $sql);
     }
+
+    public function test_transcribe_voice_validates_audio_file(): void
+    {
+        $controller = new AiChatQueryController();
+        $request = new Request();
+        $response = $controller->transcribeVoice($request);
+        $this->assertEquals(422, $response->getStatusCode());
+    }
+
+    public function test_transcribe_voice_endpoint_successful(): void
+    {
+        \Illuminate\Support\Facades\Http::fake([
+            'generativelanguage.googleapis.com/*' => \Illuminate\Support\Facades\Http::response([
+                'candidates' => [
+                    [
+                        'content' => [
+                            'parts' => [
+                                ['text' => 'show all expenses']
+                            ]
+                        ]
+                    ]
+                ]
+            ], 200)
+        ]);
+
+        $fakeAudio = \Illuminate\Http\UploadedFile::fake()->create('recording.webm', 50, 'audio/webm');
+        $request = new Request([], [], [], [], ['audio' => $fakeAudio]);
+
+        $controller = new AiChatQueryController();
+        $response = $controller->transcribeVoice($request);
+        $this->assertEquals(200, $response->getStatusCode());
+        $data = json_decode($response->getContent(), true);
+        $this->assertTrue($data['success']);
+        $this->assertEquals('show all expenses', $data['text']);
+    }
 }
 

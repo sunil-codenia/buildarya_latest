@@ -530,6 +530,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/chats', [ApiChatController::class, 'index']);
         Route::post('/chats', [ApiChatController::class, 'store']);
         Route::post('/ai-chat/query', [AiChatQueryController::class, 'processQuery']);
+        Route::post('/ai-chat/transcribe-voice', [AiChatQueryController::class, 'transcribeVoice']);
         Route::match(['get', 'post'], '/ai-chat-query', [AiChatQueryController::class, 'processQuery']);
 
         // Payment Vouchers API Suite

@@ -2099,4 +2099,120 @@ class AiChatQueryController extends Controller
             </ul>
         ";
     }
+
+    /**
+     * Transcribe user speech audio into text via Gemini Multimodal API.
+     * Supports audio/webm, audio/ogg, audio/wav, audio/mp4.
+     */
+    public function transcribeVoice(Request $request)
+    {
+        $audioFile = $request->file('audio');
+        if (!$audioFile || !$audioFile->isValid()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No valid audio data was received.'
+            ], 422);
+        }
+
+        $geminiKey = env('GEMINI_API_KEY');
+        if (!$geminiKey) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gemini API key is not configured.'
+            ], 500);
+        }
+
+        $model = env('GEMINI_MODEL', 'gemini-1.5-flash');
+        if (empty($model) || strpos($model, '3.6') !== false) {
+            $model = 'gemini-1.5-flash';
+        }
+
+        $audioBytes = file_get_contents($audioFile->getRealPath());
+        $base64Audio = base64_encode($audioBytes);
+        $clientMime = $audioFile->getMimeType() ?: 'audio/webm';
+        if (strpos($clientMime, 'webm') !== false) {
+            $mimeType = 'audio/webm';
+        } else if (strpos($clientMime, 'ogg') !== false) {
+            $mimeType = 'audio/ogg';
+        } else if (strpos($clientMime, 'mp4') !== false || strpos($clientMime, 'm4a') !== false) {
+            $mimeType = 'audio/mp4';
+        } else if (strpos($clientMime, 'wav') !== false) {
+            $mimeType = 'audio/wav';
+        } else {
+            $mimeType = 'audio/webm';
+        }
+
+        $prompt = "Listen to this audio query and transcribe the user's speech accurately into text. Understand English, Hindi, and Hinglish. Output ONLY the raw transcribed text with NO quotes, explanations, markdown, or punctuation extras.";
+
+        try {
+            $response = Http::timeout(15)->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$geminiKey}", [
+                'contents' => [
+                    [
+                        'parts' => [
+                            [
+                                'inline_data' => [
+                                    'mime_type' => $mimeType,
+                                    'data' => $base64Audio
+                                ]
+                            ],
+                            [
+                                'text' => $prompt
+                            ]
+                        ]
+                    ]
+                ]
+            ]);
+
+            if ($response->successful()) {
+                $candidates = $response->json()['candidates'] ?? [];
+                $transcribedText = trim($candidates[0]['content']['parts'][0]['text'] ?? '');
+                $transcribedText = trim($transcribedText, "\"'`\n\r");
+                return response()->json([
+                    'success' => true,
+                    'text' => $transcribedText
+                ]);
+            }
+
+            // Fallback with header authorization
+            $responseHeader = Http::withHeaders(['x-goog-api-key' => $geminiKey])
+                ->timeout(15)
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
+                    'contents' => [
+                        [
+                            'parts' => [
+                                [
+                                    'inline_data' => [
+                                        'mime_type' => $mimeType,
+                                        'data' => $base64Audio
+                                    ]
+                                ],
+                                [
+                                    'text' => $prompt
+                                ]
+                            ]
+                        ]
+                    ]
+                ]);
+
+            if ($responseHeader->successful()) {
+                $candidates = $responseHeader->json()['candidates'] ?? [];
+                $transcribedText = trim($candidates[0]['content']['parts'][0]['text'] ?? '');
+                $transcribedText = trim($transcribedText, "\"'`\n\r");
+                return response()->json([
+                    'success' => true,
+                    'text' => $transcribedText
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'AI speech transcription failed.'
+            ], 502);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Transcription connection error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
