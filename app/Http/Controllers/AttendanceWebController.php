@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\File;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class AttendanceWebController extends Controller
 {
@@ -711,8 +712,18 @@ class AttendanceWebController extends Controller
     public function exportReport(Request $request)
     {
         $conn = session()->get('comp_db_conn_name');
+        if (!$conn && auth()->check() && isset(auth()->user()->company_id)) {
+            $comp = DB::table('companies')->where('id', auth()->user()->company_id)->first();
+            if ($comp && !empty($comp->db_name)) {
+                $conn = $comp->db_name;
+            }
+        }
         if (!$conn) {
-            return redirect('/login')->with('error', 'Please log in again.');
+            $conn = config('database.default');
+        }
+
+        if ($request->get('type') === 'pdf' || $request->has('pdf')) {
+            return $this->exportAttendancePdf($request);
         }
 
         $site_id = $request->get('site_id');
@@ -852,57 +863,167 @@ class AttendanceWebController extends Controller
     public function exportAttendancePdf(Request $request)
     {
         $conn = session()->get('comp_db_conn_name');
+        if (!$conn && auth()->check() && isset(auth()->user()->company_id)) {
+            $comp = DB::table('companies')->where('id', auth()->user()->company_id)->first();
+            if ($comp && !empty($comp->db_name)) {
+                $conn = $comp->db_name;
+            }
+        }
         if (!$conn) {
-            return redirect('/login')->with('error', 'Please log in again.');
+            $conn = config('database.default');
         }
 
+        $specificDate = $request->get('date');
+        $from_date = $request->get('from_date');
+        $to_date = $request->get('to_date');
+
+        if (!empty($specificDate)) {
+            $from_date = $specificDate;
+            $to_date = $specificDate;
+        } elseif (empty($from_date) || empty($to_date)) {
+            if ($request->has('today') || strtolower($request->get('period', '')) === 'today') {
+                $from_date = Carbon::today()->toDateString();
+                $to_date = Carbon::today()->toDateString();
+            } else {
+                $from_date = $from_date ?: Carbon::today()->startOfMonth()->toDateString();
+                $to_date = $to_date ?: Carbon::today()->toDateString();
+            }
+        }
+
+        $site_id = $request->get('site_id');
+        $user_id = $request->get('user_id');
+
         $assignedSites = session()->get('assigned_site_ids', []);
-        $isSuperAdmin = function_exists('isSuperAdmin') ? isSuperAdmin() : false;
+        $isSuperAdmin = function_exists('isSuperAdmin') ? isSuperAdmin() : (session()->get('is_superadmin') === 'yes' || session()->get('role') == 1);
         $hasAllSites = $isSuperAdmin || empty($assignedSites) || in_array('all', $assignedSites);
 
-        $attendanceLogsQuery = DB::connection($conn)->table('attendance')
+        $query = DB::connection($conn)->table('attendance')
             ->leftJoin('users', 'users.id', '=', 'attendance.user_id')
             ->leftJoin('bills_party', 'bills_party.id', '=', 'attendance.bills_party_id')
             ->leftJoin('sites', 'sites.id', '=', 'attendance.site_id');
 
-        if (!$hasAllSites) {
-            $attendanceLogsQuery->whereIn('attendance.site_id', array_filter((array)$assignedSites));
+        if (!empty($from_date) && !empty($to_date)) {
+            $query->where(function($q) use ($from_date, $to_date) {
+                $q->whereBetween('attendance.date', [$from_date, $to_date])
+                  ->orWhereBetween(DB::raw('DATE(attendance.date)'), [$from_date, $to_date]);
+            });
         }
 
-        $attendanceLogs = $attendanceLogsQuery->select(
+        if (!$hasAllSites) {
+            $query->where(function($q) use ($assignedSites) {
+                $q->whereIn('attendance.site_id', array_filter((array)$assignedSites))
+                  ->orWhere(function($sub) use ($assignedSites) {
+                      $sub->where(function($sub2) {
+                          $sub2->whereNull('attendance.site_id')
+                               ->orWhere('attendance.site_id', '=', 0);
+                      });
+                      $sub->where(function($sub3) use ($assignedSites) {
+                          foreach ($assignedSites as $sid) {
+                              $sub3->orWhereRaw("FIND_IN_SET(?, users.site_id)", [$sid]);
+                          }
+                      });
+                  });
+            });
+        }
+
+        if (!empty($site_id) && $site_id !== 'all') {
+            $query->where('attendance.site_id', $site_id);
+        }
+
+        if (!empty($user_id) && $user_id !== 'all') {
+            $query->where('attendance.user_id', $user_id);
+        }
+
+        $attendanceLogs = $query->select(
                 'attendance.*', 
                 DB::raw('COALESCE(users.name, bills_party.name, "Labour Contractor") as user_name'),
                 DB::raw('COALESCE(users.username, "Labour Party") as user_username'),
-                'sites.name as site_name'
+                'sites.name as site_name',
+                'users.site_id as user_site_id'
             )
-            ->orderBy('attendance.id', 'desc')
+            ->orderBy('attendance.date', 'desc')
+            ->orderBy('attendance.in_time', 'desc')
             ->get();
 
-        $companyName = session()->get('name', 'Buildarya Construction');
-        $siteName = 'All Assigned Sites';
+        $sites = DB::connection($conn)->table('sites')->get();
+        $siteNamesMap = $sites->pluck('name', 'id')->toArray();
 
-        $activeSiteId = session()->get('site_id');
-        if (!empty($activeSiteId) && $activeSiteId != 'all') {
-            $siteObj = DB::connection($conn)->table('sites')->where('id', $activeSiteId)->first();
-            if ($siteObj && isset($siteObj->name)) {
-                $siteName = $siteObj->name;
+        $presentCount = 0;
+        $absentCount = 0;
+        $halfDayCount = 0;
+        $totalLabour = 0;
+
+        foreach ($attendanceLogs as $log) {
+            if (!empty($log->bills_party_id)) {
+                $log->labour_count = DB::connection($conn)->table('contractor_labour_attendance')
+                    ->where('attendance_id', $log->id)
+                    ->count();
+                $totalLabour += $log->labour_count;
+            } else {
+                $log->labour_count = 0;
             }
-        } elseif (!empty($assignedSites)) {
-            $sites = DB::connection($conn)->table('sites')->whereIn('id', array_filter((array)$assignedSites))->pluck('name')->toArray();
-            if (!empty($sites)) {
-                $siteName = implode(', ', $sites);
+
+            if (empty($log->site_name) && !empty($log->user_site_id)) {
+                $userSites = explode(',', $log->user_site_id);
+                $firstUserSiteId = $userSites[0] ?? null;
+                if ($firstUserSiteId && isset($siteNamesMap[$firstUserSiteId])) {
+                    $log->site_name = $siteNamesMap[$firstUserSiteId];
+                }
             }
+
+            if (empty($log->site_name)) {
+                $log->site_name = 'Head Office';
+            }
+
+            $st = strtolower($log->status ?? 'present');
+            if (strpos($st, 'present') !== false) {
+                $presentCount++;
+            } elseif (strpos($st, 'absent') !== false) {
+                $absentCount++;
+            } elseif (strpos($st, 'half') !== false) {
+                $halfDayCount++;
+            }
+        }
+
+        $companyName = session()->get('name', 'BuildArya Construction');
+        $activeSiteName = 'All Assigned Sites';
+
+        $activeSiteId = $site_id ?: session()->get('site_id');
+        if (!empty($activeSiteId) && $activeSiteId != 'all' && isset($siteNamesMap[$activeSiteId])) {
+            $activeSiteName = $siteNamesMap[$activeSiteId];
+        } elseif (!empty($siteNamesMap) && count($siteNamesMap) === 1) {
+            $activeSiteName = reset($siteNamesMap);
         }
 
         $generatedAt = Carbon::now()->format('d M Y, h:i A');
+        $generatedBy = session()->get('name', auth()->user()->name ?? 'BuildArya AI');
+        $reportPeriod = ($from_date === $to_date) 
+            ? Carbon::parse($from_date)->format('d M Y') 
+            : Carbon::parse($from_date)->format('d M Y') . ' - ' . Carbon::parse($to_date)->format('d M Y');
 
-        $html = view('pdf.attendance_report', compact('attendanceLogs', 'companyName', 'siteName', 'generatedAt'))->render();
+        $stats = [
+            'total_entries' => count($attendanceLogs),
+            'present' => $presentCount,
+            'absent' => $absentCount,
+            'half_day' => $halfDayCount,
+            'labour_count' => $totalLabour
+        ];
 
-        if (class_exists('Barryvdh\DomPDF\Facade\Pdf')) {
-            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
-            return $pdf->download('Attendance_Report_' . date('Y-m-d') . '.pdf');
-        }
+        $pdf = Pdf::loadView('pdf.attendance_report', compact(
+            'attendanceLogs',
+            'companyName',
+            'activeSiteName',
+            'reportPeriod',
+            'generatedAt',
+            'generatedBy',
+            'stats',
+            'from_date',
+            'to_date'
+        ))->setPaper('a4', 'landscape');
 
-        return response($html)->header('Content-Type', 'text/html');
+        $safeSiteName = preg_replace('/[^a-zA-Z0-9_-]/', '_', $activeSiteName);
+        $filename = "Attendance_Report_{$safeSiteName}_{$from_date}_to_{$to_date}.pdf";
+
+        return $pdf->download($filename);
     }
 }

@@ -821,7 +821,7 @@ class AiChatQueryController extends Controller
                         'summary' => "Buildarya AI Assistant greeted user {$user_name}.",
                         'html' => $html,
                         'is_pdf_requested' => false,
-                        'pdf_url' => url('/attendance/export?type=pdf')
+                        'pdf_url' => url('/attendance/download-pdf')
                     ]
                 ];
                 $response = response()->json($responsePayload);
@@ -849,7 +849,7 @@ class AiChatQueryController extends Controller
                         'summary' => 'AI detected a create action and opened the add form.',
                         'html' => $html,
                         'is_pdf_requested' => false,
-                        'pdf_url' => url('/attendance/export?type=pdf')
+                        'pdf_url' => url('/attendance/download-pdf')
                     ]
                 ];
                 $response = response()->json($responsePayload);
@@ -860,6 +860,15 @@ class AiChatQueryController extends Controller
 
             $isPdfRequest = (strpos($lower, 'pdf') !== false || strpos($lower, 'download') !== false || strpos($lower, 'export') !== false);
             $isOtherSiteRequest = (strpos($lower, 'other site') !== false || strpos($lower, 'all site') !== false);
+
+            $pdfUrl = url('/attendance/download-pdf');
+            if (preg_match('/\b(today|todays|today\'s|aaj|aaj\s+ka)\b/i', $lower)) {
+                $pdfUrl .= '?today=1';
+            } elseif (preg_match('/\b(yesterday|kal|kal\s+ka)\b/i', $lower)) {
+                $pdfUrl .= '?date=' . date('Y-m-d', strtotime('-1 day'));
+            } elseif (preg_match('/\b(\d{4}-\d{2}-\d{2})\b/', $queryText, $dMatch)) {
+                $pdfUrl .= '?date=' . $dMatch[1];
+            }
 
             $sqlToExec = null;
             $provider = 'Buildarya AI SQL Engine';
@@ -890,7 +899,7 @@ class AiChatQueryController extends Controller
             try {
                 $fetchedRows = DB::connection($conn)->select($sqlToExec);
                 $fetchedRows = $this->enrichExpenseRecords($fetchedRows, $conn);
-                $html = $this->buildDynamicSqlHtml($fetchedRows, $sqlToExec, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest);
+                $html = $this->buildDynamicSqlHtml($fetchedRows, $sqlToExec, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest, $pdfUrl);
 
                 $responsePayload = [
                     'status' => 'Ok',
@@ -907,7 +916,7 @@ class AiChatQueryController extends Controller
                         'summary' => "AI Engine dynamically converted text into SQL: [{$sqlToExec}]. Executed on database and returned " . count($fetchedRows) . " records.",
                         'html' => $html,
                         'is_pdf_requested' => $isPdfRequest,
-                        'pdf_url' => url('/attendance/export?type=pdf')
+                        'pdf_url' => $pdfUrl
                     ]
                 ];
                 $response = response()->json($responsePayload);
@@ -1993,10 +2002,12 @@ class AiChatQueryController extends Controller
         return $enrichedRows;
     }
 
-    private function buildDynamicSqlHtml($rows, $sql, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest)
+    private function buildDynamicSqlHtml($rows, $sql, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest, $pdfUrl = null)
     {
         $sqlBadge = $this->renderSqlBadge($sql, $provider);
         $restriction = $this->renderRestrictionNotice($tenant['user_name'], $tenant['user_username'], $tenant['site_name'], $isOtherSiteRequest, $tenant['is_superadmin']);
+
+        $targetPdfUrl = $pdfUrl ?: url('/attendance/download-pdf');
 
         $pdfBannerHtml = '';
         if ($isPdfRequest) {
@@ -2011,8 +2022,8 @@ class AiChatQueryController extends Controller
                             Official site attendance logs formatted as PDF document matching your request.
                         </div>
                     </div>
-                    <a href="' . url('/attendance/export?type=pdf') . '" target="_blank" style="background: #10a37f; color: #ffffff; font-weight: 700; padding: 10px 18px; border-radius: 8px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 163, 127, 0.3); transition: background 0.2s ease;">
-                        <i class="zmdi zmdi-download"></i> Download Attendance Report (CSV/PDF)
+                    <a href="' . e($targetPdfUrl) . '" target="_blank" style="background: #10a37f; color: #ffffff; font-weight: 700; padding: 10px 18px; border-radius: 8px; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(16, 163, 127, 0.3); transition: background 0.2s ease;">
+                        <i class="zmdi zmdi-download"></i> Download Attendance PDF Report
                     </a>
                 </div>
             ';
@@ -2066,7 +2077,7 @@ class AiChatQueryController extends Controller
             {$sqlBadge}
             {$pdfBannerHtml}
             <p><strong>🤖 AI Text-to-SQL Dynamic Results — " . e($tenant['site_name']) . " (Generated via {$provider}):</strong></p>
-            <table>
+            <table class='ai-interactive-table'>
                 <thead>
                     <tr>{$thHtml}</tr>
                 </thead>

@@ -80,6 +80,8 @@ Route::group(['middleware' => ['auth']], function () {
     })->name('chat.view');
     Route::post('/api/chat-query', [\App\Http\Controllers\api\AiChatQueryController::class, 'processQuery'])->name('ai.chat.query');
     Route::post('/api/chat-voice-transcribe', [\App\Http\Controllers\api\AiChatQueryController::class, 'transcribeVoice'])->name('ai.chat.transcribe');
+    Route::get('/attendance/download-pdf', [\App\Http\Controllers\AttendanceWebController::class, 'exportAttendancePdf'])->name('attendance.downloadPdf');
+    Route::get('/attendance/export-pdf', [\App\Http\Controllers\AttendanceWebController::class, 'exportAttendancePdf'])->name('attendance.exportPdf');
     Route::get('/chat-response', [\App\Http\Controllers\ChatResponseController::class, 'index'])->name('chat.response');
     Route::get('/classic-view', function () {
         return redirect('/chat-view');
@@ -575,7 +577,9 @@ Route::group(['middleware' => ['auth']], function () {
     // attendance module
     Route::group(['middleware' => ['module.access:13']], function () {
         Route::get('/attendance', [AttendanceWebController::class, 'index']);
-        Route::get('/attendance/export', [AttendanceWebController::class, 'exportReport']);
+        Route::get('/attendance/export', [AttendanceWebController::class, 'exportReport'])->name('attendance.export');
+        Route::get('/attendance/download-pdf', [AttendanceWebController::class, 'exportAttendancePdf'])->name('attendance.module.downloadPdf');
+        Route::get('/attendance/export-pdf', [AttendanceWebController::class, 'exportAttendancePdf'])->name('attendance.module.exportPdf');
         Route::post('/attendance/manual', [AttendanceWebController::class, 'storeManual']);
         Route::post('/attendance/update/{id}', [AttendanceWebController::class, 'updateManual']);
         Route::delete('/attendance/delete/{id}', [AttendanceWebController::class, 'delete']);

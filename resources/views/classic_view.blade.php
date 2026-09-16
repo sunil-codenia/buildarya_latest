@@ -75,7 +75,6 @@
                     'sites.name as site_name'
                 )
                 ->orderBy('attendance.id', 'desc')
-                ->limit(10)
                 ->get();
 
             foreach ($attLogs as $log) {
@@ -114,7 +113,6 @@
                     \Illuminate\Support\Facades\DB::raw('COALESCE(expense_party.name, bills_party.name) as party_name')
                 )
                 ->orderBy('expenses.id', 'desc')
-                ->limit(10)
                 ->get();
 
             foreach ($expLogs as $exp) {
@@ -139,7 +137,6 @@
                 ->leftJoin('sites', 'sites.id', '=', 'material_entry.site_id')
                 ->select('material_entry.*', 'materials.name as material_name', 'sites.name as site_name')
                 ->orderBy('material_entry.id', 'desc')
-                ->limit(10)
                 ->get();
 
             foreach ($matLogs as $mat) {
@@ -159,7 +156,6 @@
             $supLogs = \Illuminate\Support\Facades\DB::connection($conn)
                 ->table('material_supplier')
                 ->orderBy('id', 'desc')
-                ->limit(10)
                 ->get();
 
             foreach ($supLogs as $sup) {
@@ -179,7 +175,6 @@
                 ->leftJoin('sites', 'sites.id', '=', 'tasks.site_id')
                 ->select('tasks.*', 'sites.name as site_name')
                 ->orderBy('tasks.id', 'desc')
-                ->limit(10)
                 ->get();
 
             foreach ($taskLogs as $tsk) {
@@ -199,7 +194,6 @@
                 ->table('users')
                 ->select('id', 'name', 'username', 'contact_no', 'status')
                 ->orderBy('id', 'asc')
-                ->limit(10)
                 ->get();
 
             foreach ($userLogs as $u) {
@@ -737,6 +731,203 @@
     .message-text tr:hover td {
         background-color: rgba(30, 41, 59, 0.6);
         color: #ffffff;
+    }
+
+    /* AI Interactive Data Table Styling */
+    .ai-table-card {
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        margin: 16px 0;
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(8px);
+    }
+
+    .ai-table-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+        background: rgba(30, 41, 59, 0.6);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        flex-wrap: wrap;
+    }
+
+    .ai-table-page-size-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: #94a3b8;
+    }
+
+    .ai-table-page-size {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #e2e8f0;
+        padding: 5px 10px;
+        border-radius: 8px;
+        font-size: 12px;
+        cursor: pointer;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .ai-table-page-size:focus {
+        border-color: #10b981;
+    }
+
+    .ai-table-search-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        min-width: 220px;
+        flex: 1;
+        max-width: 320px;
+    }
+
+    .ai-table-search-icon {
+        position: absolute;
+        left: 10px;
+        color: #64748b;
+        font-size: 14px;
+        pointer-events: none;
+    }
+
+    .ai-table-search {
+        width: 100%;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #f8fafc;
+        padding: 6px 12px 6px 32px;
+        border-radius: 8px;
+        font-size: 12px;
+        outline: none;
+        transition: all 0.2s;
+    }
+
+    .ai-table-search:focus {
+        border-color: #10b981;
+        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    }
+
+    .ai-table-search::placeholder {
+        color: #64748b;
+    }
+
+    .ai-table-scroll-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .ai-table-scroll-wrapper::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .ai-table-scroll-wrapper::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 3px;
+    }
+
+    .ai-table-scroll-wrapper table {
+        width: 100%;
+        margin: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .ai-th-sortable {
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s, color 0.15s;
+        white-space: nowrap;
+    }
+
+    .ai-th-sortable:hover {
+        background: rgba(51, 65, 85, 0.8) !important;
+        color: #34d399 !important;
+    }
+
+    .ai-sort-icon {
+        display: inline-block;
+        margin-left: 6px;
+        font-size: 11px;
+        color: #64748b;
+        vertical-align: middle;
+        font-weight: normal;
+    }
+
+    .ai-th-sortable.sorted-asc .ai-sort-icon,
+    .ai-th-sortable.sorted-desc .ai-sort-icon {
+        color: #10b981;
+        font-weight: bold;
+    }
+
+    .ai-table-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 16px;
+        background: rgba(30, 41, 59, 0.45);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .ai-table-info {
+        font-size: 12px;
+        color: #94a3b8;
+    }
+
+    .ai-table-pagination {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .ai-page-btn {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        color: #cbd5e1;
+        padding: 4px 9px;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.15s;
+        min-width: 28px;
+        text-align: center;
+        line-height: 1.4;
+    }
+
+    .ai-page-btn:hover:not(:disabled) {
+        background: rgba(30, 41, 59, 1);
+        border-color: #10b981;
+        color: #ffffff;
+    }
+
+    .ai-page-btn.active {
+        background: #10b981 !important;
+        border-color: #10b981 !important;
+        color: #ffffff !important;
+        font-weight: 700;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+    }
+
+    .ai-page-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+    }
+
+    .ai-page-ellipsis {
+        color: #64748b;
+        padding: 0 4px;
+        font-size: 12px;
+        user-select: none;
     }
 
     /* Bottom Input Bar */
@@ -1401,6 +1592,7 @@
     document.addEventListener('DOMContentLoaded', () => {
         renderRecentChatsSidebar();
         initVoiceAssistantUi();
+        enhanceAllAiTablesInContainer(document.getElementById('chat-thread-rows'));
     });
 
     function handleKeyPress(e) {
@@ -1500,6 +1692,7 @@
                 outputHtml = generateLiveDatabaseResponse(text);
             }
             aiRow.querySelector('.message-text').innerHTML = outputHtml + buildAiMsgActionsHtml();
+            enhanceAllAiTablesInContainer(aiRow);
             container.scrollTop = container.scrollHeight;
             speakAiResponseIfEnabled(outputHtml);
         })
@@ -1507,6 +1700,7 @@
             console.warn("AI API fallback:", err);
             let responseHtml = generateLiveDatabaseResponse(text);
             aiRow.querySelector('.message-text').innerHTML = responseHtml + buildAiMsgActionsHtml();
+            enhanceAllAiTablesInContainer(aiRow);
             container.scrollTop = container.scrollHeight;
             speakAiResponseIfEnabled(responseHtml);
         });
@@ -1687,7 +1881,7 @@
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>🏬 Live Material Suppliers Record (Fetched directly from database):</strong></p>
-                    <table>
+                    <table class="ai-interactive-table">
                         <thead>
                             <tr>
                                 <th>Supplier ID</th>
@@ -1730,7 +1924,7 @@
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>📋 Live Assigned Tasks Record — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
-                    <table>
+                    <table class="ai-interactive-table">
                         <thead>
                             <tr>
                                 <th>Task ID</th>
@@ -1772,7 +1966,7 @@
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>👥 Live Company Team Members & Users (Fetched directly from database):</strong></p>
-                    <table>
+                    <table class="ai-interactive-table">
                         <thead>
                             <tr>
                                 <th>User ID</th>
@@ -1815,7 +2009,7 @@
                     ${restrictionNoticeHtml}
                     ${isPdfRequest ? pdfBannerHtml : ''}
                     <p><strong>👷 Live Attendance Logs — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
-                    <table>
+                    <table class="ai-interactive-table">
                         <thead>
                             <tr>
                                 <th>Name / Party</th>
@@ -1830,7 +2024,7 @@
                             ${rowsHtml}
                         </tbody>
                     </table>
-                    <p>Fetched <strong>${REAL_ATTENDANCE.length} recent attendance entries</strong> for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong> from database connection.</p>
+                    <p>Fetched <strong>${REAL_ATTENDANCE.length} attendance entries</strong> for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong> from database connection.</p>
                 `;
             } else {
                 return `
@@ -1862,7 +2056,7 @@
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>💰 Live Expense Vouchers — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
-                    <table>
+                    <table class="ai-interactive-table">
                         <thead>
                             <tr>
                                 <th>Voucher ID</th>
@@ -1880,7 +2074,7 @@
                             ${rowsHtml}
                         </tbody>
                     </table>
-                    <p>Fetched <strong>${REAL_EXPENSES.length} recent expense vouchers</strong> from database connection.</p>
+                    <p>Fetched <strong>${REAL_EXPENSES.length} expense vouchers</strong> from database connection.</p>
                 `;
             } else {
                 return `
@@ -1908,7 +2102,7 @@
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>📦 Live Material Entry & Stock Logs — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
-                    <table>
+                    <table class="ai-interactive-table">
                         <thead>
                             <tr>
                                 <th>Entry ID</th>
@@ -1962,6 +2156,303 @@
     }
 
     // =========================================================================
+    // BUILDARYA AI INTERACTIVE DATA TABLE COMPONENT (Search, Pagination, Sort)
+    // =========================================================================
+    function makeAiTableInteractive(tableEl) {
+        if (!tableEl || tableEl.dataset.aiInteractiveInitialized === 'true') return;
+        tableEl.dataset.aiInteractiveInitialized = 'true';
+
+        const thead = tableEl.querySelector('thead');
+        const tbody = tableEl.querySelector('tbody');
+        if (!thead || !tbody) return;
+
+        const originalRows = Array.from(tbody.querySelectorAll('tr'));
+        if (originalRows.length === 0) return;
+
+        // Store total row count for TTS and inspection
+        tableEl.dataset.totalRows = originalRows.length;
+
+        // Create wrapper card container
+        const card = document.createElement('div');
+        card.className = 'ai-table-card';
+
+        // Toolbar: Page Size & Search Input
+        const toolbar = document.createElement('div');
+        toolbar.className = 'ai-table-toolbar';
+        toolbar.innerHTML = `
+            <div class="ai-table-page-size-wrap">
+                <span>Show</span>
+                <select class="ai-table-page-size" title="Records per page">
+                    <option value="10" selected>10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="-1">All</option>
+                </select>
+                <span>records</span>
+            </div>
+            <div class="ai-table-search-wrap">
+                <i class="zmdi zmdi-search ai-table-search-icon"></i>
+                <input type="text" class="ai-table-search" placeholder="Search in records..." />
+            </div>
+        `;
+
+        // Horizontal scroll wrapper
+        const scrollWrapper = document.createElement('div');
+        scrollWrapper.className = 'ai-table-scroll-wrapper';
+
+        // Swap table into scrollWrapper inside card
+        tableEl.parentNode.insertBefore(card, tableEl);
+        scrollWrapper.appendChild(tableEl);
+
+        // Footer: Info count & Pagination buttons
+        const footer = document.createElement('div');
+        footer.className = 'ai-table-footer';
+        footer.innerHTML = `
+            <div class="ai-table-info"></div>
+            <div class="ai-table-pagination"></div>
+        `;
+
+        card.appendChild(toolbar);
+        card.appendChild(scrollWrapper);
+        card.appendChild(footer);
+
+        // State variables
+        let currentPage = 1;
+        let pageSize = 10;
+        let searchQuery = '';
+        let sortColumnIdx = -1;
+        let sortDirection = 'asc';
+
+        // Setup Sortable Headers
+        const headers = Array.from(thead.querySelectorAll('th'));
+        headers.forEach((th, idx) => {
+            th.classList.add('ai-th-sortable');
+            th.title = 'Click to sort column';
+            const sortIcon = document.createElement('span');
+            sortIcon.className = 'ai-sort-icon';
+            sortIcon.innerHTML = '⇅';
+            th.appendChild(sortIcon);
+
+            th.addEventListener('click', () => {
+                if (sortColumnIdx === idx) {
+                    if (sortDirection === 'asc') {
+                        sortDirection = 'desc';
+                    } else if (sortDirection === 'desc') {
+                        sortColumnIdx = -1;
+                        sortDirection = 'asc';
+                    }
+                } else {
+                    sortColumnIdx = idx;
+                    sortDirection = 'asc';
+                }
+
+                // Update icon indicators
+                headers.forEach((h, hIdx) => {
+                    h.classList.remove('sorted-asc', 'sorted-desc');
+                    const icon = h.querySelector('.ai-sort-icon');
+                    if (icon) {
+                        if (hIdx === sortColumnIdx) {
+                            h.classList.add(sortDirection === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                            icon.innerHTML = sortDirection === 'asc' ? '▲' : '▼';
+                        } else {
+                            icon.innerHTML = '⇅';
+                        }
+                    }
+                });
+
+                currentPage = 1;
+                render();
+            });
+        });
+
+        // Value Parser for intelligent sorting
+        function parseValueForSort(val) {
+            if (!val) return '';
+            const s = String(val).trim();
+            // Handle currency or numerical formats: e.g. "₹1,200.50", "#EXP-24", "10 Units"
+            const numCandidate = s.replace(/^[₹$€£#A-Za-z\-_]+\s*/, '').replace(/,/g, '').replace(/\s+[A-Za-z]+$/, '').trim();
+            if (numCandidate !== '' && !isNaN(Number(numCandidate))) {
+                return Number(numCandidate);
+            }
+            // Handle dates: e.g. "16 Sep 2026", "2026-09-16"
+            const parsedDate = Date.parse(s);
+            if (!isNaN(parsedDate) && s.length >= 8 && /\d/.test(s)) {
+                return parsedDate;
+            }
+            return s.toLowerCase();
+        }
+
+        function compareValues(valA, valB) {
+            const pA = parseValueForSort(valA);
+            const pB = parseValueForSort(valB);
+            if (typeof pA === 'number' && typeof pB === 'number') {
+                return pA - pB;
+            }
+            return String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' });
+        }
+
+        // Main Render Function
+        function render() {
+            // 1. Filter rows by live search query
+            let filteredRows = originalRows.filter(row => {
+                if (!searchQuery) return true;
+                return row.innerText.toLowerCase().includes(searchQuery);
+            });
+
+            // 2. Sort rows if column selected
+            if (sortColumnIdx >= 0) {
+                filteredRows.sort((a, b) => {
+                    const cellA = a.children[sortColumnIdx];
+                    const cellB = b.children[sortColumnIdx];
+                    const textA = cellA ? cellA.innerText.trim() : '';
+                    const textB = cellB ? cellB.innerText.trim() : '';
+                    const cmp = compareValues(textA, textB);
+                    return sortDirection === 'asc' ? cmp : -cmp;
+                });
+            }
+
+            // 3. Compute pagination
+            const totalFiltered = filteredRows.length;
+            const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(totalFiltered / pageSize));
+            if (currentPage > totalPages) {
+                currentPage = totalPages;
+            }
+
+            const startIndex = pageSize === -1 ? 0 : (currentPage - 1) * pageSize;
+            const endIndex = pageSize === -1 ? totalFiltered : Math.min(startIndex + pageSize, totalFiltered);
+
+            // 4. Update table DOM rows
+            tbody.innerHTML = '';
+            if (totalFiltered === 0) {
+                const emptyTr = document.createElement('tr');
+                emptyTr.innerHTML = `
+                    <td colspan="${headers.length}" style="text-align: center; padding: 24px; color: #94a3b8; font-style: italic;">
+                        <i class="zmdi zmdi-search" style="font-size: 20px; display: block; margin-bottom: 6px; color: #64748b;"></i>
+                        No matching records found for "<strong>${escapeHtml(searchQuery)}</strong>"
+                    </td>
+                `;
+                tbody.appendChild(emptyTr);
+            } else {
+                const pageRows = filteredRows.slice(startIndex, endIndex);
+                pageRows.forEach(r => tbody.appendChild(r));
+            }
+
+            // 5. Update info counter
+            const infoEl = footer.querySelector('.ai-table-info');
+            if (totalFiltered === 0) {
+                infoEl.textContent = `Showing 0 records`;
+            } else if (totalFiltered === originalRows.length) {
+                infoEl.textContent = `Showing ${startIndex + 1} to ${endIndex} of ${totalFiltered} records`;
+            } else {
+                infoEl.textContent = `Showing ${startIndex + 1} to ${endIndex} of ${totalFiltered} records (filtered from ${originalRows.length} total)`;
+            }
+
+            // 6. Update pagination buttons
+            const pagEl = footer.querySelector('.ai-table-pagination');
+            pagEl.innerHTML = '';
+            if (totalPages <= 1) {
+                return;
+            }
+
+            // Previous button
+            const prevBtn = document.createElement('button');
+            prevBtn.type = 'button';
+            prevBtn.className = 'ai-page-btn';
+            prevBtn.innerHTML = '‹ Prev';
+            prevBtn.title = 'Previous Page';
+            prevBtn.disabled = (currentPage === 1);
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    render();
+                }
+            });
+            pagEl.appendChild(prevBtn);
+
+            // Numbered buttons helper
+            function addPageBtn(pageNum) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'ai-page-btn' + (pageNum === currentPage ? ' active' : '');
+                btn.textContent = pageNum;
+                btn.addEventListener('click', () => {
+                    currentPage = pageNum;
+                    render();
+                });
+                pagEl.appendChild(btn);
+            }
+
+            function addEllipsis() {
+                const span = document.createElement('span');
+                span.className = 'ai-page-ellipsis';
+                span.textContent = '…';
+                pagEl.appendChild(span);
+            }
+
+            if (totalPages <= 7) {
+                for (let i = 1; i <= totalPages; i++) {
+                    addPageBtn(i);
+                }
+            } else {
+                addPageBtn(1);
+                if (currentPage > 3) {
+                    addEllipsis();
+                }
+                const start = Math.max(2, currentPage - 1);
+                const end = Math.min(totalPages - 1, currentPage + 1);
+                for (let i = start; i <= end; i++) {
+                    addPageBtn(i);
+                }
+                if (currentPage < totalPages - 2) {
+                    addEllipsis();
+                }
+                addPageBtn(totalPages);
+            }
+
+            // Next button
+            const nextBtn = document.createElement('button');
+            nextBtn.type = 'button';
+            nextBtn.className = 'ai-page-btn';
+            nextBtn.innerHTML = 'Next ›';
+            nextBtn.title = 'Next Page';
+            nextBtn.disabled = (currentPage === totalPages);
+            nextBtn.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    render();
+                }
+            });
+            pagEl.appendChild(nextBtn);
+        }
+
+        // Bind search input with live response
+        const searchInput = toolbar.querySelector('.ai-table-search');
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value.toLowerCase().trim();
+            currentPage = 1;
+            render();
+        });
+
+        // Bind page size change
+        const pageSizeSelect = toolbar.querySelector('.ai-table-page-size');
+        pageSizeSelect.addEventListener('change', (e) => {
+            pageSize = parseInt(e.target.value, 10);
+            currentPage = 1;
+            render();
+        });
+
+        // Initial render
+        render();
+    }
+
+    function enhanceAllAiTablesInContainer(container) {
+        if (!container) return;
+        const tables = container.querySelectorAll('table');
+        tables.forEach(t => makeAiTableInteractive(t));
+    }
+
+    // =========================================================================
     // BUILDARYA AI VOICE ASSISTANT ENGINE (Speech-To-Text & Text-To-Speech)
     // =========================================================================
     let speechRecognition = null;
@@ -1969,6 +2460,10 @@
     let isVoiceTtsEnabled = localStorage.getItem('buildarya_voice_tts') !== 'false'; // default true
     let currentVoiceLang = localStorage.getItem('buildarya_voice_lang') || 'en-IN';
     let voiceAutoSendTimer = null;
+    let voiceSilenceTimer = null;
+    let voiceMaxDurationTimer = null;
+    let voiceAudioContext = null;
+    let voiceSpeechDetected = false;
     let currentSpeakingUtterance = null;
     let activeMediaStream = null;
     let activeMediaRecorder = null;
@@ -1991,88 +2486,81 @@
         }
     }
 
+    function isSpeechRecognitionAvailable() {
+        // In Chrome, webkitSpeechRecognition only functions over secure HTTPS or localhost.
+        // It strictly fails with 'not-allowed' on HTTP IP origins like 127.0.0.1.
+        const isSecure = (window.location.protocol === 'https:' || window.location.hostname === 'localhost');
+        const hasAPI = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+        return isSecure && hasAPI;
+    }
+
     function initSpeechRecognition() {
-        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognitionClass) {
+        if (!isSpeechRecognitionAvailable()) {
             return null;
         }
 
-        const recognition = new SpeechRecognitionClass();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 1;
-        recognition.lang = currentVoiceLang;
+        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+        try {
+            const recognition = new SpeechRecognitionClass();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+            recognition.lang = currentVoiceLang;
 
-        recognition.onstart = function() {
-            isVoiceListening = true;
-            updateVoiceUiState('listening');
-        };
+            recognition.onstart = function() {
+                // Speech recognition started
+            };
 
-        recognition.onresult = function(event) {
-            clearTimeout(voiceAutoSendTimer);
-            let interimTranscript = '';
-            let finalTranscript = '';
+            recognition.onresult = function(event) {
+                clearTimeout(voiceAutoSendTimer);
+                let interimTranscript = '';
+                let finalTranscript = '';
 
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                const item = event.results[i];
-                if (item.isFinal) {
-                    finalTranscript += item[0].transcript;
-                } else {
-                    interimTranscript += item[0].transcript;
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const item = event.results[i];
+                    if (item.isFinal) {
+                        finalTranscript += item[0].transcript;
+                    } else {
+                        interimTranscript += item[0].transcript;
+                    }
                 }
-            }
 
-            const currentText = (finalTranscript || interimTranscript).trim();
-            const previewEl = document.getElementById('voice-transcript-preview');
-            const inputEl = document.getElementById('chat-user-input');
+                const currentText = (finalTranscript || interimTranscript).trim();
+                const previewEl = document.getElementById('voice-transcript-preview');
+                const inputEl = document.getElementById('chat-user-input');
 
-            if (currentText) {
-                if (previewEl) previewEl.textContent = `"${currentText}"`;
-                if (inputEl) inputEl.value = currentText;
-            }
-
-            if (finalTranscript && finalTranscript.trim().length > 0) {
-                // Auto-send after 850ms silence pause once phrase completes
-                voiceAutoSendTimer = setTimeout(() => {
-                    stopVoiceAssistant(true);
-                }, 850);
-            }
-        };
-
-        recognition.onerror = function(event) {
-            console.warn('Speech recognition notice:', event.error);
-            clearTimeout(voiceAutoSendTimer);
-
-            // If audio is actively recording via MediaRecorder, DO NOT abort or show modal!
-            if (activeMediaStream && activeMediaStream.active && activeMediaRecorder && activeMediaRecorder.state === 'recording') {
-                console.log('SpeechRecognition notice handled; MediaRecorder active recording continues.');
-                return;
-            }
-
-            isVoiceListening = false;
-            updateVoiceUiState('idle');
-
-            if (event.error === 'not-allowed' || event.error === 'permission-denied') {
-                if (!activeMediaStream || !activeMediaStream.active) {
-                    showVoiceToast('Microphone access blocked. Click address bar icon to allow.', 'error');
+                if (currentText) {
+                    if (previewEl) previewEl.textContent = `"${currentText}"`;
+                    if (inputEl) inputEl.value = currentText;
                 }
-            } else if (event.error === 'no-speech') {
-                showVoiceToast('No speech detected. Please speak into your microphone.');
-            } else if (event.error !== 'aborted') {
-                showVoiceToast('Voice recognition issue: ' + event.error, 'error');
-            }
-        };
 
-        recognition.onend = function() {
-            // If MediaRecorder is actively recording, keep the UI in listening state
-            if (activeMediaStream && activeMediaStream.active && activeMediaRecorder && activeMediaRecorder.state === 'recording') {
-                return;
-            }
-            isVoiceListening = false;
-            updateVoiceUiState('idle');
-        };
+                if (finalTranscript && finalTranscript.trim().length > 0) {
+                    voiceAutoSendTimer = setTimeout(() => {
+                        stopVoiceAssistant(true);
+                    }, 850);
+                }
+            };
 
-        return recognition;
+            recognition.onerror = function(event) {
+                console.warn('Live SpeechRecognition notice:', event.error);
+                clearTimeout(voiceAutoSendTimer);
+                // NEVER abort voice listening and NEVER show false permission toast!
+                // MediaRecorder audio capture continues uninterrupted.
+            };
+
+            recognition.onend = function() {
+                // If voice session is still active via MediaRecorder, do not reset UI to idle!
+                if (isVoiceListening) {
+                    return;
+                }
+                updateVoiceUiState('idle');
+            };
+
+            return recognition;
+        } catch (e) {
+            console.warn('SpeechRecognition initialization notice:', e);
+            return null;
+        }
     }
 
     function toggleVoiceAssistant() {
@@ -2086,33 +2574,41 @@
     async function startVoiceAssistant() {
         stopSpeaking();
 
-        // 1. Acquire live microphone stream via getUserMedia
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            showVoiceToast('Microphone access is not supported by your browser.', 'error');
-            return;
-        }
-
+        // 1. Acquire raw microphone stream from device
+        let stream = null;
         try {
-            activeMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (err) {
-            console.warn('Microphone permission or hardware error:', err);
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                showVoiceToast('Microphone access blocked. Click address bar icon to allow.', 'error');
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                showVoiceToast('No microphone found on your computer. Please connect a microphone.', 'error');
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             } else {
-                showVoiceToast('Microphone error: ' + (err.message || err.name), 'error');
+                const legacyGUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+                if (legacyGUM) {
+                    stream = await new Promise((resolve, reject) => legacyGUM.call(navigator, { audio: true }, resolve, reject));
+                }
+            }
+        } catch (err) {
+            console.warn('Microphone stream acquisition notice:', err);
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                showVoiceToast('Microphone access blocked. Click address bar (🔒 or ℹ️) -> Allow microphone, then reload.', 'error');
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                showVoiceToast('No microphone detected on your device. Please plug in a microphone.', 'error');
+            } else {
+                showVoiceToast('Could not access microphone: ' + (err.message || err.name), 'error');
             }
             return;
         }
 
+        if (!stream) {
+            showVoiceToast('Microphone access is not supported by your browser.', 'error');
+            return;
+        }
+
+        activeMediaStream = stream;
         isVoiceListening = true;
         updateVoiceUiState('listening');
-
         const previewEl = document.getElementById('voice-transcript-preview');
         if (previewEl) previewEl.textContent = 'Listening to your voice... Speak now';
 
-        // 2. Start MediaRecorder on the active audio stream
+        // 2. Start MediaRecorder for high-fidelity audio capture
         recordedAudioChunks = [];
         try {
             let options = {};
@@ -2130,15 +2626,68 @@
                         recordedAudioChunks.push(e.data);
                     }
                 };
-                activeMediaRecorder.start(250);
+                activeMediaRecorder.start(200);
             }
         } catch (mrErr) {
             console.warn('MediaRecorder start notice:', mrErr);
         }
 
-        // 3. Also try webkitSpeechRecognition in parallel for real-time live preview (if browser allows on this origin)
-        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SpeechRecognitionClass) {
+        // 3. Audio volume & silence detection + 12s safety timeout
+        voiceSpeechDetected = false;
+        clearTimeout(voiceSilenceTimer);
+        clearTimeout(voiceMaxDurationTimer);
+        voiceSilenceTimer = null;
+
+        // Auto-send after 12s max duration
+        voiceMaxDurationTimer = setTimeout(() => {
+            if (isVoiceListening) {
+                console.log('Max voice duration reached, processing query...');
+                stopVoiceAssistant(true);
+            }
+        }, 12000);
+
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx && activeMediaStream) {
+                voiceAudioContext = new AudioCtx();
+                const source = voiceAudioContext.createMediaStreamSource(activeMediaStream);
+                const analyser = voiceAudioContext.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const checkAudioVolume = () => {
+                    if (!isVoiceListening || !activeMediaStream) return;
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                    let avg = sum / dataArray.length;
+
+                    if (avg > 14) {
+                        voiceSpeechDetected = true;
+                        clearTimeout(voiceSilenceTimer);
+                        voiceSilenceTimer = null;
+                    } else if (voiceSpeechDetected && !voiceSilenceTimer) {
+                        voiceSilenceTimer = setTimeout(() => {
+                            if (isVoiceListening) {
+                                console.log('Speech pause detected, processing query...');
+                                stopVoiceAssistant(true);
+                            }
+                        }, 1400);
+                    }
+
+                    if (isVoiceListening) {
+                        requestAnimationFrame(checkAudioVolume);
+                    }
+                };
+                requestAnimationFrame(checkAudioVolume);
+            }
+        } catch (e) {
+            console.warn('AudioContext volume detection notice:', e);
+        }
+
+        // 4. Progressive enhancement: Live webkitSpeechRecognition only if origin is secure (HTTPS/localhost)
+        if (isSpeechRecognitionAvailable()) {
             try {
                 if (!speechRecognition) {
                     speechRecognition = initSpeechRecognition();
@@ -2155,6 +2704,15 @@
 
     async function stopVoiceAssistant(shouldSend = false) {
         clearTimeout(voiceAutoSendTimer);
+        clearTimeout(voiceSilenceTimer);
+        clearTimeout(voiceMaxDurationTimer);
+        voiceSilenceTimer = null;
+        voiceMaxDurationTimer = null;
+
+        if (voiceAudioContext) {
+            try { voiceAudioContext.close(); } catch (e) {}
+            voiceAudioContext = null;
+        }
 
         if (speechRecognition) {
             try { speechRecognition.stop(); } catch (e) {}
@@ -2166,7 +2724,7 @@
 
         // If MediaRecorder was recording
         if (activeMediaRecorder && activeMediaRecorder.state !== 'inactive') {
-            // Case A: SpeechRecognition already provided the full live text
+            // Case A: Live recognition already produced full text
             if (hasLiveTranscript) {
                 activeMediaRecorder.stop();
                 releaseActiveMediaStream();
@@ -2178,9 +2736,9 @@
                 return;
             }
 
-            // Case B: No live text yet (e.g. on 127.0.0.1 or unsupported browser) -> transcribe recorded audio!
+            // Case B: Transcribe audio blob with backend Gemini (works on 127.0.0.1, localhost, and live)
             if (shouldSend) {
-                if (previewEl) previewEl.textContent = 'Transcribing voice...';
+                if (previewEl) previewEl.textContent = 'Transcribing voice with Buildarya AI...';
                 const badgeText = document.getElementById('voice-status-badge-text');
                 if (badgeText) badgeText.textContent = 'Transcribing...';
 
@@ -2195,7 +2753,7 @@
                             const formData = new FormData();
                             formData.append('audio', audioBlob, 'speech.webm');
 
-                            const resp = await fetch('/api/chat-voice-transcribe', {
+                            const resp = await fetch('{{ route("ai.chat.transcribe") }}', {
                                 method: 'POST',
                                 headers: {
                                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
@@ -2212,14 +2770,14 @@
                                 sendMessage();
                                 return;
                             } else {
-                                showVoiceToast(data.message || 'Voice could not be recognized. Please type your query.', 'error');
+                                showVoiceToast(data.message || 'Voice could not be recognized. Please try speaking again.', 'error');
                             }
                         } catch (err) {
                             console.error('Audio transcription request failed:', err);
-                            showVoiceToast('Voice transcription failed. Please type your query.', 'error');
+                            showVoiceToast('Voice transcription failed. Please try speaking again.', 'error');
                         }
                     } else {
-                        showVoiceToast('No voice was recorded. Please speak louder.', 'info');
+                        showVoiceToast('No voice recorded. Please speak clearly into your microphone.', 'info');
                     }
 
                     isVoiceListening = false;
@@ -2246,6 +2804,15 @@
 
     function cancelVoiceAssistant() {
         clearTimeout(voiceAutoSendTimer);
+        clearTimeout(voiceSilenceTimer);
+        clearTimeout(voiceMaxDurationTimer);
+        voiceSilenceTimer = null;
+        voiceMaxDurationTimer = null;
+
+        if (voiceAudioContext) {
+            try { voiceAudioContext.close(); } catch (e) {}
+            voiceAudioContext = null;
+        }
         if (speechRecognition) {
             try { speechRecognition.abort(); } catch (e) {}
         }
@@ -2344,9 +2911,11 @@
         tempDiv.innerHTML = htmlOrText;
 
         // Clean out interactive action tags
-        tempDiv.querySelectorAll('script, style, button, .ai-msg-actions, .voice-card-actions, select, input, .header-dropdown').forEach(el => el.remove());
+        tempDiv.querySelectorAll('script, style, button, .ai-msg-actions, .voice-card-actions, select, input, .header-dropdown, .ai-table-toolbar, .ai-table-footer').forEach(el => el.remove());
 
         const rawText = tempDiv.innerText.trim();
+        const tableEl = tempDiv.querySelector('table');
+        const rows = (tableEl && tableEl.dataset && tableEl.dataset.totalRows) ? parseInt(tableEl.dataset.totalRows, 10) : tempDiv.querySelectorAll('tbody tr').length;
 
         // 1. GREETINGS
         if (rawText.includes('Hello') && rawText.includes('Buildarya AI Assistant')) {
@@ -2354,8 +2923,7 @@
         }
 
         // 2. EXPENSES
-        if (tempDiv.querySelector('table') && (rawText.includes('Expense') || rawText.includes('expense') || rawText.includes('Petty') || rawText.includes('Voucher'))) {
-            const rows = tempDiv.querySelectorAll('tbody tr').length;
+        if (tableEl && (rawText.includes('Expense') || rawText.includes('expense') || rawText.includes('Petty') || rawText.includes('Voucher'))) {
             if (rows > 0) {
                 return `Found ${rows} expense vouchers for ${CURRENT_SITE_NAME}. Details are displayed on your screen.`;
             } else {
@@ -2365,7 +2933,6 @@
 
         // 3. ATTENDANCE
         if (rawText.includes('Attendance') || rawText.includes('attendance')) {
-            const rows = tempDiv.querySelectorAll('tbody tr').length;
             if (rawText.includes('PDF Report')) {
                 return `Your attendance PDF report for ${CURRENT_SITE_NAME} is ready for download.`;
             }
@@ -2378,7 +2945,6 @@
 
         // 4. MATERIAL & STOCK
         if (rawText.includes('Material') || rawText.includes('Stock') || rawText.includes('material')) {
-            const rows = tempDiv.querySelectorAll('tbody tr').length;
             if (rows > 0) {
                 return `Found ${rows} material stock records in your database.`;
             } else {
@@ -2388,19 +2954,16 @@
 
         // 5. SUPPLIERS
         if (rawText.includes('Supplier') || rawText.includes('supplier')) {
-            const rows = tempDiv.querySelectorAll('tbody tr').length;
             return `Found ${rows} material suppliers in your company records.`;
         }
 
         // 6. TASKS
         if (rawText.includes('Task') || rawText.includes('task')) {
-            const rows = tempDiv.querySelectorAll('tbody tr').length;
             return `Found ${rows} assigned tasks for ${CURRENT_SITE_NAME}.`;
         }
 
         // 7. USERS / TEAM
         if (rawText.includes('Team') || rawText.includes('user') || rawText.includes('Users')) {
-            const rows = tempDiv.querySelectorAll('tbody tr').length;
             return `Found ${rows} team users registered in your system.`;
         }
 
