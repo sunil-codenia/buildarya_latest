@@ -196,11 +196,31 @@
                     </ul>
                 </div>
                 <div class="body">
+                    <!-- Bulk Actions Bar -->
+                    <div id="bulkActionsBar" class="p-2 mb-2 border rounded shadow-sm bulk-actions-container" style="display: none; border-left: 5px solid #eda61a !important;">
+                        <div class="row align-items-center">
+                            <div class="col-sm-6">
+                                <span id="bulkSelectionText" class="ml-2 font-weight-bold" style="color: #ffffff; font-size: 14px;">
+                                    <span id="selectedCount" style="color: #eda61a; font-weight: 800; font-size: 16px;">0</span> Roles Selected
+                                    <span id="allPagesBadge" class="badge badge-warning ml-2" style="display: none; background: #eda61a; color: #000; font-weight: 700;">All Pages</span>
+                                </span>
+                            </div>
+                            <div class="col-sm-6 text-right">
+                                @if (checkmodulepermission(1, 'can_delete') == 1)
+                                <button onclick="handleBulkDeleteRoles()" class="btn btn-danger btn-sm btn-round">
+                                    <i class="zmdi zmdi-delete"></i> Delete
+                                </button>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+
                     @if (checkmodulepermission(1, 'can_view') == 1)
                         <div class="table-responsive">
-                            <table id="dataTable" class="table table-hover">
+                            <table id="roleTable" class="table table-hover">
                                 <thead>
                                     <tr>
+                                        <th style="width:20px;"><input type="checkbox" id="selectAllRoles"></th>
                                         <th style="width:50px;">Role</th>
                                         <th><strong>Default Role</strong></th>
                                         <th>Role Users</th>
@@ -221,17 +241,18 @@
                                     @foreach ($roles_list as $roled)
                                         @php
                                             $count = 0;
-                                            //   $rolesd = json_decode($roled,true);
                                             $roles = [];
                                             $users = [];
-                                            //   print_r($rolesd);
                                             $role = $roled['roles'];
                                             $users = $roled['users'];
                                             $roleid = $role['id'];
+                                            $isDeletable = ($roleid != 1 && isRoleDeletable($roleid));
                                         @endphp
 
                                         <tr>
-
+                                            <td>
+                                                <input type="checkbox" class="role-checkbox" value="{{ $roleid }}" {{ !$isDeletable ? 'disabled title="Cannot delete default or in-use role"' : '' }}>
+                                            </td>
                                             <td>
                                                 <strong> <a class="single-user-name"
                                                         href="#">{{ $role['name'] }}</a>
@@ -339,6 +360,70 @@
 @endsection
 @section('scripts')
     <script type="text/javascript">
+        var selectedRoleIds = new Set();
+        var allRolesSelectedAcrossPages = false;
+
+        function updateSelectAllRolesState() {
+            let totalSelectable = $('.role-checkbox:not(:disabled)').length;
+            let checkedVisible = $('.role-checkbox:checked').length;
+            if (totalSelectable > 0 && totalSelectable === checkedVisible && selectedRoleIds.size > 0) {
+                $('#selectAllRoles').prop('checked', true);
+            } else {
+                $('#selectAllRoles').prop('checked', false);
+            }
+        }
+
+        function updateBulkBarRoles(isAllPages = false) {
+            let count = selectedRoleIds.size;
+            if (count > 0) {
+                $('#selectedCount').text(count);
+                if (isAllPages) {
+                    $('#allPagesBadge').show();
+                } else {
+                    $('#allPagesBadge').hide();
+                }
+                $('#bulkActionsBar').fadeIn();
+            } else {
+                $('#bulkActionsBar').fadeOut();
+                $('#allPagesBadge').hide();
+                $('#selectAllRoles').prop('checked', false);
+                allRolesSelectedAcrossPages = false;
+            }
+        }
+
+        function handleBulkDeleteRoles() {
+            let ids = Array.from(selectedRoleIds);
+            if (ids.length === 0) return;
+
+            Swal.fire({
+                title: 'Delete Selected Roles?',
+                text: "Are you sure you want to delete " + ids.length + " selected role(s)? This cannot be undone!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ff0000',
+                cancelButtonColor: '#000000',
+                confirmButtonText: 'Yes, Delete All'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    $.post("{{ url('/bulk_delete_roles') }}", {
+                        _token: "{{ csrf_token() }}",
+                        ids: ids
+                    }, function(res) {
+                        if (res.status === 'Ok') {
+                            Swal.fire('Deleted!', res.message, 'success').then(() => {
+                                window.location.reload();
+                            });
+                        } else {
+                            Swal.fire('Error!', res.message, 'error');
+                        }
+                    }).fail(function(xhr) {
+                        let msg = xhr.responseJSON ? xhr.responseJSON.message : 'Error deleting roles';
+                        Swal.fire('Error!', msg, 'error');
+                    });
+                }
+            });
+        }
+
         function deletedata(id) {
             Swal.fire({
                 title: 'Are you sure?',
@@ -364,6 +449,71 @@
                 }
             });
         }
+
+        $(document).ready(function() {
+            var roleTable = $('#roleTable').DataTable({
+                responsive: true,
+                dom: 'lBfrtip',
+                buttons: [
+                    { extend: 'csv', className: 'btn btn-round btn-custom-color' },
+                    { extend: 'excel', className: 'btn btn-round btn-custom-color' },
+                    { extend: 'pdf', className: 'btn btn-round btn-custom-color' }
+                ],
+                columnDefs: [
+                    { orderable: false, targets: [0, 11] }
+                ],
+                drawCallback: function() {
+                    $('.role-checkbox').each(function() {
+                        if (selectedRoleIds.has($(this).val())) {
+                            $(this).prop('checked', true);
+                        } else {
+                            $(this).prop('checked', false);
+                        }
+                    });
+                    updateSelectAllRolesState();
+                    updateBulkBarRoles(allRolesSelectedAcrossPages);
+                }
+            });
+
+            // Select all handler (across all pages)
+            $('#selectAllRoles').on('change', function() {
+                let isChecked = $(this).prop('checked');
+                if (isChecked) {
+                    allRolesSelectedAcrossPages = true;
+                    // Select all across all pages via DataTable API
+                    roleTable.rows().every(function() {
+                        let rowNode = this.node();
+                        let cb = $(rowNode).find('.role-checkbox');
+                        if (cb.length && !cb.prop('disabled')) {
+                            cb.prop('checked', true);
+                            selectedRoleIds.add(cb.val());
+                        }
+                    });
+                    updateBulkBarRoles(true);
+                } else {
+                    allRolesSelectedAcrossPages = false;
+                    selectedRoleIds.clear();
+                    roleTable.rows().every(function() {
+                        let rowNode = this.node();
+                        $(rowNode).find('.role-checkbox').prop('checked', false);
+                    });
+                    updateBulkBarRoles(false);
+                }
+            });
+
+            // Row checkbox change
+            $(document).on('change', '.role-checkbox', function() {
+                let val = $(this).val();
+                if ($(this).is(':checked')) {
+                    selectedRoleIds.add(val);
+                } else {
+                    selectedRoleIds.delete(val);
+                    allRolesSelectedAcrossPages = false;
+                }
+                updateSelectAllRolesState();
+                updateBulkBarRoles(allRolesSelectedAcrossPages);
+            });
+        });
 
         $(document).on('change', '.date-range-from, .date-range-to', function() {
             var container = $(this).closest('.form-group');

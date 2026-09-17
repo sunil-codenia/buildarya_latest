@@ -72,7 +72,30 @@ Route::get('/register_user', [LoginController::class, 'register_user']);
 
 Route::post('/change-language', [DashboardController::class, 'changeLanguage']);
 
+Route::get('/bridge-session', function (\Illuminate\Http\Request $request) {
+    $token = $request->query('token');
+    if ($token && \Illuminate\Support\Facades\Cache::has('session_bridge_' . $token)) {
+        $sessionData = \Illuminate\Support\Facades\Cache::pull('session_bridge_' . $token);
+        if (is_array($sessionData)) {
+            foreach ($sessionData as $key => $val) {
+                $request->session()->put($key, $val);
+            }
+            $request->session()->save();
+        }
+        return redirect('/chat-view');
+    }
+    return redirect('/login');
+})->name('bridge.session');
+
 Route::group(['middleware' => ['auth']], function () {
+
+    Route::get('/switch-to-localhost', function (\Illuminate\Http\Request $request) {
+        $sessionData = $request->session()->all();
+        $token = \Illuminate\Support\Str::random(40);
+        \Illuminate\Support\Facades\Cache::put('session_bridge_' . $token, $sessionData, 180);
+        $port = $request->getPort() ?: 8000;
+        return redirect()->away("http://localhost:{$port}/bridge-session?token=" . urlencode($token));
+    })->name('switch.localhost');
 
     Route::get('/dashboard', [DashboardController::class, 'getCompanyDashboard']);
     Route::get('/chat-view', function () {
@@ -223,6 +246,7 @@ Route::group(['middleware' => ['auth']], function () {
         Route::post('/updaterolesetting', [RoleController::class, 'updaterolesetting']);
         Route::get('/assign_role_permission', [RoleController::class, 'assign_role_permission']);
         Route::post('/update_role_permission', [RoleController::class, 'update_role_permission']);
+        Route::post('/bulk_delete_roles', [RoleController::class, 'bulk_delete_roles']);
     });
 
     //material unit route

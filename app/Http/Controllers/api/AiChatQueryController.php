@@ -265,6 +265,23 @@ class AiChatQueryController extends Controller
             . "- 'kaam', 'task', 'pending work' refer to tasks (tasks table).\n"
             . "- 'aaj', 'aaj ka', 'today' refers to current date CURDATE().\n"
             . "- Ignore verbal conversational filler phrases like 'please', 'can you show me', 'give me', 'bhai', 'tell me'.\n\n"
+            . "11. STATUS FILTERING RULE:\n"
+            . "When user asks for 'pending' records (e.g. 'pending expenses', 'pending materials', 'pending tasks', 'pending vouchers'):\n"
+            . "- Must add status WHERE clause:\n"
+            . "  * For expenses: expenses.status LIKE '%Pending%'\n"
+            . "  * For attendance: attendance.status LIKE '%Pending%'\n"
+            . "  * For material_entry: material_entry.status LIKE '%Pending%'\n"
+            . "  * For tasks: tasks.status LIKE '%Pending%'\n"
+            . "  * For payment_vouchers: payment_vouchers.status LIKE '%Pending%'\n"
+            . "When user asks for 'verified' or 'approved' records (e.g. 'verified expenses', 'approved expenses', 'verified vouchers'):\n"
+            . "- Must add status WHERE clause:\n"
+            . "  * For expenses: (expenses.status LIKE '%Approved%' OR expenses.status LIKE '%Verified%')\n"
+            . "  * For material_entry: (material_entry.status LIKE '%Approved%' OR material_entry.status LIKE '%Verified%')\n"
+            . "  * For tasks: (tasks.status LIKE '%Completed%' OR tasks.status LIKE '%Approved%')\n"
+            . "  * For payment_vouchers: (payment_vouchers.status LIKE '%Approved%' OR payment_vouchers.status LIKE '%Verified%')\n"
+            . "When user asks for 'rejected' records:\n"
+            . "- Filter with status LIKE '%Rejected%'.\n"
+            . "When user asks for 'all' records or doesn't specify a status filter, do NOT restrict by status.\n\n"
             . "LIVE DATABASE SCHEMA (CURRENT TENANT):\n"
             . $schemaContext . "\n\n"
             . "Active Site Context: site_id = " . ($tenant['site_id'] ?? 'all') . " (" . ($tenant['site_name'] ?? 'Head Office') . "). Filter by site_id if applicable.\n";
@@ -291,9 +308,9 @@ class AiChatQueryController extends Controller
                 }
             } else if ($geminiKey) {
                 $providerUsed = 'Google Gemini AI';
-                $model = env('GEMINI_MODEL', 'gemini-1.5-flash');
-                if (empty($model) || strpos($model, '3.6') !== false) {
-                    $model = 'gemini-1.5-flash';
+                $model = env('GEMINI_MODEL', 'gemini-3.6-flash');
+                if (empty($model) || $model === 'gemini-1.5-flash' || $model === 'gemini-2.0-flash') {
+                    $model = 'gemini-3.6-flash';
                 }
                 
                 // 1. Try URL key parameter
@@ -323,7 +340,21 @@ class AiChatQueryController extends Controller
                 }
 
                 if ($response->successful()) {
-                    $rawSql = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
+                    $candidates = $response->json()['candidates'] ?? [];
+                    if (!empty($candidates[0]['content']['parts'])) {
+                        foreach ($candidates[0]['content']['parts'] as $part) {
+                            if (!empty($part['text'])) {
+                                $candidateText = $part['text'];
+                                if (stripos($candidateText, 'SELECT') !== false) {
+                                    $rawSql = $candidateText;
+                                    break;
+                                }
+                                if (!$rawSql) {
+                                    $rawSql = $candidateText;
+                                }
+                            }
+                        }
+                    }
                 }
             } else if ($groqKey) {
                 $providerUsed = 'Groq Cloud AI';
@@ -366,11 +397,25 @@ class AiChatQueryController extends Controller
             return null;
         }
 
-        // Sanitize markdown code blocks
+        // Sanitize markdown code blocks and extract SQL
         $cleanSql = trim($rawSql);
-        $cleanSql = preg_replace('/^```(?:sql)?/i', '', $cleanSql);
-        $cleanSql = preg_replace('/```$/', '', $cleanSql);
-        $cleanSql = trim($cleanSql);
+        if (preg_match('/```(?:sql)?\s*([\s\S]+?)```/i', $cleanSql, $m)) {
+            $cleanSql = trim($m[1]);
+        } else {
+            $cleanSql = preg_replace('/^```(?:sql)?/i', '', $cleanSql);
+            $cleanSql = preg_replace('/```$/', '', $cleanSql);
+            $cleanSql = trim($cleanSql);
+        }
+
+        // If SELECT statement is preceded by conversational text or headers, isolate SELECT statement
+        if (stripos($cleanSql, 'SELECT') !== false && strpos(strtoupper($cleanSql), 'SELECT') !== 0) {
+            if (preg_match('/(SELECT[\s\S]+?)(?:;|$)/i', $cleanSql, $m)) {
+                $cleanSql = trim($m[1]);
+            }
+        }
+
+        // Remove trailing semicolons or whitespace
+        $cleanSql = rtrim($cleanSql, "; \t\n\r\0\x0B");
 
         // Security check: ensure strictly SELECT query
         $upper = strtoupper($cleanSql);
@@ -443,22 +488,40 @@ class AiChatQueryController extends Controller
             $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
+            if (strpos($lower, 'pending') !== false) {
+                $whereClauses[] = "(expenses.status LIKE '%Pending%' OR expenses.status LIKE '%pending%')";
+            } else if (strpos($lower, 'approved') !== false || strpos($lower, 'verified') !== false) {
+                $whereClauses[] = "(expenses.status LIKE '%Approved%' OR expenses.status LIKE '%Verified%' OR expenses.status LIKE '%approved%' OR expenses.status LIKE '%verified%')";
+            } else if (strpos($lower, 'rejected') !== false) {
+                $whereClauses[] = "(expenses.status LIKE '%Rejected%' OR expenses.status LIKE '%rejected%')";
+            }
         } else if (strpos($lower, 'material report') !== false || strpos($lower, 'material reprt') !== false || strpos($lower, 'matrial report') !== false || strpos($lower, 'stock report') !== false) {
             $selectQuery = "SELECT material_entry.id, materials.name as material_name, material_entry.qty, material_entry.vehical, material_entry.date, material_entry.status FROM material_entry LEFT JOIN materials ON materials.id=material_entry.material_id";
             $sf = $getSiteFilter('material_entry.site_id');
             if ($sf) $whereClauses[] = $sf;
-            // Apply status filters when user explicitly asks for pending/approved/returned materials
+            // Apply status filters when user explicitly asks for pending/approved/returned/rejected materials
             if (strpos($lower, 'pending') !== false) {
                 $whereClauses[] = "(material_entry.status LIKE '%Pending%' OR material_entry.status LIKE '%pending%')";
             } else if (strpos($lower, 'approved') !== false || strpos($lower, 'verified') !== false) {
                 $whereClauses[] = "(material_entry.status LIKE '%Approved%' OR material_entry.status LIKE '%approved%')";
             } else if (strpos($lower, 'returned') !== false) {
                 $whereClauses[] = "(material_entry.status LIKE '%Returned%' OR material_entry.status LIKE '%returned%')";
+            } else if (strpos($lower, 'rejected') !== false) {
+                $whereClauses[] = "(material_entry.status LIKE '%Rejected%' OR material_entry.status LIKE '%rejected%')";
             }
         } else if (strpos($lower, 'attendance report') !== false || strpos($lower, 'attendace report') !== false || strpos($lower, 'report of attendance') !== false) {
             $selectQuery = "SELECT attendance.id, COALESCE(users.name, 'Labour') as person_name, attendance.date, attendance.in_time, attendance.out_time, attendance.status, attendance.remarks FROM attendance LEFT JOIN users ON users.id=attendance.user_id";
             $sf = $getSiteFilter('attendance.site_id');
             if ($sf) $whereClauses[] = $sf;
+            if (strpos($lower, 'present') !== false) {
+                $whereClauses[] = "(attendance.status LIKE '%Present%' OR attendance.status LIKE '%present%')";
+            } else if (strpos($lower, 'absent') !== false) {
+                $whereClauses[] = "(attendance.status LIKE '%Absent%' OR attendance.status LIKE '%absent%')";
+            } else if (strpos($lower, 'half day') !== false || strpos($lower, 'halfday') !== false) {
+                $whereClauses[] = "(attendance.status LIKE '%Half%' OR attendance.status LIKE '%half%')";
+            } else if (strpos($lower, 'pending') !== false) {
+                $whereClauses[] = "(attendance.status LIKE '%Pending%' OR attendance.status LIKE '%pending%')";
+            }
         } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'voucher') !== false || strpos($lower, 'payment') !== false)) {
             $selectQuery = "SELECT id, voucher_no, party_type, amount, payment_details, status, date FROM payment_vouchers";
             $whereClauses[] = "(status LIKE '%Pending%' OR status LIKE '%pending%')";
@@ -539,8 +602,14 @@ class AiChatQueryController extends Controller
                 $v = addslashes(trim($m[1]));
                 $whereClauses[] = "(users.username LIKE '%{$v}%' OR users.name LIKE '%{$v}%')";
             } else {
+                if (strpos($lower, 'inactive') !== false) {
+                    $whereClauses[] = "(users.status LIKE '%Inactive%' OR users.status LIKE '%inactive%')";
+                } else if (strpos($lower, 'active') !== false) {
+                    $whereClauses[] = "(users.status LIKE '%Active%' OR users.status LIKE '%active%')";
+                }
+
                 preg_match_all('/\b([a-zA-Z0-9._-]+)\b/', $lower, $words);
-                $ignoreWords = ['show', 'me', 'the', 'all', 'who', 'is', 'a', 'an', 'are', 'find', 'get', 'list', 'details', 'info', 'record', 'records', 'user', 'users', 'staff', 'team', 'member', 'members'];
+                $ignoreWords = ['show', 'how', 'me', 'the', 'all', 'who', 'is', 'a', 'an', 'are', 'find', 'get', 'list', 'details', 'info', 'record', 'records', 'user', 'users', 'staff', 'team', 'member', 'members', 'give', 'view', 'fetch', 'display', 'tell', 'please', 'active', 'inactive'];
                 $keywordsFound = [];
                 if (!empty($words[1])) {
                     foreach ($words[1] as $w) {
@@ -563,9 +632,33 @@ class AiChatQueryController extends Controller
             $selectQuery = "SELECT attendance.id, COALESCE(users.name, 'Labour') as person_name, attendance.date, attendance.in_time, attendance.out_time, attendance.status, attendance.remarks FROM attendance LEFT JOIN users ON users.id=attendance.user_id";
             $sf = $getSiteFilter('attendance.site_id');
             if ($sf) $whereClauses[] = $sf;
+            if (strpos($lower, 'present') !== false) {
+                $whereClauses[] = "(attendance.status LIKE '%Present%' OR attendance.status LIKE '%present%')";
+            } else if (strpos($lower, 'absent') !== false) {
+                $whereClauses[] = "(attendance.status LIKE '%Absent%' OR attendance.status LIKE '%absent%')";
+            } else if (strpos($lower, 'half day') !== false || strpos($lower, 'halfday') !== false) {
+                $whereClauses[] = "(attendance.status LIKE '%Half%' OR attendance.status LIKE '%half%')";
+            } else if (strpos($lower, 'pending') !== false) {
+                $whereClauses[] = "(attendance.status LIKE '%Pending%' OR attendance.status LIKE '%pending%')";
+            }
         } else if (strpos($lower, 'pending') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'kharcha') !== false || strpos($lower, 'kharch') !== false)) {
             $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
             $whereClauses[] = "(expenses.status LIKE '%Pending%' OR expenses.status LIKE '%pending%')";
+            $sf = $getSiteFilter('expenses.site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if ((strpos($lower, 'verified') !== false || strpos($lower, 'approved') !== false || strpos($lower, 'clear') !== false) && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'kharcha') !== false || strpos($lower, 'kharch') !== false)) {
+            $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
+            $whereClauses[] = "(expenses.status LIKE '%Approved%' OR expenses.status LIKE '%Verified%' OR expenses.status LIKE '%approved%' OR expenses.status LIKE '%verified%')";
+            $sf = $getSiteFilter('expenses.site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'rejected') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'kharcha') !== false || strpos($lower, 'kharch') !== false)) {
+            $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
+            $whereClauses[] = "(expenses.status LIKE '%Rejected%' OR expenses.status LIKE '%rejected%')";
+            $sf = $getSiteFilter('expenses.site_id');
+            if ($sf) $whereClauses[] = $sf;
+        } else if (strpos($lower, 'paid') !== false && (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'kharcha') !== false || strpos($lower, 'kharch') !== false)) {
+            $selectQuery = "SELECT expenses.id, COALESCE(expense_party.name, bills_party.name) as party_name, expenses.party_type, expense_head.name as cost_category_name, expenses.particular, expenses.amount, expenses.remark, expenses.image, sites.name as site_name, COALESCE(users.name, 'Staff') as user_name, expenses.status, expenses.location, expenses.date FROM expenses LEFT JOIN expense_party ON (expense_party.id = expenses.party_id AND expenses.party_type = 'expense') LEFT JOIN bills_party ON (bills_party.id = expenses.party_id AND expenses.party_type = 'bill') LEFT JOIN expense_head ON expense_head.id = expenses.head_id LEFT JOIN sites ON sites.id = expenses.site_id LEFT JOIN users ON users.id = expenses.user_id";
+            $whereClauses[] = "(expenses.status LIKE '%Paid%' OR expenses.status LIKE '%paid%')";
             $sf = $getSiteFilter('expenses.site_id');
             if ($sf) $whereClauses[] = $sf;
         } else if (strpos($lower, 'expense') !== false || strpos($lower, 'expence') !== false || strpos($lower, 'petty') !== false || strpos($lower, 'cost') !== false || strpos($lower, 'audit') !== false || strpos($lower, 'kharcha') !== false || strpos($lower, 'kharch') !== false || strpos($lower, 'hisaab') !== false) {
@@ -583,6 +676,8 @@ class AiChatQueryController extends Controller
                 $whereClauses[] = "(material_entry.status LIKE '%Approved%' OR material_entry.status LIKE '%approved%')";
             } else if (strpos($lower, 'returned') !== false) {
                 $whereClauses[] = "(material_entry.status LIKE '%Returned%' OR material_entry.status LIKE '%returned%')";
+            } else if (strpos($lower, 'rejected') !== false) {
+                $whereClauses[] = "(material_entry.status LIKE '%Rejected%' OR material_entry.status LIKE '%rejected%')";
             }
         } else if (strpos($lower, 'task') !== false || strpos($lower, 'taks') !== false || strpos($lower, 'todo') !== false || strpos($lower, 'assignment') !== false || strpos($lower, 'work') !== false || strpos($lower, 'kaam') !== false) {
             $selectQuery = "SELECT tasks.id, tasks.title, sites.name as site_name, (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM users WHERE FIND_IN_SET(users.id, tasks.assigned_to) OR users.id = tasks.assigned_to) as assigned_to, tasks.priority, tasks.status, tasks.due_date FROM tasks LEFT JOIN sites ON sites.id=tasks.site_id";
@@ -873,15 +968,26 @@ class AiChatQueryController extends Controller
             $sqlToExec = null;
             $provider = 'Buildarya AI SQL Engine';
 
-            // AI-only flow: no manual keyword fallback is allowed.
+            // 1. Try LLM query generation first
             $llmResult = $this->callLlmForSql($queryText, $tenant);
             if ($llmResult && !empty($llmResult['sql'])) {
                 $sqlToExec = $llmResult['sql'];
                 $provider = $llmResult['provider'];
             }
 
+            // 2. If LLM returned no SQL (offline, rate limit, timeout, or model issue),
+            // seamlessly fall back to Buildarya's internal Natural Language SQL Engine:
+            if (!$sqlToExec) {
+                $fallbackSql = $this->generateDynamicSqlFromText($queryText, $tenant);
+                if (!empty($fallbackSql)) {
+                    $sqlToExec = $fallbackSql;
+                    $provider = 'Buildarya AI SQL Engine';
+                }
+            }
+
             if ($sqlToExec) {
                 $sqlToExec = $this->normalizeExpenseQuery($sqlToExec);
+                $sqlToExec = $this->normalizeGeneratedQueryStatus($sqlToExec, $queryText);
             }
 
             if (!$sqlToExec) {
@@ -897,7 +1003,22 @@ class AiChatQueryController extends Controller
             }
 
             try {
-                $fetchedRows = DB::connection($conn)->select($sqlToExec);
+                try {
+                    $fetchedRows = DB::connection($conn)->select($sqlToExec);
+                } catch (\Exception $dbEx) {
+                    // If LLM-generated SQL encountered a DB syntax/schema error,
+                    // fall back to schema-safe internal generator
+                    $fallbackSql = $this->generateDynamicSqlFromText($queryText, $tenant);
+                    if ($fallbackSql && $fallbackSql !== $sqlToExec) {
+                        $fallbackSql = $this->normalizeExpenseQuery($fallbackSql);
+                        $fallbackSql = $this->normalizeGeneratedQueryStatus($fallbackSql, $queryText);
+                        $fetchedRows = DB::connection($conn)->select($fallbackSql);
+                        $sqlToExec = $fallbackSql;
+                        $provider = 'Buildarya AI SQL Engine (Schema Safe)';
+                    } else {
+                        throw $dbEx;
+                    }
+                }
                 $fetchedRows = $this->enrichExpenseRecords($fetchedRows, $conn);
                 $html = $this->buildDynamicSqlHtml($fetchedRows, $sqlToExec, $provider, $queryText, $tenant, $isOtherSiteRequest, $isPdfRequest, $pdfUrl);
 
@@ -977,110 +1098,210 @@ class AiChatQueryController extends Controller
     private function detectCreateFormIntent($queryText)
     {
         $lower = strtolower(trim($queryText));
+        $lower = rtrim($lower, '.!?');
 
         $patterns = [
-            'user' => [
-                'add user', 'add users', 'new user', 'create user', 'create users', 'i want to add user',
-                'user form', 'show user form', 'open user form', 'new member', 'add staff', 'add employee',
-                'add new user', 'i want to add new user', 'i want to create user'
+            // 11. Add New Consuption/Wastage (specific multi-word first)
+            'consumption_wastage' => [
+                'add new consuption/wastage', 'add new consumption/wastage', 'add consuption/wastage', 'add consumption/wastage',
+                'add new consumption', 'add new consuption', 'add new wastage',
+                'add consumption', 'add consuption', 'add wastage',
+                'new consumption', 'new consuption', 'new wastage',
+                'consuption/wastage', 'consumption/wastage', 'consumption form', 'wastage form'
             ],
-            'site' => [
-                'add site', 'new site', 'create site', 'site form', 'show site form', 'open site form',
-                'add new site', 'new sites', 'add new sites', 'i want to add new site'
+            // 12. Add Stocks Site Transfer
+            'stock_site_transfer' => [
+                'add stocks site transfer', 'add stock site transfer', 'stocks site transfer', 'stock site transfer',
+                'new stocks site transfer', 'new stock site transfer', 'stock transfer form', 'material site transfer',
+                'add material site transfer', 'material transfer form', 'stocks transfer form'
             ],
-            'role' => [
-                'add role', 'new role', 'create role', 'role form', 'show role form', 'open role form',
-                'add new role', 'new roles', 'add new roles', 'i want to add new role', 'i want to add new roles'
+            // 13. Add Stocks Unit Conversion
+            'stock_unit_conversion' => [
+                'add stocks unit conversion', 'add stock unit conversion', 'stocks unit conversion', 'stock unit conversion',
+                'new stocks unit conversion', 'new stock unit conversion', 'unit conversion form', 'stock conversion form'
             ],
-            'expense' => [
-                'add expense', 'new expense', 'create expense', 'expense form', 'show expense form', 'open expense form',
-                'add new expense', 'add expense entry', 'new expense entry', 'add new expense entry'
+            // 14. Add StocksReconcia
+            'stock_reconciliation' => [
+                'add stocksreconcia', 'stocksreconcia', 'add stocks reconsilation', 'stocks reconsilation',
+                'add stock reconciliation', 'stock reconciliation', 'request reconciliation', 'stocks reconcia',
+                'add stocks reconciliation', 'reconciliation form', 'stock reconsilation', 'stocksreconcilation'
             ],
-            'material' => [
-                'add material', 'new material', 'create material', 'material form', 'show material form', 'open material form',
-                'add new material', 'material entry', 'add material entry', 'add new material entry'
+            // 17. Add Works Rate
+            'bill_rate' => [
+                'add works rate', 'add work rate', 'works rate', 'work rate', 'works rate form',
+                'add bill works rate', 'add bill work rate', 'add bill rate', 'bill rate form', 'new bill rate',
+                'new works rate', 'bill works rate'
             ],
-            'task' => [
-                'add task', 'new task', 'create task', 'task form', 'show task form', 'open task form',
-                'add new task', 'add task form', 'create task form'
+            // 16. Add Works
+            'bill_work' => [
+                'add works', 'add work', 'add bill works', 'add bill work', 'bill work form', 'new bill work',
+                'new bill works', 'bill works form', 'works form'
             ],
+            // 15. Add Bill Parties
+            'bill_party' => [
+                'add bill parties', 'add bill party', 'new bill parties', 'new bill party', 'create bill party',
+                'bill party form', 'add new bill party', 'bill parties'
+            ],
+            // 18. Add New Bill
+            'bill' => [
+                'add new bill', 'add bill', 'new bill', 'create bill', 'bill form', 'new bill form'
+            ],
+            // 23. Add Assets\'s Expense Head
+            'asset_expense_head' => [
+                "add assets's expense head", "add asset's expense head", "add assets expense head", "add asset expense head",
+                "assets's expense head", "asset's expense head", "assets expense head", "asset expense head",
+                "new asset expense head", "new assets expense head", "asset expense head form", "assets expense head form"
+            ],
+            // 21. Add expense head / Machinery expense head
+            'machinery_expense_head' => [
+                'add machinery expense head', 'new machinery expense head', 'add new machinery expense head',
+                'machinery expense head form', 'machinery expense head', "machinery's expense head",
+                'add expense head', 'new expense head', 'expense head form', 'expense head'
+            ],
+            // Machinery Head
+            'machinery_head' => [
+                'add new machinery head', 'new machinery head', 'add machinery head', 'machinery head form', 'machinery head'
+            ],
+            // 19. Add Machinerises / 20. Add Machiney
+            'machinery' => [
+                'add machinerises', 'add machiney', 'add machinery', 'new machinery', 'create machinery',
+                'machinery form', 'add new machinery', 'machinerises', 'machiney', 'machineries', 'add machineries'
+            ],
+            // 22. Add Assets
+            'asset' => [
+                'add assets', 'add asset', 'new asset', 'new assets', 'create asset', 'create assets',
+                'asset form', 'add new assets', 'add new asset', 'assets form'
+            ],
+            // 24. Add Invoice Heads
+            'invoice_head' => [
+                'add invoice heads', 'add invoice head', 'new invoice head', 'new invoice heads',
+                'create invoice head', 'invoice head form', 'add new invoice head', 'sales invoice head'
+            ],
+            // 25. Add sales Party
+            'sales_party' => [
+                'add sales party', 'add sales parties', 'new sales party', 'new sales parties',
+                'create sales party', 'sales party form', 'add new sales party'
+            ],
+            // 26. Add project
+            'sales_project' => [
+                'add sales project', 'new sales project', 'create sales project', 'sales project form', 'add new sales project',
+                'add project', 'new project', 'create project', 'project form'
+            ],
+            // 27. Add new payment voucher
+            'payment_voucher' => [
+                'add new payment voucher', 'add payment voucher', 'new payment voucher',
+                'create payment voucher', 'generate payment voucher', 'generate voucher',
+                'voucher form', 'payment voucher form', 'payment voucher'
+            ],
+            // 28. Add Other Party
+            'other_party' => [
+                'add other party', 'add other parties', 'new other party', 'new other parties',
+                'create other party', 'other party form', 'other party'
+            ],
+            // 29. Add upload file in my document section
+            'my_doc_upload_file' => [
+                'add upload file in my document section', 'upload file in my document section',
+                'upload file in my document', 'upload file in document section', 'my document upload file',
+                'upload document file', 'upload file in document', 'upload my document'
+            ],
+            // 30. Add Document Head
+            'doc_head' => [
+                'add document head', 'add doc head', 'new document head', 'new doc head',
+                'create document head', 'document head form', 'doc head form', 'document head', 'doc head'
+            ],
+            // 31. Add New Contact
+            'contact' => [
+                'add new contact', 'add contact', 'new contact', 'create contact', 'contact form',
+                'add new contacts', 'contacts form'
+            ],
+            // 32. Add Self Check In
+            'self_check_in' => [
+                'add self check in', 'self check in', 'self checkin', 'check in', 'clock in', 'self clock in',
+                'check-in', 'clock-in', 'self check-in'
+            ],
+            // 33. Add Self Check Out
+            'self_check_out' => [
+                'add self check out', 'self check out', 'self checkout', 'check out', 'clock out', 'self clock out',
+                'check-out', 'clock-out', 'self check-out'
+            ],
+            // 34. Add Manual Attendance
+            'manual_attendance' => [
+                'add manual attendance', 'new manual attendance', 'create manual attendance',
+                'manual attendance', 'manual attendance form', 'manual attendance record'
+            ],
+            // Attendance general
             'attendance' => [
-                'add manual attendance', 'new manual attendance', 'create manual attendance', 'manual attendance',
-                'add attendance', 'new attendance', 'attendance form', 'manual attendance form'
+                'add attendance', 'new attendance', 'attendance form'
             ],
+            // 36. Add Task Category
+            'task_category' => [
+                'add task category', 'new task category', 'create task category', 'task category form',
+                'add task categories', 'task category'
+            ],
+            // 35. Add Task
+            'task' => [
+                'add task', 'new task', 'create task', 'task form', 'add new task', 'create task form',
+                'add tasks', 'new tasks'
+            ],
+            // 37. Add New Company
+            'company' => [
+                'add new company', 'add company', 'new company', 'create company', 'company form',
+                'add sales company', 'new sales company', 'add company in contacts'
+            ],
+            // 38. Add Support Ticket
             'ticket' => [
                 'add support ticket', 'new support ticket', 'create support ticket', 'support ticket',
                 'add ticket', 'new ticket', 'ticket form', 'support ticket form'
             ],
-            'machinery' => [
-                'add machinery', 'new machinery', 'create machinery', 'machinery form', 'add new machinery',
-                'add machinery head', 'new machinery head', 'machinery head form', 'machinery head',
-                'add machinery expense head', 'new machinery expense head', 'machinery expense head',
-                'machinery expense head form', 'add new machinery head'
-            ],
-            'asset' => [
-                'add asset', 'new asset', 'create asset', 'asset form', 'add new assets', 'new assets',
-                'add asset head', 'new asset head', 'asset head form', 'asset expense head',
-                'add new asset head', 'new asset expense head', 'add asset expense head'
-            ],
-            'bill_party' => [
-                'add bill party', 'new bill party', 'create bill party', 'bill party form', 'add new bill party'
-            ],
-            'bill' => [
-                'add bill', 'new bill', 'create bill', 'bill form', 'add new bill', 'add bill works',
-                'new bill works', 'add new bill works', 'bill works', 'add bill rate', 'new bill rate',
-                'add new bill rate', 'bill rate'
-            ],
-            'sales_party' => [
-                'add sales party', 'new sales party', 'create sales party', 'sales party form', 'add new sales party'
-            ],
-            'sales_project' => [
-                'add sales project', 'new sales project', 'create sales project', 'sales project form', 'add new sales project'
-            ],
-            'invoice_head' => [
-                'add invoice head', 'new invoice head', 'create invoice head', 'invoice head form', 'add new invoice head'
-            ],
-            'contact_category' => [
-                'add contact category', 'new contact category', 'create contact category', 'contact category form',
-                'add contact categories', 'new contact categories', 'add contacts category', 'add contacts categories'
-            ],
-            'contact_company' => [
-                'add new company in contacts', 'new company in contacts', 'add company in contacts', 'company form in contacts',
-                'add new company', 'new company', 'company contact form'
-            ],
+            // 7. Add Material Suppliers
             'material_supplier' => [
-                'add material supplier', 'new material supplier', 'create material supplier', 'material supplier form',
-                'add new material supplier', 'add new supplier', 'new supplier'
+                'add material suppliers', 'add material supplier', 'new material supplier', 'create material supplier',
+                'material supplier form', 'add new material supplier', 'add supplier', 'new supplier'
             ],
+            // 9. Add Units
             'material_unit' => [
                 'add material unit', 'new material unit', 'create material unit', 'material unit form',
-                'add new material unit', 'add unit', 'new unit', 'add new unit'
+                'add new material unit', 'add units', 'add unit', 'new unit', 'new units', 'add new unit'
             ],
+            // 10. Add New Materials entry
             'material_entry' => [
-                'add material entry', 'new material entry', 'create material entry', 'material entry form',
-                'add new material entry', 'add material consumption', 'new material consumption', 'add wastage', 'new wastage'
+                'add new materials entry', 'add new material entry', 'add material entry', 'new material entry',
+                'create material entry', 'material entry form', 'material stock entry form'
             ],
+            // 8. Add Materials
+            'material' => [
+                'add materials', 'add material', 'new material', 'new materials', 'create material',
+                'material form', 'add new material', 'add material sku'
+            ],
+            // 6. Add Cost Category
             'cost_category' => [
-                'add cost category', 'new cost category', 'create cost category', 'cost category form',
-                'add new cost category', 'add new cost categories', 'add cost categories'
+                'add cost category', 'add cost categories', 'new cost category', 'create cost category',
+                'cost category form', 'add new cost category'
             ],
+            // 4. Add Expense parties
             'expense_party' => [
-                'add expense party', 'new expense party', 'create expense party', 'expense party form',
-                'add expense parties', 'new expense parties', 'add new expense party', 'add new expense parties'
+                'add expense parties', 'add expense party', 'new expense party', 'new expense parties',
+                'create expense party', 'expense party form', 'add new expense party', 'add new expense parties'
             ],
-            'payment_voucher' => [
-                'generate voucher', 'generate payment voucher', 'add payment voucher', 'new payment voucher',
-                'create payment voucher', 'voucher form', 'add new payment voucher'
+            // 5. Add New Expense
+            'expense' => [
+                'add new expense', 'add expense', 'new expense', 'create expense', 'expense form',
+                'show expense form', 'open expense form', 'add expense entry', 'new expense entry'
             ],
-            'machinery_head' => [
-                'add new machinery head', 'new machinery head', 'add machinery head', 'machinery head form'
+            // 3. Add Role
+            'role' => [
+                'add role', 'add roles', 'new role', 'new roles', 'create role', 'role form',
+                'show role form', 'open role form', 'add new role'
             ],
-            'machinery_expense_head' => [
-                'add machinery expense head', 'new machinery expense head', 'add new machinery expense head',
-                'machinery expense head form', 'machinery expense head'
+            // 2. Add Site
+            'site' => [
+                'add site', 'add sites', 'new site', 'new sites', 'create site', 'site form',
+                'show site form', 'open site form', 'add new site', 'add new sites'
             ],
-            'asset_head' => [
-                'add asset head', 'new asset head', 'add new asset head', 'asset head form', 'asset expense head'
+            // 1. Add User
+            'user' => [
+                'add user', 'add users', 'new user', 'new users', 'create user', 'create users',
+                'user form', 'show user form', 'open user form', 'add new user', 'add staff', 'add employee'
             ]
         ];
 
@@ -1110,32 +1331,45 @@ class AiChatQueryController extends Controller
         }
 
         $entityPriority = [
-            'user' => ['user', 'users', 'member', 'staff', 'employee'],
-            'site' => ['site', 'sites'],
-            'role' => ['role', 'roles'],
-            'expense' => ['expense', 'expenses', 'petty', 'payment voucher', 'voucher'],
-            'material' => ['material', 'materials', 'stock', 'supplier', 'unit'],
-            'task' => ['task', 'todo', 'assignment'],
-            'attendance' => ['manual attendance', 'attendance'],
-            'ticket' => ['support ticket', 'ticket'],
-            'machinery' => ['machinery', 'machine'],
+            'consumption_wastage' => ['consuption', 'consumption', 'wastage'],
+            'stock_site_transfer' => ['stocks site transfer', 'stock transfer', 'material transfer'],
+            'stock_unit_conversion' => ['unit conversion', 'stock conversion'],
+            'stock_reconciliation' => ['stocksreconcia', 'reconcia', 'reconsilation', 'reconciliation'],
+            'bill_rate' => ['works rate', 'work rate', 'bill rate'],
+            'bill_work' => ['bill work', 'works', 'work'],
+            'bill_party' => ['bill party', 'bills party'],
+            'bill' => ['bill'],
+            'asset_expense_head' => ['asset expense head', 'assets expense head'],
+            'machinery_expense_head' => ['machinery expense head', 'expense head'],
+            'machinery_head' => ['machinery head'],
+            'machinery' => ['machinerises', 'machiney', 'machinery', 'machine'],
             'asset' => ['asset', 'assets'],
-            'bill_party' => ['bill party'],
-            'bill' => ['bill works', 'bill rate', 'bill'],
+            'invoice_head' => ['invoice head', 'sales inv head'],
             'sales_party' => ['sales party'],
-            'sales_project' => ['sales project'],
-            'invoice_head' => ['invoice head'],
-            'contact_category' => ['contact category', 'contact categories'],
-            'contact_company' => ['company in contacts', 'company'],
+            'sales_project' => ['sales project', 'project'],
+            'payment_voucher' => ['payment voucher', 'voucher'],
+            'other_party' => ['other party'],
+            'my_doc_upload_file' => ['upload file', 'document file', 'upload doc'],
+            'doc_head' => ['document head', 'doc head'],
+            'contact' => ['contact'],
+            'self_check_in' => ['check in', 'clock in'],
+            'self_check_out' => ['check out', 'clock out'],
+            'manual_attendance' => ['manual attendance'],
+            'attendance' => ['attendance'],
+            'task_category' => ['task category'],
+            'task' => ['task', 'todo', 'assignment'],
+            'company' => ['company', 'sales company'],
+            'ticket' => ['support ticket', 'ticket'],
             'material_supplier' => ['material supplier', 'supplier'],
             'material_unit' => ['material unit', 'unit'],
-            'material_entry' => ['material entry', 'wastage', 'consumption'],
+            'material_entry' => ['material entry', 'stock entry'],
+            'material' => ['material'],
             'cost_category' => ['cost category'],
-            'expense_party' => ['expense party', 'expense parties'],
-            'payment_voucher' => ['payment voucher', 'voucher'],
-            'machinery_head' => ['machinery head'],
-            'machinery_expense_head' => ['machinery expense head'],
-            'asset_head' => ['asset head', 'asset expense head']
+            'expense_party' => ['expense party'],
+            'expense' => ['expense', 'petty'],
+            'role' => ['role'],
+            'site' => ['site'],
+            'user' => ['user', 'member', 'staff', 'employee']
         ];
 
         foreach ($entityPriority as $entity => $keywords) {
@@ -1152,614 +1386,659 @@ class AiChatQueryController extends Controller
     private function renderCreateFormHtml($entity, $tenant)
     {
         $conn = $tenant['conn'] ?? config('database.default');
-        $siteOptions = '';
-        $roleOptions = '';
-        $sites = DB::connection($conn)->table('sites')->select('id', 'name')->orderBy('name')->get();
-        $roles = DB::connection($conn)->table('roles')->select('id', 'name')->orderBy('name')->get();
-        $companyName = session()->get('comp_name') ?? ($tenant['comp_name'] ?? '');
+        $companyName = session()->get('comp_name') ?? ($tenant['comp_name'] ?? 'Company');
         $companyId = session()->get('comp_db_id') ?? ($tenant['comp_db_id'] ?? '');
         $today = date('Y-m-d');
+        $nowTime = date('H:i');
         $minDate = date('Y-m-d', strtotime('-30 days'));
         $maxDate = date('Y-m-d', strtotime('+30 days'));
 
-        foreach ($sites as $site) {
-            $siteOptions .= '<option value="' . e($site->id) . '">' . e($site->name) . '</option>';
+        $siteOptions = '';
+        $roleOptions = '';
+        $projectOptions = '<option value="" selected disabled>--Select Project--</option><option value="0">No Project</option>';
+        $materialOptions = '<option value="" selected disabled>--Select Material--</option>';
+        $unitOptions = '<option value="" selected disabled>--Select Unit--</option>';
+        $expenseHeadOptions = '<option value="" selected disabled>--Select Expense Head--</option>';
+        $costCategoryOptions = '<option value="" selected disabled>--Select Cost Category--</option>';
+        $machineryHeadOptions = '<option value="" selected disabled>--Select Machinery Head--</option>';
+        $assetHeadOptions = '<option value="" selected disabled>--Select Asset Head--</option>';
+        $billPartyOptions = '<option value="" selected disabled>--Select Bill Party--</option>';
+        $supplierOptions = '<option value="" selected disabled>--Select Supplier--</option>';
+        $userOptions = '<option value="" selected disabled>--Select User / Staff--</option>';
+        $docHeadOptions = '<option value="" selected disabled>--Select Document Head--</option>';
+        $contactProfileOptions = '<option value="" selected disabled>--Select Company Profile--</option>';
+        $taskCategoryOptions = '<option value="" selected disabled>--Select Category--</option>';
+        $billWorkOptions = '<option value="" selected disabled>--Select Work--</option>';
+
+        // Safe DB lookups with try...catch
+        try {
+            if ($conn) {
+                $sites = DB::connection($conn)->table('sites')->select('id', 'name')->orderBy('name')->get();
+                foreach ($sites as $site) {
+                    $siteOptions .= '<option value="' . e($site->id) . '">' . e($site->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        if (empty($siteOptions) && !empty($tenant['site_id']) && !empty($tenant['site_name'])) {
+            $siteOptions = '<option value="' . e($tenant['site_id']) . '" selected>' . e($tenant['site_name']) . '</option>';
         }
 
-        foreach ($roles as $role) {
-            $roleOptions .= '<option value="' . e($role->id) . '">' . e($role->name) . '</option>';
-        }
+        try {
+            if ($conn) {
+                $roles = DB::connection($conn)->table('roles')->select('id', 'name')->orderBy('name')->get();
+                foreach ($roles as $role) {
+                    $roleOptions .= '<option value="' . e($role->id) . '">' . e($role->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
 
+        try {
+            if ($conn) {
+                $projects = DB::connection($conn)->table('projects')->select('id', 'name')->orderBy('name')->get();
+                foreach ($projects as $project) {
+                    $projectOptions .= '<option value="' . e($project->id) . '">' . e($project->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $materials = DB::connection($conn)->table('materials')->select('id', 'name')->orderBy('name')->get();
+                foreach ($materials as $material) {
+                    $materialOptions .= '<option value="' . e($material->id) . '">' . e($material->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $units = DB::connection($conn)->table('units')->select('id', 'name')->orderBy('name')->get();
+                foreach ($units as $unit) {
+                    $unitOptions .= '<option value="' . e($unit->id) . '">' . e($unit->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $heads = DB::connection($conn)->table('expense_head')->select('id', 'name')->orderBy('name')->get();
+                foreach ($heads as $head) {
+                    $expenseHeadOptions .= '<option value="' . e($head->id) . '">' . e($head->name) . '</option>';
+                    $costCategoryOptions .= '<option value="' . e($head->id) . '">' . e($head->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $mHeads = DB::connection($conn)->table('machinery_head')->select('id', 'name')->orderBy('name')->get();
+                foreach ($mHeads as $mh) {
+                    $machineryHeadOptions .= '<option value="' . e($mh->id) . '">' . e($mh->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $aHeads = DB::connection($conn)->table('asset_head')->select('id', 'name')->orderBy('name')->get();
+                foreach ($aHeads as $ah) {
+                    $assetHeadOptions .= '<option value="' . e($ah->id) . '">' . e($ah->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $bParties = DB::connection($conn)->table('bills_party')->select('id', 'name')->orderBy('name')->get();
+                foreach ($bParties as $bp) {
+                    $billPartyOptions .= '<option value="' . e($bp->id) . '">' . e($bp->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $mSuppliers = DB::connection($conn)->table('material_supplier')->select('id', 'name')->orderBy('name')->get();
+                foreach ($mSuppliers as $ms) {
+                    $supplierOptions .= '<option value="' . e($ms->id) . '">' . e($ms->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $users = DB::connection($conn)->table('users')->select('id', 'name')->orderBy('name')->get();
+                foreach ($users as $u) {
+                    $userOptions .= '<option value="' . e($u->id) . '">' . e($u->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $dHeads = DB::connection($conn)->table('doc_head')->select('id', 'name')->orderBy('name')->get();
+                foreach ($dHeads as $dh) {
+                    $docHeadOptions .= '<option value="' . e($dh->id) . '">' . e($dh->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $cProfiles = DB::connection($conn)->table('contact_profile')->select('id', 'comp_name', 'contact_name')->orderBy('comp_name')->get();
+                foreach ($cProfiles as $cp) {
+                    $contactProfileOptions .= '<option value="' . e($cp->id) . '">' . e($cp->comp_name ?: $cp->contact_name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $tCats = DB::connection($conn)->table('task_categories')->select('id', 'name')->orderBy('name')->get();
+                foreach ($tCats as $tc) {
+                    $taskCategoryOptions .= '<option value="' . e($tc->id) . '">' . e($tc->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        try {
+            if ($conn) {
+                $bWorks = DB::connection($conn)->table('bills_work')->select('id', 'name')->orderBy('name')->get();
+                foreach ($bWorks as $bw) {
+                    $billWorkOptions .= '<option value="' . e($bw->id) . '">' . e($bw->name) . '</option>';
+                }
+            }
+        } catch (\Throwable $e) {}
+
+        // Common Input Styles
+        $inpStyle = 'width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff; box-sizing:border-box;';
+        $lblStyle = 'display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;';
+
+        // 1. Add User
         if ($entity === 'user') {
-            $companyInput = !empty($companyId) ? '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Company</label><input type="text" value="' . e($companyName) . '" readonly style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><input type="hidden" name="company_id" value="' . e($companyId) . '"></div>' : '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Company</label><input type="text" value="' . e($companyName) . '" readonly style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><input type="hidden" name="company_id" value=""></div>';
+            $companyInput = !empty($companyId)
+                ? '<div><label style="' . $lblStyle . '">Company</label><input type="text" value="' . e($companyName) . '" readonly style="' . $inpStyle . '"><input type="hidden" name="company_id" value="' . e($companyId) . '"></div>'
+                : '<div><label style="' . $lblStyle . '">Company</label><input type="text" value="' . e($companyName) . '" readonly style="' . $inpStyle . '"><input type="hidden" name="company_id" value=""></div>';
 
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New User</div>
-                        </div>
-                        <a href="' . url('/users') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . url('/addnewuser') . '" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            <div style="grid-column: span 2; display:flex; justify-content:center; align-items:center; flex-direction:column; gap:10px;">
-                                <img height="150" width="150" src="' . asset('/images/noprofile.jpg') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="User image preview">
-                                <input type="file" accept="Image/*" name="image" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                            </div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Full Name"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Phone Number</label><input type="number" name="contact_no" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="10 Digit Mobile"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Username</label><input type="text" name="username" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Login Username"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Password</label><input type="password" name="password" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Login Password"></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id[]" required multiple style="width:100%; min-height:100px; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Role</label><select name="role_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected disabled>--Select Role--</option>' . $roleOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Pan No.</label><input type="text" name="pan_no" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="PAN Card No"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Login Platform</label><select name="mobile_only" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="no">Web & Mobile Both</option><option value="yes">Only Mobile App</option></select></div>
-                            ' . $companyInput . '
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">View Duration (Days)</label><input type="number" min="0" name="view_duration" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter number of days (e.g. 5)"><small style="display:block; color:#9ca3af; margin-top:4px;">Optional: Defaults to Role setting if empty.</small></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Creation Duration (Days)</label><input type="number" min="0" name="add_duration" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter number of days (e.g. 5)"><small style="display:block; color:#9ca3af; margin-top:4px;">Optional: Defaults to Role setting if empty.</small></div>
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="button" style="background:#374151; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Close</button>
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save User</button>
-                        </div>
-                    </form>
+            return $this->wrapAiFormHtml('Add New User', url('/users'), url('/addnewuser'), '
+                <div style="grid-column: span 2; display:flex; justify-content:center; align-items:center; flex-direction:column; gap:10px;">
+                    <img height="120" width="120" src="' . asset('/images/user.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="User preview">
+                    <input type="file" accept="Image/*" name="image" style="' . $inpStyle . '">
                 </div>
-            ';
+                <div><label style="' . $lblStyle . '">Full Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Enter Full Name"></div>
+                <div><label style="' . $lblStyle . '">Username</label><input type="text" name="username" required style="' . $inpStyle . '" placeholder="Enter Username"></div>
+                <div><label style="' . $lblStyle . '">Email</label><input type="email" name="email" required style="' . $inpStyle . '" placeholder="Enter Email"></div>
+                <div><label style="' . $lblStyle . '">Phone</label><input type="text" name="phone" required style="' . $inpStyle . '" placeholder="Enter Phone"></div>
+                <div><label style="' . $lblStyle . '">Password</label><input type="password" name="password" required style="' . $inpStyle . '" placeholder="Enter Password"></div>
+                <div><label style="' . $lblStyle . '">Role</label><select name="role_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Role--</option>' . $roleOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Assigned Sites</label><select name="site_id[]" multiple style="' . $inpStyle . ' height:90px;">' . $siteOptions . '</select></div>
+                ' . $companyInput . '
+            ', 'Save User');
         }
 
+        // 2. Add Site
         if ($entity === 'site') {
-            $projects = DB::connection($conn)->table('projects')->select('id', 'name')->orderBy('name')->get();
-            $projectOptions = '<option value="" selected disabled>--Select Project--</option>';
-            foreach ($projects as $project) {
-                $projectOptions .= '<option value="' . e($project->id) . '">' . e($project->name) . '</option>';
-            }
-            $projectOptions .= '<option value="0">No Project</option>';
-
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New Site</div>
-                        </div>
-                        <a href="' . url('/sites') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . url('/addsites') . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Site Name"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Address</label><input type="text" name="address" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Site Address"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Opening Balance</label><input type="text" name="open_balance" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Sites Type</label><select name="sitestype" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected disabled>--Select Sites Type--</option><option value="Official Site">Official Site</option><option value="Working Site">Working Site</option></select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Project</label><select name="project_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $projectOptions . '</select></div>
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save Site</button>
-                        </div>
-                    </form>
-                </div>
-            ';
+            return $this->wrapAiFormHtml('Add New Site', url('/sites'), url('/addsites'), '
+                <div><label style="' . $lblStyle . '">Site Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Site Name"></div>
+                <div><label style="' . $lblStyle . '">Address</label><input type="text" name="address" required style="' . $inpStyle . '" placeholder="Site Address"></div>
+                <div><label style="' . $lblStyle . '">Opening Balance</label><input type="number" step="0.01" name="open_balance" required style="' . $inpStyle . '" placeholder="0.00" value="0.00"></div>
+                <div><label style="' . $lblStyle . '">Sites Type</label><select name="sitestype" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Sites Type--</option><option value="Official Site">Official Site</option><option value="Working Site">Working Site</option></select></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Project</label><select name="project_id" required style="' . $inpStyle . '">' . $projectOptions . '</select></div>
+            ', 'Save Site');
         }
 
+        // 3. Add Role
         if ($entity === 'role') {
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New Role</div>
-                        </div>
-                        <a href="' . url('/user_roles') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . url('/addnewrole') . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            <div style="grid-column: span 1;">
-                                <label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Role Name</label>
-                                <div style="display:flex; align-items:center; width:100%; border:1px solid #475569; border-radius:8px; background:#0f172a; overflow:hidden;">
-                                    <span style="padding:10px 12px; color:#94a3b8; background:rgba(148,163,184,0.08);"><i class="zmdi zmdi-user"></i></span>
-                                    <input type="text" name="name" required style="width:100%; padding:10px 12px; border:none; outline:none; background:transparent; color:#fff;" placeholder="Role Name">
-                                </div>
-                            </div>
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save Role</button>
-                        </div>
-                    </form>
+            return $this->wrapAiFormHtml('Add New Role', url('/user_roles'), url('/addnewrole'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Role Name</label>
+                    <input type="text" name="name" required style="' . $inpStyle . '" placeholder="Role Name (e.g. Site Supervisor, Account Manager)">
                 </div>
-            ';
+            ', 'Save Role');
         }
 
+        // 4. Add Expense parties
+        if ($entity === 'expense_party') {
+            return $this->wrapAiFormHtml('Add Expense Party', url('/expense_party'), url('/addexpenseparty'), '
+                <div><label style="' . $lblStyle . '">Party Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Expense party name"></div>
+                <div><label style="' . $lblStyle . '">Address</label><input type="text" name="address" style="' . $inpStyle . '" placeholder="Address"></div>
+                <div><label style="' . $lblStyle . '">PAN No.</label><input type="text" name="pan_no" style="' . $inpStyle . '" placeholder="PAN number"></div>
+                <div><label style="' . $lblStyle . '">Cost Category</label><select name="cost_category_id" style="' . $inpStyle . '">' . $costCategoryOptions . '</select></div>
+            ', 'Save Expense Party');
+        }
+
+        // 5. Add New Expense
         if ($entity === 'expense') {
-            $siteSelect = '<select name="site_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select>';
-            $partyPlaceholder = '<option value="" selected disabled>--Expense Parties--</option>';
-            $headSelect = '<select name="head_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected disabled>--Select Head--</option>';
-
-            $headRows = DB::connection($conn)->table('expense_head')->select('id', 'name')->orderBy('name')->get();
-            foreach ($headRows as $head) {
-                $headSelect .= '<option value="' . e($head->id) . '">' . e($head->name) . '</option>';
-            }
-            $headSelect .= '</select>';
-
-            $partyRows = DB::connection($conn)->table('expense_party')->select('id', 'name', 'status', 'cost_category_id')->orderBy('name')->get();
-            $billRows = DB::connection($conn)->table('bills_party')->select('id', 'name', 'status', 'cost_category_id')->orderBy('name')->get();
-
-            $partySelect = '<select name="party_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">';
-            $partySelect .= '<option disabled>--Expense Parties--</option>';
-            foreach ($partyRows as $party) {
-                $disabled = ($party->status == 'Pending') ? 'disabled' : '';
-                $partySelect .= '<option value="' . e($party->id) . '||expense" ' . $disabled . ' data-cost-category="' . e($party->cost_category_id) . '">' . e($party->name) . ($party->status == 'Pending' ? ' (Pending Activation)' : '') . '</option>';
-            }
-            $partySelect .= '<option disabled>--Bill Parties--</option>';
-            foreach ($billRows as $party) {
-                $disabled = ($party->status == 'Pending') ? 'disabled' : '';
-                $partySelect .= '<option value="' . e($party->id) . '||bill" ' . $disabled . ' data-cost-category="' . e($party->cost_category_id) . '">' . e($party->name) . ($party->status == 'Pending' ? ' (Pending Activation)' : '') . '</option>';
-            }
-            $partySelect .= '</select>';
-
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New Expense</div>
-                        </div>
-                        <a href="' . url('/new_expense') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . url('/addnewExpenses') . '" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
-                            <div style="grid-column: span 2; display:flex; justify-content:center; align-items:center; flex-direction:column; gap:10px;">
-                                <img height="150" width="150" src="' . asset('/images/expense.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="Expense image preview">
-                                <input type="file" accept="Image/*" name="image[]" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                            </div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label>' . $siteSelect . '</div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Expense Party</label>' . $partySelect . '</div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Cost Category</label>' . $headSelect . '</div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Particular</label><input type="text" name="particular[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter The Particular Item"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Amount</label><input type="number" min="0" step="0.01" name="amount[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Remark</label><input type="text" name="remark[]" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter The Remark (If Any)"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Date</label><input type="date" name="date[]" required min="' . e($minDate) . '" max="' . e($maxDate) . '" value="' . e($today) . '" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="button" style="background:#374151; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Add Row</button>
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save Expense</button>
-                        </div>
-                    </form>
-                </div>
-            ';
+            return $this->wrapAiFormHtml('Add New Expense', url('/expenses'), url('/addnewExpenses'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id[]" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Expense Date</label><input type="date" name="date[]" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Party Type</label><select name="party_type[]" required style="' . $inpStyle . '"><option value="expense" selected>Expense Party</option><option value="bill">Bill Party</option></select></div>
+                <div><label style="' . $lblStyle . '">Party</label><select name="party_id[]" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Party--</option>' . $billPartyOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Expense Head</label><select name="head_id[]" required style="' . $inpStyle . '">' . $expenseHeadOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Particular / Description</label><input type="text" name="particular[]" required style="' . $inpStyle . '" placeholder="Particular detail"></div>
+                <div><label style="' . $lblStyle . '">Amount (₹)</label><input type="number" step="0.01" min="0" name="amount[]" required style="' . $inpStyle . '" placeholder="0.00"></div>
+                <div><label style="' . $lblStyle . '">Remark</label><input type="text" name="remark[]" style="' . $inpStyle . '" placeholder="Remark (optional)"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Bill / Receipt Image</label><input type="file" name="image[]" accept="image/*" style="' . $inpStyle . '"></div>
+            ', 'Save Expense');
         }
 
+        // 6. Add Cost Category
+        if ($entity === 'cost_category') {
+            return $this->wrapAiFormHtml('Add Cost Category', url('/cost_category'), url('/addcostcategory'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Cost Category Name</label>
+                    <input type="text" name="name" required style="' . $inpStyle . '" placeholder="Cost category name (e.g. Labour Charges, Site Fuel)">
+                </div>
+            ', 'Save Cost Category');
+        }
+
+        // 7. Add Material Suppliers
+        if ($entity === 'material_supplier') {
+            return $this->wrapAiFormHtml('Add Material Supplier', url('/materialsupplier'), url('/addmaterialsupplier'), '
+                <div><label style="' . $lblStyle . '">Supplier Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Supplier Name"></div>
+                <div><label style="' . $lblStyle . '">Address</label><input type="text" name="address" style="' . $inpStyle . '" placeholder="Supplier Address"></div>
+                <div><label style="' . $lblStyle . '">GSTIN</label><input type="text" name="gstin" style="' . $inpStyle . '" placeholder="GSTIN Number"></div>
+                <div><label style="' . $lblStyle . '">Cost Category</label><select name="cost_category_id" style="' . $inpStyle . '">' . $costCategoryOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Bank A/C No.</label><input type="text" name="bank_ac" style="' . $inpStyle . '" placeholder="Bank Account Number"></div>
+                <div><label style="' . $lblStyle . '">Bank IFSC</label><input type="text" name="bank_ifsc" style="' . $inpStyle . '" placeholder="Bank IFSC"></div>
+                <div><label style="' . $lblStyle . '">Bank Name</label><input type="text" name="bank_name" style="' . $inpStyle . '" placeholder="Bank Name"></div>
+                <div><label style="' . $lblStyle . '">A/C Holder Name</label><input type="text" name="bank_ac_holder" style="' . $inpStyle . '" placeholder="Account Holder Name"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">QR Code Image</label><input type="file" name="qr_code" accept="image/*" style="' . $inpStyle . '"></div>
+            ', 'Save Material Supplier');
+        }
+
+        // 8. Add Materials
         if ($entity === 'material') {
-            $materialRows = DB::connection($conn)->table('materials')->select('id', 'name')->orderBy('name')->get();
-            $unitRows = DB::connection($conn)->table('units')->select('id', 'name')->orderBy('name')->get();
-            $supplierRows = DB::connection($conn)->table('material_supplier')->select('id', 'name', 'status')->orderBy('name')->get();
-
-            $materialOptions = '<option value="" selected disabled>--Select Material--</option>';
-            foreach ($materialRows as $material) {
-                $materialOptions .= '<option value="' . e($material->id) . '">' . e($material->name) . '</option>';
-            }
-
-            $unitOptions = '<option value="" selected disabled>--Select Unit--</option>';
-            foreach ($unitRows as $unit) {
-                $unitOptions .= '<option value="' . e($unit->id) . '">' . e($unit->name) . '</option>';
-            }
-
-            $supplierOptions = '<option value="" selected disabled>--Select Supplier--</option>';
-            foreach ($supplierRows as $supplier) {
-                $disabled = ($supplier->status == 'Pending') ? 'disabled' : '';
-                $supplierOptions .= '<option value="' . e($supplier->id) . '" ' . $disabled . '>' . e($supplier->name) . ($supplier->status == 'Pending' ? ' (Pending Activation)' : '') . '</option>';
-            }
-
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add New Material Entry</div>
-                        </div>
-                        <a href="' . url('/new_material') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . url('/addnewmaterial') . '" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
-                            <div style="grid-column: span 2; display:flex; flex-wrap:wrap; gap:10px; justify-content:center; align-items:center;">
-                                <div style="text-align:center;">
-                                    <img height="80" width="80" src="' . asset('/images/expense.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="Material image 1">
-                                    <div style="font-size:11px; margin-top:5px; color:#d1d5db;">Image 1</div>
-                                    <input type="file" accept="Image/*" name="image[]" style="width:110px; font-size:10px; padding:6px 8px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                                </div>
-                                <div style="text-align:center;">
-                                    <img height="80" width="80" src="' . asset('/images/expense.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="Material image 2">
-                                    <div style="font-size:11px; margin-top:5px; color:#d1d5db;">Image 2</div>
-                                    <input type="file" accept="Image/*" name="image2[]" style="width:110px; font-size:10px; padding:6px 8px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                                </div>
-                                <div style="text-align:center;">
-                                    <img height="80" width="80" src="' . asset('/images/expense.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="Material image 3">
-                                    <div style="font-size:11px; margin-top:5px; color:#d1d5db;">Image 3</div>
-                                    <input type="file" accept="Image/*" name="image3[]" style="width:110px; font-size:10px; padding:6px 8px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                                </div>
-                                <div style="text-align:center;">
-                                    <img height="80" width="80" src="' . asset('/images/expense.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="Material image 4">
-                                    <div style="font-size:11px; margin-top:5px; color:#d1d5db;">Image 4</div>
-                                    <input type="file" accept="Image/*" name="image4[]" style="width:110px; font-size:10px; padding:6px 8px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                                </div>
-                                <div style="text-align:center;">
-                                    <img height="80" width="80" src="' . asset('/images/expense.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="Material image 5">
-                                    <div style="font-size:11px; margin-top:5px; color:#d1d5db;">Image 5</div>
-                                    <input type="file" accept="Image/*" name="image5[]" style="width:110px; font-size:10px; padding:6px 8px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                                </div>
-                            </div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Supplier</label><select name="supplier[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $supplierOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Material</label><select name="material_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $materialOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Unit</label><select name="unit[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $unitOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Quantity</label><input type="number" name="qty[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Converted Qty (Cubic M)</label><input type="number" name="converted_qty[]" step="0.01" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Vehicle</label><input type="text" name="vehical[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Vehicle No"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Remark</label><input type="text" name="remark[]" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Remark (if any)"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Date</label><input type="date" name="date[]" required min="' . e($minDate) . '" max="' . e($maxDate) . '" value="' . e($today) . '" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save Material Entry</button>
-                        </div>
-                    </form>
-                </div>
-            ';
+            return $this->wrapAiFormHtml('Add Material SKU', url('/material'), url('/addmaterial'), '
+                <div><label style="' . $lblStyle . '">Material Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Material Name (e.g. OPC Cement 50kg, 10mm TMT Bar)"></div>
+                <div><label style="' . $lblStyle . '">Royalty Material</label><select name="is_royalty" style="' . $inpStyle . '"><option value="0" selected>No</option><option value="1">Yes (Royalty Applicable)</option></select></div>
+            ', 'Save Material');
         }
 
+        // 9. Add Units
+        if ($entity === 'material_unit') {
+            return $this->wrapAiFormHtml('Add Material Unit', url('/materialunit'), url('/addmaterialunit'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Unit Name</label>
+                    <input type="text" name="name" required style="' . $inpStyle . '" placeholder="Unit Name (e.g. Bag, Brass, MT, Sq.Ft, Nos, Liter)">
+                </div>
+            ', 'Save Unit');
+        }
+
+        // 10. Add New Materials entry
+        if ($entity === 'material_entry') {
+            return $this->wrapAiFormHtml('Add New Materials Entry', url('/new_material'), url('/addnewmaterial'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id[]" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Entry Date</label><input type="date" name="date[]" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Supplier</label><select name="supplier[]" required style="' . $inpStyle . '">' . $supplierOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Material</label><select name="material_id[]" required style="' . $inpStyle . '">' . $materialOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Unit</label><select name="unit[]" required style="' . $inpStyle . '">' . $unitOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Quantity</label><input type="number" step="0.01" min="0" name="qty[]" required style="' . $inpStyle . '" placeholder="0.00"></div>
+                <div><label style="' . $lblStyle . '">Vehicle No.</label><input type="text" name="vehical[]" style="' . $inpStyle . '" placeholder="Vehicle Number"></div>
+                <div><label style="' . $lblStyle . '">Challan / Bill No.</label><input type="text" name="challan_no[]" style="' . $inpStyle . '" placeholder="Challan / Bill No."></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Remark</label><input type="text" name="remark[]" style="' . $inpStyle . '" placeholder="Remark (optional)"></div>
+            ', 'Save Material Entry');
+        }
+
+        // 11. Add New Consuption/Wastage
+        if ($entity === 'consumption_wastage') {
+            return $this->wrapAiFormHtml('Add New Consumption / Wastage', url('/new_consumption'), url('/add_new_consumption'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id[]" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Date</label><input type="date" name="date[]" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Type</label><select name="consumption_wastage[]" required style="' . $inpStyle . '"><option value="Consumption" selected>Consumption</option><option value="Wastage">Wastage</option></select></div>
+                <div><label style="' . $lblStyle . '">Material</label><select name="material_id[]" required style="' . $inpStyle . '">' . $materialOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Unit</label><select name="unit[]" required style="' . $inpStyle . '">' . $unitOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Quantity</label><input type="number" step="0.01" min="0" name="qty[]" required style="' . $inpStyle . '" placeholder="0.00"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Remarks / Notes</label><input type="text" name="remarks[]" style="' . $inpStyle . '" placeholder="Used for foundation casting, slab, etc."></div>
+            ', 'Save Consumption/Wastage');
+        }
+
+        // 12. Add Stocks Site Transfer
+        if ($entity === 'stock_site_transfer') {
+            return $this->wrapAiFormHtml('Add Stocks Site Transfer', url('/newMaterialSiteTransfer'), url('/newMaterialTransferForm'), '
+                <div><label style="' . $lblStyle . '">From Site (Source)</label><select name="from_site" required style="' . $inpStyle . '"><option value="" selected disabled>--Select From Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">To Site (Destination)</label><select name="to_site" required style="' . $inpStyle . '"><option value="" selected disabled>--Select To Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Material</label><select name="material_id" required style="' . $inpStyle . '">' . $materialOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Unit</label><select name="unit" required style="' . $inpStyle . '">' . $unitOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Transfer Quantity</label><input type="number" step="0.01" min="0" name="qty" required style="' . $inpStyle . '" placeholder="0.00"></div>
+                <div><label style="' . $lblStyle . '">Transfer Date</label><input type="date" name="date" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Vehicle No.</label><input type="text" name="vehicle_no" style="' . $inpStyle . '" placeholder="Vehicle number"></div>
+                <div><label style="' . $lblStyle . '">Remark</label><input type="text" name="remark" style="' . $inpStyle . '" placeholder="Transfer remark"></div>
+            ', 'Submit Stock Transfer');
+        }
+
+        // 13. Add Stocks Unit Conversion
+        if ($entity === 'stock_unit_conversion') {
+            return $this->wrapAiFormHtml('Add Stocks Unit Conversion', url('/newStockUnitConversion'), url('/newStockUnitConversionForm'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Material</label><select name="material_id" required style="' . $inpStyle . '">' . $materialOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">From Unit (Source)</label><select name="from_unit" required style="' . $inpStyle . '">' . $unitOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">To Unit (Target)</label><select name="to_unit" required style="' . $inpStyle . '">' . $unitOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Quantity Deducted</label><input type="number" step="0.01" min="0" name="qty" required style="' . $inpStyle . '" placeholder="0.00"></div>
+                <div><label style="' . $lblStyle . '">Converted Quantity Added</label><input type="number" step="0.01" min="0" name="updated_qty" required style="' . $inpStyle . '" placeholder="0.00"></div>
+                <div><label style="' . $lblStyle . '">Conversion Date</label><input type="date" name="date" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Remark</label><input type="text" name="remark" style="' . $inpStyle . '" placeholder="Conversion formula/reason"></div>
+            ', 'Submit Unit Conversion');
+        }
+
+        // 14. Add StocksReconcia
+        if ($entity === 'stock_reconciliation') {
+            return $this->wrapAiFormHtml('Request Stocks Reconciliation', url('/reconsilation_list'), url('/request_reconsilation'), '
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Site for Stock Reconciliation</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div style="grid-column: span 2; background:rgba(16,163,127,0.1); border:1px solid rgba(16,163,127,0.3); border-radius:8px; padding:12px; font-size:12.5px; color:#a7f3d0;">
+                    📌 Submitting this request initiates a stock audit and reconciliation snapshot for all materials at the selected site on ' . e($today) . '.
+                </div>
+            ', 'Request Reconciliation');
+        }
+
+        // 15. Add Bill Parties
+        if ($entity === 'bill_party') {
+            return $this->wrapAiFormHtml('Add Bill Party', url('/billparty'), url('/addbillparty'), '
+                <div><label style="' . $lblStyle . '">Party Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Bill Party Name"></div>
+                <div><label style="' . $lblStyle . '">Address</label><input type="text" name="address" required style="' . $inpStyle . '" placeholder="Address"></div>
+                <div><label style="' . $lblStyle . '">PAN No.</label><input type="text" name="panno" required style="' . $inpStyle . '" placeholder="PAN Number"></div>
+                <div><label style="' . $lblStyle . '">Bank A/C No.</label><input type="text" name="bank_ac" required style="' . $inpStyle . '" placeholder="Bank Account Number"></div>
+                <div><label style="' . $lblStyle . '">Bank IFSC</label><input type="text" name="ifsc" required style="' . $inpStyle . '" placeholder="IFSC Code"></div>
+                <div><label style="' . $lblStyle . '">Bank Name</label><input type="text" name="bankname" required style="' . $inpStyle . '" placeholder="Bank Name"></div>
+                <div><label style="' . $lblStyle . '">A/C Holder Name</label><input type="text" name="ac_holder_name" required style="' . $inpStyle . '" placeholder="Account Holder Name"></div>
+                <div><label style="' . $lblStyle . '">Cost Category</label><select name="cost_category_id" required style="' . $inpStyle . '">' . $costCategoryOptions . '</select></div>
+            ', 'Save Bill Party');
+        }
+
+        // 16. Add Works
+        if ($entity === 'bill_work') {
+            return $this->wrapAiFormHtml('Add Works', url('/billwork'), url('/addbillwork'), '
+                <div><label style="' . $lblStyle . '">Work Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Work Name (e.g. Brick Work, Plaster, Painting)"></div>
+                <div><label style="' . $lblStyle . '">Unit of Measurement</label><select name="unit" required style="' . $inpStyle . '">' . $unitOptions . '</select></div>
+            ', 'Save Work');
+        }
+
+        // 17. Add Works Rate
+        if ($entity === 'bill_rate') {
+            return $this->wrapAiFormHtml('Add Works Rate', url('/billrate'), url('/addbillrate'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Work Item</label><select name="work_id" required style="' . $inpStyle . '">' . $billWorkOptions . '</select></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Rate per Unit (₹)</label><input type="number" step="0.01" min="0" name="rate" required style="' . $inpStyle . '" placeholder="0.00"></div>
+            ', 'Save Work Rate');
+        }
+
+        // 18. Add New Bill
+        if ($entity === 'bill') {
+            return $this->wrapAiFormHtml('Add New Bill', url('/new_bill'), url('/addnewbill'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Bill Party</label><select name="bill_party_id" required style="' . $inpStyle . '">' . $billPartyOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Bill Number</label><input type="text" name="bill_no" required style="' . $inpStyle . '" placeholder="Bill / Invoice No."></div>
+                <div><label style="' . $lblStyle . '">Bill Date</label><input type="date" name="bill_date" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Billing Period From</label><input type="date" name="bill_from_date" required value="' . e($today) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Billing Period To</label><input type="date" name="bill_to_date" required value="' . e($today) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Work Item</label><select name="item[]" required style="' . $inpStyle . '">' . $billWorkOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Quantity</label><input type="number" step="0.01" min="0" name="qty[]" required style="' . $inpStyle . '" placeholder="0.00"></div>
+                <div><label style="' . $lblStyle . '">Rate (₹)</label><input type="number" step="0.01" min="0" name="rate[]" required style="' . $inpStyle . '" placeholder="0.00"></div>
+            ', 'Save Bill');
+        }
+
+        // 19 & 20. Add Machinerises / Add Machiney
+        if ($entity === 'machinery') {
+            return $this->wrapAiFormHtml('Add Machinery', url('/machinery'), url('/add_newmechinery'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Machinery Head</label><select name="head_id" required style="' . $inpStyle . '">' . $machineryHeadOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Machinery Name / Model</label><input type="text" name="macname" required style="' . $inpStyle . '" placeholder="e.g. Concrete Mixer 10/7, JCB 3DX"></div>
+                <div><label style="' . $lblStyle . '">Cost Price (₹)</label><input type="number" step="0.01" min="0" name="costprice" required style="' . $inpStyle . '" placeholder="0.00"></div>
+            ', 'Save Machinery');
+        }
+
+        // 21. Add expense head (Machinery Expense Head)
+        if ($entity === 'machinery_expense_head') {
+            return $this->wrapAiFormHtml('Add Expense Head (Machinery)', url('/machinery_expense_head'), url('/addmachineryExpensehead'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Select Expense Head to Allocate to Machinery</label>
+                    <select name="head_id" required style="' . $inpStyle . '">' . $expenseHeadOptions . '</select>
+                </div>
+            ', 'Save Expense Head');
+        }
+
+        // 22. Add Assets
+        if ($entity === 'asset') {
+            return $this->wrapAiFormHtml('Add New Asset', url('/asset_head'), url('/add_newassets'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Asset Head</label><select name="head_id" required style="' . $inpStyle . '">' . $assetHeadOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Asset Name</label><input type="text" name="assetsname" required style="' . $inpStyle . '" placeholder="e.g. Total Station, Generator 15KVA"></div>
+                <div><label style="' . $lblStyle . '">Cost Price (₹)</label><input type="number" step="0.01" min="0" name="costprice" required style="' . $inpStyle . '" placeholder="0.00"></div>
+            ', 'Save Asset');
+        }
+
+        // 23. Add Assets\'s Expense Head
+        if ($entity === 'asset_expense_head') {
+            return $this->wrapAiFormHtml("Add Asset's Expense Head", url('/asset_expense_head'), url('/addassetExpensehead'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Select Expense Head to Allocate to Assets</label>
+                    <select name="head_id" required style="' . $inpStyle . '">' . $expenseHeadOptions . '</select>
+                </div>
+            ', 'Save Asset Expense Head');
+        }
+
+        // 24. Add Invoice Heads
+        if ($entity === 'invoice_head') {
+            return $this->wrapAiFormHtml('Add Invoice Head', url('/sales_inv_head'), url('/addsalesinv_head'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Invoice Head Name</label>
+                    <input type="text" name="name" required style="' . $inpStyle . '" placeholder="e.g. Civil Construction Contract, Architecture Consulting">
+                </div>
+            ', 'Save Invoice Head');
+        }
+
+        // 25. Add sales Party
+        if ($entity === 'sales_party') {
+            return $this->wrapAiFormHtml('Add Sales Party', url('/sales_parties'), url('/addsalesparty'), '
+                <div><label style="' . $lblStyle . '">Party Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Client / Sales Party Name"></div>
+                <div><label style="' . $lblStyle . '">Phone</label><input type="text" name="phone" style="' . $inpStyle . '" placeholder="Phone Number"></div>
+                <div><label style="' . $lblStyle . '">GSTIN</label><input type="text" name="gst" style="' . $inpStyle . '" placeholder="GSTIN Number"></div>
+                <div><label style="' . $lblStyle . '">Address</label><input type="text" name="address" style="' . $inpStyle . '" placeholder="Address"></div>
+            ', 'Save Sales Party');
+        }
+
+        // 26. Add project
+        if ($entity === 'sales_project') {
+            return $this->wrapAiFormHtml('Add Sales Project', url('/sales_project'), url('/addsalesproject'), '
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Project Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Project Title"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Project Details / Scope</label><textarea name="details" rows="3" style="' . $inpStyle . '" placeholder="Scope of work, milestone details..."></textarea></div>
+            ', 'Save Project');
+        }
+
+        // 27. Add new payment voucher
+        if ($entity === 'payment_voucher') {
+            $companyField = !empty($companyId)
+                ? '<div><label style="' . $lblStyle . '">Company</label><input type="hidden" name="company_id[]" value="' . e($companyId) . '"><input type="text" readonly value="' . e($companyName) . '" style="' . $inpStyle . '"></div>'
+                : '<div><label style="' . $lblStyle . '">Company</label><input type="hidden" name="company_id[]" value=""><input type="text" readonly value="' . e($companyName) . '" style="' . $inpStyle . '"></div>';
+
+            $voucherParties = '<option value="" selected disabled>--Select Voucher Party--</option>';
+            try {
+                if ($conn) {
+                    $mSupps = DB::connection($conn)->table('material_supplier')->select('id', 'name')->get();
+                    foreach ($mSupps as $p) { $voucherParties .= '<option value="' . e($p->id) . '||material">' . e($p->name) . ' (Supplier)</option>'; }
+                    $bPs = DB::connection($conn)->table('bills_party')->select('id', 'name')->get();
+                    foreach ($bPs as $p) { $voucherParties .= '<option value="' . e($p->id) . '||bill">' . e($p->name) . ' (Bill Party)</option>'; }
+                    $oPs = DB::connection($conn)->table('other_parties')->select('id', 'name')->get();
+                    foreach ($oPs as $p) { $voucherParties .= '<option value="' . e($p->id) . '||other">' . e($p->name) . ' (Other Party)</option>'; }
+                }
+            } catch (\Throwable $e) {}
+
+            return $this->wrapAiFormHtml('Generate Payment Voucher', url('/new_paymentvoucher'), url('/addnewpaymentvouchers'), '
+                <div style="grid-column: span 2; display:flex; gap:16px; flex-wrap:wrap;">
+                    <div><label style="' . $lblStyle . '">Voucher Image</label><input type="file" accept="image/*" name="image[]" style="' . $inpStyle . '"></div>
+                    <div><label style="' . $lblStyle . '">QR Code Image</label><input type="file" accept="image/*" name="qr_code[]" style="' . $inpStyle . '"></div>
+                </div>
+                ' . $companyField . '
+                <div><label style="' . $lblStyle . '">Voucher Party</label><select name="party_id[]" required style="' . $inpStyle . '">' . $voucherParties . '</select></div>
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id[]" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Voucher No.</label><input type="text" name="voucher_no[]" required style="' . $inpStyle . '" placeholder="Voucher No."></div>
+                <div><label style="' . $lblStyle . '">Amount (₹)</label><input type="number" step="0.01" min="0" name="amount[]" required style="' . $inpStyle . '" placeholder="0.00"></div>
+                <div><label style="' . $lblStyle . '">Date</label><input type="date" name="date[]" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Payment Details</label><input type="text" name="payment_details[]" style="' . $inpStyle . '" placeholder="Cash / NEFT / Cheque No."></div>
+                <div><label style="' . $lblStyle . '">Remark</label><input type="text" name="remark[]" style="' . $inpStyle . '" placeholder="Remark (optional)"></div>
+            ', 'Save Voucher');
+        }
+
+        // 28. Add Other Party
+        if ($entity === 'other_party') {
+            return $this->wrapAiFormHtml('Add Other Party', url('/otherparty'), url('/addotherparty'), '
+                <div><label style="' . $lblStyle . '">Party Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Party Name"></div>
+                <div><label style="' . $lblStyle . '">Address</label><input type="text" name="address" style="' . $inpStyle . '" placeholder="Address"></div>
+                <div><label style="' . $lblStyle . '">PAN No.</label><input type="text" name="panno" style="' . $inpStyle . '" placeholder="PAN Number"></div>
+                <div><label style="' . $lblStyle . '">Cost Category</label><select name="cost_category_id" style="' . $inpStyle . '">' . $costCategoryOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Bank A/C No.</label><input type="text" name="bank_ac" style="' . $inpStyle . '" placeholder="Bank Account Number"></div>
+                <div><label style="' . $lblStyle . '">Bank IFSC</label><input type="text" name="bank_ifsc" style="' . $inpStyle . '" placeholder="Bank IFSC"></div>
+                <div><label style="' . $lblStyle . '">Bank Name</label><input type="text" name="bank_name" style="' . $inpStyle . '" placeholder="Bank Name"></div>
+                <div><label style="' . $lblStyle . '">A/C Holder Name</label><input type="text" name="bank_ac_holder" style="' . $inpStyle . '" placeholder="Account Holder Name"></div>
+            ', 'Save Other Party');
+        }
+
+        // 29. Add upload file in my document section
+        if ($entity === 'my_doc_upload_file') {
+            return $this->wrapAiFormHtml('Upload File in My Document Section', url('/file-structure'), url('/my_doc_upload_file'), '
+                <div><label style="' . $lblStyle . '">Document Head / Folder</label><select name="filter" required style="' . $inpStyle . '">' . $docHeadOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Document Title</label><input type="text" name="name[]" required style="' . $inpStyle . '" placeholder="Document Title / Filename"></div>
+                <div><label style="' . $lblStyle . '">Date</label><input type="date" name="date[]" required value="' . e($today) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Particular</label><input type="text" name="particular[]" style="' . $inpStyle . '" placeholder="Document Particulars"></div>
+                <div><label style="' . $lblStyle . '">Remark</label><input type="text" name="remark[]" style="' . $inpStyle . '" placeholder="Remark (optional)"></div>
+                <div><label style="' . $lblStyle . '">Select File</label><input type="file" name="img[]" required style="' . $inpStyle . '"></div>
+            ', 'Upload Document');
+        }
+
+        // 30. Add Document Head
+        if ($entity === 'doc_head') {
+            return $this->wrapAiFormHtml('Add Document Head', url('/file-structure'), url('/adddochead'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Document Head Name</label>
+                    <input type="text" name="name" required style="' . $inpStyle . '" placeholder="e.g. Structural Drawings, Approvals, Purchase Orders">
+                </div>
+            ', 'Save Document Head');
+        }
+
+        // 31. Add New Contact
+        if ($entity === 'contact') {
+            return $this->wrapAiFormHtml('Add New Contact', url('/contacts'), url('/add_contact'), '
+                <div><label style="' . $lblStyle . '">Contact Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Contact Name"></div>
+                <div><label style="' . $lblStyle . '">Phone / Mobile</label><input type="text" name="number" required style="' . $inpStyle . '" placeholder="Mobile Number"></div>
+                <div><label style="' . $lblStyle . '">Email</label><input type="email" name="email" style="' . $inpStyle . '" placeholder="Email Address"></div>
+                <div><label style="' . $lblStyle . '">Position / Designation</label><input type="text" name="position" style="' . $inpStyle . '" placeholder="e.g. Project Manager, Site Engineer"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Company Profile</label><select name="profile_id" required style="' . $inpStyle . '">' . $contactProfileOptions . '</select></div>
+            ', 'Save Contact');
+        }
+
+        // 32. Add Self Check In
+        if ($entity === 'self_check_in') {
+            return $this->wrapAiFormHtml('Add Self Check In', url('/attendance'), url('/attendance/clock-in'), '
+                <div><label style="' . $lblStyle . '">Site for Check-In</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Check-In Time</label><input type="text" value="' . e($nowTime) . ' (' . e($today) . ')" readonly style="' . $inpStyle . '"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Selfie / Verification Photo (Optional)</label><input type="file" name="photo" accept="image/*" style="' . $inpStyle . '"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Check-In Remarks</label><input type="text" name="remarks" style="' . $inpStyle . '" placeholder="Morning shift check-in..."></div>
+                <input type="hidden" name="latitude" value="0.0000">
+                <input type="hidden" name="longitude" value="0.0000">
+            ', 'Clock In Now');
+        }
+
+        // 33. Add Self Check Out
+        if ($entity === 'self_check_out') {
+            return $this->wrapAiFormHtml('Add Self Check Out', url('/attendance'), url('/attendance/clock-out'), '
+                <div><label style="' . $lblStyle . '">Site for Check-Out</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Check-Out Time</label><input type="text" value="' . e($nowTime) . ' (' . e($today) . ')" readonly style="' . $inpStyle . '"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Check-Out Remarks</label><input type="text" name="remarks" style="' . $inpStyle . '" placeholder="Evening shift complete, handover done..."></div>
+                <input type="hidden" name="latitude" value="0.0000">
+                <input type="hidden" name="longitude" value="0.0000">
+            ', 'Clock Out Now');
+        }
+
+        // 34. Add Manual Attendance
+        if ($entity === 'manual_attendance' || $entity === 'attendance') {
+            return $this->wrapAiFormHtml('Add Manual Attendance', url('/attendance'), url('/attendance/manual'), '
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Staff / Employee</label><select name="user_id" required style="' . $inpStyle . '">' . $userOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Date</label><input type="date" name="date" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Status</label><select name="status" required style="' . $inpStyle . '"><option value="Present" selected>Present</option><option value="Absent">Absent</option><option value="Half Day">Half Day</option><option value="Leave">Leave</option></select></div>
+                <div><label style="' . $lblStyle . '">Clock In Time</label><input type="time" name="clock_in" value="09:00" style="' . $inpStyle . '"></div>
+                <div><label style="' . $lblStyle . '">Clock Out Time</label><input type="time" name="clock_out" value="18:00" style="' . $inpStyle . '"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Remark</label><input type="text" name="remark" style="' . $inpStyle . '" placeholder="Attendance notes (optional)"></div>
+            ', 'Save Attendance');
+        }
+
+        // 35. Add Task
         if ($entity === 'task') {
-            $userRows = DB::connection($conn)->table('users')->select('id', 'name')->orderBy('name')->get();
-            $siteRows = DB::connection($conn)->table('sites')->select('id', 'name')->orderBy('name')->get();
-            $categoryRows = DB::connection($conn)->table('task_category')->select('id', 'name')->orderBy('name')->get();
-
-            $assignedOptions = '';
-            foreach ($userRows as $user) {
-                $assignedOptions .= '<option value="' . e($user->id) . '">' . e($user->name) . '</option>';
-            }
-
-            $siteTaskOptions = '<option value="" disabled selected>-- Choose Site --</option>';
-            foreach ($siteRows as $site) {
-                $siteTaskOptions .= '<option value="' . e($site->id) . '">' . e($site->name) . '</option>';
-            }
-
-            $categoryOptions = '<option value="" selected>-- Choose Category (Optional) --</option>';
-            foreach ($categoryRows as $category) {
-                $categoryOptions .= '<option value="' . e($category->id) . '">' . e($category->name) . '</option>';
-            }
-
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Create New Task</div>
-                        </div>
-                        <a href="' . url('/tasks') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . url('/tasks') . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Task Category</label><select name="category_id" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $categoryOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Assigned Site</label><select name="site_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteTaskOptions . '</select></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Task Title</label><input type="text" name="title" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="What needs to be done?"></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Description</label><textarea name="description" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Add details..."></textarea></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Assign To</label><select name="assigned_to[]" multiple required style="width:100%; min-height:110px; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $assignedOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Priority</label><select name="priority" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option></select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Due Date</label><input type="date" name="due_date" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Completed Date</label><input type="date" name="completed_at" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Create Task</button>
-                        </div>
-                    </form>
-                </div>
-            ';
+            return $this->wrapAiFormHtml('Add New Task', url('/tasks'), url('/tasks'), '
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Task Title</label><input type="text" name="title" required style="' . $inpStyle . '" placeholder="Enter Task Title"></div>
+                <div><label style="' . $lblStyle . '">Task Category</label><select name="category_id" style="' . $inpStyle . '">' . $taskCategoryOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Site</label><select name="site_id" required style="' . $inpStyle . '"><option value="" selected disabled>--Select Site--</option>' . $siteOptions . '</select></div>
+                <div><label style="' . $lblStyle . '">Priority</label><select name="priority" required style="' . $inpStyle . '"><option value="Medium" selected>Medium</option><option value="Low">Low</option><option value="High">High</option></select></div>
+                <div><label style="' . $lblStyle . '">Due Date</label><input type="date" name="due_date" value="' . e($today) . '" style="' . $inpStyle . '"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Assigned To</label><select name="assigned_to" required style="' . $inpStyle . '">' . $userOptions . '</select></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Description</label><textarea name="description" rows="3" style="' . $inpStyle . '" placeholder="Detailed task instructions..."></textarea></div>
+            ', 'Create Task');
         }
 
-        if ($entity === 'attendance') {
-            $userRows = DB::connection($conn)->table('users')->select('id', 'name')->orderBy('name')->get();
-            $userOptions = '<option value="" selected disabled>-- Select User --</option>';
-            foreach ($userRows as $user) {
-                $userOptions .= '<option value="' . e($user->id) . '">' . e($user->name) . '</option>';
-            }
-
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Add Manual Attendance</div>
-                        </div>
-                        <a href="' . url('/attendance') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . url('/attendance') . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">User / Labour</label><select name="user_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $userOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Date</label><input type="date" name="date" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">In Time</label><input type="time" name="in_time" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Out Time</label><input type="time" name="out_time" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Status</label><select name="status" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="Present">Present</option><option value="Absent">Absent</option><option value="Late">Late</option></select></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Remarks</label><textarea name="remarks" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Attendance remarks"></textarea></div>
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save Attendance</button>
-                        </div>
-                    </form>
+        // 36. Add Task Category
+        if ($entity === 'task_category') {
+            return $this->wrapAiFormHtml('Add Task Category', url('/task_category'), url('/addtaskcategory'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Category Name</label>
+                    <input type="text" name="name" required style="' . $inpStyle . '" placeholder="e.g. Electrical, Plumbing, Painting, Inspection">
                 </div>
-            ';
+            ', 'Save Task Category');
         }
 
+        // 37. Add New Company
+        if ($entity === 'company') {
+            return $this->wrapAiFormHtml('Add New Company', url('/sales_companies'), url('/addsalescompany'), '
+                <div><label style="' . $lblStyle . '">Company Name</label><input type="text" name="name" required style="' . $inpStyle . '" placeholder="Company / Entity Name"></div>
+                <div><label style="' . $lblStyle . '">Phone</label><input type="text" name="phone" style="' . $inpStyle . '" placeholder="Phone Number"></div>
+                <div><label style="' . $lblStyle . '">GSTIN</label><input type="text" name="gst" style="' . $inpStyle . '" placeholder="GSTIN Number"></div>
+                <div><label style="' . $lblStyle . '">State</label><input type="text" name="state" style="' . $inpStyle . '" placeholder="State Name"></div>
+                <div><label style="' . $lblStyle . '">State Code</label><input type="text" name="state_code" style="' . $inpStyle . '" placeholder="e.g. 27"></div>
+                <div><label style="' . $lblStyle . '">Address</label><input type="text" name="address" style="' . $inpStyle . '" placeholder="Address"></div>
+            ', 'Save Company');
+        }
+
+        // 38. Add Support Ticket
         if ($entity === 'ticket') {
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">Create Support Ticket</div>
-                        </div>
-                        <a href="' . url('/tickets') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . url('/tickets') . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Subject</label><input type="text" name="subject" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Ticket subject"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Priority</label><select name="priority" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option></select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Department</label><select name="department" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="Support">Support</option><option value="Technical">Technical</option><option value="Operations">Operations</option></select></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Message / Description</label><textarea name="message" rows="4" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Describe the issue"></textarea></div>
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Create Ticket</button>
-                        </div>
-                    </form>
-                </div>
-            ';
+            return $this->wrapAiFormHtml('Add Support Ticket', url('/tickets'), url('/tickets'), '
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Ticket Subject</label><input type="text" name="subject" required style="' . $inpStyle . '" placeholder="Brief summary of the issue"></div>
+                <div style="grid-column: span 2;"><label style="' . $lblStyle . '">Description / Details</label><textarea name="description" rows="4" required style="' . $inpStyle . '" placeholder="Explain the problem or requirement in detail..."></textarea></div>
+            ', 'Submit Support Ticket');
         }
 
-        if ($entity === 'machinery' || $entity === 'machinery_head' || $entity === 'machinery_expense_head') {
-            $machineHeadRows = DB::connection($conn)->table('machinery_head')->select('id', 'name')->orderBy('name')->get();
-            $expenseHeadRows = DB::connection($conn)->table('machinery_expense_head')->select('id', 'name')->orderBy('name')->get();
-            $machineryHeadOptions = '<option value="" selected disabled>--Select Machinery Head--</option>';
-            foreach ($machineHeadRows as $row) {
-                $machineryHeadOptions .= '<option value="' . e($row->id) . '">' . e($row->name) . '</option>';
-            }
-            $expenseHeadOptions = '<option value="" selected disabled>--Select Expense Head--</option>';
-            foreach ($expenseHeadRows as $row) {
-                $expenseHeadOptions .= '<option value="' . e($row->id) . '">' . e($row->name) . '</option>';
-            }
-
-            $title = ($entity === 'machinery_expense_head') ? 'Add Machinery Expense Head' : (($entity === 'machinery_head') ? 'Add Machinery Head' : 'Add New Machinery');
-            $action = ($entity === 'machinery_expense_head') ? url('/addmachineryExpensehead') : (($entity === 'machinery_head') ? url('/addmachineryhead') : url('/add_newmechinery'));
-
-            $headFields = ($entity === 'machinery') ? '
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Machinery Head</label><select name="head_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $machineryHeadOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Expense Head</label><select name="expense_head_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $expenseHeadOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Machinery Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Machine name"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Purchase Date</label><input type="date" name="purchase_date" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Amount</label><input type="number" step="0.01" name="amount" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Remarks</label><textarea name="remark" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Entry remarks"></textarea></div>' : (
-                ($entity === 'machinery_head') ? '
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Head Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Machinery head name"></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Description</label><textarea name="description" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Description"></textarea></div>' : '
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Expense Head Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Machinery expense head name"></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Description</label><textarea name="description" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Expense head description"></textarea></div>'
-            );
-
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">' . e($title) . '</div>
-                        </div>
-                        <a href="' . $action . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . $action . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            ' . $headFields . '
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save</button>
-                        </div>
-                    </form>
+        // Machinery Head
+        if ($entity === 'machinery_head') {
+            return $this->wrapAiFormHtml('Add Machinery Head', url('/machinery_head'), url('/addmachineryhead'), '
+                <div style="grid-column: span 2;">
+                    <label style="' . $lblStyle . '">Machinery Head Name</label>
+                    <input type="text" name="name" required style="' . $inpStyle . '" placeholder="e.g. Excavators, Generators, Mixers, Cranes">
                 </div>
-            ';
+            ', 'Save Machinery Head');
         }
 
-        if ($entity === 'asset' || $entity === 'asset_head') {
-            $assetHeadRows = DB::connection($conn)->table('asset_head')->select('id', 'name')->orderBy('name')->get();
-            $assetHeadOptions = '<option value="" selected disabled>--Select Asset Head--</option>';
-            foreach ($assetHeadRows as $row) {
-                $assetHeadOptions .= '<option value="' . e($row->id) . '">' . e($row->name) . '</option>';
-            }
+        return '<div style="padding:14px; color:#f87171;">Form could not be generated for this request.</div>';
+    }
 
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">' . ($entity === 'asset_head' ? 'Add Asset Head' : 'Add New Asset') . '</div>
-                        </div>
-                        <a href="' . ($entity === 'asset_head' ? url('/assets_head') : url('/new_asset')) . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . ($entity === 'asset_head' ? url('/add_asset_head') : url('/addnew_asset')) . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            ' . ($entity === 'asset_head' ? '
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Asset Head Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Asset head name"></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Description</label><textarea name="description" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Description"></textarea></div>' : '
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Asset Head</label><select name="asset_head_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $assetHeadOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Asset Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Asset name"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Purchase Date</label><input type="date" name="purchase_date" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Cost</label><input type="number" min="0" step="0.01" name="cost" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
-                            <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Status</label><select name="status" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="Active">Active</option><option value="Sold">Sold</option><option value="Maintenance">Maintenance</option></select></div>
-                            <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Remarks</label><textarea name="remark" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Remarks"></textarea></div>') . '
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save</button>
-                        </div>
-                    </form>
-                </div>
-            ';
-        }
-
-        if ($entity === 'sales_party' || $entity === 'sales_project' || $entity === 'invoice_head' || $entity === 'contact_category' || $entity === 'contact_company' || $entity === 'cost_category' || $entity === 'expense_party' || $entity === 'material_supplier' || $entity === 'material_unit' || $entity === 'material_entry' || $entity === 'bill_party' || $entity === 'payment_voucher') {
-            $actionUrl = [
-                'sales_party' => url('/sales_parties'),
-                'sales_project' => url('/sales_project'),
-                'invoice_head' => url('/sales_inv_head'),
-                'contact_category' => url('/contact_category'),
-                'contact_company' => url('/contacts'),
-                'cost_category' => url('/cost_categories'),
-                'expense_party' => url('/expense_parties'),
-                'material_supplier' => url('/materialsupplier'),
-                'material_unit' => url('/material_unit'),
-                'material_entry' => url('/new_material'),
-                'bill_party' => url('/billparty'),
-                'payment_voucher' => url('/new_paymentvoucher')
-            ][$entity] ?? url('/dashboard');
-
-            $title = [
-                'sales_party' => 'Add Sales Party',
-                'sales_project' => 'Add Sales Project',
-                'invoice_head' => 'Add Invoice Head',
-                'contact_category' => 'Add Contact Category',
-                'contact_company' => 'Add Company in Contacts',
-                'cost_category' => 'Add Cost Category',
-                'expense_party' => 'Add Expense Party',
-                'material_supplier' => 'Add Material Supplier',
-                'material_unit' => 'Add Material Unit',
-                'material_entry' => 'Add Material Entry',
-                'bill_party' => 'Add New Bill Party',
-                'payment_voucher' => 'Generate Payment Voucher'
-            ][$entity] ?? 'Add Entry';
-
-            $content = '';
-            if ($entity === 'sales_party') {
-                $content = '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Party Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Sales party name"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Address</label><input type="text" name="address" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Address"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Phone</label><input type="text" name="phone" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Phone"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">GST</label><input type="text" name="gst" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="GST number"></div>';
-            } elseif ($entity === 'sales_project') {
-                $content = '<div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Project Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Project name"></div><div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Details</label><textarea name="details" rows="3" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Project description"></textarea></div>';
-            } elseif ($entity === 'invoice_head') {
-                $content = '<div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Head Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Invoice head name"></div>';
-            } elseif ($entity === 'contact_category') {
-                $content = '<div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Category Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Contact category"></div>';
-            } elseif ($entity === 'contact_company') {
-                $content = '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Company Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Company name"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Phone</label><input type="text" name="phone" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Phone"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Email</label><input type="email" name="email" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Email"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Address</label><input type="text" name="address" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Address"></div>';
-            } elseif ($entity === 'cost_category') {
-                $content = '<div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Cost Category Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Cost category name"></div>';
-            } elseif ($entity === 'expense_party') {
-                $content = '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Party Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Expense party name"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Address</label><input type="text" name="address" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Address"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">PAN</label><input type="text" name="pan_no" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="PAN number"></div>';
-            } elseif ($entity === 'material_supplier') {
-                $content = '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Supplier Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Supplier name"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Address</label><input type="text" name="address" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Supplier address"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">GSTIN</label><input type="text" name="gstin" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="GSTIN"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Bank A/c</label><input type="text" name="bank_ac" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Account number"></div>';
-            } elseif ($entity === 'material_unit') {
-                $content = '<div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Unit Name</label><input type="text" name="name" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Unit name"></div>';
-            } elseif ($entity === 'material_entry') {
-                $content = '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Material</label><select name="material_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptions . '</select></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Quantity</label><input type="number" step="0.01" name="qty" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div><div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Date</label><input type="date" name="date" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>';
-            } elseif ($entity === 'bill_party') {
-                $costCategoryRows = DB::connection($conn)->table('expense_head')->select('id', 'name')->orderBy('name')->get();
-                $costCategoryOptions = '<option value="" selected disabled>-- Select Cost Category --</option>';
-                foreach ($costCategoryRows as $category) {
-                    $costCategoryOptions .= '<option value="' . e($category->id) . '">' . e($category->name) . '</option>';
-                }
-
-                $content = '
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Name</label><input type="text" id="Name" required name="name" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Bill party name"></div>
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Address</label><input type="text" id="Address" required name="address" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Address"></div>
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Pan No.</label><input type="text" id="panno" required name="panno" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Pan No."></div>
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Bank A/C</label><input type="text" id="bank_ac" required name="bank_ac" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Account number"></div>
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Bank Ifsc</label><input type="text" id="ifsc" required name="ifsc" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="IFSC"></div>
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Bank Name</label><input type="text" id="bankname" required name="bankname" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Bank name"></div>
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Bank A/C Holder</label><input type="text" id="ac_holder_name" required name="ac_holder_name" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Bank account holder name"></div>
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Cost Category</label><select name="cost_category_id" id="cost_category_id" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $costCategoryOptions . '</select></div>
-                    <div style="grid-column: span 2;"><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">QR Code Image</label><input type="file" id="qr_code" class="form-control" name="qr_code" accept="image/*" style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                ';
-            } elseif ($entity === 'payment_voucher') {
-                $selectedCompanyId = $tenant['comp_db_id'] ?? session()->get('comp_db_id') ?? '';
-                $selectedCompanyName = $tenant['comp_name'] ?? session()->get('comp_name') ?? 'Company';
-                $companyField = !empty($selectedCompanyId)
-                    ? '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Company</label><input type="hidden" name="company_id[]" value="' . e($selectedCompanyId) . '"><select class="form-control" disabled style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="' . e($selectedCompanyId) . '" selected>' . e($selectedCompanyName) . '</option></select></div>'
-                    : '<div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Company</label><input type="hidden" name="company_id[]" value=""><select class="form-control" disabled style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"><option value="" selected>--Select Company--</option></select></div>';
-
-                $siteOptionsForVoucher = '<option value="" selected disabled>--Select Voucher Party First--</option>';
-                foreach ($sites as $site) {
-                    $siteOptionsForVoucher .= '<option value="' . e($site->id) . '">' . e($site->name) . '</option>';
-                }
-
-                $partyOptionsForVoucher = '<option value="" selected disabled>--Select Voucher Party--</option>';
-                $partyRows = DB::connection($conn)->table('material_supplier')->select('id', 'name')->orderBy('name')->get();
-                foreach ($partyRows as $party) {
-                    $partyOptionsForVoucher .= '<option value="' . e($party->id) . '||material">' . e($party->name) . '</option>';
-                }
-                $billRows = DB::connection($conn)->table('bills_party')->select('id', 'name')->orderBy('name')->get();
-                foreach ($billRows as $party) {
-                    $partyOptionsForVoucher .= '<option value="' . e($party->id) . '||bill">' . e($party->name) . '</option>';
-                }
-                $otherRows = DB::connection($conn)->table('other_parties')->select('id', 'name')->orderBy('name')->get();
-                foreach ($otherRows as $party) {
-                    $partyOptionsForVoucher .= '<option value="' . e($party->id) . '||other">' . e($party->name) . '</option>';
-                }
-                foreach ($sites as $site) {
-                    $partyOptionsForVoucher .= '<option value="' . e($site->id) . '||site||W">' . e($site->name) . '</option>';
-                }
-
-                $content = '
-                    <div style="grid-column: span 2; display:flex; justify-content:flex-start; gap:16px; flex-wrap:wrap; align-items:flex-start;">
-                        <div style="min-width:160px;">
-                            <label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Voucher Image</label>
-                            <img height="120" width="120" src="' . asset('/images/expense.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="Voucher image preview">
-                            <input type="file" accept="Image/*" name="image[]" style="margin-top:8px; width:100%; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                        </div>
-                        <div style="min-width:160px;">
-                            <label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">QR Code Image</label>
-                            <img height="120" width="120" src="' . asset('/images/expense.png') . '" style="border-radius:50%; object-fit:cover; border:2px solid rgba(148,163,184,0.45); background:#0f172a;" alt="QR image preview">
-                            <input type="file" accept="Image/*" name="qr_code[]" style="margin-top:8px; width:100%; padding:8px 10px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">
-                        </div>
-                    </div>
-                    ' . $companyField . '
-                    <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Voucher Party</label><select name="party_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $partyOptionsForVoucher . '</select></div>
-                    <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Site</label><select name="site_id[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;">' . $siteOptionsForVoucher . '</select></div>
-                    <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Voucher No.</label><input type="text" name="voucher_no[]" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter The Voucher No."></div>
-                    <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Amount</label><input type="number" name="amount[]" min="0" step="0.01" required style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="0.00"></div>
-                    <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Date</label><input type="date" name="date[]" required value="' . e($today) . '" min="' . e($minDate) . '" max="' . e($maxDate) . '" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;"></div>
-                    <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Payment Details</label><input type="text" name="payment_details[]" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter The Payment Details"></div>
-                    <div><label style="display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;">Remark</label><input type="text" name="remark[]" style="width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff;" placeholder="Enter The Remark (If Any)"></div>';
-            }
-
-            return '
-                <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-                        <div>
-                            <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
-                            <div style="font-size:20px; font-weight:700; margin-top:4px;">' . e($title) . '</div>
-                        </div>
-                        <a href="' . $actionUrl . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
-                    </div>
-                    <form action="' . $actionUrl . '" method="POST" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
-                        ' . csrf_field() . '
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
-                            ' . $content . '
-                        </div>
-                        <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
-                            <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700;">Save</button>
-                        </div>
-                    </form>
-                </div>
-            ';
-        }
-
+    private function wrapAiFormHtml($title, $fullUrl, $actionUrl, $inputsHtml, $buttonLabel = 'Save')
+    {
         return '
             <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
-                <div style="font-size:18px; font-weight:700; margin-bottom:8px;">Add ' . e(ucfirst($entity)) . '</div>
-                <p style="margin:0; color:#d1d5db;">The prompt is recognized as a create action, but the exact form is not yet mapped for this module.</p>
-                <div style="margin-top:12px;"><a href="' . url('/users') . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-weight:700;">Open main list page</a></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
+                        <div style="font-size:20px; font-weight:700; margin-top:4px;">' . e($title) . '</div>
+                    </div>
+                    <a href="' . $fullUrl . '" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
+                </div>
+                <form action="' . $actionUrl . '" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); if (typeof submitAiForm === \'function\') { submitAiForm(this); } else { this.submit(); }" style="display:block;">
+                    ' . csrf_field() . '
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                        ' . $inputsHtml . '
+                    </div>
+                    <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+                        <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700; cursor:pointer;">' . e($buttonLabel) . '</button>
+                    </div>
+                </form>
             </div>
         ';
     }
@@ -1856,6 +2135,80 @@ class AiChatQueryController extends Controller
                     $sql = $joinedSelect . ' ' . $cleanTail;
                 } else {
                     $sql = $joinedSelect . ' ORDER BY expenses.id DESC';
+                }
+            }
+        }
+
+        return $sql;
+    }
+
+    /**
+     * Post-process generated SQL to ensure requested status filters (pending, verified/approved, rejected, paid)
+     * are strictly enforced when user explicitly requests them in free-form text or voice queries.
+     */
+    private function normalizeGeneratedQueryStatus($sql, $queryText)
+    {
+        if (empty($sql) || empty($queryText)) {
+            return $sql;
+        }
+
+        $lower = strtolower(trim($queryText));
+        $hasPending = (strpos($lower, 'pending') !== false || strpos($lower, 'unapproved') !== false || strpos($lower, 'baki') !== false || strpos($lower, 'baaki') !== false);
+        $hasApproved = (strpos($lower, 'verified') !== false || strpos($lower, 'approved') !== false || strpos($lower, 'clear') !== false || strpos($lower, 'cleared') !== false || strpos($lower, 'pass') !== false);
+        $hasRejected = (strpos($lower, 'rejected') !== false || strpos($lower, 'reject') !== false || strpos($lower, 'declined') !== false);
+        $hasPaid = (strpos($lower, 'paid') !== false);
+        $hasInactive = (strpos($lower, 'inactive') !== false);
+        $hasActive = (strpos($lower, 'active') !== false && !$hasInactive);
+
+        if (!$hasPending && !$hasApproved && !$hasRejected && !$hasPaid && !$hasInactive && !$hasActive) {
+            return $sql;
+        }
+
+        $tables = [
+            'expenses' => 'expenses.status',
+            'material_entry' => 'material_entry.status',
+            'tasks' => 'tasks.status',
+            'attendance' => 'attendance.status',
+            'payment_vouchers' => 'payment_vouchers.status',
+            'bills_party' => 'bills_party.status',
+            'users' => 'users.status',
+        ];
+
+        foreach ($tables as $tbl => $col) {
+            if (preg_match('/\bFROM\s+[`"]?' . preg_quote($tbl, '/') . '[`"]?\b/i', $sql)) {
+                // If query already has status filtering for this table or column, skip
+                if (preg_match('/\b(?:' . preg_quote($tbl, '/') . '\.)?status\s*(?:LIKE|=|IN)\b/i', $sql)) {
+                    continue;
+                }
+
+                $condition = null;
+                if ($hasPending) {
+                    $condition = "({$col} LIKE '%Pending%' OR {$col} LIKE '%pending%')";
+                } else if ($hasApproved) {
+                    if ($tbl === 'tasks') {
+                        $condition = "({$col} LIKE '%Completed%' OR {$col} LIKE '%completed%' OR {$col} LIKE '%Approved%')";
+                    } else {
+                        $condition = "({$col} LIKE '%Approved%' OR {$col} LIKE '%Verified%' OR {$col} LIKE '%approved%' OR {$col} LIKE '%verified%')";
+                    }
+                } else if ($hasRejected) {
+                    $condition = "({$col} LIKE '%Rejected%' OR {$col} LIKE '%rejected%')";
+                } else if ($hasPaid) {
+                    $condition = "({$col} LIKE '%Paid%' OR {$col} LIKE '%paid%')";
+                } else if ($hasInactive && $tbl === 'users') {
+                    $condition = "({$col} LIKE '%Inactive%' OR {$col} LIKE '%inactive%')";
+                } else if ($hasActive && $tbl === 'users') {
+                    $condition = "({$col} LIKE '%Active%' OR {$col} LIKE '%active%')";
+                }
+
+                if ($condition) {
+                    if (preg_match('/\bWHERE\b/i', $sql)) {
+                        $sql = preg_replace('/\bWHERE\b/i', "WHERE {$condition} AND", $sql, 1);
+                    } else if (preg_match('/\b(GROUP\s+BY|ORDER\s+BY|LIMIT)\b/i', $sql, $clauseMatch, PREG_OFFSET_CAPTURE)) {
+                        $offset = $clauseMatch[0][1];
+                        $sql = substr($sql, 0, $offset) . "WHERE {$condition} " . substr($sql, $offset);
+                    } else {
+                        $sql .= " WHERE {$condition}";
+                    }
                 }
             }
         }

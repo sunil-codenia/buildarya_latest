@@ -114,6 +114,49 @@ class RoleController extends Controller
                 ->with('success', 'Role Deleted Successfully!');
         }
     }
+
+    public function bulk_delete_roles(Request $request)
+    {
+        $ids = $request->input('ids');
+        $user_db_conn_name = $request->session()->get('comp_db_conn_name');
+
+        if (!empty($ids) && is_array($ids)) {
+            $deletedCount = 0;
+            $cannotDelete = 0;
+
+            foreach ($ids as $id) {
+                if ($id == 1) {
+                    $cannotDelete++;
+                    continue;
+                }
+
+                $userCount = DB::connection($user_db_conn_name)->table('users')->where('role_id', $id)->count();
+                if ($userCount > 0) {
+                    $cannotDelete++;
+                    continue;
+                }
+
+                $role = DB::connection($user_db_conn_name)->table('roles')->where('id', $id)->first();
+                if ($role) {
+                    DB::connection($user_db_conn_name)->table('roles')->where('id', $id)->delete();
+                    addActivity(0, 'roles', "Role Deleted - " . $role->name, 1);
+                    $deletedCount++;
+                }
+            }
+
+            if ($deletedCount > 0) {
+                $msg = $deletedCount . " role(s) deleted successfully.";
+                if ($cannotDelete > 0) {
+                    $msg .= " " . $cannotDelete . " role(s) could not be deleted because they are default or assigned to active users.";
+                }
+                return response()->json(['status' => 'Ok', 'message' => $msg]);
+            } else {
+                return response()->json(['status' => 'Error', 'message' => 'Selected roles are default or currently assigned to active users and cannot be deleted.'], 400);
+            }
+        }
+
+        return response()->json(['status' => 'Error', 'message' => 'No roles selected.'], 400);
+    }
     public function updaterole(Request $request)
     {
         $id = $request->input('id');

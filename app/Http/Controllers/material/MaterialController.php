@@ -52,6 +52,15 @@ class MaterialController extends Controller
             $query->orderBy('id', 'desc');
         }
 
+        if ($request->input('all_ids')) {
+            $ids = $query->pluck('materials.id')->map(function($id) { return (string)$id; })->toArray();
+            return response()->json([
+                'status' => 'Ok',
+                'ids' => $ids,
+                'total' => $totalRecords
+            ]);
+        }
+
         $start = $request->input('start', 0);
         $length = $request->input('length', 10);
         

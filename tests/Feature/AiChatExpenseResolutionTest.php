@@ -149,5 +149,186 @@ class AiChatExpenseResolutionTest extends TestCase
         $this->assertStringNotContainsString('<th>Site Id</th>', $html);
         $this->assertStringNotContainsString('<th>User Id</th>', $html);
     }
+
+    public function test_pending_expenses_generates_strict_pending_status_filter(): void
+    {
+        $controller = new AiChatQueryController();
+        $method = new \ReflectionMethod($controller, 'generateDynamicSqlFromText');
+        $method->setAccessible(true);
+
+        $tenant = [
+            'site_id' => null,
+            'site_name' => 'Head Office',
+            'is_superadmin' => true,
+            'assigned_site_ids' => []
+        ];
+
+        $sql = strtolower($method->invoke($controller, 'pending expenses', $tenant));
+
+        $this->assertStringContainsString('from expenses', $sql);
+        $this->assertStringContainsString('where', $sql);
+        $this->assertStringContainsString('expenses.status like', $sql);
+        $this->assertStringContainsString('pending', $sql);
+    }
+
+    public function test_verified_expenses_generates_strict_verified_status_filter(): void
+    {
+        $controller = new AiChatQueryController();
+        $method = new \ReflectionMethod($controller, 'generateDynamicSqlFromText');
+        $method->setAccessible(true);
+
+        $tenant = [
+            'site_id' => null,
+            'site_name' => 'Head Office',
+            'is_superadmin' => true,
+            'assigned_site_ids' => []
+        ];
+
+        $sql = strtolower($method->invoke($controller, 'verified expenses', $tenant));
+
+        $this->assertStringContainsString('from expenses', $sql);
+        $this->assertStringContainsString('where', $sql);
+        $this->assertStringContainsString('expenses.status like', $sql);
+        $this->assertTrue(strpos($sql, 'approved') !== false || strpos($sql, 'verified') !== false);
+    }
+
+    public function test_approved_expenses_generates_approved_status_filter(): void
+    {
+        $controller = new AiChatQueryController();
+        $method = new \ReflectionMethod($controller, 'generateDynamicSqlFromText');
+        $method->setAccessible(true);
+
+        $tenant = [
+            'site_id' => null,
+            'site_name' => 'Head Office',
+            'is_superadmin' => true,
+            'assigned_site_ids' => []
+        ];
+
+        $sql = strtolower($method->invoke($controller, 'approved expenses', $tenant));
+
+        $this->assertStringContainsString('from expenses', $sql);
+        $this->assertStringContainsString('where', $sql);
+        $this->assertStringContainsString('expenses.status like', $sql);
+        $this->assertStringContainsString('approved', $sql);
+    }
+
+    public function test_rejected_expenses_generates_rejected_status_filter(): void
+    {
+        $controller = new AiChatQueryController();
+        $method = new \ReflectionMethod($controller, 'generateDynamicSqlFromText');
+        $method->setAccessible(true);
+
+        $tenant = [
+            'site_id' => null,
+            'site_name' => 'Head Office',
+            'is_superadmin' => true,
+            'assigned_site_ids' => []
+        ];
+
+        $sql = strtolower($method->invoke($controller, 'rejected expenses', $tenant));
+
+        $this->assertStringContainsString('from expenses', $sql);
+        $this->assertStringContainsString('where', $sql);
+        $this->assertStringContainsString('expenses.status like', $sql);
+        $this->assertStringContainsString('rejected', $sql);
+    }
+
+    public function test_attendance_status_queries_generate_proper_filters(): void
+    {
+        $controller = new AiChatQueryController();
+        $method = new \ReflectionMethod($controller, 'generateDynamicSqlFromText');
+        $method->setAccessible(true);
+
+        $tenant = [
+            'site_id' => null,
+            'site_name' => 'Head Office',
+            'is_superadmin' => true,
+            'assigned_site_ids' => []
+        ];
+
+        // 1. Present attendance
+        $presentSql = strtolower($method->invoke($controller, 'present attendance report', $tenant));
+        $this->assertStringContainsString('from attendance', $presentSql);
+        $this->assertStringContainsString('attendance.status like', $presentSql);
+        $this->assertStringContainsString('present', $presentSql);
+
+        // 2. Absent attendance
+        $absentSql = strtolower($method->invoke($controller, 'absent attendance report', $tenant));
+        $this->assertStringContainsString('from attendance', $absentSql);
+        $this->assertStringContainsString('attendance.status like', $absentSql);
+        $this->assertStringContainsString('absent', $absentSql);
+    }
+
+    public function test_material_status_queries_generate_proper_filters(): void
+    {
+        $controller = new AiChatQueryController();
+        $method = new \ReflectionMethod($controller, 'generateDynamicSqlFromText');
+        $method->setAccessible(true);
+
+        $tenant = [
+            'site_id' => null,
+            'site_name' => 'Head Office',
+            'is_superadmin' => true,
+            'assigned_site_ids' => []
+        ];
+
+        $pendingMatSql = strtolower($method->invoke($controller, 'pending materials', $tenant));
+        $this->assertStringContainsString('from material_entry', $pendingMatSql);
+        $this->assertStringContainsString('material_entry.status like', $pendingMatSql);
+        $this->assertStringContainsString('pending', $pendingMatSql);
+
+        $approvedMatSql = strtolower($method->invoke($controller, 'approved materials', $tenant));
+        $this->assertStringContainsString('from material_entry', $approvedMatSql);
+        $this->assertStringContainsString('material_entry.status like', $approvedMatSql);
+        $this->assertStringContainsString('approved', $approvedMatSql);
+    }
+
+    public function test_tasks_status_queries_generate_proper_filters(): void
+    {
+        $controller = new AiChatQueryController();
+        $method = new \ReflectionMethod($controller, 'generateDynamicSqlFromText');
+        $method->setAccessible(true);
+
+        $tenant = [
+            'site_id' => null,
+            'site_name' => 'Head Office',
+            'is_superadmin' => true,
+            'assigned_site_ids' => []
+        ];
+
+        $pendingTaskSql = strtolower($method->invoke($controller, 'pending tasks', $tenant));
+        $this->assertStringContainsString('from tasks', $pendingTaskSql);
+        $this->assertStringContainsString('tasks.status like', $pendingTaskSql);
+        $this->assertStringContainsString('pending', $pendingTaskSql);
+
+        $completedTaskSql = strtolower($method->invoke($controller, 'completed tasks', $tenant));
+        $this->assertStringContainsString('from tasks', $completedTaskSql);
+        $this->assertStringContainsString('tasks.status like', $completedTaskSql);
+        $this->assertStringContainsString('completed', $completedTaskSql);
+    }
+
+    public function test_normalize_generated_query_status_injects_missing_where_clause(): void
+    {
+        $controller = new AiChatQueryController();
+        $method = new \ReflectionMethod($controller, 'normalizeGeneratedQueryStatus');
+        $method->setAccessible(true);
+
+        // Simulated raw query from LLM that forgot status filter
+        $rawSqlWithWhere = "SELECT * FROM expenses WHERE expenses.site_id = 45 ORDER BY expenses.id DESC";
+        $injectedWithWhere = $method->invoke($controller, $rawSqlWithWhere, "pending expenses");
+
+        $this->assertStringContainsString('expenses.status LIKE \'%Pending%\'', $injectedWithWhere);
+        $this->assertStringContainsString('WHERE (expenses.status LIKE', $injectedWithWhere);
+        $this->assertStringContainsString('AND expenses.site_id = 45', $injectedWithWhere);
+
+        // Simulated raw query without WHERE
+        $rawSqlNoWhere = "SELECT * FROM expenses ORDER BY expenses.id DESC";
+        $injectedNoWhere = $method->invoke($controller, $rawSqlNoWhere, "verified expenses");
+
+        $this->assertStringContainsString('WHERE (expenses.status LIKE', $injectedNoWhere);
+        $this->assertStringContainsString('Approved', $injectedNoWhere);
+        $this->assertStringContainsString('ORDER BY expenses.id DESC', $injectedNoWhere);
+    }
 }
 

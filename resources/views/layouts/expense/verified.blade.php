@@ -23,25 +23,33 @@
                             </div>
                         </div>
 
-                        <div id="bulkActionsVerified" style="display: none; margin-bottom: 10px;">
-                            <div class="alert alert-info" style="display: inline-block; padding: 10px 20px; margin-bottom: 0;">
-                                <strong>Bulk Actions: </strong>
-                                @if (isSuperAdmin() || checkmodulepermission(2, 'can_edit'))
-                                    <button class="btn btn-warning btn-icon btn-round" title="Bulk Edit"
-                                        type="button" onclick="submitBulkEdit()">
-                                        <i class="zmdi zmdi-edit" style="color: white;"></i>
-                                    </button>
-                                @endif
-                                @if (isSuperAdmin() || checkmodulepermission(2, 'can_certify'))
-                                    <button class="btn btn-success btn-icon btn-round" title="Bulk Approve"
-                                        type="button" onclick="submitBulkStatus('Approve')">
-                                        <i class="zmdi zmdi-check" style="color: white;"></i>
-                                    </button>
-                                    <button class="btn btn-danger btn-icon btn-round" title="Bulk Reject"
-                                        type="button" onclick="submitBulkStatus('Reject')">
-                                        <i class="zmdi zmdi-block" style="color: white;"></i>
-                                    </button>
-                                @endif
+                        <!-- Bulk Actions Bar -->
+                        <div id="bulkActionsVerified" class="p-2 mb-2 border rounded shadow-sm bulk-actions-container" style="display: none; border-left: 5px solid #eda61a !important;">
+                            <div class="row align-items-center">
+                                <div class="col-sm-6">
+                                    <span id="bulkSelectionTextVerified" class="ml-2 font-weight-bold" style="color: #ffffff; font-size: 14px;">
+                                        <span id="selectedCountVerified" style="color: #eda61a; font-weight: 800; font-size: 16px;">0</span> Expenses Selected
+                                        <span id="allPagesBadgeVerified" class="badge badge-warning ml-2" style="display: none; background: #eda61a; color: #000; font-weight: 700;">All Pages</span>
+                                    </span>
+                                </div>
+                                <div class="col-sm-6 text-right">
+                                    @if (isSuperAdmin() || checkmodulepermission(2, 'can_certify'))
+                                        <button class="btn btn-success btn-sm btn-round" title="Bulk Approve"
+                                            type="button" onclick="submitBulkStatus('Approve')">
+                                            <i class="zmdi zmdi-check"></i> Approve
+                                        </button>
+                                        <button class="btn btn-danger btn-sm btn-round" title="Bulk Reject"
+                                            type="button" onclick="submitBulkStatus('Reject')">
+                                            <i class="zmdi zmdi-block"></i> Reject
+                                        </button>
+                                    @endif
+                                    @if (isSuperAdmin() || checkmodulepermission(2, 'can_edit'))
+                                        <button class="btn btn-warning btn-sm btn-round" title="Bulk Edit"
+                                            type="button" onclick="submitBulkEdit()">
+                                            <i class="zmdi zmdi-edit"></i> Edit
+                                        </button>
+                                    @endif
+                                </div>
                             </div>
                         </div>
 
@@ -310,25 +318,74 @@
             $('#assignmachineryhead').modal();
         }
 
-        window.toggleBulkActions = function() {
+        var allVerifiedExpensesSelectedAcrossPages = false;
+
+        window.toggleBulkActions = function(isAllPages = false) {
             var checkedCount = selectedVerifiedExpenseIds.size;
             if (checkedCount > 0) {
-                $("#bulkActionsVerified").addClass('bulk-show');
+                $('#selectedCountVerified').text(checkedCount);
+                if (isAllPages) {
+                    $('#allPagesBadgeVerified').show();
+                } else {
+                    $('#allPagesBadgeVerified').hide();
+                }
+                $("#bulkActionsVerified").fadeIn();
             } else {
-                $("#bulkActionsVerified").removeClass('bulk-show');
+                $("#bulkActionsVerified").fadeOut();
+                $('#allPagesBadgeVerified').hide();
+                $('#select_all_verified').prop('checked', false);
+                allVerifiedExpensesSelectedAcrossPages = false;
             }
         };
 
         function selectAllVerified(source) {
-            $('.item_checkbox').each(function() {
-                this.checked = source.checked;
-                if (source.checked) {
-                    selectedVerifiedExpenseIds.add(this.value);
-                } else {
-                    selectedVerifiedExpenseIds.delete(this.value);
+            var isChecked = source.checked;
+            if (isChecked) {
+                allVerifiedExpensesSelectedAcrossPages = true;
+                $('.item_checkbox').prop('checked', true);
+
+                let dtParams = {};
+                if ($.fn.DataTable.isDataTable('#verifiedExpenseTable')) {
+                    dtParams = $('#verifiedExpenseTable').DataTable().ajax.params() || {};
                 }
-            });
-            toggleBulkActions();
+                dtParams._token = "{{ csrf_token() }}";
+                dtParams.all_ids = 1;
+
+                $('#selectedCountVerified').html('<i class="zmdi zmdi-spinner zmdi-hc-spin"></i>');
+                $("#bulkActionsVerified").fadeIn();
+
+                $.ajax({
+                    url: "{{ url('/verified_expense_ajax') }}",
+                    type: "POST",
+                    data: dtParams,
+                    success: function(res) {
+                        if (res.status === 'Ok' && Array.isArray(res.ids)) {
+                            selectedVerifiedExpenseIds.clear();
+                            res.ids.forEach(function(id) {
+                                selectedVerifiedExpenseIds.add(String(id));
+                            });
+                            $('.item_checkbox').prop('checked', true);
+                            toggleBulkActions(true);
+                        } else {
+                            $('.item_checkbox').each(function() {
+                                selectedVerifiedExpenseIds.add(this.value);
+                            });
+                            toggleBulkActions(false);
+                        }
+                    },
+                    error: function() {
+                        $('.item_checkbox').each(function() {
+                            selectedVerifiedExpenseIds.add(this.value);
+                        });
+                        toggleBulkActions(false);
+                    }
+                });
+            } else {
+                allVerifiedExpensesSelectedAcrossPages = false;
+                selectedVerifiedExpenseIds.clear();
+                $('.item_checkbox').prop('checked', false);
+                toggleBulkActions(false);
+            }
         }
 
         $(document).on('change click', '.item_checkbox', function() {
@@ -336,6 +393,7 @@
                 selectedVerifiedExpenseIds.add(this.value);
             } else {
                 selectedVerifiedExpenseIds.delete(this.value);
+                allVerifiedExpensesSelectedAcrossPages = false;
             }
             updateSelectAllVerified();
         });
@@ -351,8 +409,8 @@
                     break;
                 }
             }
-            if (source) source.checked = allChecked;
-            toggleBulkActions();
+            if (source) source.checked = (allChecked && selectedVerifiedExpenseIds.size > 0);
+            toggleBulkActions(allVerifiedExpensesSelectedAcrossPages);
         }
 
         function syncVerifiedFormInputs() {

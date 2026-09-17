@@ -120,6 +120,15 @@ class MaterialEntryController extends Controller
             $query->orderBy('material_entry.id', 'desc');
         }
 
+        if ($request->input('all_ids')) {
+            $ids = $query->pluck('material_entry.id')->map(function($id) { return (string)$id; })->toArray();
+            return response()->json([
+                'status' => 'Ok',
+                'ids' => $ids,
+                'total' => $totalRecords
+            ]);
+        }
+
         $start = $request->input('start', 0);
         $length = $request->input('length', 10);
 
@@ -345,6 +354,15 @@ class MaterialEntryController extends Controller
             $query->orderBy($columns[$orderColumnIndex], $orderDir);
         } else {
             $query->orderBy('material_entry.id', 'desc');
+        }
+
+        if ($request->input('all_ids')) {
+            $ids = $query->pluck('material_entry.id')->map(function($id) { return (string)$id; })->toArray();
+            return response()->json([
+                'status' => 'Ok',
+                'ids' => $ids,
+                'total' => $totalRecords
+            ]);
         }
 
         $start = $request->input('start', 0);

@@ -16,23 +16,40 @@
                         <div class="table-responsive">
                             <form action="{{ url('/updateExpenses') }}" method="POST">
                                 @csrf
-                                <div class="align-right">
-                                    @if (checkmodulepermission(2, 'can_certify') == 1)
-                                        <button type="submit" name="approve_expense" value="approve_expense"
-                                            class="btn btn-success btn-simple btn-round waves-effect"><a>Approve</a></button>
-                                    @endif
-                                    @if (checkmodulepermission(2, 'can_certify') == 1)
-                                        <button type="submit" name="reject_expense" value="reject_expense"
-                                            class="btn btn-danger btn-simple btn-round waves-effect"><a>Reject</a></button>
-                                    @endif
-                                    @if (checkmodulepermission(2, 'can_edit') == 1)
-                                        <button type="submit" formaction="{{ url('/pending_expense/bulk_edit_expense') }}"
-                                            class="btn btn-warning btn-simple btn-round waves-effect"><a>Edit</a></button>
-                                        @if(session()->get('role') == 1 || session()->get('role') == 2)
-                                            <button type="button" onclick="openReturnModal()"
-                                                class="btn btn-info btn-simple btn-round waves-effect"><a>Return</a></button>
-                                        @endif
-                                    @endif
+                                <!-- Bulk Actions Bar -->
+                                <div id="bulkActionsBar" class="p-2 mb-2 border rounded shadow-sm bulk-actions-container" style="display: none; border-left: 5px solid #eda61a !important;">
+                                    <div class="row align-items-center">
+                                        <div class="col-sm-6">
+                                            <span id="bulkSelectionText" class="ml-2 font-weight-bold" style="color: #ffffff; font-size: 14px;">
+                                                <span id="selectedCount" style="color: #eda61a; font-weight: 800; font-size: 16px;">0</span> Expenses Selected
+                                                <span id="allPagesBadge" class="badge badge-warning ml-2" style="display: none; background: #eda61a; color: #000; font-weight: 700;">All Pages</span>
+                                            </span>
+                                        </div>
+                                        <div class="col-sm-6 text-right">
+                                            @if (checkmodulepermission(2, 'can_certify') == 1)
+                                                <button type="submit" name="approve_expense" value="approve_expense"
+                                                    class="btn btn-success btn-sm btn-round">
+                                                    <i class="zmdi zmdi-check"></i> Approve
+                                                </button>
+                                                <button type="submit" name="reject_expense" value="reject_expense"
+                                                    class="btn btn-danger btn-sm btn-round">
+                                                    <i class="zmdi zmdi-block"></i> Reject
+                                                </button>
+                                            @endif
+                                            @if (checkmodulepermission(2, 'can_edit') == 1)
+                                                <button type="submit" formaction="{{ url('/pending_expense/bulk_edit_expense') }}"
+                                                    class="btn btn-warning btn-sm btn-round">
+                                                    <i class="zmdi zmdi-edit"></i> Edit
+                                                </button>
+                                                @if(session()->get('role') == 1 || session()->get('role') == 2)
+                                                    <button type="button" onclick="openReturnModal()"
+                                                        class="btn btn-info btn-sm btn-round">
+                                                        <i class="zmdi zmdi-undo"></i> Return
+                                                    </button>
+                                                @endif
+                                            @endif
+                                        </div>
+                                    </div>
                                 </div>
                                 <table id="pendingExpenseTable" class="table table-hover">
                                     <thead>
@@ -294,15 +311,74 @@
             });
         }
 
-        function selectAll(source) {
-            $('.check_item').each(function() {
-                this.checked = source.checked;
-                if (source.checked) {
-                    selectedPendingExpenseIds.add(this.value);
+        var allPendingExpensesSelectedAcrossPages = false;
+
+        function updateBulkBarPending(isAllPages = false) {
+            let count = selectedPendingExpenseIds.size;
+            if (count > 0) {
+                $('#selectedCount').text(count);
+                if (isAllPages) {
+                    $('#allPagesBadge').show();
                 } else {
-                    selectedPendingExpenseIds.delete(this.value);
+                    $('#allPagesBadge').hide();
                 }
-            });
+                $('#bulkActionsBar').fadeIn();
+            } else {
+                $('#bulkActionsBar').fadeOut();
+                $('#allPagesBadge').hide();
+                $('#select_all').prop('checked', false);
+                allPendingExpensesSelectedAcrossPages = false;
+            }
+        }
+
+        function selectAll(source) {
+            var isChecked = source.checked;
+            if (isChecked) {
+                allPendingExpensesSelectedAcrossPages = true;
+                $('.check_item').prop('checked', true);
+
+                let dtParams = {};
+                if ($.fn.DataTable.isDataTable('#pendingExpenseTable')) {
+                    dtParams = $('#pendingExpenseTable').DataTable().ajax.params() || {};
+                }
+                dtParams._token = "{{ csrf_token() }}";
+                dtParams.all_ids = 1;
+
+                $('#selectedCount').html('<i class="zmdi zmdi-spinner zmdi-hc-spin"></i>');
+                $('#bulkActionsBar').fadeIn();
+
+                $.ajax({
+                    url: "{{ url('/pending_expense_ajax') }}",
+                    type: "POST",
+                    data: dtParams,
+                    success: function(res) {
+                        if (res.status === 'Ok' && Array.isArray(res.ids)) {
+                            selectedPendingExpenseIds.clear();
+                            res.ids.forEach(function(id) {
+                                selectedPendingExpenseIds.add(String(id));
+                            });
+                            $('.check_item').prop('checked', true);
+                            updateBulkBarPending(true);
+                        } else {
+                            $('.check_item').each(function() {
+                                selectedPendingExpenseIds.add(this.value);
+                            });
+                            updateBulkBarPending(false);
+                        }
+                    },
+                    error: function() {
+                        $('.check_item').each(function() {
+                            selectedPendingExpenseIds.add(this.value);
+                        });
+                        updateBulkBarPending(false);
+                    }
+                });
+            } else {
+                allPendingExpensesSelectedAcrossPages = false;
+                selectedPendingExpenseIds.clear();
+                $('.check_item').prop('checked', false);
+                updateBulkBarPending(false);
+            }
         }
 
         $(document).on('change click', '.check_item', function() {
@@ -310,6 +386,7 @@
                 selectedPendingExpenseIds.add(this.value);
             } else {
                 selectedPendingExpenseIds.delete(this.value);
+                allPendingExpensesSelectedAcrossPages = false;
             }
             updateSelectAll();
         });
@@ -325,7 +402,8 @@
                     break;
                 }
             }
-            if (source) source.checked = allChecked;
+            if (source) source.checked = (allChecked && selectedPendingExpenseIds.size > 0);
+            updateBulkBarPending(allPendingExpensesSelectedAcrossPages);
         }
 
         function editexpense(id) {

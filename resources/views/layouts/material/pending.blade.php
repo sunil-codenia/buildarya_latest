@@ -33,6 +33,34 @@
                 </ul>
             </div>
             <div class="body">
+                <!-- Bulk Actions Bar -->
+                <div id="bulkActionsBar" class="p-2 mb-2 border rounded shadow-sm bulk-actions-container" style="display: none; border-left: 5px solid #eda61a !important;">
+                    <div class="row align-items-center">
+                        <div class="col-sm-6">
+                            <span id="bulkSelectionText" class="ml-2 font-weight-bold" style="color: #ffffff; font-size: 14px;">
+                                <span id="selectedCount" style="color: #eda61a; font-weight: 800; font-size: 16px;">0</span> Materials Selected
+                                <span id="allPagesBadge" class="badge badge-warning ml-2" style="display: none; background: #eda61a; color: #000; font-weight: 700;">All Pages</span>
+                            </span>
+                        </div>
+                        <div class="col-sm-6 text-right">
+                            @if (checkmodulepermission(3, 'can_certify') == 1)
+                                <button class="btn btn-success btn-sm btn-round" title="Approve Selected" type="button" onclick="bulkAction('approve')">
+                                    <i class="zmdi zmdi-check"></i> Approve
+                                </button>
+                                <button class="btn btn-danger btn-sm btn-round" title="Reject Selected" type="button" onclick="bulkAction('reject')">
+                                    <i class="zmdi zmdi-close"></i> Reject
+                                </button>
+                                <button class="btn btn-warning btn-sm btn-round" title="Bulk Edit" type="button" onclick="bulkEdit()">
+                                    <i class="zmdi zmdi-edit"></i> Edit
+                                </button>
+                                <button class="btn btn-info btn-sm btn-round" title="Return Selected" type="button" onclick="openReturnModal()">
+                                    <i class="zmdi zmdi-undo"></i> Return
+                                </button>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
                 @if (checkmodulepermission(3, 'can_view') == 1)
                     <div class="table-responsive">
                         <form id="bulkActionForm" action="{{ url('/update_material') }}" method="POST">
@@ -301,10 +329,12 @@
         });
     }
 
+    var allPendingMaterialsSelectedAcrossPages = false;
+
     function updateSelectAllMaterialState() {
         var total = $('.check_item').length;
         var checked = $('.check_item:checked').length;
-        if (total > 0 && checked === total) {
+        if (total > 0 && checked === total && selectedPendingMaterialIds.size > 0) {
             $('#select_all').prop('checked', true);
         } else {
             $('#select_all').prop('checked', false);
@@ -313,15 +343,52 @@
 
     $("#select_all").click(function() {
         var isChecked = this.checked;
-        $('.check_item').each(function() {
-            this.checked = isChecked;
-            if (isChecked) {
-                selectedPendingMaterialIds.add(this.value);
-            } else {
-                selectedPendingMaterialIds.delete(this.value);
+        if (isChecked) {
+            allPendingMaterialsSelectedAcrossPages = true;
+            $('.check_item').prop('checked', true);
+
+            let dtParams = {};
+            if ($.fn.DataTable.isDataTable('#pendingMaterialTable')) {
+                dtParams = $('#pendingMaterialTable').DataTable().ajax.params() || {};
             }
-        });
-        toggleBulkActions();
+            dtParams._token = "{{ csrf_token() }}";
+            dtParams.all_ids = 1;
+
+            $('#selectedCount').html('<i class="zmdi zmdi-spinner zmdi-hc-spin"></i>');
+            toggleBulkActions(true);
+
+            $.ajax({
+                url: "{{ url('/pending_material_ajax') }}",
+                type: "POST",
+                data: dtParams,
+                success: function(res) {
+                    if (res.status === 'Ok' && Array.isArray(res.ids)) {
+                        selectedPendingMaterialIds.clear();
+                        res.ids.forEach(function(id) {
+                            selectedPendingMaterialIds.add(String(id));
+                        });
+                        $('.check_item').prop('checked', true);
+                        toggleBulkActions(true);
+                    } else {
+                        $('.check_item').each(function() {
+                            selectedPendingMaterialIds.add(this.value);
+                        });
+                        toggleBulkActions(false);
+                    }
+                },
+                error: function() {
+                    $('.check_item').each(function() {
+                        selectedPendingMaterialIds.add(this.value);
+                    });
+                    toggleBulkActions(false);
+                }
+            });
+        } else {
+            allPendingMaterialsSelectedAcrossPages = false;
+            selectedPendingMaterialIds.clear();
+            $('.check_item').prop('checked', false);
+            toggleBulkActions(false);
+        }
     });
 
     $(document).on('change click', '.check_item', function() {
@@ -329,17 +396,29 @@
             selectedPendingMaterialIds.add(this.value);
         } else {
             selectedPendingMaterialIds.delete(this.value);
+            allPendingMaterialsSelectedAcrossPages = false;
         }
         updateSelectAllMaterialState();
-        toggleBulkActions();
+        toggleBulkActions(allPendingMaterialsSelectedAcrossPages);
     });
 
-    function toggleBulkActions() {
+    function toggleBulkActions(isAllPages = false) {
         var checkedCount = selectedPendingMaterialIds.size;
         if (checkedCount > 0) {
+            $('#selectedCount').text(checkedCount);
+            if (isAllPages) {
+                $('#allPagesBadge').show();
+            } else {
+                $('#allPagesBadge').hide();
+            }
+            $("#bulkActionsBar").fadeIn();
             $("#bulkActions").show();
         } else {
+            $("#bulkActionsBar").fadeOut();
             $("#bulkActions").hide();
+            $('#allPagesBadge').hide();
+            $('#select_all').prop('checked', false);
+            allPendingMaterialsSelectedAcrossPages = false;
         }
     }
 
@@ -518,7 +597,7 @@
                     }
                 });
                 updateSelectAllMaterialState();
-                toggleBulkActions();
+                toggleBulkActions(allPendingMaterialsSelectedAcrossPages);
             }
         });
 

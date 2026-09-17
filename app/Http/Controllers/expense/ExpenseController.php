@@ -151,6 +151,15 @@ class ExpenseController extends Controller
             $query->orderBy('expenses.create_datetime', 'desc');
         }
 
+        if ($request->input('all_ids')) {
+            $ids = $query->pluck('expenses.id')->map(function($id) { return (string)$id; })->toArray();
+            return response()->json([
+                'status' => 'Ok',
+                'ids' => $ids,
+                'total' => $totalRecords
+            ]);
+        }
+
         $start = $request->input('start', 0);
         $length = $request->input('length', 10);
         
@@ -588,6 +597,15 @@ class ExpenseController extends Controller
             $query->orderBy($columns[$orderColumnIndex], $orderDir);
         } else {
             $query->orderBy('expenses.create_datetime', 'desc');
+        }
+
+        if ($request->input('all_ids')) {
+            $ids = $query->pluck('expenses.id')->map(function($id) { return (string)$id; })->toArray();
+            return response()->json([
+                'status' => 'Ok',
+                'ids' => $ids,
+                'total' => $totalRecords
+            ]);
         }
 
         $start = $request->input('start', 0);

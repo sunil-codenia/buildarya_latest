@@ -36,7 +36,7 @@
                         var column = this;
                         var headertext = column.header().innerHTML;
                         if (headertext != '#' && headertext != 'Action' &&
-                            headertext != 'Image') {
+                            headertext != 'Image' && !$(column.header()).find('input[type="checkbox"]').length) {
                             var search = $('<b>' + headertext +
                                     '</b><br><input class="form-control" type="text" placeholder="Search">'
                                     )

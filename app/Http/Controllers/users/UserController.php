@@ -91,6 +91,15 @@ class UserController extends Controller
 
         $filteredRecords = $query->count();
 
+        if ($request->input('all_ids')) {
+            $ids = $query->pluck('users.id')->map(function($id) { return (string)$id; })->toArray();
+            return response()->json([
+                'status' => 'Ok',
+                'ids' => $ids,
+                'total' => $filteredRecords
+            ]);
+        }
+
         $orderColumnIndex = $request->input('order.0.column');
         $orderDir = $request->input('order.0.dir', 'asc');
 

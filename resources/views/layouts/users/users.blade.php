@@ -187,12 +187,15 @@
                 </div>
                 <div class="body">
                     <!-- Bulk Actions Bar -->
-                    <div id="bulkActionsBar" class="p-2 mb-2 border rounded bg-white shadow-sm" style="display: none; border-left: 5px solid #eda61a !important;">
+                    <div id="bulkActionsBar" class="p-2 mb-2 border rounded shadow-sm bulk-actions-container" style="display: none; border-left: 5px solid #eda61a !important;">
                         <div class="row align-items-center">
-                            <div class="col-sm-4">
-                                <span class="ml-2 font-weight-bold" style="color: #eda61a;"><span id="selectedCount">0</span> Users Selected</span>
+                            <div class="col-sm-6">
+                                <span id="bulkSelectionText" class="ml-2 font-weight-bold" style="color: #ffffff; font-size: 14px;">
+                                    <span id="selectedCount" style="color: #eda61a; font-weight: 800; font-size: 16px;">0</span> Users Selected
+                                    <span id="allPagesBadge" class="badge badge-warning ml-2" style="display: none; background: #eda61a; color: #000; font-weight: 700;">All Pages</span>
+                                </span>
                             </div>
-                            <div class="col-sm-8 text-right">
+                            <div class="col-sm-6 text-right">
                                 <button onclick="handleBulkAction('Active')" class="btn btn-success btn-sm btn-round">
                                     <i class="zmdi zmdi-check"></i> Activate
                                 </button>
@@ -490,10 +493,12 @@
     }
 
     $(document).ready(function() {
+        var allUsersSelectedAcrossPages = false;
+
         function updateSelectAllUsersState() {
             let totalVisible = $('.user-checkbox').length;
             let checkedVisible = $('.user-checkbox:checked').length;
-            if (totalVisible > 0 && totalVisible === checkedVisible) {
+            if (totalVisible > 0 && totalVisible === checkedVisible && selectedUserIds.size > 0) {
                 $('#selectAllUsers').prop('checked', true);
             } else {
                 $('#selectAllUsers').prop('checked', false);
@@ -503,16 +508,53 @@
         // Select All handler
         $('#selectAllUsers').on('change', function() {
             let isChecked = $(this).prop('checked');
-            $('.user-checkbox').each(function() {
-                let val = $(this).val();
-                $(this).prop('checked', isChecked);
-                if (isChecked) {
-                    selectedUserIds.add(val);
-                } else {
-                    selectedUserIds.delete(val);
+            if (isChecked) {
+                allUsersSelectedAcrossPages = true;
+                $('.user-checkbox').prop('checked', true);
+                
+                // Fetch all matching IDs via AJAX
+                let dtParams = {};
+                if ($.fn.DataTable.isDataTable('#userTable')) {
+                    dtParams = $('#userTable').DataTable().ajax.params() || {};
                 }
-            });
-            updateBulkBar();
+                dtParams._token = "{{ csrf_token() }}";
+                dtParams.all_ids = 1;
+
+                $('#selectedCount').html('<i class="zmdi zmdi-spinner zmdi-hc-spin"></i>');
+                $('#bulkActionsBar').fadeIn();
+
+                $.ajax({
+                    url: "{{ url('/users_ajax') }}",
+                    type: "POST",
+                    data: dtParams,
+                    success: function(res) {
+                        if (res.status === 'Ok' && Array.isArray(res.ids)) {
+                            selectedUserIds.clear();
+                            res.ids.forEach(function(id) {
+                                selectedUserIds.add(String(id));
+                            });
+                            $('.user-checkbox').prop('checked', true);
+                            updateBulkBar(true);
+                        } else {
+                            $('.user-checkbox').each(function() {
+                                selectedUserIds.add($(this).val());
+                            });
+                            updateBulkBar(false);
+                        }
+                    },
+                    error: function() {
+                        $('.user-checkbox').each(function() {
+                            selectedUserIds.add($(this).val());
+                        });
+                        updateBulkBar(false);
+                    }
+                });
+            } else {
+                allUsersSelectedAcrossPages = false;
+                selectedUserIds.clear();
+                $('.user-checkbox').prop('checked', false);
+                updateBulkBar(false);
+            }
         });
 
         // Row checkbox handler
@@ -522,19 +564,27 @@
                 selectedUserIds.add(val);
             } else {
                 selectedUserIds.delete(val);
+                allUsersSelectedAcrossPages = false;
             }
             updateSelectAllUsersState();
-            updateBulkBar();
+            updateBulkBar(allUsersSelectedAcrossPages);
         });
 
-        function updateBulkBar() {
+        function updateBulkBar(isAllPages = false) {
             let count = selectedUserIds.size;
             if (count > 0) {
                 $('#selectedCount').text(count);
+                if (isAllPages) {
+                    $('#allPagesBadge').show();
+                } else {
+                    $('#allPagesBadge').hide();
+                }
                 $('#bulkActionsBar').fadeIn();
             } else {
                 $('#bulkActionsBar').fadeOut();
+                $('#allPagesBadge').hide();
                 $('#selectAllUsers').prop('checked', false);
+                allUsersSelectedAcrossPages = false;
             }
         }
 
@@ -640,7 +690,7 @@
                     }
                 });
                 updateSelectAllUsersState();
-                updateBulkBar();
+                updateBulkBar(allUsersSelectedAcrossPages);
             }
         });
 

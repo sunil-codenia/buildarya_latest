@@ -1379,6 +1379,10 @@
                     </div>
                 </div>
 
+                <a href="{{ route('switch.localhost') }}" id="topbar-localhost-btn" style="display:none; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #a7f3d0; padding: 5px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 700; text-decoration: none; align-items: center; gap: 5px;" title="Switch to localhost for full microphone voice assistant">
+                    <i class="zmdi zmdi-flash"></i> Switch to localhost:8000 (Enable Voice)
+                </a>
+
                 <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); padding: 6px 14px; font-size: 12px; border-radius: 20px; font-weight: 700; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ $active_site_name }}">
                     <i class="zmdi zmdi-pin" style="margin-right: 4px;"></i> {{ $active_site_display }}
                 </span>
@@ -1487,10 +1491,25 @@
                 </div>
             </div>
 
+            <!-- Origin Alert Banner for 127.0.0.1 -->
+            <div id="localhost-origin-alert" style="display:none; background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(13, 138, 106, 0.25)); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 12px; padding: 10px 16px; margin-bottom: 12px; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                <div style="font-size: 12.5px; color: #d1fae5; display: flex; align-items: center; gap: 8px;">
+                    <i class="zmdi zmdi-mic" style="font-size: 18px; color: #10b981;"></i>
+                    <span><strong>Voice Assistant:</strong> Chrome blocks microphone on <code>127.0.0.1</code>. Switch to <code>localhost</code> to speak without any permission blocks.</span>
+                </div>
+                <a href="{{ route('switch.localhost') }}" style="background: #10b981; color: #ffffff; font-weight: 700; padding: 6px 14px; border-radius: 8px; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                    <i class="zmdi zmdi-flash"></i> Switch to localhost:8000
+                </a>
+            </div>
+
             <div class="input-box-wrapper">
                 <textarea id="chat-user-input" class="chat-textarea" rows="1" placeholder="Type or click 🎙️ to speak: 'show attendance today', 'today expense', 'material stock'..." onkeydown="handleKeyPress(event)"></textarea>
+                <input type="file" id="voice-audio-file-input" accept="audio/*" style="display:none" onchange="handleVoiceFileUpload(this)" />
                 <button type="button" class="voice-mic-btn" id="voice-mic-btn" onclick="toggleVoiceAssistant()" title="Voice Assistant — Click to speak">
                     <i class="zmdi zmdi-mic" id="voice-mic-icon"></i>
+                </button>
+                <button type="button" class="voice-upload-btn" onclick="document.getElementById('voice-audio-file-input').click()" title="Upload voice recording or audio file" style="background:none; border:none; color:#94a3b8; font-size:18px; padding:6px 8px; cursor:pointer; border-radius:8px; transition:color 0.2s;" onmouseover="this.style.color='#10b981'" onmouseout="this.style.color='#94a3b8'">
+                    <i class="zmdi zmdi-attachment-alt"></i>
                 </button>
                 <button class="send-btn" onclick="sendMessage()" title="Send Query">
                     <i class="zmdi zmdi-navigation"></i>
@@ -1508,6 +1527,9 @@
     const CURRENT_USER_ROLE = @json($user_username);
     const CURRENT_SITE_NAME = @json($active_site_display);
     const IS_SUPERADMIN = @json($is_superadmin);
+    const CURRENT_SITE_ID = @json($site_id);
+    const ALL_COMPANY_SITES = @json($allCompanySites);
+    const CSRF_TOKEN = '{{ csrf_token() }}';
 
     const REAL_ATTENDANCE = @json($realAttendanceData);
     const REAL_EXPENSES = @json($realExpenseData);
@@ -1710,21 +1732,44 @@
         const action = (form && form.action) ? form.action : '';
         const lowerAction = action.toLowerCase();
 
-        if (lowerAction.includes('addnewuser') || lowerAction.includes('/users') && form.querySelector('[name="username"]')) {
-            return '✅ User saved successfully. You remain in the AI assistant view.';
-        }
-        if (lowerAction.includes('addsites') || form.querySelector('[name="site_id"]') && form.querySelector('[name="name"]') && !form.querySelector('[name="username"]')) {
-            return '✅ Site saved successfully. You remain in the AI assistant view.';
-        }
-        if (lowerAction.includes('addnewExpenses') || lowerAction.includes('new_expense') || form.querySelector('[name="particular[]"]')) {
-            return '✅ Expense saved successfully. You remain in the AI assistant view.';
-        }
-        if (lowerAction.includes('addnewmaterial') || form.querySelector('[name="material_id[]"]')) {
-            return '✅ Material entry saved successfully. You remain in the AI assistant view.';
-        }
-        if (lowerAction.includes('/tasks') || form.querySelector('[name="title"]') && form.querySelector('[name="assigned_to[]"]')) {
-            return '✅ Task created successfully. You remain in the AI assistant view.';
-        }
+        if (lowerAction.includes('addnewuser')) return '✅ User saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addsites')) return '✅ Site saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addnewrole')) return '✅ Role saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addexpenseparty')) return '✅ Expense Party saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addnewexpenses') || lowerAction.includes('addnewExpenses')) return '✅ Expense saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addcostcategory')) return '✅ Cost Category saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addmaterialsupplier')) return '✅ Material Supplier saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addmaterialunit')) return '✅ Material Unit saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addmaterial') && !lowerAction.includes('unit') && !lowerAction.includes('supplier')) return '✅ Material saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addnewmaterial')) return '✅ Material entry saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('add_new_consumption')) return '✅ Consumption / Wastage recorded successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('newmaterialtransferform')) return '✅ Stock site transfer submitted successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('newstockunitconversionform')) return '✅ Stock unit conversion submitted successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('request_reconsilation')) return '✅ Stock reconciliation requested successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addbillparty')) return '✅ Bill Party saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addbillwork')) return '✅ Work item saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addbillrate')) return '✅ Work rate saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addnewbill')) return '✅ Bill saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('add_newmechinery') || lowerAction.includes('addmachinery')) return '✅ Machinery saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addmachineryexpensehead')) return '✅ Machinery expense head saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addmachineryhead')) return '✅ Machinery head saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('add_newassets') || lowerAction.includes('addasset')) return '✅ Asset saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addassetexpensehead')) return '✅ Asset expense head saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addsalesinv_head')) return '✅ Invoice head saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addsalesparty')) return '✅ Sales party saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addsalesproject')) return '✅ Sales project saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addnewpaymentvouchers')) return '✅ Payment voucher generated successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addotherparty')) return '✅ Other party saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('my_doc_upload_file')) return '✅ Document uploaded successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('adddochead')) return '✅ Document head saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('add_contact')) return '✅ Contact saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('attendance/clock-in')) return '✅ Self check-in recorded successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('attendance/clock-out')) return '✅ Self check-out recorded successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('attendance/manual')) return '✅ Attendance record saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('/tasks') && !lowerAction.includes('category')) return '✅ Task created successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addtaskcategory')) return '✅ Task category saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('addsalescompany')) return '✅ Company saved successfully. You remain in the AI assistant view.';
+        if (lowerAction.includes('/tickets')) return '✅ Support ticket submitted successfully. You remain in the AI assistant view.';
 
         return fallbackMessage || '✅ Saved successfully. You remain in the AI assistant view.';
     }
@@ -1800,8 +1845,435 @@
         });
     }
 
+
+    function detectClientFormIntent(query) {
+        const lower = query.toLowerCase().trim().replace(/[\.!\?]+$/, '');
+        const map = [
+            { key: 'consumption_wastage', phrases: ['add new consuption/wastage', 'add new consumption/wastage', 'add consuption/wastage', 'add consumption/wastage', 'consuption/wastage', 'consumption/wastage', 'add new consumption', 'add new consuption', 'add consumption', 'add wastage', 'new consumption'] },
+            { key: 'stock_site_transfer', phrases: ['add stocks site transfer', 'add stock site transfer', 'stocks site transfer', 'stock site transfer', 'material site transfer', 'new stock site transfer', 'stock transfer form'] },
+            { key: 'stock_unit_conversion', phrases: ['add stocks unit conversion', 'add stock unit conversion', 'stocks unit conversion', 'stock unit conversion', 'unit conversion form', 'new stock unit conversion'] },
+            { key: 'stock_reconciliation', phrases: ['add stocksreconcia', 'stocksreconcia', 'stocks reconcia', 'add stocks reconsilation', 'stocks reconsilation', 'stock reconciliation', 'request reconciliation'] },
+            { key: 'bill_rate', phrases: ['add works rate', 'add work rate', 'works rate', 'work rate', 'works rate form', 'bill works rate', 'add bill rate', 'bill rate form'] },
+            { key: 'bill_work', phrases: ['add works', 'add work', 'add bill works', 'add bill work', 'bill works', 'bill work', 'works form'] },
+            { key: 'bill_party', phrases: ['add bill parties', 'add bill party', 'bill parties', 'bill party', 'bill party form'] },
+            { key: 'bill', phrases: ['add new bill', 'add bill', 'new bill', 'create bill', 'bill form'] },
+            { key: 'asset_expense_head', phrases: ["add assets's expense head", "add asset's expense head", "add assets expense head", "add asset expense head", "assets's expense head", "asset expense head"] },
+            { key: 'machinery_expense_head', phrases: ['add machinery expense head', 'machinery expense head', "machinery's expense head", 'add expense head', 'expense head'] },
+            { key: 'machinery_head', phrases: ['add machinery head', 'machinery head'] },
+            { key: 'machinery', phrases: ['add machinerises', 'add machiney', 'add machinery', 'machinerises', 'machiney', 'machinery', 'new machinery'] },
+            { key: 'asset', phrases: ['add assets', 'add asset', 'new asset', 'new assets', 'create asset'] },
+            { key: 'invoice_head', phrases: ['add invoice heads', 'add invoice head', 'invoice heads', 'invoice head', 'new invoice head'] },
+            { key: 'sales_party', phrases: ['add sales party', 'add sales parties', 'sales party', 'new sales party'] },
+            { key: 'sales_project', phrases: ['add sales project', 'sales project', 'add project', 'new project', 'project form'] },
+            { key: 'payment_voucher', phrases: ['add new payment voucher', 'add payment voucher', 'payment voucher', 'generate voucher', 'voucher form'] },
+            { key: 'other_party', phrases: ['add other party', 'add other parties', 'other party', 'other parties'] },
+            { key: 'my_doc_upload_file', phrases: ['add upload file in my document section', 'upload file in my document section', 'upload file in my document', 'upload file in document', 'upload document'] },
+            { key: 'doc_head', phrases: ['add document head', 'add doc head', 'document head', 'doc head'] },
+            { key: 'contact', phrases: ['add new contact', 'add contact', 'new contact', 'contact form'] },
+            { key: 'self_check_in', phrases: ['add self check in', 'self check in', 'self checkin', 'check in', 'clock in', 'self clock in'] },
+            { key: 'self_check_out', phrases: ['add self check out', 'self check out', 'self checkout', 'check out', 'clock out', 'self clock out'] },
+            { key: 'manual_attendance', phrases: ['add manual attendance', 'manual attendance', 'new manual attendance'] },
+            { key: 'attendance', phrases: ['add attendance', 'attendance form'] },
+            { key: 'task_category', phrases: ['add task category', 'task category'] },
+            { key: 'task', phrases: ['add task', 'new task', 'create task', 'task form'] },
+            { key: 'company', phrases: ['add new company', 'add company', 'new company', 'sales company'] },
+            { key: 'ticket', phrases: ['add support ticket', 'new support ticket', 'support ticket', 'add ticket'] },
+            { key: 'material_supplier', phrases: ['add material suppliers', 'add material supplier', 'material supplier', 'supplier'] },
+            { key: 'material_unit', phrases: ['add material unit', 'material unit', 'add units', 'add unit', 'new unit'] },
+            { key: 'material_entry', phrases: ['add new materials entry', 'add new material entry', 'add material entry', 'material entry'] },
+            { key: 'material', phrases: ['add materials', 'add material', 'new material', 'material sku'] },
+            { key: 'cost_category', phrases: ['add cost category', 'cost category'] },
+            { key: 'expense_party', phrases: ['add expense parties', 'add expense party', 'expense party'] },
+            { key: 'expense', phrases: ['add new expense', 'add expense', 'new expense', 'expense form'] },
+            { key: 'role', phrases: ['add role', 'add roles', 'new role'] },
+            { key: 'site', phrases: ['add site', 'add sites', 'new site'] },
+            { key: 'user', phrases: ['add user', 'add users', 'new user'] }
+        ];
+
+        for (const item of map) {
+            for (const p of item.phrases) {
+                if (lower.includes(p)) {
+                    return item.key;
+                }
+            }
+        }
+        return null;
+    }
+
+    function renderClientFormHtml(entity) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const nowTimeStr = new Date().toTimeString().slice(0, 5);
+        const inp = 'width:100%; padding:10px 12px; border-radius:8px; border:1px solid #475569; background:#0f172a; color:#fff; box-sizing:border-box;';
+        const lbl = 'display:block; margin-bottom:6px; font-size:12px; color:#d1d5db;';
+
+        let siteOpts = `<option value="${escapeHtml(CURRENT_SITE_ID || '')}" selected>${escapeHtml(CURRENT_SITE_NAME || 'Main Site')}</option>`;
+        if (window.ALL_COMPANY_SITES && Array.isArray(window.ALL_COMPANY_SITES)) {
+            ALL_COMPANY_SITES.forEach((sName, idx) => {
+                siteOpts += `<option value="${idx + 1}">${escapeHtml(sName)}</option>`;
+            });
+        }
+
+        const wrap = (title, fullUrl, actionUrl, inputs, btn = 'Save') => `
+            <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 12px; padding: 16px; margin-bottom: 14px; color: #f3f4f6;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:12px; color:#34d399; text-transform:uppercase; letter-spacing:0.08em; font-weight:700;">AI Form Action</div>
+                        <div style="font-size:20px; font-weight:700; margin-top:4px;">${escapeHtml(title)}</div>
+                    </div>
+                    <a href="${fullUrl}" target="_blank" style="background:#10a37f; color:#fff; border-radius:8px; padding:8px 12px; text-decoration:none; font-size:12px; font-weight:700;">Open Full Form</a>
+                </div>
+                <form action="${actionUrl}" method="POST" enctype="multipart/form-data" onsubmit="event.preventDefault(); submitAiForm(this);" style="display:block;">
+                    <input type="hidden" name="_token" value="${CSRF_TOKEN}">
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px;">
+                        ${inputs}
+                    </div>
+                    <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:10px;">
+                        <button type="submit" style="background:#10a37f; color:#fff; border:none; border-radius:8px; padding:10px 14px; font-weight:700; cursor:pointer;">${escapeHtml(btn)}</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        if (entity === 'site') {
+            return wrap('Add New Site', '/sites', '/addsites', `
+                <div><label style="${lbl}">Site Name</label><input type="text" name="name" required style="${inp}" placeholder="Site Name"></div>
+                <div><label style="${lbl}">Address</label><input type="text" name="address" required style="${inp}" placeholder="Site Address"></div>
+                <div><label style="${lbl}">Opening Balance</label><input type="number" step="0.01" name="open_balance" required style="${inp}" value="0.00"></div>
+                <div><label style="${lbl}">Sites Type</label><select name="sitestype" required style="${inp}"><option value="Working Site" selected>Working Site</option><option value="Official Site">Official Site</option></select></div>
+                <div style="grid-column: span 2;"><label style="${lbl}">Project</label><select name="project_id" required style="${inp}"><option value="0">No Project</option></select></div>
+            `, 'Save Site');
+        }
+
+        if (entity === 'user') {
+            return wrap('Add New User', '/users', '/addnewuser', `
+                <div><label style="${lbl}">Full Name</label><input type="text" name="name" required style="${inp}" placeholder="Full Name"></div>
+                <div><label style="${lbl}">Username</label><input type="text" name="username" required style="${inp}" placeholder="Username"></div>
+                <div><label style="${lbl}">Email</label><input type="email" name="email" required style="${inp}" placeholder="Email"></div>
+                <div><label style="${lbl}">Phone</label><input type="text" name="phone" required style="${inp}" placeholder="Phone"></div>
+                <div><label style="${lbl}">Password</label><input type="password" name="password" required style="${inp}" placeholder="Password"></div>
+                <div><label style="${lbl}">Role ID</label><select name="role_id" required style="${inp}"><option value="1">Admin</option><option value="2" selected>Staff / User</option></select></div>
+                <div><label style="${lbl}">Assigned Site</label><select name="site_id[]" style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Photo</label><input type="file" name="image" accept="image/*" style="${inp}"></div>
+            `, 'Save User');
+        }
+
+        if (entity === 'role') {
+            return wrap('Add New Role', '/user_roles', '/addnewrole', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Role Name</label><input type="text" name="name" required style="${inp}" placeholder="Role Name (e.g. Site Supervisor)"></div>
+            `, 'Save Role');
+        }
+
+        if (entity === 'expense_party') {
+            return wrap('Add Expense Party', '/expense_party', '/addexpenseparty', `
+                <div><label style="${lbl}">Party Name</label><input type="text" name="name" required style="${inp}" placeholder="Party Name"></div>
+                <div><label style="${lbl}">Address</label><input type="text" name="address" style="${inp}" placeholder="Address"></div>
+                <div><label style="${lbl}">PAN No.</label><input type="text" name="pan_no" style="${inp}" placeholder="PAN"></div>
+            `, 'Save Expense Party');
+        }
+
+        if (entity === 'expense') {
+            return wrap('Add New Expense', '/expenses', '/addnewExpenses', `
+                <div><label style="${lbl}">Site</label><select name="site_id[]" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Date</label><input type="date" name="date[]" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Party Type</label><select name="party_type[]" required style="${inp}"><option value="expense" selected>Expense Party</option><option value="bill">Bill Party</option></select></div>
+                <div><label style="${lbl}">Particular / Item</label><input type="text" name="particular[]" required style="${inp}" placeholder="Particular"></div>
+                <div><label style="${lbl}">Amount (₹)</label><input type="number" step="0.01" min="0" name="amount[]" required style="${inp}" placeholder="0.00"></div>
+                <div><label style="${lbl}">Remark</label><input type="text" name="remark[]" style="${inp}" placeholder="Remark"></div>
+                <div style="grid-column: span 2;"><label style="${lbl}">Receipt Image</label><input type="file" name="image[]" accept="image/*" style="${inp}"></div>
+            `, 'Save Expense');
+        }
+
+        if (entity === 'cost_category') {
+            return wrap('Add Cost Category', '/cost_category', '/addcostcategory', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Cost Category Name</label><input type="text" name="name" required style="${inp}" placeholder="Category Name"></div>
+            `, 'Save Cost Category');
+        }
+
+        if (entity === 'material_supplier') {
+            return wrap('Add Material Supplier', '/materialsupplier', '/addmaterialsupplier', `
+                <div><label style="${lbl}">Supplier Name</label><input type="text" name="name" required style="${inp}" placeholder="Supplier Name"></div>
+                <div><label style="${lbl}">Address</label><input type="text" name="address" style="${inp}" placeholder="Address"></div>
+                <div><label style="${lbl}">GSTIN</label><input type="text" name="gstin" style="${inp}" placeholder="GSTIN"></div>
+                <div><label style="${lbl}">Bank A/C No.</label><input type="text" name="bank_ac" style="${inp}" placeholder="Account Number"></div>
+            `, 'Save Material Supplier');
+        }
+
+        if (entity === 'material') {
+            return wrap('Add Material SKU', '/material', '/addmaterial', `
+                <div><label style="${lbl}">Material Name</label><input type="text" name="name" required style="${inp}" placeholder="Material Name"></div>
+                <div><label style="${lbl}">Royalty Material</label><select name="is_royalty" style="${inp}"><option value="0" selected>No</option><option value="1">Yes</option></select></div>
+            `, 'Save Material');
+        }
+
+        if (entity === 'material_unit') {
+            return wrap('Add Material Unit', '/materialunit', '/addmaterialunit', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Unit Name</label><input type="text" name="name" required style="${inp}" placeholder="Unit Name (e.g. Bag, Brass, MT)"></div>
+            `, 'Save Unit');
+        }
+
+        if (entity === 'material_entry') {
+            return wrap('Add New Materials Entry', '/new_material', '/addnewmaterial', `
+                <div><label style="${lbl}">Site</label><select name="site_id[]" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Date</label><input type="date" name="date[]" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Quantity</label><input type="number" step="0.01" min="0" name="qty[]" required style="${inp}" placeholder="0.00"></div>
+                <div><label style="${lbl}">Vehicle No.</label><input type="text" name="vehical[]" style="${inp}" placeholder="Vehicle No."></div>
+                <div><label style="${lbl}">Challan No.</label><input type="text" name="challan_no[]" style="${inp}" placeholder="Challan No."></div>
+                <div><label style="${lbl}">Remark</label><input type="text" name="remark[]" style="${inp}" placeholder="Remark"></div>
+            `, 'Save Material Entry');
+        }
+
+        if (entity === 'consumption_wastage') {
+            return wrap('Add New Consumption / Wastage', '/new_consumption', '/add_new_consumption', `
+                <div><label style="${lbl}">Site</label><select name="site_id[]" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Date</label><input type="date" name="date[]" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Type</label><select name="consumption_wastage[]" required style="${inp}"><option value="Consumption" selected>Consumption</option><option value="Wastage">Wastage</option></select></div>
+                <div><label style="${lbl}">Quantity</label><input type="number" step="0.01" min="0" name="qty[]" required style="${inp}" placeholder="0.00"></div>
+                <div style="grid-column: span 2;"><label style="${lbl}">Remarks</label><input type="text" name="remarks[]" style="${inp}" placeholder="Consumption notes"></div>
+            `, 'Save Consumption/Wastage');
+        }
+
+        if (entity === 'stock_site_transfer') {
+            return wrap('Add Stocks Site Transfer', '/newMaterialSiteTransfer', '/newMaterialTransferForm', `
+                <div><label style="${lbl}">From Site</label><select name="from_site" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">To Site</label><select name="to_site" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Quantity</label><input type="number" step="0.01" min="0" name="qty" required style="${inp}" placeholder="0.00"></div>
+                <div><label style="${lbl}">Date</label><input type="date" name="date" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Vehicle No.</label><input type="text" name="vehicle_no" style="${inp}" placeholder="Vehicle No."></div>
+                <div><label style="${lbl}">Remark</label><input type="text" name="remark" style="${inp}" placeholder="Remark"></div>
+            `, 'Submit Stock Transfer');
+        }
+
+        if (entity === 'stock_unit_conversion') {
+            return wrap('Add Stocks Unit Conversion', '/newStockUnitConversion', '/newStockUnitConversionForm', `
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Quantity Deducted</label><input type="number" step="0.01" min="0" name="qty" required style="${inp}" placeholder="0.00"></div>
+                <div><label style="${lbl}">Converted Quantity Added</label><input type="number" step="0.01" min="0" name="updated_qty" required style="${inp}" placeholder="0.00"></div>
+                <div><label style="${lbl}">Date</label><input type="date" name="date" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Remark</label><input type="text" name="remark" style="${inp}" placeholder="Remark"></div>
+            `, 'Submit Unit Conversion');
+        }
+
+        if (entity === 'stock_reconciliation') {
+            return wrap('Request Stocks Reconciliation', '/reconsilation_list', '/request_reconsilation', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div style="grid-column: span 2; background:rgba(16,163,127,0.1); border:1px solid rgba(16,163,127,0.3); border-radius:8px; padding:12px; font-size:12.5px; color:#a7f3d0;">
+                    📌 Submitting this request initiates a stock audit and snapshot for the selected site.
+                </div>
+            `, 'Request Reconciliation');
+        }
+
+        if (entity === 'bill_party') {
+            return wrap('Add Bill Party', '/billparty', '/addbillparty', `
+                <div><label style="${lbl}">Party Name</label><input type="text" name="name" required style="${inp}" placeholder="Party Name"></div>
+                <div><label style="${lbl}">Address</label><input type="text" name="address" required style="${inp}" placeholder="Address"></div>
+                <div><label style="${lbl}">PAN No.</label><input type="text" name="panno" required style="${inp}" placeholder="PAN"></div>
+                <div><label style="${lbl}">Bank A/C No.</label><input type="text" name="bank_ac" required style="${inp}" placeholder="Account Number"></div>
+            `, 'Save Bill Party');
+        }
+
+        if (entity === 'bill_work') {
+            return wrap('Add Works', '/billwork', '/addbillwork', `
+                <div><label style="${lbl}">Work Name</label><input type="text" name="name" required style="${inp}" placeholder="Work Name"></div>
+                <div><label style="${lbl}">Unit</label><input type="text" name="unit" required style="${inp}" placeholder="e.g. Sq.Ft, R.Ft, Nos"></div>
+            `, 'Save Work');
+        }
+
+        if (entity === 'bill_rate') {
+            return wrap('Add Works Rate', '/billrate', '/addbillrate', `
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Rate per Unit (₹)</label><input type="number" step="0.01" min="0" name="rate" required style="${inp}" placeholder="0.00"></div>
+            `, 'Save Work Rate');
+        }
+
+        if (entity === 'bill') {
+            return wrap('Add New Bill', '/new_bill', '/addnewbill', `
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Bill No.</label><input type="text" name="bill_no" required style="${inp}" placeholder="Bill No."></div>
+                <div><label style="${lbl}">Bill Date</label><input type="date" name="bill_date" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">From Date</label><input type="date" name="bill_from_date" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">To Date</label><input type="date" name="bill_to_date" required value="${todayStr}" style="${inp}"></div>
+            `, 'Save Bill');
+        }
+
+        if (entity === 'machinery') {
+            return wrap('Add Machinery', '/machinery', '/add_newmechinery', `
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Machinery Name / Model</label><input type="text" name="macname" required style="${inp}" placeholder="e.g. Concrete Mixer"></div>
+                <div><label style="${lbl}">Cost Price (₹)</label><input type="number" step="0.01" min="0" name="costprice" required style="${inp}" placeholder="0.00"></div>
+            `, 'Save Machinery');
+        }
+
+        if (entity === 'machinery_expense_head') {
+            return wrap('Add Expense Head (Machinery)', '/machinery_expense_head', '/addmachineryExpensehead', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Head ID</label><input type="number" name="head_id" required style="${inp}" placeholder="Enter Expense Head ID"></div>
+            `, 'Save Expense Head');
+        }
+
+        if (entity === 'asset') {
+            return wrap('Add New Asset', '/asset_head', '/add_newassets', `
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Asset Name</label><input type="text" name="assetsname" required style="${inp}" placeholder="Asset Name"></div>
+                <div><label style="${lbl}">Cost Price (₹)</label><input type="number" step="0.01" min="0" name="costprice" required style="${inp}" placeholder="0.00"></div>
+            `, 'Save Asset');
+        }
+
+        if (entity === 'asset_expense_head') {
+            return wrap("Add Asset's Expense Head", '/asset_expense_head', '/addassetExpensehead', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Head ID</label><input type="number" name="head_id" required style="${inp}" placeholder="Enter Expense Head ID"></div>
+            `, 'Save Asset Expense Head');
+        }
+
+        if (entity === 'invoice_head') {
+            return wrap('Add Invoice Head', '/sales_inv_head', '/addsalesinv_head', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Invoice Head Name</label><input type="text" name="name" required style="${inp}" placeholder="Invoice Head Name"></div>
+            `, 'Save Invoice Head');
+        }
+
+        if (entity === 'sales_party') {
+            return wrap('Add Sales Party', '/sales_parties', '/addsalesparty', `
+                <div><label style="${lbl}">Party Name</label><input type="text" name="name" required style="${inp}" placeholder="Party Name"></div>
+                <div><label style="${lbl}">Phone</label><input type="text" name="phone" style="${inp}" placeholder="Phone"></div>
+                <div><label style="${lbl}">GSTIN</label><input type="text" name="gst" style="${inp}" placeholder="GSTIN"></div>
+                <div><label style="${lbl}">Address</label><input type="text" name="address" style="${inp}" placeholder="Address"></div>
+            `, 'Save Sales Party');
+        }
+
+        if (entity === 'sales_project') {
+            return wrap('Add Sales Project', '/sales_project', '/addsalesproject', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Project Name</label><input type="text" name="name" required style="${inp}" placeholder="Project Name"></div>
+                <div style="grid-column: span 2;"><label style="${lbl}">Scope Details</label><textarea name="details" rows="3" style="${inp}" placeholder="Project scope..."></textarea></div>
+            `, 'Save Project');
+        }
+
+        if (entity === 'payment_voucher') {
+            return wrap('Generate Payment Voucher', '/new_paymentvoucher', '/addnewpaymentvouchers', `
+                <div><label style="${lbl}">Site</label><select name="site_id[]" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Voucher No.</label><input type="text" name="voucher_no[]" required style="${inp}" placeholder="Voucher No."></div>
+                <div><label style="${lbl}">Amount (₹)</label><input type="number" step="0.01" min="0" name="amount[]" required style="${inp}" placeholder="0.00"></div>
+                <div><label style="${lbl}">Date</label><input type="date" name="date[]" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Payment Details</label><input type="text" name="payment_details[]" style="${inp}" placeholder="Details"></div>
+                <div><label style="${lbl}">Remark</label><input type="text" name="remark[]" style="${inp}" placeholder="Remark"></div>
+            `, 'Save Voucher');
+        }
+
+        if (entity === 'other_party') {
+            return wrap('Add Other Party', '/otherparty', '/addotherparty', `
+                <div><label style="${lbl}">Party Name</label><input type="text" name="name" required style="${inp}" placeholder="Party Name"></div>
+                <div><label style="${lbl}">Address</label><input type="text" name="address" style="${inp}" placeholder="Address"></div>
+                <div><label style="${lbl}">PAN No.</label><input type="text" name="panno" style="${inp}" placeholder="PAN"></div>
+                <div><label style="${lbl}">Bank A/C No.</label><input type="text" name="bank_ac" style="${inp}" placeholder="Account Number"></div>
+            `, 'Save Other Party');
+        }
+
+        if (entity === 'my_doc_upload_file') {
+            return wrap('Upload File in My Document Section', '/file-structure', '/my_doc_upload_file', `
+                <div><label style="${lbl}">Document Title</label><input type="text" name="name[]" required style="${inp}" placeholder="Document Title"></div>
+                <div><label style="${lbl}">Date</label><input type="date" name="date[]" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Particular</label><input type="text" name="particular[]" style="${inp}" placeholder="Particular"></div>
+                <div><label style="${lbl}">Select File</label><input type="file" name="img[]" required style="${inp}"></div>
+            `, 'Upload Document');
+        }
+
+        if (entity === 'doc_head') {
+            return wrap('Add Document Head', '/file-structure', '/adddochead', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Head Name</label><input type="text" name="name" required style="${inp}" placeholder="Document Head Name"></div>
+            `, 'Save Document Head');
+        }
+
+        if (entity === 'contact') {
+            return wrap('Add New Contact', '/contacts', '/add_contact', `
+                <div><label style="${lbl}">Contact Name</label><input type="text" name="name" required style="${inp}" placeholder="Contact Name"></div>
+                <div><label style="${lbl}">Phone</label><input type="text" name="number" required style="${inp}" placeholder="Mobile Number"></div>
+                <div><label style="${lbl}">Email</label><input type="email" name="email" style="${inp}" placeholder="Email"></div>
+                <div><label style="${lbl}">Position</label><input type="text" name="position" style="${inp}" placeholder="Position"></div>
+            `, 'Save Contact');
+        }
+
+        if (entity === 'self_check_in') {
+            return wrap('Add Self Check In', '/attendance', '/attendance/clock-in', `
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Time</label><input type="text" value="${nowTimeStr} (${todayStr})" readonly style="${inp}"></div>
+                <div style="grid-column: span 2;"><label style="${lbl}">Remarks</label><input type="text" name="remarks" style="${inp}" placeholder="Check-in remarks"></div>
+                <input type="hidden" name="latitude" value="0.0000">
+                <input type="hidden" name="longitude" value="0.0000">
+            `, 'Clock In Now');
+        }
+
+        if (entity === 'self_check_out') {
+            return wrap('Add Self Check Out', '/attendance', '/attendance/clock-out', `
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Time</label><input type="text" value="${nowTimeStr} (${todayStr})" readonly style="${inp}"></div>
+                <div style="grid-column: span 2;"><label style="${lbl}">Remarks</label><input type="text" name="remarks" style="${inp}" placeholder="Check-out remarks"></div>
+                <input type="hidden" name="latitude" value="0.0000">
+                <input type="hidden" name="longitude" value="0.0000">
+            `, 'Clock Out Now');
+        }
+
+        if (entity === 'manual_attendance' || entity === 'attendance') {
+            return wrap('Add Manual Attendance', '/attendance', '/attendance/manual', `
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">User / Staff ID</label><input type="number" name="user_id" required style="${inp}" placeholder="Staff ID"></div>
+                <div><label style="${lbl}">Date</label><input type="date" name="date" required value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Status</label><select name="status" required style="${inp}"><option value="Present" selected>Present</option><option value="Absent">Absent</option><option value="Half Day">Half Day</option></select></div>
+                <div><label style="${lbl}">Punch In</label><input type="time" name="clock_in" value="09:00" style="${inp}"></div>
+                <div><label style="${lbl}">Punch Out</label><input type="time" name="clock_out" value="18:00" style="${inp}"></div>
+            `, 'Save Attendance');
+        }
+
+        if (entity === 'task') {
+            return wrap('Add New Task', '/tasks', '/tasks', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Task Title</label><input type="text" name="title" required style="${inp}" placeholder="Task Title"></div>
+                <div><label style="${lbl}">Site</label><select name="site_id" required style="${inp}">${siteOpts}</select></div>
+                <div><label style="${lbl}">Priority</label><select name="priority" required style="${inp}"><option value="Medium" selected>Medium</option><option value="Low">Low</option><option value="High">High</option></select></div>
+                <div><label style="${lbl}">Due Date</label><input type="date" name="due_date" value="${todayStr}" style="${inp}"></div>
+                <div><label style="${lbl}">Assigned To ID</label><input type="text" name="assigned_to" required style="${inp}" placeholder="Staff ID or comma separated"></div>
+                <div style="grid-column: span 2;"><label style="${lbl}">Description</label><textarea name="description" rows="3" style="${inp}" placeholder="Task details..."></textarea></div>
+            `, 'Create Task');
+        }
+
+        if (entity === 'task_category') {
+            return wrap('Add Task Category', '/task_category', '/addtaskcategory', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Category Name</label><input type="text" name="name" required style="${inp}" placeholder="Category Name"></div>
+            `, 'Save Task Category');
+        }
+
+        if (entity === 'company') {
+            return wrap('Add New Company', '/sales_companies', '/addsalescompany', `
+                <div><label style="${lbl}">Company Name</label><input type="text" name="name" required style="${inp}" placeholder="Company Name"></div>
+                <div><label style="${lbl}">Phone</label><input type="text" name="phone" style="${inp}" placeholder="Phone"></div>
+                <div><label style="${lbl}">GSTIN</label><input type="text" name="gst" style="${inp}" placeholder="GSTIN"></div>
+                <div><label style="${lbl}">State</label><input type="text" name="state" style="${inp}" placeholder="State"></div>
+                <div><label style="${lbl}">Address</label><input type="text" name="address" style="${inp}" placeholder="Address"></div>
+            `, 'Save Company');
+        }
+
+        if (entity === 'ticket') {
+            return wrap('Add Support Ticket', '/tickets', '/tickets', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Ticket Subject</label><input type="text" name="subject" required style="${inp}" placeholder="Subject"></div>
+                <div style="grid-column: span 2;"><label style="${lbl}">Description</label><textarea name="description" rows="4" required style="${inp}" placeholder="Details..."></textarea></div>
+            `, 'Submit Ticket');
+        }
+
+        if (entity === 'machinery_head') {
+            return wrap('Add Machinery Head', '/machinery_head', '/addmachineryhead', `
+                <div style="grid-column: span 2;"><label style="${lbl}">Head Name</label><input type="text" name="name" required style="${inp}" placeholder="Head Name"></div>
+            `, 'Save Machinery Head');
+        }
+
+        return '';
+    }
+
     function generateLiveDatabaseResponse(query) {
         const lower = query.toLowerCase().trim();
+
+        // Check if query is a Form Open Action fallback
+        const clientFormEntity = detectClientFormIntent(lower);
+        if (clientFormEntity) {
+            const formHtml = renderClientFormHtml(clientFormEntity);
+            if (formHtml) {
+                return formHtml;
+            }
+        }
 
         // 0. GREETINGS & INTRODUCTIONS
         const greetingsList = ['hi', 'hello', 'hey', 'hiya', 'hlo', 'greetings', 'good morning', 'good afternoon', 'good evening', 'who are you', 'what can you do', 'help', 'namaste', 'namaskar', 'kaise ho', 'kya hal hai'];
@@ -1864,10 +2336,35 @@
             </div>
         `;
 
+        // Helper to detect status filter from text prompt
+        // Matches English & Hindi/Hinglish terms
+        const hasPendingWord = lower.includes('pending') || lower.includes('unapproved') || lower.includes('baki') || lower.includes('baaki') || lower.includes('open') || lower.includes('draft');
+        const hasApprovedWord = lower.includes('verified') || lower.includes('approved') || lower.includes('clear') || lower.includes('cleared') || lower.includes('pass') || lower.includes('passed');
+        const hasRejectedWord = lower.includes('rejected') || lower.includes('reject') || lower.includes('cancel') || lower.includes('cancelled') || lower.includes('declined');
+        const hasPaidWord = lower.includes('paid');
+        const hasCompletedWord = lower.includes('completed') || lower.includes('complete') || lower.includes('done') || lower.includes('finish') || lower.includes('finished');
+        const hasProgressWord = lower.includes('progress') || lower.includes('in progress') || lower.includes('running');
+        const hasHoldWord = lower.includes('hold') || lower.includes('on hold');
+        const hasPresentWord = lower.includes('present') || lower.includes('upsthit') || lower.includes('aye') || lower.includes('aaye');
+        const hasAbsentWord = lower.includes('absent') || lower.includes('anupsthit') || lower.includes('chhutti') || lower.includes('leave');
+        const hasHalfDayWord = lower.includes('half day') || lower.includes('halfday') || lower.includes('aadha');
+        const hasActiveWord = lower.includes('active') || lower.includes('chalu');
+        const hasInactiveWord = lower.includes('inactive') || lower.includes('band');
+
         // 1. SUPPLIER RECORDS QUERY
-        if (lower.includes('supplier') || lower.includes('vendor') || lower.includes('dealer') || lower.includes('supply') || lower.includes('party')) {
-            if (REAL_SUPPLIERS && REAL_SUPPLIERS.length > 0) {
-                let rowsHtml = REAL_SUPPLIERS.map(item => `
+        if (lower.includes('supplier') || lower.includes('vendor') || lower.includes('dealer') || lower.includes('supply') || (lower.includes('party') && !lower.includes('expense') && !lower.includes('bill'))) {
+            let targetSuppliers = REAL_SUPPLIERS || [];
+            let supStatusLabel = '';
+            if (hasActiveWord) {
+                targetSuppliers = targetSuppliers.filter(item => (item.status || '').toLowerCase().includes('active'));
+                supStatusLabel = 'Active';
+            } else if (hasInactiveWord) {
+                targetSuppliers = targetSuppliers.filter(item => (item.status || '').toLowerCase().includes('inactive'));
+                supStatusLabel = 'Inactive';
+            }
+
+            if (targetSuppliers.length > 0) {
+                let rowsHtml = targetSuppliers.map(item => `
                     <tr>
                         <td>#SUP-${escapeHtml(item.id)}</td>
                         <td><strong>${escapeHtml(item.name)}</strong></td>
@@ -1880,7 +2377,7 @@
 
                 return `
                     ${restrictionNoticeHtml}
-                    <p><strong>🏬 Live Material Suppliers Record (Fetched directly from database):</strong></p>
+                    <p><strong>🏬 Live ${supStatusLabel ? supStatusLabel + ' ' : ''}Material Suppliers Record (Fetched directly from database):</strong></p>
                     <table class="ai-interactive-table">
                         <thead>
                             <tr>
@@ -1896,21 +2393,43 @@
                             ${rowsHtml}
                         </tbody>
                     </table>
-                    <p>Fetched <strong>${REAL_SUPPLIERS.length} material supplier records</strong> from database connection.</p>
+                    <p>Fetched <strong>${targetSuppliers.length} ${supStatusLabel ? supStatusLabel.toLowerCase() + ' ' : ''}material supplier records</strong> from database connection${supStatusLabel ? ` (filtered from ${REAL_SUPPLIERS.length} total records)` : ''}.</p>
                 `;
             } else {
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>🏬 Material Suppliers Record:</strong></p>
-                    <p>No supplier records found in database for this company.</p>
+                    <p>No ${supStatusLabel ? supStatusLabel.toLowerCase() + ' ' : ''}supplier records found in database for this company${supStatusLabel ? ` (Total records: ${REAL_SUPPLIERS.length})` : ''}.</p>
                 `;
             }
         }
 
         // 2. TASK LIST QUERY
         if (lower.includes('task') || lower.includes('todo') || lower.includes('assignment') || lower.includes('kaam') || lower.includes('work')) {
-            if (REAL_TASKS && REAL_TASKS.length > 0) {
-                let rowsHtml = REAL_TASKS.map(item => `
+            let targetTasks = REAL_TASKS || [];
+            let taskStatusLabel = '';
+            if (hasPendingWord) {
+                targetTasks = targetTasks.filter(item => (item.status || '').toLowerCase().includes('pending'));
+                taskStatusLabel = 'Pending';
+            } else if (hasCompletedWord || hasApprovedWord) {
+                targetTasks = targetTasks.filter(item => {
+                    const s = (item.status || '').toLowerCase();
+                    return s.includes('completed') || s.includes('done') || s.includes('verified');
+                });
+                taskStatusLabel = 'Completed';
+            } else if (hasProgressWord) {
+                targetTasks = targetTasks.filter(item => (item.status || '').toLowerCase().includes('progress'));
+                taskStatusLabel = 'In Progress';
+            } else if (hasHoldWord) {
+                targetTasks = targetTasks.filter(item => (item.status || '').toLowerCase().includes('hold'));
+                taskStatusLabel = 'On Hold';
+            } else if (hasRejectedWord) {
+                targetTasks = targetTasks.filter(item => (item.status || '').toLowerCase().includes('rejected'));
+                taskStatusLabel = 'Rejected';
+            }
+
+            if (targetTasks.length > 0) {
+                let rowsHtml = targetTasks.map(item => `
                     <tr>
                         <td>#TSK-${escapeHtml(item.id)}</td>
                         <td><strong>${escapeHtml(item.title)}</strong></td>
@@ -1923,7 +2442,7 @@
 
                 return `
                     ${restrictionNoticeHtml}
-                    <p><strong>📋 Live Assigned Tasks Record — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
+                    <p><strong>📋 Live ${taskStatusLabel ? taskStatusLabel + ' ' : ''}Assigned Tasks Record — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
                     <table class="ai-interactive-table">
                         <thead>
                             <tr>
@@ -1939,21 +2458,31 @@
                             ${rowsHtml}
                         </tbody>
                     </table>
-                    <p>Fetched <strong>${REAL_TASKS.length} active site task records</strong> from database connection.</p>
+                    <p>Fetched <strong>${targetTasks.length} ${taskStatusLabel ? taskStatusLabel.toLowerCase() + ' ' : ''}site task record${targetTasks.length === 1 ? '' : 's'}</strong> from database connection${taskStatusLabel ? ` (filtered from ${REAL_TASKS.length} total records)` : ''}.</p>
                 `;
             } else {
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>📋 Assigned Tasks Record:</strong></p>
-                    <p>No task assignments found in database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>.</p>
+                    <p>No ${taskStatusLabel ? taskStatusLabel.toLowerCase() + ' ' : ''}task assignments found in database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>${taskStatusLabel ? ` (Total records: ${REAL_TASKS.length})` : ''}.</p>
                 `;
             }
         }
 
         // 3. TEAM / USER LIST QUERY
         if (lower.includes('user') || lower.includes('staff') || lower.includes('team') || lower.includes('employee') || lower.includes('member')) {
-            if (REAL_USERS && REAL_USERS.length > 0) {
-                let rowsHtml = REAL_USERS.map(item => `
+            let targetUsers = REAL_USERS || [];
+            let userStatusLabel = '';
+            if (hasActiveWord) {
+                targetUsers = targetUsers.filter(item => (item.status || '').toLowerCase().includes('active'));
+                userStatusLabel = 'Active';
+            } else if (hasInactiveWord) {
+                targetUsers = targetUsers.filter(item => (item.status || '').toLowerCase().includes('inactive'));
+                userStatusLabel = 'Inactive';
+            }
+
+            if (targetUsers.length > 0) {
+                let rowsHtml = targetUsers.map(item => `
                     <tr>
                         <td>#USR-${escapeHtml(item.id)}</td>
                         <td><strong>${escapeHtml(item.name)}</strong></td>
@@ -1965,7 +2494,7 @@
 
                 return `
                     ${restrictionNoticeHtml}
-                    <p><strong>👥 Live Company Team Members & Users (Fetched directly from database):</strong></p>
+                    <p><strong>👥 Live ${userStatusLabel ? userStatusLabel + ' ' : ''}Company Team Members & Users (Fetched directly from database):</strong></p>
                     <table class="ai-interactive-table">
                         <thead>
                             <tr>
@@ -1980,21 +2509,37 @@
                             ${rowsHtml}
                         </tbody>
                     </table>
-                    <p>Fetched <strong>${REAL_USERS.length} registered team users</strong> from database connection.</p>
+                    <p>Fetched <strong>${targetUsers.length} ${userStatusLabel ? userStatusLabel.toLowerCase() + ' ' : ''}registered team users</strong> from database connection${userStatusLabel ? ` (filtered from ${REAL_USERS.length} total records)` : ''}.</p>
                 `;
             } else {
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>👥 Company Users Record:</strong></p>
-                    <p>No user records found in database.</p>
+                    <p>No ${userStatusLabel ? userStatusLabel.toLowerCase() + ' ' : ''}user records found in database${userStatusLabel ? ` (Total records: ${REAL_USERS.length})` : ''}.</p>
                 `;
             }
         }
 
         // 4. ATTENDANCE & PDF QUERY
-        if (isPdfRequest || lower.includes('attendance') || lower.includes('labour') || lower.includes('headcount') || lower.includes('haziri') || lower.includes('hajiri') || lower.includes('present') || lower.includes('absent')) {
-            if (REAL_ATTENDANCE && REAL_ATTENDANCE.length > 0) {
-                let rowsHtml = REAL_ATTENDANCE.map(item => `
+        if (isPdfRequest || lower.includes('attendance') || lower.includes('labour') || lower.includes('headcount') || lower.includes('haziri') || lower.includes('hajiri') || hasPresentWord || hasAbsentWord) {
+            let targetAttendance = REAL_ATTENDANCE || [];
+            let attStatusLabel = '';
+            if (hasPresentWord) {
+                targetAttendance = targetAttendance.filter(item => (item.status || '').toLowerCase().includes('present'));
+                attStatusLabel = 'Present';
+            } else if (hasAbsentWord) {
+                targetAttendance = targetAttendance.filter(item => (item.status || '').toLowerCase().includes('absent'));
+                attStatusLabel = 'Absent';
+            } else if (hasHalfDayWord) {
+                targetAttendance = targetAttendance.filter(item => (item.status || '').toLowerCase().includes('half'));
+                attStatusLabel = 'Half Day';
+            } else if (hasPendingWord) {
+                targetAttendance = targetAttendance.filter(item => (item.out_time || '').toLowerCase().includes('pending') || (item.status || '').toLowerCase().includes('pending'));
+                attStatusLabel = 'Pending Check-out';
+            }
+
+            if (targetAttendance.length > 0) {
+                let rowsHtml = targetAttendance.map(item => `
                     <tr>
                         <td><strong>${escapeHtml(item.name)}</strong></td>
                         <td>${escapeHtml(item.date)}</td>
@@ -2008,7 +2553,7 @@
                 return `
                     ${restrictionNoticeHtml}
                     ${isPdfRequest ? pdfBannerHtml : ''}
-                    <p><strong>👷 Live Attendance Logs — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
+                    <p><strong>👷 Live ${attStatusLabel ? attStatusLabel + ' ' : ''}Attendance Logs — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
                     <table class="ai-interactive-table">
                         <thead>
                             <tr>
@@ -2024,22 +2569,50 @@
                             ${rowsHtml}
                         </tbody>
                     </table>
-                    <p>Fetched <strong>${REAL_ATTENDANCE.length} attendance entries</strong> for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong> from database connection.</p>
+                    <p>Fetched <strong>${targetAttendance.length} ${attStatusLabel ? attStatusLabel.toLowerCase() + ' ' : ''}attendance entr${targetAttendance.length === 1 ? 'y' : 'ies'}</strong> for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong> from database connection${attStatusLabel ? ` (filtered from ${REAL_ATTENDANCE.length} total records)` : ''}.</p>
                 `;
             } else {
                 return `
                     ${restrictionNoticeHtml}
                     ${isPdfRequest ? pdfBannerHtml : ''}
                     <p><strong>👷 Attendance Logs — ${escapeHtml(CURRENT_SITE_NAME)}:</strong></p>
-                    <p>No recent attendance check-in records were found in the database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>.</p>
+                    <p>No ${attStatusLabel ? attStatusLabel.toLowerCase() + ' ' : ''}attendance check-in records were found in the database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>${attStatusLabel ? ` (Total records: ${REAL_ATTENDANCE.length})` : ''}.</p>
                 `;
             }
         }
 
         // 5. EXPENSE & PETTY CASH QUERY
-        if (lower.includes('expense') || lower.includes('petty') || lower.includes('audit') || lower.includes('voucher') || lower.includes('kharcha') || lower.includes('kharch') || lower.includes('hisaab') || lower.includes('hisab') || lower.includes('cost') || lower.includes('payment')) {
-            if (REAL_EXPENSES && REAL_EXPENSES.length > 0) {
-                let rowsHtml = REAL_EXPENSES.map(item => `
+        if (lower.includes('expense') || lower.includes('petty') || lower.includes('audit') || lower.includes('voucher') || lower.includes('kharcha') || lower.includes('kharch') || lower.includes('hisaab') || lower.includes('hisab') || lower.includes('cost') || lower.includes('payment') || lower.includes('bill')) {
+            let targetExpenses = REAL_EXPENSES || [];
+            let expenseStatusLabel = '';
+            if (hasPendingWord) {
+                targetExpenses = targetExpenses.filter(item => {
+                    const s = (item.status || '').toLowerCase();
+                    return s.includes('pending') || s.includes('unapproved') || s.includes('draft');
+                });
+                expenseStatusLabel = 'Pending';
+            } else if (hasApprovedWord) {
+                targetExpenses = targetExpenses.filter(item => {
+                    const s = (item.status || '').toLowerCase();
+                    return s.includes('approved') || s.includes('verified');
+                });
+                expenseStatusLabel = 'Approved / Verified';
+            } else if (hasRejectedWord) {
+                targetExpenses = targetExpenses.filter(item => {
+                    const s = (item.status || '').toLowerCase();
+                    return s.includes('rejected') || s.includes('cancel');
+                });
+                expenseStatusLabel = 'Rejected';
+            } else if (hasPaidWord) {
+                targetExpenses = targetExpenses.filter(item => {
+                    const s = (item.status || '').toLowerCase();
+                    return s.includes('paid');
+                });
+                expenseStatusLabel = 'Paid';
+            }
+
+            if (targetExpenses.length > 0) {
+                let rowsHtml = targetExpenses.map(item => `
                     <tr>
                         <td>#EXP-${escapeHtml(item.id)}</td>
                         <td><strong>${escapeHtml(item.party_name || 'N/A')}</strong></td>
@@ -2049,13 +2622,13 @@
                         <td>${escapeHtml(item.site || CURRENT_SITE_NAME)}</td>
                         <td>${escapeHtml(item.user)}</td>
                         <td>${escapeHtml(item.date)}</td>
-                        <td><span style="color:${item.status === 'Approved' ? '#10a37f' : '#f59e0b'}; font-weight:700;">${escapeHtml(item.status)}</span></td>
+                        <td><span style="color:${(item.status || '').toLowerCase().includes('approved') || (item.status || '').toLowerCase().includes('verified') ? '#10a37f' : ((item.status || '').toLowerCase().includes('pending') ? '#f59e0b' : '#ef4444')}; font-weight:700;">${escapeHtml(item.status)}</span></td>
                     </tr>
                 `).join('');
 
                 return `
                     ${restrictionNoticeHtml}
-                    <p><strong>💰 Live Expense Vouchers — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
+                    <p><strong>💰 Live ${expenseStatusLabel ? expenseStatusLabel + ' ' : ''}Expense Vouchers — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
                     <table class="ai-interactive-table">
                         <thead>
                             <tr>
@@ -2074,21 +2647,40 @@
                             ${rowsHtml}
                         </tbody>
                     </table>
-                    <p>Fetched <strong>${REAL_EXPENSES.length} expense vouchers</strong> from database connection.</p>
+                    <p>Fetched <strong>${targetExpenses.length} ${expenseStatusLabel ? expenseStatusLabel.toLowerCase() + ' ' : ''}expense voucher${targetExpenses.length === 1 ? '' : 's'}</strong> from database connection${expenseStatusLabel ? ` (filtered from ${REAL_EXPENSES.length} total records)` : ''}.</p>
                 `;
             } else {
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>💰 Expense Vouchers — ${escapeHtml(CURRENT_SITE_NAME)}:</strong></p>
-                    <p>No expense vouchers found in database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>.</p>
+                    <p>No ${expenseStatusLabel ? expenseStatusLabel.toLowerCase() + ' ' : ''}expense vouchers found in database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>${expenseStatusLabel ? ` (Total records: ${REAL_EXPENSES.length})` : ''}.</p>
                 `;
             }
         }
 
         // 6. MATERIAL & STOCK QUERY
         if (lower.includes('stock') || lower.includes('material') || lower.includes('steel') || lower.includes('cement') || lower.includes('maal') || lower.includes('saman') || lower.includes('inventory')) {
-            if (REAL_MATERIALS && REAL_MATERIALS.length > 0) {
-                let rowsHtml = REAL_MATERIALS.map(item => `
+            let targetMaterials = REAL_MATERIALS || [];
+            let matStatusLabel = '';
+            if (hasPendingWord) {
+                targetMaterials = targetMaterials.filter(item => (item.status || '').toLowerCase().includes('pending'));
+                matStatusLabel = 'Pending';
+            } else if (hasApprovedWord) {
+                targetMaterials = targetMaterials.filter(item => {
+                    const s = (item.status || '').toLowerCase();
+                    return s.includes('approved') || s.includes('verified');
+                });
+                matStatusLabel = 'Approved / Verified';
+            } else if (lower.includes('returned') || lower.includes('return') || lower.includes('wapas')) {
+                targetMaterials = targetMaterials.filter(item => (item.status || '').toLowerCase().includes('returned'));
+                matStatusLabel = 'Returned';
+            } else if (hasRejectedWord) {
+                targetMaterials = targetMaterials.filter(item => (item.status || '').toLowerCase().includes('rejected'));
+                matStatusLabel = 'Rejected';
+            }
+
+            if (targetMaterials.length > 0) {
+                let rowsHtml = targetMaterials.map(item => `
                     <tr>
                         <td>#MAT-${escapeHtml(item.id)}</td>
                         <td><strong>${escapeHtml(item.material)}</strong></td>
@@ -2101,7 +2693,7 @@
 
                 return `
                     ${restrictionNoticeHtml}
-                    <p><strong>📦 Live Material Entry & Stock Logs — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
+                    <p><strong>📦 Live ${matStatusLabel ? matStatusLabel + ' ' : ''}Material Entry & Stock Logs — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
                     <table class="ai-interactive-table">
                         <thead>
                             <tr>
@@ -2117,13 +2709,117 @@
                             ${rowsHtml}
                         </tbody>
                     </table>
-                    <p>Fetched <strong>${REAL_MATERIALS.length} material entry records</strong> from database connection.</p>
+                    <p>Fetched <strong>${targetMaterials.length} ${matStatusLabel ? matStatusLabel.toLowerCase() + ' ' : ''}material entry record${targetMaterials.length === 1 ? '' : 's'}</strong> from database connection${matStatusLabel ? ` (filtered from ${REAL_MATERIALS.length} total records)` : ''}.</p>
                 `;
             } else {
                 return `
                     ${restrictionNoticeHtml}
                     <p><strong>📦 Material Entry — ${escapeHtml(CURRENT_SITE_NAME)}:</strong></p>
-                    <p>No material entry records found in database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>.</p>
+                    <p>No ${matStatusLabel ? matStatusLabel.toLowerCase() + ' ' : ''}material entry records found in database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>${matStatusLabel ? ` (Total records: ${REAL_MATERIALS.length})` : ''}.</p>
+                `;
+            }
+        }
+
+        // 7. GENERIC STATUS QUERY (e.g. "pending", "verified", "approved", "baki" without specifying module)
+        if (hasPendingWord || hasApprovedWord || hasRejectedWord) {
+            const genStatusLabel = hasPendingWord ? 'Pending' : (hasApprovedWord ? 'Approved / Verified' : 'Rejected');
+            const matchedExpenses = (REAL_EXPENSES || []).filter(e => {
+                const s = (e.status || '').toLowerCase();
+                if (hasPendingWord) return s.includes('pending') || s.includes('unapproved');
+                if (hasApprovedWord) return s.includes('approved') || s.includes('verified');
+                if (hasRejectedWord) return s.includes('rejected');
+                return false;
+            });
+            const matchedTasks = (REAL_TASKS || []).filter(t => {
+                const s = (t.status || '').toLowerCase();
+                if (hasPendingWord) return s.includes('pending');
+                if (hasApprovedWord) return s.includes('completed') || s.includes('verified');
+                if (hasRejectedWord) return s.includes('rejected');
+                return false;
+            });
+            const matchedMaterials = (REAL_MATERIALS || []).filter(m => {
+                const s = (m.status || '').toLowerCase();
+                if (hasPendingWord) return s.includes('pending');
+                if (hasApprovedWord) return s.includes('approved') || s.includes('verified');
+                if (hasRejectedWord) return s.includes('rejected');
+                return false;
+            });
+
+            if (matchedExpenses.length > 0) {
+                let rowsHtml = matchedExpenses.map(item => `
+                    <tr>
+                        <td>#EXP-${escapeHtml(item.id)}</td>
+                        <td><strong>${escapeHtml(item.party_name || 'N/A')}</strong></td>
+                        <td>${escapeHtml(item.cost_category_name || 'N/A')}</td>
+                        <td><strong>${escapeHtml(item.particular)}</strong></td>
+                        <td>₹${escapeHtml(item.amount)}</td>
+                        <td>${escapeHtml(item.site || CURRENT_SITE_NAME)}</td>
+                        <td>${escapeHtml(item.user)}</td>
+                        <td>${escapeHtml(item.date)}</td>
+                        <td><span style="color:${(item.status || '').toLowerCase().includes('approved') || (item.status || '').toLowerCase().includes('verified') ? '#10a37f' : '#f59e0b'}; font-weight:700;">${escapeHtml(item.status)}</span></td>
+                    </tr>
+                `).join('');
+
+                return `
+                    ${restrictionNoticeHtml}
+                    <p><strong>💰 Live ${genStatusLabel} Expense Vouchers — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
+                    <table class="ai-interactive-table">
+                        <thead>
+                            <tr>
+                                <th>Voucher ID</th>
+                                <th>Party Name</th>
+                                <th>Cost Category Name</th>
+                                <th>Particular</th>
+                                <th>Amount</th>
+                                <th>Site Name</th>
+                                <th>User Name</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                    <p>Fetched <strong>${matchedExpenses.length} ${genStatusLabel.toLowerCase()} expense voucher${matchedExpenses.length === 1 ? '' : 's'}</strong> (Other ${genStatusLabel.toLowerCase()} records: Tasks: ${matchedTasks.length}, Materials: ${matchedMaterials.length}).</p>
+                `;
+            } else if (matchedTasks.length > 0) {
+                let rowsHtml = matchedTasks.map(item => `
+                    <tr>
+                        <td>#TSK-${escapeHtml(item.id)}</td>
+                        <td><strong>${escapeHtml(item.title)}</strong></td>
+                        <td>${escapeHtml(item.site)}</td>
+                        <td><span style="color:${item.priority === 'High' ? '#ef4444' : '#f59e0b'}; font-weight:700;">${escapeHtml(item.priority)}</span></td>
+                        <td><span style="color:#f59e0b; font-weight:700;">${escapeHtml(item.status)}</span></td>
+                        <td>${escapeHtml(item.due_date)}</td>
+                    </tr>
+                `).join('');
+
+                return `
+                    ${restrictionNoticeHtml}
+                    <p><strong>📋 Live ${genStatusLabel} Tasks — ${escapeHtml(CURRENT_SITE_NAME)} (Fetched directly from database):</strong></p>
+                    <table class="ai-interactive-table">
+                        <thead>
+                            <tr>
+                                <th>Task ID</th>
+                                <th>Title / Work Description</th>
+                                <th>Site</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Due Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                    <p>Fetched <strong>${matchedTasks.length} ${genStatusLabel.toLowerCase()} tasks</strong> from database connection.</p>
+                `;
+            } else {
+                return `
+                    ${restrictionNoticeHtml}
+                    <p><strong>Status Search — ${escapeHtml(CURRENT_SITE_NAME)}:</strong></p>
+                    <p>No <strong>${escapeHtml(genStatusLabel.toLowerCase())}</strong> records were found in the database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong> (Expenses: 0, Tasks: 0, Materials: 0).</p>
                 `;
             }
         }
@@ -2477,6 +3173,14 @@
         updateTtsToggleUi();
         updateVoiceUiState('idle');
 
+        // Check if on 127.0.0.1 and show switch helper
+        if (window.location.hostname === '127.0.0.1') {
+            const topbarBtn = document.getElementById('topbar-localhost-btn');
+            if (topbarBtn) topbarBtn.style.display = 'inline-flex';
+            const alertBanner = document.getElementById('localhost-origin-alert');
+            if (alertBanner) alertBanner.style.display = 'flex';
+        }
+
         // Preload speech synthesis voices
         if ('speechSynthesis' in window) {
             window.speechSynthesis.getVoices();
@@ -2571,6 +3275,40 @@
         }
     }
 
+    async function handleVoiceFileUpload(input) {
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+        const previewEl = document.getElementById('voice-transcript-preview');
+        const inputEl = document.getElementById('chat-user-input');
+
+        showVoiceToast('Transcribing uploaded voice note...', 'info');
+        if (previewEl) previewEl.textContent = 'Transcribing voice audio with Buildarya AI...';
+
+        const formData = new FormData();
+        formData.append('audio', file, file.name);
+
+        try {
+            const resp = await fetch('{{ route("ai.chat.transcribe") }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: formData
+            });
+            const data = await resp.json();
+            if (data.success && data.text) {
+                if (inputEl) inputEl.value = data.text;
+                showVoiceToast('Transcribed: "' + data.text + '"', 'info');
+                sendMessage();
+            } else {
+                showVoiceToast('Could not transcribe audio: ' + (data.message || 'Unknown error'), 'error');
+            }
+        } catch (e) {
+            showVoiceToast('Error uploading audio: ' + e.message, 'error');
+        }
+        input.value = '';
+    }
+
     async function startVoiceAssistant() {
         stopSpeaking();
 
@@ -2588,7 +3326,22 @@
         } catch (err) {
             console.warn('Microphone stream acquisition notice:', err);
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                showVoiceToast('Microphone access blocked. Click address bar (🔒 or ℹ️) -> Allow microphone, then reload.', 'error');
+                if (window.location.hostname === '127.0.0.1') {
+                    const alertEl = document.getElementById('localhost-origin-alert');
+                    if (alertEl) alertEl.style.display = 'flex';
+                    const topbarBtn = document.getElementById('topbar-localhost-btn');
+                    if (topbarBtn) topbarBtn.style.display = 'inline-flex';
+
+                    showVoiceToast('Chrome blocks mic on 127.0.0.1. <a href="{{ route("switch.localhost") }}" style="color:#34d399; font-weight:bold; text-decoration:underline;">Click to switch to localhost:8000</a> (1-click, no login needed) to talk!', 'error');
+
+                    setTimeout(() => {
+                        if (confirm("Chrome restricts microphone access on '127.0.0.1'. Would you like to switch to 'localhost:8000' now to speak freely? (No login needed)")) {
+                            window.location.href = '{{ route("switch.localhost") }}';
+                        }
+                    }, 400);
+                } else {
+                    showVoiceToast('Microphone access blocked. Click address bar (🔒 or ℹ️) -> Allow microphone, then reload.', 'error');
+                }
             } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                 showVoiceToast('No microphone detected on your device. Please plug in a microphone.', 'error');
             } else {
@@ -2924,10 +3677,15 @@
 
         // 2. EXPENSES
         if (tableEl && (rawText.includes('Expense') || rawText.includes('expense') || rawText.includes('Petty') || rawText.includes('Voucher'))) {
+            let statusPrefix = '';
+            if (rawText.includes('Pending') || rawText.includes('pending')) statusPrefix = 'pending ';
+            else if (rawText.includes('Approved') || rawText.includes('Verified')) statusPrefix = 'approved ';
+            else if (rawText.includes('Rejected')) statusPrefix = 'rejected ';
+            else if (rawText.includes('Paid')) statusPrefix = 'paid ';
             if (rows > 0) {
-                return `Found ${rows} expense vouchers for ${CURRENT_SITE_NAME}. Details are displayed on your screen.`;
+                return `Found ${rows} ${statusPrefix}expense voucher${rows === 1 ? '' : 's'} for ${CURRENT_SITE_NAME}. Details are displayed on your screen.`;
             } else {
-                return `No expense records were found for ${CURRENT_SITE_NAME}.`;
+                return `No ${statusPrefix}expense records were found for ${CURRENT_SITE_NAME}.`;
             }
         }
 
@@ -2936,19 +3694,29 @@
             if (rawText.includes('PDF Report')) {
                 return `Your attendance PDF report for ${CURRENT_SITE_NAME} is ready for download.`;
             }
+            let attPrefix = '';
+            if (rawText.includes('Present') || rawText.includes('present')) attPrefix = 'present ';
+            else if (rawText.includes('Absent') || rawText.includes('absent')) attPrefix = 'absent ';
+            else if (rawText.includes('Half Day')) attPrefix = 'half day ';
+            else if (rawText.includes('Pending')) attPrefix = 'pending check-out ';
             if (rows > 0) {
-                return `Found ${rows} attendance entries for ${CURRENT_SITE_NAME}.`;
+                return `Found ${rows} ${attPrefix}attendance entries for ${CURRENT_SITE_NAME}.`;
             } else {
-                return `No attendance check-in records were found for ${CURRENT_SITE_NAME}.`;
+                return `No ${attPrefix}attendance records were found for ${CURRENT_SITE_NAME}.`;
             }
         }
 
         // 4. MATERIAL & STOCK
         if (rawText.includes('Material') || rawText.includes('Stock') || rawText.includes('material')) {
+            let matPrefix = '';
+            if (rawText.includes('Pending') || rawText.includes('pending')) matPrefix = 'pending ';
+            else if (rawText.includes('Approved') || rawText.includes('Verified')) matPrefix = 'approved ';
+            else if (rawText.includes('Returned')) matPrefix = 'returned ';
+            else if (rawText.includes('Rejected')) matPrefix = 'rejected ';
             if (rows > 0) {
-                return `Found ${rows} material stock records in your database.`;
+                return `Found ${rows} ${matPrefix}material stock records in your database.`;
             } else {
-                return `No material entries were found.`;
+                return `No ${matPrefix}material entries were found.`;
             }
         }
 
@@ -2959,7 +3727,12 @@
 
         // 6. TASKS
         if (rawText.includes('Task') || rawText.includes('task')) {
-            return `Found ${rows} assigned tasks for ${CURRENT_SITE_NAME}.`;
+            let taskPrefix = '';
+            if (rawText.includes('Pending') || rawText.includes('pending')) taskPrefix = 'pending ';
+            else if (rawText.includes('Completed') || rawText.includes('completed')) taskPrefix = 'completed ';
+            else if (rawText.includes('Progress') || rawText.includes('progress')) taskPrefix = 'in progress ';
+            else if (rawText.includes('Hold') || rawText.includes('hold')) taskPrefix = 'on hold ';
+            return `Found ${rows} ${taskPrefix}assigned tasks for ${CURRENT_SITE_NAME}.`;
         }
 
         // 7. USERS / TEAM
@@ -3078,6 +3851,7 @@
 
         container.appendChild(toast);
 
+        const duration = type === 'error' ? 7000 : 3500;
         setTimeout(() => {
             toast.style.opacity = '0';
             toast.style.transform = 'translateY(-10px)';
@@ -3085,7 +3859,7 @@
             setTimeout(() => {
                 if (toast.parentNode) toast.parentNode.removeChild(toast);
             }, 300);
-        }, 3500);
+        }, duration);
     }
 </script>
 @endsection

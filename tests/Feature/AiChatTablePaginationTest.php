@@ -55,3 +55,4 @@ class AiChatTablePaginationTest extends TestCase
         $this->assertStringContainsString('/attendance/export-pdf', $content);
     }
 }
+

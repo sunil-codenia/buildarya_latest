@@ -105,5 +105,40 @@ class AiChatVoiceAssistantTest extends TestCase
         $this->assertTrue($data['success']);
         $this->assertEquals('show all expenses', $data['text']);
     }
+
+    public function test_switch_to_localhost_and_bridge_session_routes_exist(): void
+    {
+        $sessionData = ['key' => '12345', 'uid' => 1, 'name' => 'Test User'];
+        $this->withSession($sessionData);
+
+        $response = $this->get('/switch-to-localhost');
+        $this->assertTrue($response->isRedirection());
+        $target = $response->headers->get('Location');
+        $this->assertStringContainsString('localhost', $target);
+        $this->assertStringContainsString('/bridge-session?token=', $target);
+
+        // Extract token from target URL
+        parse_str(parse_url($target, PHP_URL_QUERY), $queryParams);
+        $token = $queryParams['token'] ?? null;
+        $this->assertNotEmpty($token);
+
+        // Access bridge-session with token
+        $bridgeResponse = $this->get('/bridge-session?token=' . $token);
+        $this->assertTrue($bridgeResponse->isRedirection());
+        $this->assertEquals(url('/chat-view'), $bridgeResponse->headers->get('Location'));
+        $this->assertEquals('12345', session()->get('key'));
+        $this->assertEquals('Test User', session()->get('name'));
+    }
+
+    public function test_classic_view_contains_audio_upload_and_switch_elements(): void
+    {
+        $viewPath = resource_path('views/classic_view.blade.php');
+        $content = file_get_contents($viewPath);
+
+        $this->assertStringContainsString('id="voice-audio-file-input"', $content);
+        $this->assertStringContainsString('handleVoiceFileUpload(this)', $content);
+        $this->assertStringContainsString('id="localhost-origin-alert"', $content);
+        $this->assertStringContainsString('id="topbar-localhost-btn"', $content);
+    }
 }
 
