@@ -18,7 +18,7 @@ class SecurityHeadersMiddleware
             $response->header('X-Content-Type-Options', 'nosniff');
             $response->header('X-XSS-Protection', '1; mode=block');
             $response->header('Referrer-Policy', 'no-referrer-when-downgrade');
-            $response->header('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+            $response->header('Permissions-Policy', 'geolocation=(), microphone=(self), camera=()');
         }
 
         return $response;

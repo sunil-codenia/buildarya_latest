@@ -1374,7 +1374,7 @@
                         <option value="hi-IN">🇮🇳 Hindi (हिन्दी)</option>
                         <option value="en-US">🌐 English (US)</option>
                     </select>
-                    <div id="voice-topbar-status" class="voice-status-pill" title="Voice Assistant Status">
+                    <div id="voice-topbar-status" class="voice-status-pill" title="Voice Assistant — Click to speak" onclick="toggleVoiceAssistant()" style="cursor: pointer;">
                         <i class="zmdi zmdi-mic"></i> <span id="voice-status-badge-text">Ready</span>
                     </div>
                 </div>
@@ -1409,8 +1409,8 @@
                 </div>
 
                 <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
-                    <span style="background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; font-size: 12px; font-weight: 700; border-radius: 20px; padding: 6px 18px; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);">
-                        <i class="zmdi zmdi-mic" style="font-size: 16px; color: #10b981;"></i> Voice Assistant Enabled &bull; Click 🎙️ Mic below to speak (English / हिन्दी)
+                    <span onclick="toggleVoiceAssistant()" style="cursor: pointer; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; font-size: 12px; font-weight: 700; border-radius: 20px; padding: 6px 18px; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);" title="Voice Assistant — Click to speak">
+                        <i class="zmdi zmdi-mic" style="font-size: 16px; color: #10b981;"></i> Voice Assistant Enabled &bull; Click to speak (English / हिन्दी)
                     </span>
                 </div>
 
@@ -3191,28 +3191,27 @@
     }
 
     function isSpeechRecognitionAvailable() {
-        // In Chrome, webkitSpeechRecognition only functions over secure HTTPS or localhost.
-        // It strictly fails with 'not-allowed' on HTTP IP origins like 127.0.0.1.
-        const isSecure = (window.location.protocol === 'https:' || window.location.hostname === 'localhost');
-        const hasAPI = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-        return isSecure && hasAPI;
+        return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
     }
 
     function initSpeechRecognition() {
-        if (!isSpeechRecognitionAvailable()) {
+        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionClass) {
             return null;
         }
 
-        const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
         try {
             const recognition = new SpeechRecognitionClass();
             recognition.continuous = false;
             recognition.interimResults = true;
             recognition.maxAlternatives = 1;
-            recognition.lang = currentVoiceLang;
+            recognition.lang = currentVoiceLang || 'en-IN';
 
             recognition.onstart = function() {
-                // Speech recognition started
+                isVoiceListening = true;
+                updateVoiceUiState('listening');
+                const previewEl = document.getElementById('voice-transcript-preview');
+                if (previewEl) previewEl.textContent = 'Listening to your voice... Speak now';
             };
 
             recognition.onresult = function(event) {
@@ -3241,23 +3240,54 @@
                 if (finalTranscript && finalTranscript.trim().length > 0) {
                     voiceAutoSendTimer = setTimeout(() => {
                         stopVoiceAssistant(true);
-                    }, 850);
+                    }, 800);
                 }
             };
 
             recognition.onerror = function(event) {
-                console.warn('Live SpeechRecognition notice:', event.error);
+                console.warn('SpeechRecognition notice:', event.error);
                 clearTimeout(voiceAutoSendTimer);
-                // NEVER abort voice listening and NEVER show false permission toast!
-                // MediaRecorder audio capture continues uninterrupted.
+
+                if (event.error === 'no-speech') {
+                    showVoiceToast('No voice detected. Please speak into your microphone.', 'info');
+                    stopVoiceAssistant(false);
+                    return;
+                }
+
+                if (event.error === 'not-allowed') {
+                    if (window.location.hostname === '127.0.0.1') {
+                        const alertEl = document.getElementById('localhost-origin-alert');
+                        if (alertEl) alertEl.style.display = 'flex';
+                        const topbarBtn = document.getElementById('topbar-localhost-btn');
+                        if (topbarBtn) topbarBtn.style.display = 'inline-flex';
+                        showVoiceToast('Microphone access blocked on 127.0.0.1. <a href="{{ route("switch.localhost") }}" style="color:#34d399; font-weight:bold; text-decoration:underline;">Click to switch to localhost:8000</a> to enable voice.', 'error');
+                    } else {
+                        showVoiceToast('Microphone access blocked. Click address bar (🔒 or ℹ️) -> Allow microphone, then reload.', 'error');
+                    }
+                    stopVoiceAssistant(false);
+                    return;
+                }
+
+                if (event.error === 'network') {
+                    console.log('Speech recognition network notice, attempting audio recording fallback...');
+                    stopVoiceAssistant(false);
+                    startMediaRecorderFallback();
+                    return;
+                }
+
+                stopVoiceAssistant(false);
             };
 
             recognition.onend = function() {
-                // If voice session is still active via MediaRecorder, do not reset UI to idle!
                 if (isVoiceListening) {
-                    return;
+                    const inputEl = document.getElementById('chat-user-input');
+                    if (inputEl && inputEl.value.trim().length > 0) {
+                        stopVoiceAssistant(true);
+                        return;
+                    }
                 }
                 updateVoiceUiState('idle');
+                isVoiceListening = false;
             };
 
             return recognition;
@@ -3312,7 +3342,31 @@
     async function startVoiceAssistant() {
         stopSpeaking();
 
-        // 1. Acquire raw microphone stream from device
+        // 1. Try Native Browser SpeechRecognition first (Real-time live transcript)
+        if (isSpeechRecognitionAvailable()) {
+            try {
+                if (!speechRecognition) {
+                    speechRecognition = initSpeechRecognition();
+                }
+                if (speechRecognition) {
+                    speechRecognition.lang = currentVoiceLang || 'en-IN';
+                    speechRecognition.start();
+                    isVoiceListening = true;
+                    updateVoiceUiState('listening');
+                    const previewEl = document.getElementById('voice-transcript-preview');
+                    if (previewEl) previewEl.textContent = 'Listening to your voice... Speak now';
+                    return;
+                }
+            } catch (srErr) {
+                console.warn('Direct SpeechRecognition start notice:', srErr);
+            }
+        }
+
+        // 2. Fallback: MediaRecorder Audio Recording + Gemini AI Transcription
+        await startMediaRecorderFallback();
+    }
+
+    async function startMediaRecorderFallback() {
         let stream = null;
         try {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -3331,14 +3385,7 @@
                     if (alertEl) alertEl.style.display = 'flex';
                     const topbarBtn = document.getElementById('topbar-localhost-btn');
                     if (topbarBtn) topbarBtn.style.display = 'inline-flex';
-
                     showVoiceToast('Chrome blocks mic on 127.0.0.1. <a href="{{ route("switch.localhost") }}" style="color:#34d399; font-weight:bold; text-decoration:underline;">Click to switch to localhost:8000</a> (1-click, no login needed) to talk!', 'error');
-
-                    setTimeout(() => {
-                        if (confirm("Chrome restricts microphone access on '127.0.0.1'. Would you like to switch to 'localhost:8000' now to speak freely? (No login needed)")) {
-                            window.location.href = '{{ route("switch.localhost") }}';
-                        }
-                    }, 400);
                 } else {
                     showVoiceToast('Microphone access blocked. Click address bar (🔒 or ℹ️) -> Allow microphone, then reload.', 'error');
                 }
@@ -3347,11 +3394,15 @@
             } else {
                 showVoiceToast('Could not access microphone: ' + (err.message || err.name), 'error');
             }
+            updateVoiceUiState('idle');
+            isVoiceListening = false;
             return;
         }
 
         if (!stream) {
             showVoiceToast('Microphone access is not supported by your browser.', 'error');
+            updateVoiceUiState('idle');
+            isVoiceListening = false;
             return;
         }
 
@@ -3361,7 +3412,6 @@
         const previewEl = document.getElementById('voice-transcript-preview');
         if (previewEl) previewEl.textContent = 'Listening to your voice... Speak now';
 
-        // 2. Start MediaRecorder for high-fidelity audio capture
         recordedAudioChunks = [];
         try {
             let options = {};
@@ -3385,7 +3435,6 @@
             console.warn('MediaRecorder start notice:', mrErr);
         }
 
-        // 3. Audio volume & silence detection + 12s safety timeout
         voiceSpeechDetected = false;
         clearTimeout(voiceSilenceTimer);
         clearTimeout(voiceMaxDurationTimer);
@@ -3394,65 +3443,9 @@
         // Auto-send after 12s max duration
         voiceMaxDurationTimer = setTimeout(() => {
             if (isVoiceListening) {
-                console.log('Max voice duration reached, processing query...');
                 stopVoiceAssistant(true);
             }
         }, 12000);
-
-        try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (AudioCtx && activeMediaStream) {
-                voiceAudioContext = new AudioCtx();
-                const source = voiceAudioContext.createMediaStreamSource(activeMediaStream);
-                const analyser = voiceAudioContext.createAnalyser();
-                analyser.fftSize = 256;
-                source.connect(analyser);
-
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                const checkAudioVolume = () => {
-                    if (!isVoiceListening || !activeMediaStream) return;
-                    analyser.getByteFrequencyData(dataArray);
-                    let sum = 0;
-                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                    let avg = sum / dataArray.length;
-
-                    if (avg > 14) {
-                        voiceSpeechDetected = true;
-                        clearTimeout(voiceSilenceTimer);
-                        voiceSilenceTimer = null;
-                    } else if (voiceSpeechDetected && !voiceSilenceTimer) {
-                        voiceSilenceTimer = setTimeout(() => {
-                            if (isVoiceListening) {
-                                console.log('Speech pause detected, processing query...');
-                                stopVoiceAssistant(true);
-                            }
-                        }, 1400);
-                    }
-
-                    if (isVoiceListening) {
-                        requestAnimationFrame(checkAudioVolume);
-                    }
-                };
-                requestAnimationFrame(checkAudioVolume);
-            }
-        } catch (e) {
-            console.warn('AudioContext volume detection notice:', e);
-        }
-
-        // 4. Progressive enhancement: Live webkitSpeechRecognition only if origin is secure (HTTPS/localhost)
-        if (isSpeechRecognitionAvailable()) {
-            try {
-                if (!speechRecognition) {
-                    speechRecognition = initSpeechRecognition();
-                }
-                if (speechRecognition) {
-                    speechRecognition.lang = currentVoiceLang;
-                    speechRecognition.start();
-                }
-            } catch (srErr) {
-                console.warn('SpeechRecognition start notice:', srErr);
-            }
-        }
     }
 
     async function stopVoiceAssistant(shouldSend = false) {
@@ -3475,11 +3468,10 @@
         const previewEl = document.getElementById('voice-transcript-preview');
         const hasLiveTranscript = inputEl && inputEl.value.trim().length > 0;
 
-        // If MediaRecorder was recording
+        // If MediaRecorder was recording (fallback mode)
         if (activeMediaRecorder && activeMediaRecorder.state !== 'inactive') {
-            // Case A: Live recognition already produced full text
             if (hasLiveTranscript) {
-                activeMediaRecorder.stop();
+                try { activeMediaRecorder.stop(); } catch (e) {}
                 releaseActiveMediaStream();
                 isVoiceListening = false;
                 updateVoiceUiState('idle');
@@ -3489,7 +3481,6 @@
                 return;
             }
 
-            // Case B: Transcribe audio blob with backend Gemini (works on 127.0.0.1, localhost, and live)
             if (shouldSend) {
                 if (previewEl) previewEl.textContent = 'Transcribing voice with Buildarya AI...';
                 const badgeText = document.getElementById('voice-status-badge-text');
@@ -3537,10 +3528,10 @@
                     updateVoiceUiState('idle');
                 };
 
-                activeMediaRecorder.stop();
+                try { activeMediaRecorder.stop(); } catch (e) {}
                 return;
             } else {
-                activeMediaRecorder.stop();
+                try { activeMediaRecorder.stop(); } catch (e) {}
                 releaseActiveMediaStream();
             }
         } else {

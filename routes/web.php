@@ -77,8 +77,16 @@ Route::get('/bridge-session', function (\Illuminate\Http\Request $request) {
     if ($token && \Illuminate\Support\Facades\Cache::has('session_bridge_' . $token)) {
         $sessionData = \Illuminate\Support\Facades\Cache::pull('session_bridge_' . $token);
         if (is_array($sessionData)) {
+            $request->session()->regenerate();
             foreach ($sessionData as $key => $val) {
-                $request->session()->put($key, $val);
+                if ($key !== '_token') {
+                    $request->session()->put($key, $val);
+                }
+            }
+            if (!empty($sessionData['uid'])) {
+                try {
+                    \Illuminate\Support\Facades\Auth::loginUsingId($sessionData['uid']);
+                } catch (\Throwable $e) {}
             }
             $request->session()->save();
         }

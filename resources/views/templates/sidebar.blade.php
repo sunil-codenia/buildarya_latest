@@ -233,17 +233,6 @@
             <li class="{{ Request::is('invoices') ? 'active open' : '' }}"><a href="{{url('/invoices')}}"><i class="zmdi zmdi-file-text"></i><span>Invoices</span></a></li>
             @endif --}}
             <li class="{{ Request::is('tickets*') ? 'active open' : '' }}"><a href="{{url('/tickets')}}"><i class="zmdi zmdi-receipt"></i><span>Support Tickets</span></a></li>
-            <li class="header">APPS</li>
-            @if(isSuperAdmin())
-            <li class="{{ Request::is('dashboard/upload_apk') ? 'active open' : '' }}">
-                <a href="{{url('/dashboard/upload_apk')}}"><i class="zmdi zmdi-upload"></i><span>Upload APK</span></a>
-            </li>
-            @endif
-            <li>
-                <a href="{{url('/download-apk')}}" class="btn btn-primary btn-round text-white m-2 text-center" style="margin: 10px 20px !important; color: white !important;">
-                    <i class="zmdi zmdi-android"></i> <span>Download APK</span>
-                </a>
-            </li>
          </ul>
     </div>
 </aside>

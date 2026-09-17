@@ -782,26 +782,26 @@ iframe.skiptranslate,
 
 /* Universal Bulk Actions Bar Styling */
 .bulk-actions-container {
-    background: #ffffff !important;
-    border-color: #e0e0e0 !important;
+    background: #252830 !important;
+    border: 1px solid #3a3f4d !important;
     border-left: 5px solid #eda61a !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
     transition: all 0.3s ease;
 }
 
 .bulk-actions-container #bulkSelectionText,
 .bulk-actions-container #bulkSelectionTextVerified {
-    color: #333333 !important;
-}
-
-body.menu_dark .bulk-actions-container {
-    background: #252830 !important;
-    border-color: #3a3f4d !important;
-    border-left: 5px solid #eda61a !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-}
-
-body.menu_dark .bulk-actions-container #bulkSelectionText,
-body.menu_dark .bulk-actions-container #bulkSelectionTextVerified {
     color: #ffffff !important;
+}
+
+body.menu_light .bulk-actions-container {
+    background: #ffffff !important;
+    border: 1px solid #e0e0e0 !important;
+    border-left: 5px solid #eda61a !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.menu_light .bulk-actions-container #bulkSelectionText,
+body.menu_light .bulk-actions-container #bulkSelectionTextVerified {
+    color: #333333 !important;
 }

@@ -132,17 +132,20 @@
 
 
 @if(Session::has('menutheme'))
-@if(Session::get('menutheme')[0] == "menu_dark")
+@php
+    $menuthemeVal = is_array(Session::get('menutheme')) ? Session::get('menutheme')[0] : Session::get('menutheme');
+@endphp
+@if($menuthemeVal == "menu_dark")
 <script>
 var body = document.body;
 body.classList.add("menu_dark");
- </script> 
+</script> 
 @else
 <script>
 var body = document.body;
 body.classList.remove("menu_dark");
 </script>
- @endif
+@endif
 @endif 
 
  
