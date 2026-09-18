@@ -896,24 +896,65 @@ class AiChatQueryController extends Controller
 
             $lower = strtolower($queryText);
 
-            // Check if input is a simple greeting or introductory text
-            $isGreeting = preg_match('/^(hi|hello|hey|hiya|hlo|greetings|good morning|good afternoon|good evening|who are you|what can you do|help)$/i', trim($lower));
+            $conversationalIntent = $this->detectConversationalIntent($queryText);
 
-            if ($isGreeting) {
-                $html = $this->buildGreetingHtml($user_name, $site_name);
+            if ($conversationalIntent) {
+                $html = '';
+                $summary = '';
+                $messageTitle = '';
+
+                switch ($conversationalIntent) {
+                    case 'identity':
+                        $html = $this->buildIdentityHtml($user_name, $site_name);
+                        $summary = "I am your AI Assistant from Buildarya. How can I help you today?";
+                        $messageTitle = 'I am your AI Assistant from Buildarya';
+                        break;
+
+                    case 'greeting':
+                        $displayName = !empty($user_name) ? $user_name : '';
+                        $html = $this->buildGreetingHtml($user_name, $site_name);
+                        $summary = $displayName ? "Hello {$displayName}! How can I help you?" : "Hello! How can I help you?";
+                        $messageTitle = $summary;
+                        break;
+
+                    case 'how_are_you':
+                        $html = $this->buildHowAreYouHtml($user_name, $site_name);
+                        $summary = "I am doing great, thank you! How can I help you today?";
+                        $messageTitle = 'I am doing great and ready to assist you!';
+                        break;
+
+                    case 'thank_you':
+                        $html = $this->buildThankYouHtml($user_name, $site_name);
+                        $summary = "You're very welcome! Let me know if you need anything else.";
+                        $messageTitle = 'You are very welcome!';
+                        break;
+
+                    case 'help':
+                        $html = $this->buildHelpCapabilitiesHtml($user_name, $site_name);
+                        $summary = "Here is what I can help you with in Buildarya: querying live site data, generating attendance reports, and opening entry forms.";
+                        $messageTitle = 'Buildarya AI Assistant Help & Capabilities';
+                        break;
+
+                    case 'goodbye':
+                        $html = $this->buildGoodbyeHtml($user_name, $site_name);
+                        $summary = "Goodbye! Have a great day managing your construction sites with Buildarya.";
+                        $messageTitle = 'Goodbye! Have a great day.';
+                        break;
+                }
+
                 $responsePayload = [
                     'status' => 'Ok',
                     'status_code' => 200,
-                    'message' => 'Buildarya AI Assistant Greeting',
+                    'message' => $messageTitle,
                     'data' => [
                         'query' => $queryText,
-                        'intent' => 'greeting',
+                        'intent' => $conversationalIntent,
                         'ai_provider' => 'Buildarya AI Assistant',
                         'sql_generated' => '',
                         'active_site' => $site_name,
                         'records_count' => 0,
                         'records' => [],
-                        'summary' => "Buildarya AI Assistant greeted user {$user_name}.",
+                        'summary' => $summary,
                         'html' => $html,
                         'is_pdf_requested' => false,
                         'pdf_url' => url('/attendance/download-pdf')
@@ -921,7 +962,7 @@ class AiChatQueryController extends Controller
                 ];
                 $response = response()->json($responsePayload);
 
-                logUserAuditAction('search', $queryText, 'Buildarya AI Assistant Greeting', $responsePayload, 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
+                logUserAuditAction('search', $queryText, $messageTitle, $responsePayload, 'ai_chat', null, $request, $conn, (microtime(true) - $start) * 1000);
                 return $response;
             }
 
@@ -1068,29 +1109,128 @@ class AiChatQueryController extends Controller
     }
 
     /**
-     * Build friendly greeting response for conversational inputs like "hi", "hello", "who are you"
+     * Detect basic conversational intents (greetings, identity, well-being, gratitude, help, goodbye)
+     *
+     * @param string $queryText
+     * @return string|null 'identity' | 'greeting' | 'how_are_you' | 'thank_you' | 'help' | 'goodbye' | null
+     */
+    private function detectConversationalIntent($queryText)
+    {
+        $clean = trim(preg_replace('/[?!.,;:"\'`~]+/u', '', trim($queryText)));
+        $clean = preg_replace('/\s+/', ' ', $clean);
+        $lower = strtolower($clean);
+
+        if (empty($lower)) {
+            return null;
+        }
+
+        // 1. Identity Queries: "who are you", "who r u", "koun ho tum", "tell me who you are", etc.
+        if (preg_match('/^(who\s+(are\s+you|r\s+u|ru|is\s+this|made\s+you|created\s+you)|what\s+are\s+you|what\s+is\s+your\s+name|what\s+is\s+buildarya(\s+ai)?|tell\s+me\s+(who\s+(you\s+are|are\s+you)|about\s+yourself)|introduce\s+yourself|about\s+yourself|aap\s+kaun\s+ho|aap\s+koun\s+ho|tum\s+kaun\s+ho|koun\s+ho\s+tum|kaun\s+ho\s+tum|identify\s+yourself)$/i', $lower)) {
+            return 'identity';
+        }
+
+        // 2. Greetings: "hi", "hello", "hellow", "helo", "hey", "hiya", "hlo", "good morning", "namaste", "hi there", "hello there", "hellow there"
+        if (preg_match('/^(hi|hello|hellow|helo|hey|hiya|hlo|greetings|good\s+(morning|afternoon|evening|day)|namaste|namaskar|(hi|hello|hellow|hey)\s+(there|buildarya|all))$/i', $lower)) {
+            return 'greeting';
+        }
+
+        // 3. How Are You / Well-being: "how are you", "how r u", "kaise ho", "kya haal hai"
+        if (preg_match('/^(how\s+(are\s+you|r\s+u|are\s+you\s+doing|do\s+you\s+do)|hows\s+it\s+going|kaise\s+ho|aap\s+kaise\s+ho|aap\s+kaise\s+hain|kya\s+haal\s+hai|sab\s+theek(\s+hai)?)$/i', $lower)) {
+            return 'how_are_you';
+        }
+
+        // 4. Thank You / Gratitude: "thank you", "thanks", "thank u", "shukriya", "dhanyawad"
+        if (preg_match('/^(thank\s+you(\s+(so|very)\s+much)?|thanks(\s+(a\s+lot|so\s+much))?|thank\s+u|many\s+thanks|thx|thankyou|shukriya|dhanyawad)$/i', $lower)) {
+            return 'thank_you';
+        }
+
+        // 5. Help / Capabilities: "what can you do", "help", "help me", "kya kar sakte ho"
+        if (preg_match('/^(what\s+can\s+you\s+do|what\s+do\s+you\s+do|help|help\s+me|can\s+you\s+help\s+me|kya\s+kar\s+sakte\s+ho|tum\s+kya\s+kar\s+sakte\s+ho|aap\s+kya\s+kar\s+sakte\s+hain|how\s+can\s+you\s+help\s+me|how\s+to\s+use)$/i', $lower)) {
+            return 'help';
+        }
+
+        // 6. Goodbye / Farewell: "bye", "goodbye", "see you", "alvida", "tata"
+        if (preg_match('/^(bye|goodbye|bye\s+bye|see\s+you(\s+later)?|alvida|tata|have\s+a\s+(nice|good)\s+day)$/i', $lower)) {
+            return 'goodbye';
+        }
+
+        return null;
+    }
+
+    /**
+     * Build friendly greeting response for conversational inputs like "hi", "hello", "hellow"
      */
     private function buildGreetingHtml($user_name, $site_name)
     {
+        $displayName = !empty($user_name) ? ' ' . e($user_name) : '';
         return '
-            <div style="background: linear-gradient(135deg, rgba(16, 163, 127, 0.15), rgba(13, 138, 106, 0.25)); border: 1px solid rgba(16, 163, 127, 0.4); border-radius: 12px; padding: 18px 22px; margin-bottom: 12px; color: #ffffff;">
-                <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 22px;">👋</span> Hello ' . e($user_name) . '!
-                </div>
-                <div style="font-size: 13.5px; line-height: 1.6; color: #e5e7eb;">
-                    I am your <strong>Buildarya AI Assistant</strong>, connected directly to your company database for <strong>' . e($site_name) . '</strong>.
-                </div>
-                <div style="margin-top: 14px; font-size: 13px; color: #d1d5db;">
-                    <strong>Ask me any natural language request to fetch live data from your database:</strong>
-                    <ul style="margin-top: 8px; margin-bottom: 4px; padding-left: 20px; line-height: 1.8;">
-                        <li>👷 <em>"Show attendance records for today"</em> (or <em>"download attendance pdf"</em>)</li>
-                        <li>💰 <em>"Get latest petty cash expenses"</em></li>
-                        <li>📦 <em>"Check material stock entries"</em></li>
-                        <li>📋 <em>"Show pending tasks"</em></li>
-                        <li>🏬 <em>"Show material suppliers list"</em></li>
-                        <li>👥 <em>"Show registered users and team staff"</em></li>
-                    </ul>
-                </div>
+            <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                <span style="font-size: 18px; margin-right: 4px;">👋</span> Hello' . $displayName . '! How can I help you?
+            </div>
+        ';
+    }
+
+    /**
+     * Build identity response for "who are you", "who r u", "koun ho tum"
+     */
+    private function buildIdentityHtml($user_name, $site_name)
+    {
+        return '
+            <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                <span style="font-size: 18px; margin-right: 4px;">🤖</span> I am your AI Assistant from <strong>Buildarya</strong>. How can I help you today?
+            </div>
+        ';
+    }
+
+    /**
+     * Build response for well-being queries like "how are you", "kaise ho"
+     */
+    private function buildHowAreYouHtml($user_name, $site_name)
+    {
+        return '
+            <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                <span style="font-size: 18px; margin-right: 4px;">😊</span> I am doing great, thank you! How can I help you today?
+            </div>
+        ';
+    }
+
+    /**
+     * Build response for gratitude queries like "thank you", "thanks", "shukriya"
+     */
+    private function buildThankYouHtml($user_name, $site_name)
+    {
+        return '
+            <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                <span style="font-size: 18px; margin-right: 4px;">🙏</span> You\'re very welcome! Let me know if you need anything else.
+            </div>
+        ';
+    }
+
+    /**
+     * Build response for help / capabilities queries like "what can you do", "help"
+     */
+    private function buildHelpCapabilitiesHtml($user_name, $site_name)
+    {
+        return '
+            <div style="font-size: 14px; line-height: 1.6; color: #f3f4f6;">
+                <div style="font-weight: 700; margin-bottom: 6px;">💡 Here is what I can help you with in Buildarya:</div>
+                <ul style="margin: 6px 0 0 16px; padding: 0; line-height: 1.8; color: #e5e7eb;">
+                    <li>📊 <strong>Live Data:</strong> <em>"Show today expenses"</em>, <em>"Show attendance records"</em>, <em>"List materials"</em></li>
+                    <li>📄 <strong>Reports:</strong> <em>"Download attendance PDF"</em></li>
+                    <li>📝 <strong>Open Forms:</strong> <em>"Add new material"</em>, <em>"Add expense"</em>, <em>"Add bill party"</em></li>
+                </ul>
+            </div>
+        ';
+    }
+
+    /**
+     * Build response for farewell queries like "bye", "goodbye", "alvida"
+     */
+    private function buildGoodbyeHtml($user_name, $site_name)
+    {
+        return '
+            <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                <span style="font-size: 18px; margin-right: 4px;">👋</span> Goodbye! Have a great day!
             </div>
         ';
     }
@@ -2486,86 +2626,96 @@ class AiChatQueryController extends Controller
             ], 500);
         }
 
-        $model = env('GEMINI_MODEL', 'gemini-1.5-flash');
-        if (empty($model) || strpos($model, '3.6') !== false) {
-            $model = 'gemini-1.5-flash';
+        $model = env('GEMINI_MODEL', 'gemini-3.6-flash');
+        if (empty($model) || $model === 'gemini-1.5-flash' || $model === 'gemini-2.0-flash') {
+            $model = 'gemini-3.6-flash';
         }
 
         $audioBytes = file_get_contents($audioFile->getRealPath());
         $base64Audio = base64_encode($audioBytes);
         $clientMime = $audioFile->getMimeType() ?: 'audio/webm';
-        if (strpos($clientMime, 'webm') !== false) {
-            $mimeType = 'audio/webm';
-        } else if (strpos($clientMime, 'ogg') !== false) {
+        $clientOriginalExt = strtolower($audioFile->getClientOriginalExtension());
+
+        if (strpos($clientMime, 'ogg') !== false || $clientOriginalExt === 'ogg') {
             $mimeType = 'audio/ogg';
-        } else if (strpos($clientMime, 'mp4') !== false || strpos($clientMime, 'm4a') !== false) {
+        } else if (strpos($clientMime, 'webm') !== false || $clientOriginalExt === 'webm') {
+            $mimeType = 'audio/webm';
+        } else if (strpos($clientMime, 'mp4') !== false || strpos($clientMime, 'm4a') !== false || $clientOriginalExt === 'mp4' || $clientOriginalExt === 'm4a') {
             $mimeType = 'audio/mp4';
-        } else if (strpos($clientMime, 'wav') !== false) {
+        } else if (strpos($clientMime, 'wav') !== false || $clientOriginalExt === 'wav') {
             $mimeType = 'audio/wav';
         } else {
             $mimeType = 'audio/webm';
         }
 
-        $prompt = "Listen to this audio query and transcribe the user's speech accurately into text. Understand English, Hindi, and Hinglish. Output ONLY the raw transcribed text with NO quotes, explanations, markdown, or punctuation extras.";
+        $prompt = "Listen to this audio query and transcribe the user's speech accurately into text. Understand English, Hindi, and Hinglish. Output ONLY the raw transcribed text with NO quotes, explanations, markdown, or punctuation extras. If the audio is silence or has no speech, return an empty string.";
+
+        $candidateModels = array_unique(array_filter([$model, 'gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-flash-latest']));
 
         try {
-            $response = Http::timeout(15)->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$geminiKey}", [
-                'contents' => [
-                    [
-                        'parts' => [
+            foreach ($candidateModels as $candidateModel) {
+                try {
+                    $response = Http::timeout(15)->post("https://generativelanguage.googleapis.com/v1beta/models/{$candidateModel}:generateContent?key={$geminiKey}", [
+                        'contents' => [
                             [
-                                'inline_data' => [
-                                    'mime_type' => $mimeType,
-                                    'data' => $base64Audio
-                                ]
-                            ],
-                            [
-                                'text' => $prompt
-                            ]
-                        ]
-                    ]
-                ]
-            ]);
-
-            if ($response->successful()) {
-                $candidates = $response->json()['candidates'] ?? [];
-                $transcribedText = trim($candidates[0]['content']['parts'][0]['text'] ?? '');
-                $transcribedText = trim($transcribedText, "\"'`\n\r");
-                return response()->json([
-                    'success' => true,
-                    'text' => $transcribedText
-                ]);
-            }
-
-            // Fallback with header authorization
-            $responseHeader = Http::withHeaders(['x-goog-api-key' => $geminiKey])
-                ->timeout(15)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [
-                    'contents' => [
-                        [
-                            'parts' => [
-                                [
-                                    'inline_data' => [
-                                        'mime_type' => $mimeType,
-                                        'data' => $base64Audio
+                                'parts' => [
+                                    [
+                                        'inline_data' => [
+                                            'mime_type' => $mimeType,
+                                            'data' => $base64Audio
+                                        ]
+                                    ],
+                                    [
+                                        'text' => $prompt
                                     ]
-                                ],
-                                [
-                                    'text' => $prompt
                                 ]
                             ]
                         ]
-                    ]
-                ]);
+                    ]);
 
-            if ($responseHeader->successful()) {
-                $candidates = $responseHeader->json()['candidates'] ?? [];
-                $transcribedText = trim($candidates[0]['content']['parts'][0]['text'] ?? '');
-                $transcribedText = trim($transcribedText, "\"'`\n\r");
-                return response()->json([
-                    'success' => true,
-                    'text' => $transcribedText
-                ]);
+                    if ($response->successful()) {
+                        $candidates = $response->json()['candidates'] ?? [];
+                        $transcribedText = trim($candidates[0]['content']['parts'][0]['text'] ?? '');
+                        $transcribedText = trim($transcribedText, "\"'`\n\r");
+                        return response()->json([
+                            'success' => true,
+                            'text' => $transcribedText
+                        ]);
+                    }
+
+                    // Fallback with header authorization
+                    $responseHeader = Http::withHeaders(['x-goog-api-key' => $geminiKey])
+                        ->timeout(15)
+                        ->post("https://generativelanguage.googleapis.com/v1beta/models/{$candidateModel}:generateContent", [
+                            'contents' => [
+                                [
+                                    'parts' => [
+                                        [
+                                            'inline_data' => [
+                                                'mime_type' => $mimeType,
+                                                'data' => $base64Audio
+                                            ]
+                                        ],
+                                        [
+                                            'text' => $prompt
+                                        ]
+                                    ]
+                                ]
+                            ]
+                        ]);
+
+                    if ($responseHeader->successful()) {
+                        $candidates = $responseHeader->json()['candidates'] ?? [];
+                        $transcribedText = trim($candidates[0]['content']['parts'][0]['text'] ?? '');
+                        $transcribedText = trim($transcribedText, "\"'`\n\r");
+                        return response()->json([
+                            'success' => true,
+                            'text' => $transcribedText
+                        ]);
+                    }
+                } catch (\Exception $singleModelErr) {
+                    \Log::warning("Gemini voice transcription error with {$candidateModel}: " . $singleModelErr->getMessage());
+                }
             }
 
             return response()->json([

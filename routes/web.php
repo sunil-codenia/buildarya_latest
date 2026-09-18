@@ -114,6 +114,8 @@ Route::group(['middleware' => ['auth']], function () {
     Route::get('/attendance/download-pdf', [\App\Http\Controllers\AttendanceWebController::class, 'exportAttendancePdf'])->name('attendance.downloadPdf');
     Route::get('/attendance/export-pdf', [\App\Http\Controllers\AttendanceWebController::class, 'exportAttendancePdf'])->name('attendance.exportPdf');
     Route::get('/chat-response', [\App\Http\Controllers\ChatResponseController::class, 'index'])->name('chat.response');
+    Route::post('/chat-response/update-check', [\App\Http\Controllers\ChatResponseController::class, 'updateCheck'])->name('chat.response.updateCheck');
+    Route::post('/chat-response/bulk-update-check', [\App\Http\Controllers\ChatResponseController::class, 'bulkUpdateCheck'])->name('chat.response.bulkUpdateCheck');
     Route::get('/classic-view', function () {
         return redirect('/chat-view');
     });

@@ -1578,7 +1578,7 @@ function addActivity($ref_id, $ref_table, $action, $module_id, $uid = null, $con
     DB::connection($conn)->table('activity')->insert($data);
 }
 
-function logUserAuditAction($actionType, $question = null, $response = null, $responsePayload = null, $entity = null, $formData = null, $request = null, $conn = null, $responseTimeMs = null)
+function logUserAuditAction($actionType, $question = null, $response = null, $responsePayload = null, $entity = null, $formData = null, $request = null, $conn = null, $responseTimeMs = null, $isChecked = 0)
 {
     try {
         $request = $request ?? request();
@@ -1651,6 +1651,8 @@ function logUserAuditAction($actionType, $question = null, $response = null, $re
             $formJson = json_encode($formData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
+        $isCheckedVal = ($isChecked !== null) ? ($isChecked ? 1 : 0) : ($request && $request->has('is_checked') ? ($request->input('is_checked') ? 1 : 0) : 0);
+
         $data = [
             'user_id' => $userId,
             'user_name' => $userName,
@@ -1663,6 +1665,7 @@ function logUserAuditAction($actionType, $question = null, $response = null, $re
             'question' => $question,
             'response' => $response,
             'response_payload' => $payloadJson,
+            'is_checked' => $isCheckedVal,
             'form_data' => $formJson,
             'response_time_ms' => $responseTimeMs !== null ? (int) round($responseTimeMs) : null,
             'searched_at' => now('Asia/Kolkata')->toDateTimeString(),

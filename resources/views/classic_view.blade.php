@@ -2275,28 +2275,71 @@
             }
         }
 
-        // 0. GREETINGS & INTRODUCTIONS
-        const greetingsList = ['hi', 'hello', 'hey', 'hiya', 'hlo', 'greetings', 'good morning', 'good afternoon', 'good evening', 'who are you', 'what can you do', 'help', 'namaste', 'namaskar', 'kaise ho', 'kya hal hai'];
-        if (greetingsList.includes(lower)) {
+        // 0. CONVERSATIONAL INTENTS (Greetings, Identity, Well-being, Gratitude, Help, Goodbye)
+        const cleanQuery = lower.replace(/[?!.,;:"'`~]+/g, '').replace(/\s+/g, ' ').trim();
+
+        // 0a. Identity ("who are you", "who r u", "koun ho tum", etc.)
+        const identityPattern = /^(who\s+(are\s+you|r\s+u|ru|is\s+this|made\s+you|created\s+you)|what\s+are\s+you|what\s+is\s+your\s+name|what\s+is\s+buildarya(\s+ai)?|tell\s+me\s+(who\s+(you\s+are|are\s+you)|about\s+yourself)|introduce\s+yourself|about\s+yourself|aap\s+kaun\s+ho|aap\s+koun\s+ho|tum\s+kaun\s+ho|koun\s+ho\s+tum|kaun\s+ho\s+tum|identify\s+yourself)$/i;
+        if (identityPattern.test(cleanQuery)) {
             return `
-                <div style="background: linear-gradient(135deg, rgba(16, 163, 127, 0.15), rgba(13, 138, 106, 0.25)); border: 1px solid rgba(16, 163, 127, 0.4); border-radius: 12px; padding: 18px 22px; margin-bottom: 12px; color: #ffffff;">
-                    <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 22px;">👋</span> Hello ${escapeHtml(CURRENT_USER_NAME)}!
-                    </div>
-                    <div style="font-size: 13.5px; line-height: 1.6; color: #e5e7eb;">
-                        I am your <strong>Buildarya AI Assistant</strong>, connected directly to your company database for <strong>${escapeHtml(CURRENT_SITE_NAME)}</strong>.
-                    </div>
-                    <div style="margin-top: 14px; font-size: 13px; color: #d1d5db;">
-                        <strong>Ask me any natural language request to fetch live data from your database:</strong>
-                        <ul style="margin-top: 8px; margin-bottom: 4px; padding-left: 20px; line-height: 1.8;">
-                            <li>👷 <em>"Show attendance records for today"</em> (or <em>"download attendance pdf"</em>)</li>
-                            <li>💰 <em>"Get latest petty cash expenses"</em></li>
-                            <li>📦 <em>"Check material stock entries"</em></li>
-                            <li>📋 <em>"Show pending tasks"</em></li>
-                            <li>🏬 <em>"Show material suppliers list"</em></li>
-                            <li>👥 <em>"Show registered users and team staff"</em></li>
-                        </ul>
-                    </div>
+                <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                    <span style="font-size: 18px; margin-right: 4px;">🤖</span> I am your AI Assistant from <strong>Buildarya</strong>. How can I help you today?
+                </div>
+            `;
+        }
+
+        // 0b. Greetings ("hi", "hello", "hellow", "helo", "hey", "good morning", "namaste", "hi there", "hello there", "hellow there")
+        const greetingPattern = /^(hi|hello|hellow|helo|hey|hiya|hlo|greetings|good\s+(morning|afternoon|evening|day)|namaste|namaskar|(hi|hello|hellow|hey)\s+(there|buildarya|all))$/i;
+        if (greetingPattern.test(cleanQuery)) {
+            const displayName = CURRENT_USER_NAME ? ' ' + escapeHtml(CURRENT_USER_NAME) : '';
+            return `
+                <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                    <span style="font-size: 18px; margin-right: 4px;">👋</span> Hello${displayName}! How can I help you?
+                </div>
+            `;
+        }
+
+        // 0c. Well-being ("how are you", "kaise ho", "kya haal hai")
+        const wellbeingPattern = /^(how\s+(are\s+you|r\s+u|are\s+you\s+doing|do\s+you\s+do)|hows\s+it\s+going|kaise\s+ho|aap\s+kaise\s+ho|aap\s+kaise\s+hain|kya\s+haal\s+hai|sab\s+theek(\s+hai)?)$/i;
+        if (wellbeingPattern.test(cleanQuery)) {
+            return `
+                <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                    <span style="font-size: 18px; margin-right: 4px;">😊</span> I am doing great, thank you! How can I help you today?
+                </div>
+            `;
+        }
+
+        // 0d. Gratitude ("thank you", "thanks", "shukriya")
+        const gratitudePattern = /^(thank\s+you(\s+(so|very)\s+much)?|thanks(\s+(a\s+lot|so\s+much))?|thank\s+u|many\s+thanks|thx|thankyou|shukriya|dhanyawad)$/i;
+        if (gratitudePattern.test(cleanQuery)) {
+            return `
+                <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                    <span style="font-size: 18px; margin-right: 4px;">🙏</span> You're very welcome! Let me know if you need anything else.
+                </div>
+            `;
+        }
+
+        // 0e. Help / Capabilities
+        const helpPattern = /^(what\s+can\s+you\s+do|what\s+do\s+you\s+do|help|help\s+me|can\s+you\s+help\s+me|kya\s+kar\s+sakte\s+ho|tum\s+kya\s+kar\s+sakte\s+ho|aap\s+kya\s+kar\s+sakte\s+hain|how\s+can\s+you\s+help\s+me|how\s+to\s+use)$/i;
+        if (helpPattern.test(cleanQuery)) {
+            return `
+                <div style="font-size: 14px; line-height: 1.6; color: #f3f4f6;">
+                    <div style="font-weight: 700; margin-bottom: 6px;">💡 Here is what I can help you with in Buildarya:</div>
+                    <ul style="margin: 6px 0 0 16px; padding: 0; line-height: 1.8; color: #e5e7eb;">
+                        <li>📊 <strong>Live Data:</strong> <em>"Show today expenses"</em>, <em>"Show attendance records"</em>, <em>"List materials"</em></li>
+                        <li>📄 <strong>Reports:</strong> <em>"Download attendance PDF"</em></li>
+                        <li>📝 <strong>Open Forms:</strong> <em>"Add new material"</em>, <em>"Add expense"</em>, <em>"Add bill party"</em></li>
+                    </ul>
+                </div>
+            `;
+        }
+
+        // 0f. Goodbye
+        const goodbyePattern = /^(bye|goodbye|bye\s+bye|see\s+you(\s+later)?|alvida|tata|have\s+a\s+(nice|good)\s+day)$/i;
+        if (goodbyePattern.test(cleanQuery)) {
+            return `
+                <div style="font-size: 14.5px; line-height: 1.6; color: #f3f4f6; padding: 2px 0;">
+                    <span style="font-size: 18px; margin-right: 4px;">👋</span> Goodbye! Have a great day!
                 </div>
             `;
         }
@@ -3380,7 +3423,10 @@
         } catch (err) {
             console.warn('Microphone stream acquisition notice:', err);
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                if (window.location.hostname === '127.0.0.1') {
+                const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
+                if (isFirefox) {
+                    showVoiceToast('Firefox microphone access is blocked. Click the microphone icon in the address bar to allow access, then try again.', 'error');
+                } else if (window.location.hostname === '127.0.0.1') {
                     const alertEl = document.getElementById('localhost-origin-alert');
                     if (alertEl) alertEl.style.display = 'flex';
                     const topbarBtn = document.getElementById('topbar-localhost-btn');
@@ -3416,12 +3462,19 @@
         try {
             let options = {};
             if (typeof MediaRecorder !== 'undefined') {
-                if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-                    options = { mimeType: 'audio/webm;codecs=opus' };
-                } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-                    options = { mimeType: 'audio/webm' };
-                } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                    options = { mimeType: 'audio/mp4' };
+                const supportedMimes = [
+                    'audio/webm;codecs=opus',
+                    'audio/ogg;codecs=opus',
+                    'audio/webm',
+                    'audio/ogg',
+                    'audio/mp4',
+                    'audio/wav'
+                ];
+                for (const m of supportedMimes) {
+                    if (MediaRecorder.isTypeSupported(m)) {
+                        options = { mimeType: m };
+                        break;
+                    }
                 }
                 activeMediaRecorder = new MediaRecorder(activeMediaStream, options);
                 activeMediaRecorder.ondataavailable = function(e) {
@@ -3429,7 +3482,7 @@
                         recordedAudioChunks.push(e.data);
                     }
                 };
-                activeMediaRecorder.start(200);
+                activeMediaRecorder.start(250);
             }
         } catch (mrErr) {
             console.warn('MediaRecorder start notice:', mrErr);
@@ -3440,7 +3493,58 @@
         clearTimeout(voiceMaxDurationTimer);
         voiceSilenceTimer = null;
 
-        // Auto-send after 12s max duration
+        // Auto Voice Activity Detection (VAD) for Firefox & browsers without Web Speech API
+        try {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) {
+                voiceAudioContext = new AudioContextClass();
+                if (voiceAudioContext.state === 'suspended') {
+                    voiceAudioContext.resume();
+                }
+                const source = voiceAudioContext.createMediaStreamSource(stream);
+                const analyser = voiceAudioContext.createAnalyser();
+                analyser.fftSize = 256;
+                source.connect(analyser);
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                let lastVoiceTime = Date.now();
+
+                function monitorAudio() {
+                    if (!isVoiceListening || !voiceAudioContext) return;
+
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        sum += dataArray[i];
+                    }
+                    const avgVolume = sum / dataArray.length;
+
+                    // Voice activity threshold
+                    if (avgVolume > 14) {
+                        voiceSpeechDetected = true;
+                        lastVoiceTime = Date.now();
+                        const previewEl = document.getElementById('voice-transcript-preview');
+                        if (previewEl && (previewEl.textContent.includes('Listening') || previewEl.textContent.includes('Speak now'))) {
+                            previewEl.textContent = 'Listening to your voice... Speak now';
+                        }
+                    } else if (voiceSpeechDetected) {
+                        // User has spoken and paused for 1.4s -> auto stop and transcribe!
+                        if (Date.now() - lastVoiceTime > 1400) {
+                            console.log('Voice silence detected in Firefox fallback, transcribing speech...');
+                            stopVoiceAssistant(true);
+                            return;
+                        }
+                    }
+
+                    requestAnimationFrame(monitorAudio);
+                }
+                requestAnimationFrame(monitorAudio);
+            }
+        } catch (vadErr) {
+            console.warn('AudioContext VAD notice:', vadErr);
+        }
+
+        // Auto-send after 12s max duration as safety timeout
         voiceMaxDurationTimer = setTimeout(() => {
             if (isVoiceListening) {
                 stopVoiceAssistant(true);
@@ -3468,7 +3572,7 @@
         const previewEl = document.getElementById('voice-transcript-preview');
         const hasLiveTranscript = inputEl && inputEl.value.trim().length > 0;
 
-        // If MediaRecorder was recording (fallback mode)
+        // If MediaRecorder was recording (fallback mode, e.g. in Firefox)
         if (activeMediaRecorder && activeMediaRecorder.state !== 'inactive') {
             if (hasLiveTranscript) {
                 try { activeMediaRecorder.stop(); } catch (e) {}
@@ -3487,7 +3591,7 @@
                 if (badgeText) badgeText.textContent = 'Transcribing...';
 
                 activeMediaRecorder.onstop = async function() {
-                    const mime = activeMediaRecorder.mimeType || 'audio/webm';
+                    const mime = (activeMediaRecorder && activeMediaRecorder.mimeType) || 'audio/webm';
                     const audioBlob = new Blob(recordedAudioChunks, { type: mime });
                     recordedAudioChunks = [];
                     releaseActiveMediaStream();
@@ -3495,7 +3599,11 @@
                     if (audioBlob.size > 200) {
                         try {
                             const formData = new FormData();
-                            formData.append('audio', audioBlob, 'speech.webm');
+                            let ext = 'webm';
+                            if (mime.includes('ogg')) ext = 'ogg';
+                            else if (mime.includes('mp4')) ext = 'mp4';
+                            else if (mime.includes('wav')) ext = 'wav';
+                            formData.append('audio', audioBlob, 'speech.' + ext);
 
                             const resp = await fetch('{{ route("ai.chat.transcribe") }}', {
                                 method: 'POST',
@@ -3506,7 +3614,7 @@
                             });
 
                             const data = await resp.json();
-                            if (data.success && data.text) {
+                            if (data.success && data.text && data.text.trim().length > 0) {
                                 if (inputEl) inputEl.value = data.text;
                                 if (previewEl) previewEl.textContent = `"${data.text}"`;
                                 isVoiceListening = false;
@@ -3514,7 +3622,7 @@
                                 sendMessage();
                                 return;
                             } else {
-                                showVoiceToast(data.message || 'Voice could not be recognized. Please try speaking again.', 'error');
+                                showVoiceToast(data.message || 'No speech recognized. Please speak into your microphone and try again.', 'info');
                             }
                         } catch (err) {
                             console.error('Audio transcription request failed:', err);
@@ -3661,9 +3769,22 @@
         const tableEl = tempDiv.querySelector('table');
         const rows = (tableEl && tableEl.dataset && tableEl.dataset.totalRows) ? parseInt(tableEl.dataset.totalRows, 10) : tempDiv.querySelectorAll('tbody tr').length;
 
-        // 1. GREETINGS
-        if (rawText.includes('Hello') && rawText.includes('Buildarya AI Assistant')) {
-            return `Hello ${CURRENT_USER_NAME}! I am your Buildarya AI Assistant connected to ${CURRENT_SITE_NAME}. How can I assist you?`;
+        // 1. CONVERSATIONAL INTENTS & IDENTITY
+        if (rawText.includes('I am your AI Assistant from Buildarya') || rawText.includes('from Buildarya')) {
+            return `I am your AI Assistant from Buildarya. How can I help you today?`;
+        }
+        if (rawText.includes('How can I help you') || rawText.includes('Hello')) {
+            const displayName = CURRENT_USER_NAME ? ' ' + CURRENT_USER_NAME : '';
+            return `Hello${displayName}! How can I help you?`;
+        }
+        if (rawText.includes('doing great') || rawText.includes('functioning at full capacity')) {
+            return `I am doing great, thank you! How can I help you today?`;
+        }
+        if (rawText.includes('very welcome') || rawText.includes('Happy to help')) {
+            return `You're very welcome! Let me know if you need anything else.`;
+        }
+        if (rawText.includes('Goodbye') || rawText.includes('great day')) {
+            return `Goodbye! Have a great day!`;
         }
 
         // 2. EXPENSES
